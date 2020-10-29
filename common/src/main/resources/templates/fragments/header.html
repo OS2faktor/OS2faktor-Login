@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head th:fragment="header">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}" />
+
+    <title>OS2faktor</title>
+    
+	<link rel="shortcut icon" th:href="@{/favicon.ico}" type="image/vnd.microsoft.icon" />
+
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/bootstrap.min.css}" />
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/font-awesome/css/font-awesome.css}" />
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/animate.css}" />
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/style.css}" />
+    <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/sweetalert/sweetalert.css}" />
+    <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/toastr/toastr.min.css}" />
+	<style>
+		.toastr-buffer {
+			margin-top:60px;
+		}
+	</style>
+	
+	<th:block th:if="${checkbox == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/iCheck/custom.css}" />
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css}" />
+	</th:block>
+	
+	<th:block th:if="${slider == true}">
+	<link  rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/ionRangeSlider/ion.rangeSlider.css}" />
+	</th:block>
+
+	<th:block th:if="${datatables == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/dataTables/datatables.min.css}" />
+	<style>
+		ul.pagination {
+			float:right;
+		}
+	</style>
+	</th:block>
+	
+	<th:block th:if="${texteditor == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/summernote/summernote-bs4.css}" />
+	</th:block>
+	
+	<th:block th:if="${jstree == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/jsTree/style.min.css}" />
+	</th:block>
+
+	<th:block th:if="${codemirror == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/codemirror/codemirror.css}" />
+	</th:block>
+</head>
+<body>
+</body>
+</html>

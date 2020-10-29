@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (codemirror = true, texteditor = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.log-detail')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Detaljer om hændelse</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form>
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.timestamp}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${#temporals.format(auditlog.tts, 'yyyy-MM-dd  HH:mm:ss')}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.ipaddress}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.ipAddress}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.person_name}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.personName}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.cpr}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.cpr}"/>
+										</div>
+									</div>
+
+									<div class="form-group row" th:if="${auditlog.performerName != null}">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.performer_name}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.performerName}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.log_action}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="#{__${auditlog.logAction.message}__}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.log_target_name}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.logTargetName}"/>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.message}"></label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.message}"/>
+										</div>
+									</div>
+
+									<th:block th:unless="${auditlog.logAction == T(dk.digitalidentity.common.dao.model.enums.LogAction).CHANGE_TERMS_AND_CONDITIONS}">
+										<div class="form-group row" th:if="${auditlog.detailContent != null}">
+											<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.auditlogs_details.detail_content}"></label>
+											<div class="col-sm-10">
+												<textarea id="detailContent" th:utext="${auditlog.detailContent}"></textarea>
+											</div>
+										</div>
+
+										<div class="form-group row" th:if="${auditlog.detailSupplement != null}">
+											<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.auditlogs_details.detail_supplement}"></label>
+											<div class="col-sm-10">
+												<textarea id="detailSupplement" th:text="${auditlog.detailSupplement}"></textarea>
+											</div>
+										</div>
+									</th:block>
+									<th:block th:if="${auditlog.logAction == T(dk.digitalidentity.common.dao.model.enums.LogAction).CHANGE_TERMS_AND_CONDITIONS}">
+										<div class="form-group row" th:if="${auditlog.detailContent != null}">
+											<label class="col-sm-2 col-form-label" th:text="#{page.admin.auditlogs.auditlogs_details.detail_content}"></label>
+											<div class="col-sm-10">
+												<textarea id="termsAndConditionsContent" class="form-control" th:field="${auditlog.detailContent}" autocomplete="off"></textarea>
+											</div>
+										</div>
+									</th:block>
+									<a th:href="@{/admin/relatedlogs/} + ${auditlog.correlationId}" class="btn btn-primary">Se associerede logs</a>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.log-detail')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (codemirror = true, texteditor = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var detailType = [[${auditlog.detailType}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function() {
+			var selectedMode = (detailType == 'XML' ? 'text/html' : (detailType == "JSON" ? "application/json" : null));
+
+			$('#termsAndConditionsContent').summernote({
+				"height": 320,
+				"disableDragAndDrop": true,
+				"tabDisable": true,
+				"shortcuts": false,
+				"toolbar": [
+				]
+			});
+			$('#termsAndConditionsContent').summernote('disable');
+
+			var editor_one = CodeMirror.fromTextArea(document.getElementById("detailContent"), {
+				lineNumbers: true,
+				matchBrackets: true,
+				styleActiveLine: true,
+				readOnly: true,
+				mode: selectedMode,
+				htmlMode: detailType == 'XML',
+				json : detailType == 'JSON'
+			});
+
+			var editor_two = CodeMirror.fromTextArea(document.getElementById("detailSupplement"), {
+				lineNumbers: true,
+				matchBrackets: true,
+				styleActiveLine: true,
+				readOnly: true,
+				mode: selectedMode,
+				htmlMode: detailType == 'XML',
+				json : detailType == 'JSON'
+			});
+		});
+		/*]]>*/
+	</script>
+</body>
+</html>

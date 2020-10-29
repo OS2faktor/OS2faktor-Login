@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+	    <div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.reports')" />
+
+	        <div class="wrapper wrapper-content">
+	            <div class="row">
+                    <div class="col-lg-9">
+                        <div class="ibox">
+                            <div class="ibox-title">
+                                <h5><em class="fa fa-stack-overflow"></em> &nbsp; Rapporter</h5>
+                            </div>
+
+                            <div class="ibox-content">
+		                        <div class="table-responsive">
+				                    <table id="reports" class="table table-striped table-bordered table-hover" >
+					                    <thead>
+						                    <tr>
+						                        <th>Rapport</th>
+						                        <th>Beskrivelse</th>
+						                        <th>Hent</th>
+						                    </tr>
+					                    </thead>
+
+					                    <tbody>
+						                    <tr>
+						                        <td>Hændelseslog</td>
+						                        <td>Hent et udtræk fra hændelselsloggen for de sidste syv dage.</td>
+						                        <td class="text-center">
+						                        	<a th:href="@{/ui/report/download/auditLog}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        </td>
+						                    </tr>
+						                    
+						                    <tr>
+						                        <td>Erhvervsidentiteter</td>
+						                        <td>Hen en rapport over erhvervsidentiteter.</td>
+						                        <td class="text-center">
+						                        	<a th:href="@{/ui/report/download/persons}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        </td>
+						                    </tr>
+					                    </tbody>
+				                    </table>
+		                        </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.reports')" />
+	            </div>
+	        </div>
+
+			<div th:replace="fragments/footer :: footer" />
+	    </div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	
+	<script type="text/javascript">
+        $(document).ready(function(){
+            $('#reports').DataTable({
+                "pageLength": 100,
+                "lengthChange": false,
+                "bSort": false,
+                "responsive": true,
+                "dom": "<'row'<'col-sm-12'tr>>",
+		        "language": {
+		            "search":       "Søg",
+		            "lengthMenu":   "_MENU_ rækker per side",
+		            "info":         "Viser _START_ til _END_ af _TOTAL_ rækker",
+		            "zeroRecords":  "Ingen data...",
+		            "infoEmpty":    "Henter data...",
+		            "infoFiltered": "(ud af _MAX_ rækker)",
+		            "paginate": {
+		                "previous": "Forrige",
+		                "next": "Næste"
+		            }
+		        }
+            });
+        });
+	</script>
+</body>
+</html>

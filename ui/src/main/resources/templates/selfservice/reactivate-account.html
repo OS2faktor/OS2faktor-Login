@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.reactivate-account')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-user"></em> &nbsp; Reaktiver identitet</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form id="reactivateForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/genaktiver}">
+									<p>
+									Hvis du ønsker at reaktivere din spærrede erhvervsidentitet, skal du trykke på "Reaktiver identitet" nedenfor.
+									Efter identitet er blevet reaktiveret, kan den igen anvendes til login. 
+									</p>
+									
+									<p class="mb-5">
+									Hvis du samtidig ønsker at skifte dit kodeord, kan du gøre det via menuen i højre side.
+									</p>
+
+									<button id="reactivateBtn" type="button" class="btn btn-success block full-width m-b">Reaktiver identitet</button>
+								</form>
+							</div>
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.reactivate-account')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var lockText = [[#{page.selfservice.stateChange.unlockText}]];
+		var lockButtonConfirm = [[#{shared.button.yes}]];
+		var lockButtonCancel = [[#{shared.button.no}]];
+		+]*/
+
+		$(document).ready(function() {
+			$("#reactivateBtn").click(function(){
+				swal({
+					title: '',
+					text: lockText,
+					showCancelButton: true,
+					type: "warning",
+					confirmButtonColor: "#3085d6",
+					confirmButtonText: lockButtonConfirm,
+					cancelButtonText: lockButtonCancel,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				 },
+				 function (isConfirm) {
+					if (isConfirm) {
+						$("#reactivateForm").submit();
+					}
+				 });
+			});
+		});
+		/*]]>*/
+	</script>
+</body>
+</html>

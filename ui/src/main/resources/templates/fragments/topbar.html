@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body>
+	<div th:fragment="topbar" class="row border-bottom white-bg">
+		<nav class="navbar navbar-expand-lg navbar-static-top" role="navigation">
+			<a th:href="@{/}" class="navbar-brand" style="background: white;">
+				<img class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 25px;">
+			</a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-label="Toggle navigation">
+				<i class="fa fa-reorder"></i>
+			</button>
+
+			<div class="navbar-collapse collapse" id="navbar">
+				<ul class="nav navbar-nav mr-auto">
+					<li sec:authorize="isAuthenticated()" th:class="${page != null and #strings.startsWith(page, 'selfservice')} ? 'active' : ''">
+						<a role="button" th:href="@{/selvbetjening}">Min identitet</a>
+					</li>
+					
+					<li sec:authorize="hasRole('ROLE_SUPPORTER')" th:class="${page != null and #strings.startsWith(page, 'admin')} ? 'active' : ''">
+						<a role="button" th:href="@{/admin}">Administration</a>
+					</li>
+				</ul>
+
+				<ul sec:authorize="isAuthenticated()" class="nav navbar-top-links navbar-right">
+					<li>
+						<a th:href="@{/saml/logout}">
+							<i class="fa fa-sign-out"></i> Log ud
+						</a>
+					</li>
+				</ul>
+			</div>
+		</nav>
+	</div>
+</body>
+</html>

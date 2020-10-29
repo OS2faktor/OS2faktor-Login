@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.administrators')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Administratorer</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table style="padding-right:0px !important;" id="adminsTable" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th>Konto</th>
+												<th>AD Konto</th>
+												<th>Person</th>
+												<th>Administrator</th>
+												<th>Supporter</th>
+											</tr>
+										</thead>
+
+										<tbody>
+											<tr th:each="admin : ${admins}">
+												<td th:text="${admin.userId}"></td>
+												<td th:text="${admin.samaccountName}"></td>
+												<td th:text="${admin.personName}"></td>
+												<td><input th:checked="${admin.admin}" type="checkbox" class="i-checks typeAdmin" th:data-id="${admin.id}" /></td>
+												<td><input th:checked="${admin.supporter}" type="checkbox" class="i-checks typeSupporter" th:data-id="${admin.id}" /></td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj supporter</a>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.administrators')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	
+	<style>
+		.container-fluid {
+			width: 100%;
+			padding-right: 0px !important;
+			padding-left: 0px !important;
+			margin-right: auto;
+			margin-left: auto;
+		}
+	</style>
+	
+	<script type="text/javascript">
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function(){
+			$('.typeAdmin').on('ifChecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, "ROLE_ADMIN", true);
+			});
+			$('.typeAdmin').on('ifUnchecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, "ROLE_ADMIN", false);
+			});
+			$('.typeSupporter').on('ifChecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, "ROLE_SUPPORTER", true);
+			});
+			$('.typeSupporter').on('ifUnchecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, "ROLE_SUPPORTER", false);
+			});
+
+
+			$('#adminsTable').DataTable({
+				"bSort": false,
+				"paging": false,
+				"responsive": true,
+				"dom": "<'row'<'col-sm-12'tr>>",
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ rækker)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+		});
+		
+		function post(adminID, type, state) {
+			$.ajax({
+				method : "POST",
+				url: "/rest/admin/toggleAdmin/" + adminID,
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+				contentType: 'application/json',
+				data: JSON.stringify({ "type": type, "state" : state })
+			}).done(function (data) {
+				window.location.reload(true);
+			});
+		}
+	</script>
+</body>
+</html>

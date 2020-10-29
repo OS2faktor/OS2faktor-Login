@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.add-admin')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-plus"></em> &nbsp; Tildel administrator / supporter rolle</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="persons" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 115px;">Konto</th>
+												<th>Person</th>
+												<th style="width: 45px;"></th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td></td>
+											</tr>
+										</tfoot>
+
+										<tbody>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.add-admin')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+		
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+			var successUrl = [[@{/admin/konfiguration/administratorer}]];
+			var url = [[@{/rest/admin/persons}]];
+			var restUrl = [[@{/rest/admin/toggleAdmin/}]];
+			var type = [[${type}]];
+			var alertText = [[#{page.admin.administrators.add.confirm}]];
+			var alertButtonConfirm = [[#{shared.button.yes}]];
+			var alertButtonCancel = [[#{shared.button.no}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+	
+		var table;
+		$(document).ready(function(){
+			table = $('#persons').DataTable({
+				"destroy": true,
+				"ajax": {
+					"contentType": "application/json",
+					"url": url,
+					"type": "POST",
+					"headers": {
+						"X-CSRF-TOKEN": token
+					},
+					"data": function(d) {
+					 	return JSON.stringify(d);
+					}
+				},
+				"serverSide" : true,
+				"columns": [
+					{
+						"data": "userId",
+						"orderable": false
+					},
+					{
+						"data": "name",
+						"orderable": false
+					},
+					{
+						"data": "id",
+						"searchable": false,
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							return '<button class="btn btn-primary btn-sm" onclick="selectAdmin(' + data + ')">Vælg</button>';
+						}
+					}
+				],
+				"ordering": true,
+				"info": true,
+				"pageLength": 10,
+				"lengthChange": false,
+				"bSort": false,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"responsive": true,
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ identiteter",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ identiteter)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+			
+			$.each($('.input-filter', table.table().footer()), function() {
+				var column = table.column($(this).index());
+	
+				$('input', this).on('keyup change', function () {
+					if (column.search() !== this.value) {
+						column.search(this.value).draw();
+					}
+				});
+			});
+		});
+		
+		function selectAdmin(personID) {
+			swal({
+				title: '',
+				text: alertText,
+				showCancelButton: true,
+				confirmButtonColor: "#3085d6",
+				confirmButtonText: alertButtonConfirm,
+				cancelButtonText: alertButtonCancel,
+				closeOnConfirm: true,
+				closeOnCancel: true
+			},
+			function(isConfirm) {
+				if (isConfirm) {
+					$.ajax({
+						method : "POST",
+						url: restUrl + personID,
+						headers: {
+							'X-CSRF-TOKEN': token
+						},
+						contentType: 'application/json',
+						data: JSON.stringify({ "type": type, "state" : true })
+					}).done(function (data) {
+						window.location = successUrl;
+					});
+				}
+			});
+		}
+		
+		/*]]>*/
+	</script>
+</body>
+</html>

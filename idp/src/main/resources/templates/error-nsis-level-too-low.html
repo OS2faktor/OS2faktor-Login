@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = false)" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-paragraph"></em> &nbsp; Vilkår for anvendelse ikke accepteret endnu</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <p>Dit sikringsniveau er for lavt. Kontakt venligst din it-afdeling for hjælp.</p>
+
+                    <a th:href="${@environment.getProperty('os2faktor.idp.selfService.baseUrl')}">
+                        <label>Gå til selvbetjening</label>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+</body>
+</html>

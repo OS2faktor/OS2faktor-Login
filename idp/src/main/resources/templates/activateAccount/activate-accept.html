@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="ibox offset-md-2 col-md-8">
+						<div class="ibox-title">
+							<h5><em class="fa fa-pencil"></em> &nbsp; Vilkår for anvendelse af erhvervsidentitet</h5>
+						</div>
+
+						<div class="ibox-content">
+							<p>
+							Før du kan tage din erhvervsidentitet i brug, skal du læse og acceptere nedenstående vilkår. Du forpligtiger dig til at anvende
+							din erhvervsidentitet i henhold til de nævnte vilkår, samt at følge de retningslinjer der er listet nedenfor.
+							</p>
+
+							<div class="wrapper wrapper-content article">
+								<div class="row justify-content-md-center">
+									<div class="col-lg-12">
+										<div class="ibox">
+											<div class="ibox-content" th:utext="${terms}" style="height: 400px; overflow: scroll;"></div>
+										</div>
+									</div>
+								</div>
+
+								<form>
+									<div class="form-group">
+										<div>
+											<label><input id="checkboxAccept" type="checkbox" class="i-checks"> &nbsp; Jeg har læst og accepteret vilkårene</label>
+										</div>
+									</div>
+								</form>
+							</div>
+
+							<div>
+								<form method="post" th:action="@{/konto/aktiver}">
+									<button id="buttonAccept" type="submit" class="btn btn-primary block full-width m-b" disabled="disabled">Aktiver erhvervsidentitet</button>
+								</form>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (checkbox = true)" />
+	
+	<script th:inline="javascript">
+		$(document).ready(function() {
+			$('#checkboxAccept').on('ifChanged', function(event) {
+				var checked = event.target.checked;
+				
+				$("#buttonAccept").prop('disabled', !checked);
+			});
+		});	
+	</script>
+</body>
+</html>

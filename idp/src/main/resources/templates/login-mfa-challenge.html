@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <form id="loginForm" method="post">
+                        <div>
+                            <p>
+                                Af sikkerhedsmæssige årsager kræver vi yderligere oplysninger for at bekræfte din konto.
+                            </p>
+                            <hr>
+                        </div>
+
+                        <div th:if="${challenge} != null">
+                            <p class="mb-5">
+                                Din OS2faktor klient åbner om lidt og spørger om du vil tillade login, når dette sker, skal du verificere at den kode der vises i din OS2faktor klient matcher nedenstående
+                            </p>
+
+                            <div class="mb-5">
+                                <h2 th:text="${challenge}" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
+                            </div>
+                        </div>
+                        <div th:if="${redirectUrl} != null">
+                            <p class="mb-5">
+                                Din browser åbner nu et login-skærmbillede, hvor du skal gennemføre login med din OS2faktor klient. Hvis vinduet ikke åbner af sig selv, kan du åbne det ved at trykke på knappen nedenfor. Hvis vinduet ikke åbner, kan det skyldes at din browser blokerer popups.
+                            </p>
+
+                            <div class="mb-5">
+                                <a onclick="mfaService.openRedirect()" class="btn btn-lg btn-primary" target="_blank">Login</a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+<script th:inline="javascript">
+	/*<![CDATA[*/
+
+		/*[+
+            var url = [[@{/ui/tempworker}]];
+            var pollingKey = [[${pollingKey}]];
+            var redirectUrl = [[${redirectUrl}]];
+		+]*/
+		var token = $("meta[name='_csrf']").attr("content");
+
+        var mfaService;
+		$(document).ready(function() {
+            mfaService = new MfaService();
+            mfaService.init();
+		});
+
+        function MfaService() {
+            this.init = function() {
+                // Init polling
+                var tries = 0;
+
+                var pollingFn = setInterval(function() {
+                    if(tries++ > 60*5) {
+                        clearInterval(pollingFn);
+                    }
+
+                    $.ajax({
+                        url: "https://backend.os2faktor.dk/api/notification/" + pollingKey + "/poll",
+                        success: function(data, textStatus, xhr) {
+                            if (data && data.stateChange == true) {
+                                $("#loginForm").submit();
+                            }
+                        }
+                    });
+                }, 1000);
+                
+                // open yubikey window if needed
+                if (redirectUrl != null && redirectUrl.length > 0) {
+                    mfaService.openRedirect();
+                }
+            }
+
+            this.openRedirect = function () {
+                var redirectWindow = window.open(redirectUrl);
+                redirectWindow.focus();
+            }
+        }
+
+		/*]]>*/
+	</script>
+</html>

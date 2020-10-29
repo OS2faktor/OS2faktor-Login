@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.issued-identities')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Erhvervsidentiteter</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="modalService.openCreateModal()" class="btn btn-primary">Opret ny person</button>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="persons" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 80px;">Konto</th>
+												<th style="width: 80px;">AD Konto</th>
+												<th style="width: 160px;">Person</th>
+												<th style="width: 100px;">Status</th>
+												<th style="width: 120px;">NSIS nivau</th>
+												<th style="width: 70px;">Domæne</th>
+												<th style="width: 70px;"></th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td></td>
+												<td></td>
+												<td></td>
+												<td></td>
+											</tr>
+										</tfoot>
+
+										<tbody>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<!-- CPR Modal -->
+	<div class="modal inmodal" id="modalCpr" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title" id="modalCprTitle">Opret person</h4>
+				</div>
+				<div class="modal-body">
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">CPR-nummer</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast CPR" id="modalCprInput">
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" data-dismiss="modal">Annuller</button>
+					<button type="button" class="btn btn-primary" onclick="modalService.editByCpr()">Søg</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End CPR Modal -->
+	<!-- Edit Modal -->
+	<div class="modal inmodal" id="modalEdit" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title" id="modalEditTitle">Opret person</h4>
+				</div>
+				<div class="modal-body">
+					
+					<div class="form-group row" style="display:none;" >
+						<label class="col-sm-2 col-form-label">UUID</label>
+						<input class="col-sm-10 form-control" id="modalEditPersonId">
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">UUID</label>
+						<input class="col-sm-10 form-control" id="modalEditUuid">
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Personnummer</label>
+						<input class="col-sm-10 form-control" id="modalEditCpr">
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Navn</label>
+						<input class="col-sm-10 form-control" id="modalEditName">
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">AD-Bruger</label>
+						<input class="col-sm-10 form-control" id="modalEditSamAccountName">
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Email</label>
+						<input type="email" class="col-sm-10 form-control" id="modalEditEmail">
+					</div>
+					<div class="form-group row">
+						<div class="table-responsive">
+							<table id="attributeTable" class="table table-striped listTable">
+								<thead>
+									<tr>
+										<th>Attribut</th>
+										<th>Værdi</th>
+									</tr>
+								</thead>
+								<tbody>
+
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" data-dismiss="modal">Annuller</button>
+					<button type="button" class="btn btn-primary" onclick="modalService.saveEditModal()">Gem</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End Edit Modal -->
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var baseUrl = [[@{/}]];
+		var lockText = [[#{page.admin.issuedidentities.lockText}]];
+		var unlockText = [[#{page.admin.issuedidentities.unlockText}]];
+		var lockFail = [[#{page.admin.issuedidentities.lockErrorText}]];
+		var lockButtonConfirm = [[#{shared.button.yes}]];
+		var lockButtonCancel = [[#{shared.button.no}]];
+		var coreDataEditable = [[${coreDataEditable}]];
+		var configDomain = [[${configDomain}]]
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+	
+		var table;
+		var modalService;
+		$(document).ready(function(){
+			modalService = new ModalService();
+
+
+			table = $('#persons').DataTable({
+				"destroy": true,
+				"ajax": {
+					"contentType": "application/json",
+					"url": baseUrl + "rest/admin/persons",
+					"type": 'POST',
+					"headers": {
+						'X-CSRF-TOKEN': token
+					},
+					"data": function(d) {
+					 	return JSON.stringify(d);
+					}
+				},
+				"serverSide" : true,
+				"columns": [
+					{
+						"data": "userId",
+						"orderable": false
+					},
+					{
+						"data": "samaccountName",
+						"orderable": false
+					},
+					{
+						"data": "name",
+						"orderable": false
+					},
+					{
+						"data": "locked",
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+
+							if (data) {
+								var content =
+									'<label>Spærret</label>&nbsp;<em class="fa fa-lg fa-question-circle-o" data-html="true" data-container="body" data-boundary="viewport" data-toggle="popover" data-trigger="hover" data-placement="auto" data-content="<p>Denne konto er spærret af følgende årsager:</p><ul>';
+
+								if (row.lockedAdmin) {
+									content += "<li>Spærret af Administrator</li>"
+								}
+								if (row.lockedPerson) {
+									content += "<li>Spærret af brugeren</li>"
+								}
+								if (row.lockedDataset) {
+									content += "<li>Brugeren ikke længere i datasæt</li>"
+								}
+								if (row.lockedPassword) {
+									content += "<li>For mange forkerte login forsøg</li>"
+								}
+
+								content += '</ul>"></em>';
+
+								return content;
+							}
+							return 'Aktiv';
+						}
+					},
+					{
+						"data": "nsisLevel",
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							if (data == 'LOW') {
+								return "Lav";
+							}
+							else if (data == 'SUBSTANTIAL') {
+								return "Betydelig";
+							}
+							else if (data == 'HIGH') {
+								return "Høj"
+							}
+
+							return "Ukendt";
+						}
+					},
+					{
+						"data": "domain",
+						"orderable": false
+					},
+					{
+						"data": "id",
+						"searchable": false,
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							var content =  '<a onclick="lock(' + data + ',' + row.lockedAdmin + ')" style="color: black;" title="' + ((row.lockedAdmin) ? 'Fjern spærring' : 'Spær identitet') + '"><em class="fa fa-fw ' + ((row.lockedAdmin) ? 'fa-unlock-alt' : 'fa-lock') + '"></em></a>&nbsp;' +
+							'<a href="' + baseUrl + 'admin/identiteter/' + data + '" style="color: black;" title="Vis identitet"><em class="fa fa-fw fa-search"></em></a>';
+
+							if (coreDataEditable) {
+								if (configDomain == row.domain){
+									content+= '&nbsp;<a onclick="modalService.editById(' + data + ')"><em class="fa fa-fw fa-pencil"></em></a>';
+									content+= '&nbsp;<a onclick="modalService.delete(' + data + ')"><em class="fa fa-fw fa-times"></em></a>';
+								}
+							}
+							return content;
+						}
+					}
+				],
+				"ordering": true,
+				"info": true,
+				"pageLength": 10,
+				"lengthChange": false,
+				"bSort": false,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"responsive": true,
+				"drawCallback": function (settings) {
+					$('[data-toggle="popover"]').popover();
+				},
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ identiteter",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ identiteter)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+
+			$.each($('.input-filter', table.table().footer()), function() {
+				var column = table.column($(this).index());
+	
+				$('input', this).on('keyup change', function () {
+					if (column.search() !== this.value) {
+						column.search(this.value).draw();
+					}
+				});
+			});
+		});
+
+		function lock(id, isLocked) {
+			swal({
+				title: '',
+				text: isLocked ? unlockText : lockText,
+				showCancelButton: true,
+				confirmButtonColor: "#3085d6",
+				confirmButtonText: lockButtonConfirm,
+				cancelButtonText: lockButtonCancel,
+				closeOnConfirm: true,
+				closeOnCancel: true
+			},
+			function(isConfirm) {
+				if (isConfirm) {
+					$.ajax({
+						method : "POST",
+						url: baseUrl + "rest/admin/lock/" + id + "?lock=" + !isLocked,
+						headers: {
+							"content-type": "application/json",
+							'X-CSRF-TOKEN': token
+						}
+					}).done(function (data) {
+						table.ajax.reload();
+					}).fail(function (jqXHR, textStatus, errorThrown) {
+						toastr.warning(lockFail);
+					});
+				}
+			});
+		}
+
+		function ModalService() {
+			
+			this.openCreateModal = function() {
+				$('#modalCprInput').val('');
+				$('#modalCpr').modal("show");
+				$('#modalCprInput').focus();
+				
+			}
+
+			this.editById = function(id=0) {
+				modalService.editModalAjax("rest/admin/coredata/edit/id", JSON.stringify(id));
+			}
+
+			this.editByCpr = function() {
+				var cpr = $('#modalCprInput').val();
+				modalService.editModalAjax("rest/admin/coredata/edit/cpr", cpr);
+			}
+
+			this.showEditModal = function(person) {
+				if (!person.newPerson) {
+					$('#modalEditTitle').text("Rediger person");
+					$('#modalEditCpr').attr("disabled", true);
+				}
+				else {
+					$('#modalEditTitle').text("Opret person")
+					$('#modalEditCpr').attr("disabled", false);
+				}
+
+				$('#modalEditPersonId').val(person.personId);
+				$('#modalEditUuid').val(person.uuid);
+			
+				$('#modalEditCpr').val(person.cpr);
+				$('#modalEditName').val(person.name);
+				$('#modalEditSamAccountName').val(person.samAccountName);
+				$('#modalEditEmail').val(person.email);
+				modalService.loadAttributes(person.attributes);
+
+				$('#modalCpr').modal("hide");
+				$('#modalEdit').modal("show");
+			}
+
+			this.loadAttributes = function(attributes) {
+				//Clear table rows here
+				$('#attributeTable tbody').empty();
+
+				if (attributes == null) {
+					return;
+				}
+
+				var entries = Object.entries(attributes);
+				for (let i = 0; i < entries.length; i += 1) {
+					// Add rows to table here
+					var row = '<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][0] + '"></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][1] + '"></td></tr>';
+					//var row = '<tr><td>' + entries[i][0] + '</td><td>' + entries[i][1] + '</td></tr>';
+
+					$('#attributeTable > tbody:last-child').append(row);
+				}
+
+				//Add additional blank row here
+
+				$('#attributeTable > tbody:last-child').append('<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
+			}
+
+			this.onChangeAttributeTable = function() {
+				// Delete any empty rows except the last one
+				var rows = $('#attributeTable tbody tr');
+				for (let i = 0; i < (rows.length -1); i += 1) {
+					var inputs = $(rows[i]).children().children();
+					var empty = true;
+					for (let i = 0; i < inputs.length; i += 1) {
+						if ($(inputs[i]).val().length > 0) {
+							empty = false;
+						}
+					}
+
+					if (empty) {
+						$(rows[i]).remove();
+					}
+				}
+
+				// Make sure theres an empty last row
+				var lastRow = $('#attributeTable tbody tr:last');
+				var lastInputs = lastRow.children().children();
+				var lastEmpty = true;
+				for (let i = 0; i < lastInputs.length; i += 1) {
+					if ($(lastInputs[i]).val().length > 0) {
+						lastEmpty = false;
+					}
+				}
+
+				if (!lastEmpty) {
+					$('#attributeTable > tbody:last-child').append('<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
+				}
+			}
+
+			this.editModalAjax = function(endpoint, data) {
+				$.ajax({
+					method : "POST",
+					url: baseUrl + endpoint,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					},
+					data: data
+				}).done(function(data) {
+					modalService.showEditModal(data);
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					if (jqXHR.status == 409) {
+						toastr.warning("Fejl! Personen findes allerede");
+					}
+					else {
+						toastr.warning("Indtast et personnummer");
+					}
+				});
+			}
+
+			this.saveEditModal = function() {
+				var endpoint = "rest/admin/coredata/edit/save/" + $('#modalEditUuid').val();
+
+				var rows = $('#attributeTable tbody tr');
+				var dict = {};
+				for (let i = 0; i < rows.length; i += 1) {
+					var inputs = $(rows[i]).children().children();
+					var filled = true;
+					for (let j = 0; j < inputs.length; j += 1) {
+						if (!$(inputs[j]).val().length > 0) {
+							filled = false;
+						}
+					}
+					if (filled) {
+						dict[$(inputs[0]).val()] = $(inputs[1]).val();
+					}
+				}
+				var person = {
+					personId: $('#modalEditPersonId').val(),
+					uuid: $('#modalEditUuid').val(),
+					cpr: $('#modalEditCpr').val(),
+					name: $('#modalEditName').val(),
+					samAccountName: $('#modalEditSamAccountName').val(),
+					email: $('#modalEditEmail').val(),
+					attributes: dict
+				}
+
+				$.ajax({
+					method : "POST",
+					url: baseUrl + "rest/admin/coredata/edit/save",
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					},
+					data: JSON.stringify(person)
+				}).done(function (data) {
+					location.reload(true);
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					toastr.warning("Fejl! " + jqXHR.responseText);
+				});
+			}
+
+			this.delete = function(id) {
+				//Ask if they really want to delete this person
+				swal({
+					title: "Slet person?",
+					text: "Er du sikker på du vil slette denne person?",
+					type: "warning",
+					showCancelButton: true,
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: "Slet",
+					cancelButtonText: "Annuller",
+					closeOnConfirm: false
+				}, function () {
+					$.ajax({
+						method : "POST",
+						url: baseUrl + "rest/admin/coredata/delete",
+						headers: {
+							"content-type": "application/json",
+							'X-CSRF-TOKEN': token
+						},
+						data: JSON.stringify(id)
+					}).done(function (data) {
+						location.reload(true);
+					}).fail(function (jqXHR, textStatus, errorThrown) {
+						toastr.warning("Fejl! Kunne ikke slette personen");
+					});
+				});
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

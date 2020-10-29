@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = true)" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown" style="max-width: 1500px;">
+        <div class="row">
+            <div id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10" style="margin-bottom: 25px" th:if="${infobox.enabled && !#strings.isEmpty(infobox.message)}">
+                <div class="panel panel-danger" style="height: 100%;">
+                    <div class="panel-heading">
+                        Vigtig Information
+                    </div>
+                    <div class="panel-body">
+                        <p th:utext="${infobox.message}"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="ibox offset-lg-2 col-lg-8 offset-md-1 col-md-10" th:classappend="${!infobox.enabled || #strings.isEmpty(infobox.message)} ? 'col-xl-8 offset-xl-2' : 'col-xl-4 offset-xl-0'">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <div class="tabs-container">
+                        <ul class="nav nav-tabs" role="tablist">
+                            <li><a th:classappend="${preferNemid} ? '' : 'active'" class="nav-link" data-toggle="tab" href="#tab-1">Erhvervsidentitet</a></li>
+                            <li><a th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" data-toggle="tab" href="#tab-2">NemID</a></li>
+                        </ul>
+                        <div class="tab-content">
+                            <div role="tabpanel" id="tab-1" class="tab-pane" th:classappend="${preferNemid} ? '' : 'active'">
+                                <div class="panel-body">
+                                    <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">
+                                        <div class="form-group">
+                                            <input id="username" name="username" th:value="${username}" type="text" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Brugernavn" autofocus="autofocus" />
+                                        </div>
+
+                                        <div class="form-group">
+                                            <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" />
+                                        </div>
+
+                                        <div class="form-group" th:if="${incorrectInput}">
+                                            <p class="text-danger">Brugernavn eller password er forkert</p>
+                                        </div>
+
+                                        <button onclick="formService.save()" class="btn btn-primary block full-width m-b">Login</button>
+                                        <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
+
+                                        <a th:href="@{/sso/saml/login/forgotpassword}">
+                                            <small>Glemt kodeord?</small>
+                                        </a>
+
+                                        <hr/>
+
+                                        <div class="form-group">
+                                            <div>
+                                                <label><input id="remember" type="checkbox" class="i-checks"> &nbsp; Husk brugernavn</label>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div role="tabpanel" id="tab-2" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
+                                <div class="panel-body" style="padding: 20px 0px 20px 0px;">
+                                    <div style="text-align:center; position:relative">
+                                        <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
+                                            <input type="hidden" name="response">
+
+                                            <div th:utext="${jsElement}" />
+
+                                            <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
+                                                <iframe id="nemid_iframe" name="target_iframe" title="NemID"
+                                                        ontouchstart="" scrolling="no" frameborder="0"
+                                                        style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts (checkbox = true)" />
+	
+	<script type="text/javascript" th:src="@{/js/nemid.js}"></script>
+
+<style>
+    @media (max-width: 1199px) {
+    #infobox {
+        padding-right: 0px !important;
+        padding-left: 0px !important;
+    }
+}
+</style>
+<style>
+    @media (max-width: 767px) {
+    .loginColumns {
+        padding-top: 20px;
+    }
+</style>
+<style>
+    .noinfo {
+
+    }
+</style>
+<script th:inline="javascript">
+        /*<![CDATA[*/
+
+		/*[+
+			var iframeSrc = [[${iframeSrc}]];
+			var iframeOrigin = [[${serverUrlPrefix}]];
+		+]*/
+		
+		var formService;
+		$(document).ready(function() {
+			formService = new FormService();
+			formService.load();
+		});
+
+		function FormService() {
+			this.save = function() {
+				if ($("#remember").prop('checked')) {
+					username = $('#username').val();
+					localStorage.setItem("username", username);
+				}
+				else {
+					if (localStorage.getItem("username") != null){
+						localStorage.removeItem("username");
+					}
+				}
+
+				$('#login').submit();
+			}
+			
+			this.load = function(){
+				var localUsername = localStorage.getItem("username");
+
+				if (localUsername != null) {
+					$("#remember").iCheck('check');
+					$('#username').val(localUsername);
+					$('#password').focus();
+				}
+			}
+		}
+
+		function onNemIDMessage(e) {
+			var event = e || event;
+
+			if (iframeOrigin !== event.origin) {
+				return;
+			}
+
+			var win = document.getElementById("nemid_iframe").contentWindow, postMessage = {}, message;
+			message = JSON.parse(event.data);
+
+			if (message.command === "SendParameters") {
+				var htmlParameters = document.getElementById("nemid_parameters").innerHTML;
+
+				postMessage.command = "parameters";
+				postMessage.content = htmlParameters;
+				win.postMessage(JSON.stringify(postMessage), iframeOrigin);
+			}
+
+			if (message.command === "changeResponseAndSubmit") {
+				document.postBackForm.response.value = message.content;
+				document.postBackForm.submit();
+			}
+		}
+
+		if (window.addEventListener) {
+			window.addEventListener("message", onNemIDMessage);
+		} else if (window.attachEvent) {
+			window.attachEvent("onmessage", onNemIDMessage);
+		}
+
+        var loginService;
+		$(document).ready(function() {
+		    loginService = new LoginService();
+		    loginService.init();
+
+			// delay loading the NemID applet for 1 second
+		    setTimeout(function() {
+				$("#nemid_iframe").attr("src", function(i, val) { return iframeSrc; });
+		    }, 1000);
+        });
+
+        function LoginService() {
+            this.init = function() {
+                $('#username,#password').on('keyup',function(){
+                    if($(this).val().length > 0){
+                        $('#username,#password').removeClass('is-invalid');
+                    }
+                });
+            }
+        }
+
+		/*]]>*/
+	</script>
+	
+</body>
+</html>

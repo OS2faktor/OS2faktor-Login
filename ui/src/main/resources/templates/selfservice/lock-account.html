@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.lock-account')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-user"></em> &nbsp; Spærre identitet</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form id="deactivateForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/spaerre}">
+									<p>
+									Hvis du ønsker at spærre din erhvervsidentitet, skal du trykke på "Spær identitet" nedenfor.
+									Når identiteten er spærret, er det ikke muligt at anvende den til at gennemføre logins.
+									</p>
+									
+									<p class="mb-5">
+									Hvis du på et senere tidspunkt ønsker at reaktivere din erhvervsidentitet, skal du logge ind med dit
+									NemID, og re-aktivere identiteten.
+									</p>
+
+									<button id="deactivateBtn" type="button" class="btn btn-danger block full-width m-b">Spær identitet</button>
+								</form>
+							</div>
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.lock-account')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var lockText = [[#{page.selfservice.stateChange.lockText}]];
+		var lockButtonConfirm = [[#{shared.button.yes}]];
+		var lockButtonCancel = [[#{shared.button.no}]];
+		+]*/
+
+		$(document).ready(function() {
+			$("#deactivateBtn").click(function(){
+				swal({
+					title: '',
+					text: lockText,
+					showCancelButton: true,
+					type: "warning",
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: lockButtonConfirm,
+					cancelButtonText: lockButtonCancel,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				 },
+				 function (isConfirm) {
+					if (isConfirm) {
+						$("#deactivateForm").submit();
+					}
+				 });
+			});
+		});
+		/*]]>*/
+	</script>
+</body>
+</html>
