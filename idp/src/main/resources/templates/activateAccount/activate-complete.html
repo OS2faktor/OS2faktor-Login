@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="ibox offset-md-2 col-md-8">
+						<div class="ibox-title">
+							<h5><em class="fa fa-birthday-cake"></em> &nbsp; Erhvervsidentitet udstedt</h5>
+						</div>
+
+						<div class="ibox-content">
+							<p>
+							Din erhvervsidentitet er nu udstedt. Når du skal logge ind med din erhvervsidentitet kan du anvende dit nuværende brugernavn til din computer.
+							Der er også dannet et personligt erhvervsidentitet brugernavn, som du også kan vælge at anvende. Alle mulige brugernavne er vist nedenfor.
+							</p>
+
+							<ul>
+								<li><b th:text="${userId}"/></li>
+								<li th:if="${adUserId} != null"><b th:text="${adUserId}" /></li>
+							</ul>
+
+							<p th:unless="${passwordSet}">Inden du kan anvende din erhvervsidentitet skal du vælge et kodeord. Tryk på knappen nedenfor for at vælge et kodeord.</p>
+
+							<a th:unless="${passwordSet}" type="button" th:href="@{/konto/vaelgkode}" class="btn btn-primary block full-width m-b mt-lg">Vælg kodeord</a>
+							<a th:if="${passwordSet}" type="button" th:href="@{/konto/login}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+</html>

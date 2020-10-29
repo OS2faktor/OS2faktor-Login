@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-paragraph"></em> &nbsp; Kunne ikke hente OS2faktor klienter</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <p>Det var desværre ikke muligt at hente de 2-faktor klienter der er registreret på din bruger, forsøg igen og hvis det stadig fejler, så kontakt din it-afdeling.</p>
+                    <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (texteditor = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-infobox')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Infoboks</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form action="#" th:action="@{/admin/infoboks}" th:object="${infobox}" method="post">
+									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
+									
+									<br/>
+									
+									<div class="row">
+										<div class="col-sm-1">
+											<label><input th:field="*{enabled}" type="checkbox" class="i-checks" checked="checked"></label>
+										</div>
+										<label class="col-sm-11">Vis infoboks på login siden</label>
+									</div>
+
+									<hr/>
+
+									<button type="submit" class="btn btn-primary block full-width m-b">Gem</button>
+									<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-infobox')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (texteditor = true, checkbox = true)" />
+	
+	<script>
+		$(document).ready(function() {
+			$('#content').summernote({
+				"height": 320,
+				"toolbar": [
+					[ "font", [ "bold", "italic", "underline" ]],
+					[ "para", [ "ul", "ol", "style" ]]
+				]
+			});
+		});
+	</script>
+</body>
+</html>

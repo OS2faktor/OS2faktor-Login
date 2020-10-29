@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.index')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Status</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="row">
+									<div class="col-lg-3">
+										<div class="ibox">
+											<div class="ibox-content">
+												<h5>Logins den sidste time</h5>
+												<h2 id="totalLoginHour">[[${lastHourTotalLogins}]]</h2>
+												<div id="loginCountByHour"></div>
+											</div>
+										</div>
+									</div>
+
+									<div class="col-lg-3">
+										<div class="ibox">
+											<div class="ibox-content">
+												<h5>Logins i går</h5>
+												<h2>[[${yesterdayTotalLogins}]]</h2>
+												<div id="loginCount"></div>
+											</div>
+										</div>
+									</div>
+	
+									<div class="col-lg-3">
+										<div class="ibox">
+											<div class="ibox-content">
+												<h5>Aktive identiteter</h5>
+												<h2>[[${aprovedConditionsCount}]] / [[${personCount}]]</h2>
+												<div id="activeCount"></div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.index')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (chart = true)" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+		
+		/*[+
+		var flashMessage = [[${flashMessage}]];
+		var lastHour = [[${lastHourLogins}]];
+		var yesterday = [[${yesterdayLogins}]];
+		var personCount = [[${personCount}]];
+		var aprovedConditionsCount = [[${aprovedConditionsCount}]];
+		+]*/
+
+		$(document).ready(function() {
+			
+			$("#loginCountByHour").sparkline(lastHour, {
+				type: 'line',
+				width: '100%',
+				height: '140',
+				lineColor: '#1ab394',
+				fillColor: "#ffffff"
+			});
+	
+			$("#loginCount").sparkline(yesterday, {
+				type: 'line',
+				width: '100%',
+				height: '140',
+				lineColor: '#1ab394',
+				fillColor: "#ffffff"
+			});
+			
+			$("#activeCount").sparkline([aprovedConditionsCount, (personCount - aprovedConditionsCount)], {
+				type: 'pie',
+				height: '140',
+				sliceColors: ['#1ab394', '#F5F5F5']
+			});
+	
+			if (flashMessage != undefined) {
+				toastr.success(flashMessage);
+			}
+		});
+
+        /*]]>*/
+	</script>
+</body>
+</html>

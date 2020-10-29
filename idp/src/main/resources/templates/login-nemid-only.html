@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown" style="max-width: 1500px;">
+        <div class="row">
+            <div th:if="${reason} != null" id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10" style="margin-bottom: 25px">
+                <div class="panel panel-info" style="height: 100%;">
+                    <div class="panel-heading">
+                        Yderligere verifikation krævet
+                    </div>
+                    <div class="panel-body">
+                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).AD}">
+                            <h3>Dit AD Kodeord er blevet ændret</h3>
+                            <p>For at øge sikkerhedsniveauet skal du første gang efter ændret kodeord logge ind med NemID</p>
+                        </th:block>
+                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).TERMS_AND_CONDITIONS}">
+                            <h3>Vilkårne for brug af erhvervsidentiteter er ikke accepteret endnu</h3>
+                            <p>For at fortsætte login skal vilkårne accepteres. for at gøre dette kræves yderlige verifikation med NemID</p>
+                        </th:block>
+                    </div>
+                </div>
+            </div>
+            <div class="ibox offset-lg-2 col-lg-8 offset-md-1 col-md-10 " th:classappend="${reason} != null ? 'offset-xl-0 col-xl-4' : 'offset-xl-2 col-xl-8'">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <div class="panel-body" style="padding: 20px 0px 20px 0px;">
+                        <div style="text-align:center; position:relative">
+                            <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
+                                <input type="hidden" name="response">
+
+                                <div th:utext="${jsElement}" />
+
+                                <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
+                                    <iframe id="nemid_iframe" name="target_iframe" title="NemID"
+                                            ontouchstart="" scrolling="no" frameborder="0"
+                                            style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts" />
+	
+	<script type="text/javascript" th:src="@{/js/nemid.js}"></script>
+
+</body>
+<script th:inline="javascript">
+        /*<![CDATA[*/
+
+		/*[+
+			var iframeSrc = [[${iframeSrc}]];
+			var iframeOrigin = [[${serverUrlPrefix}]];
+		+]*/
+        
+		function onNemIDMessage(e) {
+			var event = e || event;
+
+			if (iframeOrigin !== event.origin) {
+				return;
+			}
+
+			var win = document.getElementById("nemid_iframe").contentWindow, postMessage = {}, message;
+			message = JSON.parse(event.data);
+
+			if (message.command === "SendParameters") {
+				var htmlParameters = document.getElementById("nemid_parameters").innerHTML;
+
+				postMessage.command = "parameters";
+				postMessage.content = htmlParameters;
+				win.postMessage(JSON.stringify(postMessage), iframeOrigin);
+			}
+
+			if (message.command === "changeResponseAndSubmit") {
+				document.postBackForm.response.value = message.content;
+				document.postBackForm.submit();
+			}
+		}
+
+		if (window.addEventListener) {
+			window.addEventListener("message", onNemIDMessage);
+		} else if (window.attachEvent) {
+			window.attachEvent("onmessage", onNemIDMessage);
+		}
+
+        var loginService;
+		$(document).ready(function() {
+		    loginService = new LoginService();
+		    loginService.init();
+
+			// delay loading the NemID applet for 1 second
+		    setTimeout(function() {
+				$("#nemid_iframe").attr("src", function(i, val) { return iframeSrc; });
+		    }, 1000);
+        });
+
+        function LoginService() {
+            this.init = function() {
+                $('#username,#password').on('keyup',function(){
+                    if($(this).val().length > 0){
+                        $('#username,#password').removeClass('is-invalid');
+                    }
+                });
+            }
+        }
+
+		/*]]>*/
+	</script>
+</html>

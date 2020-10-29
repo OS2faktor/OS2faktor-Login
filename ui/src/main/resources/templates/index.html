@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+	    <div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar" />
+
+	        <div class="wrapper wrapper-content">
+	            <div class="row">
+	                <div class="col-lg-12">
+                        <div class="ibox">
+                            <div class="ibox-title">
+                                <h5><em class="fa fa-info"></em> &nbsp; Selvbetjening for erhvervsidentiteter</h5>
+                            </div>
+
+                            <div class="ibox-content">
+                            	<p>
+                            	Du skal logge på selvbetjeningen med dit bruger-id og din adgangskode for at få adgang til selvbetjeningsfunktionerne. Her kan du
+                            	</p>
+                            	
+                            	<ul>
+                            		<li>Udstede din erhvervsidentitet</li>
+                            		<li>Adminstrere kodeord og status på din erhvervsidentitet</li>
+                            		<li>Se hvad din erhvervsidentitet er blevet brugt til</li>
+                            	</ul>
+
+								<p>
+								Læs også <a th:href="@{/privatlivspolitik}">privatlivspolitikken</a> der knytter sig til erhvervsidentiteten, samt de <a th:href="@{/vilkaar}">vilkår</a> erhvervsidentiteten må anvendes under.
+								</p>
+
+								<br/>
+
+	                        	<a sec:authorize="!isAuthenticated()" style="font-size: 1.5em;" class="btn btn-primary full-width" th:href="@{/saml/login}">Login</a>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+			<div th:replace="fragments/footer :: footer" />
+	    </div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+</html>

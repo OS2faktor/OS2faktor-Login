@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.log-viewer')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-bars"></em> &nbsp; Hændelseslog</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="eventlog" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 110px;">Tidspunkt</th>
+												<th style="width: 80px;">Konto</th>
+												<th style="width: 80px;">AD Konto</th>
+												<th style="width: 160px;">Person</th>
+												<th>Hændelse</th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+												<td></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+											</tr>
+										</tfoot>
+
+										<tbody>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.log-viewer')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var rootUrl = [[@{/}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function(){
+			var table = $('#eventlog').DataTable({
+				"destroy": true,
+				"ajax": {
+					"contentType": "application/json",
+					"url": "/rest/admin/eventlog",
+					"type": "POST",
+					"headers": {
+						"X-CSRF-TOKEN": token
+					},
+					"data": function(d) {
+					 	return JSON.stringify(d);
+					}
+				},
+				"serverSide": true,
+				"columns": [
+					{
+						"data": "tts",
+						"className": "text-nowrap",
+						"render": function (data, type, row, meta) {
+							return data.substring(0, 10) + '&nbsp;&nbsp;' + data.substring(11, 19);
+						}
+					},
+					{
+						"data": "userId",
+						"orderable": false
+					},
+					{
+						"data": "samaccountName",
+						"orderable": false
+					},
+					{
+						"data": "personName",
+						"orderable": false
+					},
+					{
+						"data": "message",
+						"orderable": false
+					}
+				],
+				"ordering": true,
+		        "order": [ [ 0, "desc" ] ],
+				"info": true,
+				"pageLength": 10,
+				"lengthChange": false,
+				"bSort": false,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"responsive": true,
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ hændelser per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ hændelser",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ hændelser)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+			
+			$.each($('.input-filter', table.table().footer()), function() {
+				var column = table.column($(this).index());
+
+				$('input', this).on('keyup change', function () {
+					if (column.search() !== this.value) {
+						column.search(this.value).draw();
+					}
+				});
+			});
+			
+			$('#eventlog tbody').on('click', 'tr', function () {
+				var data = table.row(this).data();
+				window.location = rootUrl + "admin/logs/" + data.id;
+			});
+		});
+		
+		/*]]>*/
+	</script>
+</body>
+</html>

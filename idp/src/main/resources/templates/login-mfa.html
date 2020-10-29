@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                </div>
+
+                <div class="ibox-content">
+                	<p class="mb-5">
+                	Adgang til den ønskede tjeneste kræver aktivering af en 2-faktor klient.
+                	Vælg en af nedenstående for at gennemføre login processen.
+                	</p>
+
+					<ul class="mb-5" style="list-style-type: none; font-size: x-large;">
+						<li th:each="client : ${clients}">
+							<a th:href="@{/sso/saml/mfa/} + ${client.deviceId}" style="color: black;">
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" class="fa fa-fw fa-chrome"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).ANDROID}" class="fa fa-fw fa-android"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" class="fa fa-fw fa-apple"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).WINDOWS}" class="fa fa-fw fa-windows"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" class="fa fa-fw fa-key"></em>
+								&nbsp;
+								<th:block th:text="${#strings.isEmpty(client.name) ? client.deviceId : client.name}"></th:block>
+							</a>
+						</li>
+					</ul>
+					
+					<hr/>
+
+					<a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+</html>

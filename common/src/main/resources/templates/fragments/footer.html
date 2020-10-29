@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<body>
+	<div th:fragment="scripts">
+		<!-- minimum set of script files - always required -->
+		<script th:src="@{/webjars/inspinia/2.9.3/js/jquery-3.1.1.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/popper.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/bootstrap.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/metisMenu/jquery.metisMenu.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/slimscroll/jquery.slimscroll.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/inspinia.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/pace/pace.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/sweetalert/sweetalert.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/toastr/toastr.min.js}"></script>
+		<script>
+			toastr.options = {
+			  "positionClass": "toast-top-right toastr-buffer"
+			}
+		</script>
+
+        <th:block th:if="${checkbox == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/iCheck/icheck.min.js}"></script>
+		<script>
+			$(document).ready(function () {
+				$('.i-checks').iCheck({
+					checkboxClass: 'icheckbox_square-green',
+					radioClass: 'iradio_square-green',
+				});
+			});
+        </script>
+        </th:block>
+        
+        <th:block th:if="${datatables == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/dataTables/datatables.min.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/dataTables/dataTables.bootstrap4.min.js}"></script>
+		</th:block>
+		
+		<th:block th:if="${jstree == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/jsTree/jstree.min.js}"></script>
+		</th:block>
+		
+		<th:block th:if="${texteditor == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/summernote/summernote-bs4.js}"></script>
+		</th:block>
+		
+		<th:block th:if="${slider == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/ionRangeSlider/ion.rangeSlider.min.js}"></script>
+		</th:block>
+		
+		<th:block th:if="${chart == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/sparkline/jquery.sparkline.min.js}"></script>
+		</th:block>
+
+		<th:block th:if="${codemirror == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/codemirror/codemirror.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/codemirror/mode/javascript/javascript.js}"></script>
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/codemirror/mode/xml/xml.js}"></script>
+		</th:block>
+	</div>
+	
+	<div class="footer" th:fragment="footer">
+		<div class="pull-right">
+			Frigivet under <a href="https://opensource.org/licenses/MPL-2.0">MPL 2.0</a> licensen <a href="https://bitbucket.org/os2offdig/os2faktor/">her</a>.
+		</div>
+		<div>
+			OS2faktor er ejet af <a href="https://os2.eu/">OS2-fællesskabet</a>.<br/>
+		</div>
+	</div>
+</body>
+</html>
