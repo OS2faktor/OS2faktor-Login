@@ -5,3 +5,5 @@
 *.iml
 
 target/
+
+common/src/main/java/dk/digitalidentity/common/dao/bootstrap/DevBootstrapper.java
