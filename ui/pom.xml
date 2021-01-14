@@ -86,7 +86,7 @@
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi</artifactId>
-			<version>3.16</version>
+			<version>3.17</version>
 		</dependency>
 
 		<!-- TODO: should we replace this with either Spring Security SAML module or our own OpenSAML implementation? -->
