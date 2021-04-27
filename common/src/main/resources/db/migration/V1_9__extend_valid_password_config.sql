@@ -1,0 +1,1 @@
+ALTER TABLE password_settings ADD COLUMN disallow_danish_characters BOOLEAN NOT NULL DEFAULT 0;

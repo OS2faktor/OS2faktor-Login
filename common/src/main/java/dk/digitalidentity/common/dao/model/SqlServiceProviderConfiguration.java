@@ -46,6 +46,9 @@ public class SqlServiceProviderConfiguration {
     private String metadataUrl;
 
     @Column
+    private String metadataContent;
+
+    @Column
     @NotNull
     @Size(max = 255)
     private String nameIdFormat;
@@ -66,6 +69,12 @@ public class SqlServiceProviderConfiguration {
     @Column
     @Enumerated(EnumType.STRING)
     private NSISLevel nsisLevelRequired;
+
+    @Column
+    private boolean encryptAssertions;
+
+    @Column
+    private boolean enabled;
 
 	@OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "configuration", fetch = FetchType.EAGER)
 	private Set<SqlServiceProviderRequiredField> requiredFields;

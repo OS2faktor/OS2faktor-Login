@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.persistence.CascadeType;
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
@@ -15,6 +16,7 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.MapKeyColumn;
+import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
@@ -56,12 +58,15 @@ public class Person {
 	@Enumerated(EnumType.STRING)
 	@Column
 	private NSISLevel nsisLevel;
+
+	@Column
+	private boolean nsisAllowed;
 	
 	@Column
 	private boolean admin;
-	
+
 	@Column
-	private boolean supporter;
+	private boolean registrant;
 	
 	@Column
 	private boolean approvedConditions;
@@ -95,18 +100,35 @@ public class Person {
 	@Column
 	private String nsisPassword;
 
+	@Column
+	private LocalDateTime nsisPasswordTimestamp;
+
 	@Size(max = 255)
 	@Column
 	private String adPassword;
 
 	@Column
+	private LocalDateTime adPasswordTimestamp;
+
+	@Column
 	private String samaccountName;
 
 	@Column
-	private String domain;
-
-	@Column
 	private String nemIdPid;
+
+	@OneToOne
+	@JoinColumn(name = "domain_id")
+	private Domain domain;
+
+	@OneToOne(mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
+	private Supporter supporter;
+	
+	@Column
+	private boolean nameProtected;
+	
+	@Size(max = 255)
+	@Column
+	private String nameAlias;
 
 	@ElementCollection
 	@CollectionTable(name = "persons_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
@@ -128,11 +150,25 @@ public class Person {
 	}
 
 	public String getIdentifier() {
-		return domain + ":" + uuid + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName : "<null>");
+		return domain.getName() + ":" + uuid + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName : "<null>");
 	}
 
 	public boolean hasNSISUser() {
 		// You have to have at least NSIS level LOW and you need to have approved conditions
-		return isApprovedConditions() && NSISLevel.LOW.equalOrLesser(getNsisLevel());
+		return isNsisAllowed() && isApprovedConditions() && NSISLevel.LOW.equalOrLesser(getNsisLevel());
+	}
+
+	public boolean isSupporter() {
+		return supporter != null;
+	}
+
+	public void setSupporter(Supporter supporter) {
+		if (supporter == null) {
+			this.supporter = null;
+			return;
+		}
+
+		supporter.setPerson(this);
+		this.supporter = supporter;
 	}
 }

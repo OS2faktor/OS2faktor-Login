@@ -2,6 +2,7 @@ package dk.digitalidentity.common.service;
 
 import java.util.List;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,15 +17,18 @@ public class PasswordSettingService {
 	@Autowired
 	private PasswordSettingDao passwordSettingDao;
 
-	public PasswordSetting getSettings() {
-		List<PasswordSetting> all = passwordSettingDao.findAll();
-		
+	public PasswordSetting getSettings(Domain domain) {
+		List<PasswordSetting> all = passwordSettingDao.findByDomain(domain);
+
 		if (all.size() == 0) {
 			PasswordSetting settings = new PasswordSetting();
 			settings.setMinLength(10L);
 			settings.setBothCapitalAndSmallLetters(true);
 			settings.setRequireDigits(false);
 			settings.setRequireSpecialCharacters(false);
+			settings.setDisallowDanishCharacters(false);
+			settings.setCacheAdPasswordInterval(1L);
+			settings.setDomain(domain);
 
 			return settings;
 		}
@@ -32,9 +36,12 @@ public class PasswordSettingService {
 			return all.get(0);
 		}
 
-		log.error("More than one row with password rules");
-
+		log.error("More than one row with password rules for domain: " + domain.getName());
 		return all.get(0);
+	}
+
+	public List<PasswordSetting> getAllSettings() {
+		return passwordSettingDao.findAll();
 	}
 
 	public PasswordSetting save(PasswordSetting entity) {

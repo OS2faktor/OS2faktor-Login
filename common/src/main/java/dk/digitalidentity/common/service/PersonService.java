@@ -1,42 +1,31 @@
 package dk.digitalidentity.common.service;
 
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.PasswordHistory;
 import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 
 import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
+
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
-import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PersonDao;
-import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.model.ADPasswordRequest;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 @Service
-@Slf4j
 public class PersonService {
 
 	@Autowired
@@ -49,11 +38,13 @@ public class PersonService {
 	private PasswordSettingService passwordSettingService;
 
 	@Autowired
-	private CommonConfiguration configuration;
-
-	@Autowired
 	private PasswordChangeQueueService passwordChangeQueueService;
 
+	@Autowired
+	private PasswordHistoryService passwordHistoryService;
+
+	@Autowired
+	private DomainService domainService;
 
 	public Person getById(long id) {
 		return personDao.findById(id);
@@ -67,7 +58,8 @@ public class PersonService {
 		return personDao.save(entity);
 	}
 
-	public void delete(Person person) {
+	public void delete(Person person, Person admin) {
+		auditLogger.deletedUser(person, admin);
 		personDao.delete(person);
 	}
 
@@ -84,7 +76,7 @@ public class PersonService {
 	}
 
 	public List<Person> getAllAdminsAndSupporters() {
-		return personDao.findByAdminTrueOrSupporterTrue();
+		return personDao.findByAdminTrueOrRegistrantTrueOrSupporterNotNull();
 	}
 
 	public List<Person> saveAll(List<Person> entities) {
@@ -96,10 +88,23 @@ public class PersonService {
 	}
 
 	public List<Person> getByDomain(String domain) {
+		Domain domainObj = domainService.getByName(domain);
+		if (domainObj == null) {
+			return null;
+		}
+
+		return personDao.findByDomain(domainObj);
+	}
+
+	public List<Person> getByDomain(Domain domain) {
 		return personDao.findByDomain(domain);
 	}
 
-	public List<Person> getBySamaccountNameAndDomain(String samAccountName, String domain) {
+	public List<Person> getByDomainAndCpr(Domain domain, String cpr) {
+		return personDao.findByDomainAndCpr(domain, cpr);
+	}
+
+	public List<Person> getBySamaccountNameAndDomain(String samAccountName, Domain domain) {
 		return personDao.findBySamaccountNameAndDomain(samAccountName, domain);
 	}
 
@@ -113,7 +118,7 @@ public class PersonService {
 
 		if (person.getBadPasswordCount() >= 5) {
 			person.setLockedPassword(true);
-			person.setLockedPasswordUntil(LocalDateTime.now().plusHours(1L));
+			person.setLockedPasswordUntil(LocalDateTime.now().plusMinutes(5L));
 		}
 
 		save(person);
@@ -127,24 +132,55 @@ public class PersonService {
 		}
 	}
 
-	// TODO: auditlogning antager at det er brugeren selv der skifter kodeord (Det er det pt altid),
-	//       men hvis vi på et tidspunkt vil understøtte password-skift fra administrators side,
-	//       så bør vi håndtere auditlogning på en anden måde
-	public void changePassword(Person person, String newPassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+	public boolean changePassword(Person person, String newPassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+		return changePassword(person, newPassword, false, false);
+	}
+
+	/**
+	 * Note that if bypass is set, then no replication is performed to Active Directory. This is because the
+	 * common use-case for this, is an admin setting the users password, which should not be replicated to AD,
+	 * as that could potentially lock out the user (also we do not want to expose AD passwords to the registrant)
+	 */
+	public boolean changePassword(Person person, String newPassword, boolean bypassValidation, boolean bypassReplication) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+		PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+		
+		// Check for reuse of old passwords
+		if (!bypassValidation) {
+			if (settings.isDisallowOldPasswords()) {
+				List<String> lastTenPasswords = passwordHistoryService.getLastTenPasswords(person);
+				for (String oldPassword : lastTenPasswords) {
+					if (encoder.matches(newPassword, oldPassword)) {
+						return false;
+					}
+				}
+			}
+		}
 
 		// Set new password and log
 		if (person.hasNSISUser()) {
-			BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-			person.setNsisPassword(encoder.encode(newPassword));
+			String encodedPassword = encoder.encode(newPassword);
+			person.setNsisPassword(encodedPassword);
+			person.setNsisPasswordTimestamp(LocalDateTime.now());
+
+			PasswordHistory passwordHistory = new PasswordHistory();
+			passwordHistory.setPerson(person);
+			passwordHistory.setPassword(encodedPassword);
+
+			passwordHistoryService.save(passwordHistory);
+
 			auditLogger.changePasswordByPerson(person);
 			save(person);
 		}
-
+		
 		// Replicate password to AD if enabled
-		PasswordSetting settings = passwordSettingService.getSettings();
-		if (settings.isReplicateToAdEnabled()) {
-			passwordChangeQueueService.createChange(person, newPassword);
+		if (!bypassReplication) {
+			if (settings.isReplicateToAdEnabled() && !StringUtils.isEmpty(person.getSamaccountName())) {
+				passwordChangeQueueService.createChange(person, newPassword);
+			}
 		}
+
+		return true;
 	}
 
 	@Transactional(rollbackFor = Exception.class)
@@ -170,70 +206,19 @@ public class PersonService {
 		}
 	}
 
-	@Transactional(rollbackFor = Exception.class)
-	public void syncPasswordsToAD() {
-		String url = configuration.getAd().getBaseUrl();
-		if (!url.endsWith("/")) {
-			url += "/";
+	public static String maskCpr(String cpr) {
+		if (cpr != null && cpr.length() > 6) {
+			return cpr.substring(0, 6) + "-XXXX";
 		}
-		url += "api/setPassword";
 
-		// TODO: burde autowire denne, så vi kan konfigurere den i en @Configuration klasse
-		RestTemplate restTemplate = new RestTemplate();
-
-		for (PasswordChangeQueue change : passwordChangeQueueService.getUnsynchronized()) {
-			try {
-				ADPasswordRequest adPasswordRequest = new ADPasswordRequest();
-				adPasswordRequest.setCpr(change.getCpr());
-				adPasswordRequest.setSAMAccountName(change.getSamaccountName());
-				adPasswordRequest.setPassword(passwordChangeQueueService.decryptPassword(change.getPassword());
-
-				HttpHeaders headers = new HttpHeaders();
-				headers.add("apiKey", configuration.getAd().getApiKey());
-				HttpEntity<ADPasswordRequest> httpRequest = new HttpEntity<>(adPasswordRequest, headers);
-
-				ResponseEntity<String> response = restTemplate.exchange(url , HttpMethod.POST, httpRequest, String.class);
-
-				if (response.getStatusCodeValue() == 200) {
-					change.setStatus(ReplicationStatus.SYNCHRONIZED);
-				}
-				else {
-					change.setStatus(ReplicationStatus.ERROR);
-					change.setMessage("Code: " + response.getStatusCode() + " Message: " + response.getBody());
-
-					if (LocalDateTime.now().minusMinutes(10).isAfter(change.getTts())) {
-						log.error("Replication failed, password change has not been replicated for more than 10 minutes (ID: " + change.getId() + ")");
-					}
-					else {
-						log.warn("Password Replication failed, trying again in 1 minute (ID: " + change.getId() + ")");
-					}
-				}
-				passwordChangeQueueService.save(change);
-			}
-			catch (Exception ex) {
-				change.setStatus(ReplicationStatus.ERROR);
-				change.setMessage("Failed to connect to AD Password replication service: " + ex.getMessage());
-				passwordChangeQueueService.save(change);
-
-				if (LocalDateTime.now().minusMinutes(10).isAfter(change.getTts())) {
-					log.error("Replication failed, password change has not been replicated for more than 10 minutes (ID: " + change.getId() + ")");
-				} else {
-					log.warn("Password Replication failed, trying again in 1 minute (ID: " + change.getId() + ")");
-				}
-			}
-		}
+		return "";
 	}
 
-	@Transactional(rollbackFor = Exception.class)
-	public void syncQueueCleanupTask() {
-		List<PasswordChangeQueue> synchronizedChanges = passwordChangeQueueService.getByStatus(ReplicationStatus.SYNCHRONIZED);
-
-		for (PasswordChangeQueue synchronizedChange : synchronizedChanges) {
-			LocalDateTime maxRetention = LocalDateTime.now().minusDays(7);
-			if (synchronizedChange.getTts().isBefore(maxRetention)) {
-				passwordChangeQueueService.delete(synchronizedChange);
-			}
-		}
-
+	public void suspend(Person person) {
+		person.setNsisLevel(NSISLevel.NONE);
+		person.setApprovedConditions(false);
+		person.setApprovedConditionsTts(null);
+		person.setNsisPassword(null);
+		person.setNsisPasswordTimestamp(null);
 	}
 }

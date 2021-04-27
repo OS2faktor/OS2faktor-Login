@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_configuration ADD COLUMN metadata_content MEDIUMTEXT NULL;

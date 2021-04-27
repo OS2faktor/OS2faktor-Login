@@ -94,4 +94,8 @@ public class PasswordChangeQueueService {
 		PasswordChangeQueue passwordChange = new PasswordChangeQueue(person, encryptPassword(newPassword));
 		save(passwordChange);
 	}
+
+	public PasswordChangeQueue getOldestUnsynchronizedByDomain(String domain) {
+		return passwordChangeQueueDao.findFirst1ByDomainAndStatusNotOrderByTtsAsc(domain, ReplicationStatus.SYNCHRONIZED);
+	}
 }

@@ -11,4 +11,5 @@ public interface PasswordChangeQueueDao extends JpaRepository<PasswordChangeQueu
 	List<PasswordChangeQueue> findAll();
 	List<PasswordChangeQueue> findByStatus(ReplicationStatus replicationStatus);
 	List<PasswordChangeQueue> findByStatusNot(ReplicationStatus replicationStatus);
+	PasswordChangeQueue findFirst1ByDomainAndStatusNotOrderByTtsAsc(String domain, ReplicationStatus replicationStatus);
 }

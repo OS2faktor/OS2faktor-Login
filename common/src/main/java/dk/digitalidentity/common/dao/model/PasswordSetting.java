@@ -1,11 +1,8 @@
 package dk.digitalidentity.common.dao.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+
+import javax.persistence.*;
 import javax.validation.constraints.Size;
 
 import lombok.Getter;
@@ -42,14 +39,27 @@ public class PasswordSetting {
 	
 	@Column
 	private boolean replicateToAdEnabled;
-	
+
+	@Column
+	private Long cacheAdPasswordInterval;
+
 	@Column
 	private boolean validateAgainstAdEnabled;
 	
 	@Column
 	private boolean monitoringEnabled;
-	
+
+	@Column
+	private boolean disallowOldPasswords;
+
+	@Column
+	private boolean disallowDanishCharacters;
+
 	@Column
 	@Size(max = 255)
 	private String monitoringEmail;
+
+	@OneToOne
+	@JoinColumn(name = "domain_id")
+	private Domain domain;
 }

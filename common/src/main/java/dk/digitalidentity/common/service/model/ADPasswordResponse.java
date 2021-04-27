@@ -5,6 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class ADPasswordValidation {
+public class ADPasswordResponse {
 	private boolean valid;
+	private String message;
 }

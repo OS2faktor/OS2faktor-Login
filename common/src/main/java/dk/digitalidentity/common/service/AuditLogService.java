@@ -27,4 +27,8 @@ public class AuditLogService {
 	public List<AuditLog> findAllFromLastWeek() {
 		return auditLogDao.findAllByTtsAfter(LocalDateTime.now().minus(7, ChronoUnit.DAYS));
 	}
+
+	public List<AuditLog> findFromLastWeekAndDomain(String domain) {
+		return auditLogDao.findByPersonDomainAndTtsAfter(domain, LocalDateTime.now().minus(7, ChronoUnit.DAYS));
+	}
 }

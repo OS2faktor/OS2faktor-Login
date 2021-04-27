@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum LogAction {
 	LOGIN("enum.logaction.login", 30 * 6),
 	ACTIVATE("enum.logaction.activate", -1),
+	ACCEPTED_TERMS("enum.logaction.acceptedTerms", -1),
 	DEACTIVATE_BY_PWD("enum.logaction.deactivateByPwd", -1),
 	DEACTIVATE_BY_ADMIN("enum.logaction.deactivateByAdmin", -1),
 	DEACTIVATE_BY_PERSON("enum.logaction.deactivateByPerson", -1),
@@ -19,10 +20,13 @@ public enum LogAction {
 	ADDED_ROLE_BY_ADMIN("enum.logaction.addedRoleByAdmin", -1),
 	REMOVED_ROLE_BY_ADMIN("enum.logaction.removedRoleByAdmin", -1),
 	CHANGE_PASSWORD_SETTINGS("enum.logaction.changePasswordSettings", -1),
+	CHANGE_SESSION_SETTINGS("enum.logaction.changeSessionSettings", -1),
 	CHANGE_TERMS_AND_CONDITIONS("enum.logaction.changeTermsAndConditions", -1),
 	UPDATED_USER("enum.logaction.updatedUser", -1),
 	CREATED_USER("enum.logaction.createdUser", -1),
-	DELETED_USER("enum.logaction.deletedUser", -1);
+	DELETED_USER("enum.logaction.deletedUser", -1),
+	ERROR_SENT_TO_SP("enum.logaction.errorsent", -1),
+	ASSOCIATE_MFA("enum.logaction.associateMfa", -1);
 	
 	private long storageTime;
 	private String message;

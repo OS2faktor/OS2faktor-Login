@@ -1,6 +1,8 @@
 package dk.digitalidentity.common.log;
 
+import dk.digitalidentity.common.dao.model.SessionSetting;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -12,7 +14,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
@@ -32,36 +36,95 @@ public class AuditLogger {
 	@Autowired
 	private AuditLogDao auditLogDao;
 	
+	public void errorSentToSP(Person person, ErrorLogDto errorDetail) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ERROR_SENT_TO_SP);
+		auditLog.setMessage(errorDetail.getMessage());
+
+		AuditLogDetail detail = new AuditLogDetail();
+		auditLog.setDetails(detail);
+
+		detail.setDetailType(DetailType.JSON);
+		try {
+			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(errorDetail));
+		}
+		catch (JsonProcessingException e) {
+			log.error("Could not serialize ErrorDetail");
+		}
+
+		log(auditLog, person, null);
+	}
+
 	public void toggleRoleByAdmin(Person person, Person admin, String role, boolean enabled) {
 		AuditLog auditLog = new AuditLog();
-		String roleMsg = Constants.ROLE_ADMIN.equals(role) ? "administrator" : "supporter";
+		auditLog.setLogAction(enabled ? LogAction.ADDED_ROLE_BY_ADMIN : LogAction.REMOVED_ROLE_BY_ADMIN);
+		String message = enabled ? "Tildelt " : "Frataget ";
 
-		if (enabled) {
-			auditLog.setLogAction(LogAction.ADDED_ROLE_BY_ADMIN);
-			auditLog.setMessage("Tildelt " + roleMsg + " rollen af en administrator");
+		if (Constants.ROLE_ADMIN.equals(role)) {
+			auditLog.setMessage(message + "administrator rollen af en administrator");
 		}
-		else {
-			auditLog.setLogAction(LogAction.REMOVED_ROLE_BY_ADMIN);
-			auditLog.setMessage("Frataget " + roleMsg + " rollen af en administrator");			
+		else if (Constants.ROLE_SUPPORTER.equals(role)) {
+			auditLog.setMessage(message + "supporter rollen af en administrator");
+
+			// Log supporter domain
+			if (enabled && person.getSupporter() != null) {
+				AuditLogDetail detail = new AuditLogDetail();
+				detail.setDetailType(DetailType.TEXT);
+				detail.setDetailContent("domain: " + person.getSupporter().getDomain().getName());
+				auditLog.setDetails(detail);
+			}
+		}
+		else if (Constants.ROLE_REGISTRANT.equals(role)) {
+			auditLog.setMessage(message + "registrant rollen af en administrator");
 		}
 
 		log(auditLog, person, admin);
 	}
-	
-	public void removedFromDataset(Person person) {
-		AuditLog auditLog = new AuditLog();
-		auditLog.setLogAction(LogAction.REMOVED_FROM_DATASET);
-		auditLog.setMessage("Erhvervsidentiteten er blevet spærret af kommunen");
 
-		log(auditLog, person, null);
+	public void removedAllFromDataset(List<Person> people) {
+		ArrayList<AuditLog> logs = new ArrayList<>();
+		for (Person person : people) {
+			AuditLog auditLog = new AuditLog();
+			auditLog.setLogAction(LogAction.REMOVED_FROM_DATASET);
+			auditLog.setMessage("Bruger er blevet spærret af kommunen");
+
+			auditLog.setCorrelationId(getCorrelationId());
+			auditLog.setIpAddress(getIpAddress());
+			auditLog.setPerson(person);
+			auditLog.setPersonName(person.getName());
+			auditLog.setPersonDomain(person.getDomain().getName());
+			auditLog.setCpr(person.getCpr());
+			logs.add(auditLog);
+		}
+
+		auditLogDao.saveAll(logs);
 	}
 	
 	public void addedToDataset(Person person) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.ADDED_TO_DATASET);
-		auditLog.setMessage("Erhvervsidentiteten er klar til udstedelse");
+		auditLog.setMessage("Stamdata for bruger indlæst");
 
 		log(auditLog, person, null);
+	}
+
+	public void addedAllToDataset(List<Person> people) {
+		ArrayList<AuditLog> logs = new ArrayList<>();
+		for (Person person : people) {
+			AuditLog auditLog = new AuditLog();
+			auditLog.setLogAction(LogAction.ADDED_TO_DATASET);
+			auditLog.setMessage("Stamdata for bruger indlæst");
+
+			auditLog.setCorrelationId(getCorrelationId());
+			auditLog.setIpAddress(getIpAddress());
+			auditLog.setPerson(person);
+			auditLog.setPersonName(person.getName());
+			auditLog.setPersonDomain(person.getDomain().getName());
+			auditLog.setCpr(person.getCpr());
+			logs.add(auditLog);
+		}
+
+		auditLogDao.saveAll(logs);
 	}
 
 	public void login(Person person, String loginTo, String assertion) {
@@ -91,10 +154,69 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	public void activatedByPerson(Person person) {
+	public void activatedByPerson(Person person, String nemIDPid) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.ACTIVATE);
-		auditLog.setMessage("Erhvervsidentiteten er blevet aktiveret af brugeren selv");
+		auditLog.setMessage("Brugerkontoen er blevet aktiveret af brugeren selv");
+
+		// Add nemid pid to audit log
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent("NemIDPid: " + nemIDPid);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+
+	public void manualActivation(Object activationDetails, Person person, Person performedBy, boolean userHasSeenCredentials) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ACTIVATE);
+		auditLog.setMessage("Erhvervsidentitet aktiveret af administrator");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode jsonNode = mapper.readTree(mapper.writeValueAsString(activationDetails));
+			((ObjectNode) jsonNode).put("adminSeenCredentials", userHasSeenCredentials);
+
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
+			auditLog.getDetails().setDetailContent(json);
+		}
+		catch (JsonProcessingException ex) {
+			log.error("Could not serialize ActivationDTO", ex);
+		}
+
+		log(auditLog, person, performedBy);
+	}
+	
+	public void manualMfaAssociation(Object activationDetails, Person person, Person performedBy) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ASSOCIATE_MFA);
+		auditLog.setMessage("MFA klient tilknyttet af administrator");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode jsonNode = mapper.readTree(mapper.writeValueAsString(activationDetails));
+
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
+			auditLog.getDetails().setDetailContent(json);
+		}
+		catch (JsonProcessingException ex) {
+			log.error("Could not serialize ActivationDTO", ex);
+		}
+
+		log(auditLog, person, performedBy);
+	}
+
+	public void acceptedTermsByPerson(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ACCEPTED_TERMS);
+		auditLog.setMessage("Brugeren har accepteret vilkår");
 		
 		log(auditLog, person, null);
 	}
@@ -102,7 +224,7 @@ public class AuditLogger {
 	public void deactivateByPerson(Person person) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.DEACTIVATE_BY_PERSON);
-		auditLog.setMessage("Erhvervsidentiteten er blevet spærret af brugeren selv");
+		auditLog.setMessage("Brugeren er blevet spærret af brugeren selv");
 
 		log(auditLog, person, null);
 	}
@@ -110,7 +232,7 @@ public class AuditLogger {
 	public void reactivateByPerson(Person person) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.REACTIVATE_BY_PERSON);
-		auditLog.setMessage("Erhvervsidentiteten er blevet re-aktiveret af brugeren selv");
+		auditLog.setMessage("Brugeren er blevet re-aktiveret af brugeren selv");
 
 		log(auditLog, person, null);
 	}
@@ -118,7 +240,7 @@ public class AuditLogger {
 	public void deactivateByAdmin(Person person, Person admin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.DEACTIVATE_BY_ADMIN);
-		auditLog.setMessage("Erhvervsidentiteten er blevet spærret af en administrator");
+		auditLog.setMessage("Brugeren er blevet spærret af en administrator");
 
 		log(auditLog, person, admin);
 	}
@@ -126,7 +248,7 @@ public class AuditLogger {
 	public void reactivateByAdmin(Person person, Person admin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.REACTIVATE_BY_ADMIN);
-		auditLog.setMessage("Spærringen af erhvervsidentiteten er blevet hævet af en administrator");
+		auditLog.setMessage("Spærringen af brugeren er blevet hævet af en administrator");
 
 		log(auditLog, person, admin);
 	}
@@ -143,6 +265,23 @@ public class AuditLogger {
 			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(passwordSettings));
 		} catch (JsonProcessingException e) {
 			log.error("Could not serialize PasswordSettings");
+		}
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changeSessionSettings(SessionSetting sessionSettings, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_SESSION_SETTINGS);
+		auditLog.setMessage("Sessionindstillinger ændret");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(sessionSettings));
+		} catch (JsonProcessingException e) {
+			log.error("Could not serialize SessionSettings");
 		}
 
 		log(auditLog, admin, admin);
@@ -189,6 +328,7 @@ public class AuditLogger {
 		auditLog.setIpAddress(getIpAddress());
 		auditLog.setPerson(person);
 		auditLog.setPersonName(person.getName());
+		auditLog.setPersonDomain(person.getDomain().getName());
 		auditLog.setCpr(person.getCpr());
 
 		if (admin != null) {

@@ -1,0 +1,5 @@
+CREATE TABLE links (
+	id 					BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	link_text			VARCHAR(255),
+	link				VARCHAR(2048)
+);

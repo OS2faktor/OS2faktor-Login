@@ -4,6 +4,7 @@ import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
+import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,9 @@ public class MFAService {
 
 	@Autowired
 	private CommonConfiguration configuration;
+	
+	@Autowired
+	private LocalRegisteredMfaClientService localRegisteredMfaClientService;
 
 	public List<MfaClient> getClients(String cpr) {
 		HttpHeaders headers = new HttpHeaders();
@@ -42,11 +48,50 @@ public class MFAService {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/nsis/clients?ssn=" + encodeSsn(cpr);
 
 			ResponseEntity<List<MfaClient>> response = restTemplate.exchange(url, HttpMethod.GET, entity, new ParameterizedTypeReference<List<MfaClient>>() { });
+			List<MfaClient> mfaClients = response.getBody();
+			List<String> mfaClientsDeviceIds = response.getBody().stream().map(m -> m.getDeviceId()).collect(Collectors.toList());
 
-			return response.getBody();
+			List<LocalRegisteredMfaClient> localClients = localRegisteredMfaClientService.getByCpr(cpr);			
+			for (LocalRegisteredMfaClient localClient : localClients) {
+				if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
+					MfaClient client = new MfaClient();
+					client.setDeviceId(localClient.getDeviceId());
+					client.setName(localClient.getName());
+					client.setNsisLevel(localClient.getNsisLevel());
+					client.setType(localClient.getType());
+					
+					mfaClients.add(client);
+				}
+			}
+			
+			return mfaClients;
 		}
 		catch (Exception ex) {
 			log.error("Failed to get mfa clients: " + ex);
+		}
+
+		return null;
+	}
+	
+	public MfaClient getClient(String deviceId) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		HttpEntity<String> entity = new HttpEntity<>(headers);
+
+		try {
+			String url = configuration.getMfa().getBaseUrl() + "/api/server/nsis/clients?deviceId=" + deviceId;
+
+			ResponseEntity<List<MfaClient>> response = restTemplate.exchange(url, HttpMethod.GET, entity, new ParameterizedTypeReference<List<MfaClient>>() { });
+
+			if (response.getBody().size() > 0) {
+				return response.getBody().get(0);
+			}
+			
+			return null;
+		}
+		catch (Exception ex) {
+			log.error("Failed to get mfa client: " + ex);
 		}
 
 		return null;

@@ -14,4 +14,6 @@ public class CommonConfiguration {
 	private MfaConfiguration mfa = new MfaConfiguration();
 	private DevConfiguration dev = new DevConfiguration();
 	private AdConfiguration ad = new AdConfiguration();
+	private MailConfiguration email = new MailConfiguration();
+	private CustomerConfiguration customer = new CustomerConfiguration();
 }

@@ -2,6 +2,7 @@ package dk.digitalidentity.common.dao;
 
 import java.util.List;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import org.springframework.data.jpa.repository.JpaRepository;
 import dk.digitalidentity.common.dao.model.Person;
 
@@ -11,10 +12,11 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findByUuid(String uuid);
 	List<Person> findByCpr(String cpr);
 	List<Person> findByNemIdPid(String pid);
-	List<Person> findByAdminTrueOrSupporterTrue();
+	List<Person> findByAdminTrueOrRegistrantTrueOrSupporterNotNull();
 	List<Person> findBySamaccountName(String samAccountName);
-	List<Person> findBySamaccountNameAndDomain(String samAccountName, String domain);
-	List<Person> findByDomain(String domain);
+	List<Person> findBySamaccountNameAndDomain(String samAccountName, Domain domain);
+	List<Person> findByDomain(Domain domain);
+	List<Person> findByDomainAndCpr(Domain domain, String cpr);
 	long countByapprovedConditionsTrue();
 	List<Person> findByLockedPasswordTrue();
 }

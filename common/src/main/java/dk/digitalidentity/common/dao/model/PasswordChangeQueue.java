@@ -26,10 +26,13 @@ public class PasswordChangeQueue {
     private Long id;
 
     @Column
-    private String cpr;
+    private String uuid;
 
     @Column
     private String samaccountName;
+
+    @Column
+    private String domain;
 
     @Column
     private String password;
@@ -46,9 +49,10 @@ public class PasswordChangeQueue {
     private String message;
 
     public PasswordChangeQueue(Person person, String newPassword) {
-        setCpr(person.getCpr());
-        setPassword(newPassword);
-        setSamaccountName(person.getSamaccountName());
-        setStatus(ReplicationStatus.WAITING_FOR_REPLICATION);
+    	this.password = newPassword;
+    	this.domain = person.getDomain().getName();
+    	this.samaccountName = person.getSamaccountName();
+    	this.uuid = person.getUuid();
+    	this.status = ReplicationStatus.WAITING_FOR_REPLICATION;
     }
 }
