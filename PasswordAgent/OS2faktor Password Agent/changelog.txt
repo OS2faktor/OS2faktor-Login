@@ -1,0 +1,2 @@
+﻿2020-12-12 - version 1.0.0 - first release
+2021-01-26 - version 1.1.0 - can supply username/password for agent if running as non-domainadmin

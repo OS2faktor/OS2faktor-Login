@@ -1,4 +1,5 @@
 ﻿using Serilog;
+using System;
 using System.DirectoryServices.AccountManagement;
 
 namespace OS2faktor_Password_Agent
@@ -9,6 +10,7 @@ namespace OS2faktor_Password_Agent
         private static string adRoot = Settings.GetStringValue("adRoot");
         private static string adUsername = Settings.GetStringValue("adUsername");
         private static string adPassword = Settings.GetStringValue("adPassword");
+
         private static bool adRemoteEnabled = !string.IsNullOrEmpty(adUrl) && !string.IsNullOrEmpty(adRoot) && !string.IsNullOrEmpty(adUsername) && !string.IsNullOrEmpty(adPassword);
 
         public ILogger Logger { get; set; }
@@ -31,14 +33,10 @@ namespace OS2faktor_Password_Agent
                     {
                         try
                         {
-                            if (!adRemoteEnabled)
-                            {
-                                user.SetPassword(newPassword);
-                            }
-                            else
-                            {
-                                Logger.Information("Cannot change password while outside the domain");
-                            }
+                            // Note that this ONLY works if you are domain joined, and if you are either a domain admin, or
+                            // have been granted the Change Password right (and if not a domain admin, the username/password must be supplied,
+                            // for reasons unknown)
+                            user.SetPassword(newPassword);
 
                             return true;
                         }

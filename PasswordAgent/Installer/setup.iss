@@ -30,6 +30,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Source: "*.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.config"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
 Source: "*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "*.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "*.pdb"; DestDir: "{app}"; Flags: ignoreversion
 
 [Run]
