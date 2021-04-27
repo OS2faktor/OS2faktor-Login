@@ -13,8 +13,11 @@ public class PasswordRequest {
 	private String domain;
 	
 	@NotNull
-	private String userId;
-	
+	private String userUuid;
+
+	@NotNull
+	private String userName;
+
 	@NotNull
 	private String password;
 }

@@ -1,5 +1,8 @@
 package dk.digitalidentity.service;
 
+import java.util.List;
+import java.util.Objects;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Service;
@@ -20,12 +23,13 @@ public class PasswordService {
 		response.setValid(false);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserId(), request.getPassword(), request.getDomain());
-			
+			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain());
+
 			return result.get();
 		}
 		catch (Exception ex) {
 			log.error("Failed to validate password", ex);
+			response.setMessage(ex.getMessage());
 		}
 
 		return response;
@@ -36,8 +40,8 @@ public class PasswordService {
 		response.setValid(false);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserId(), request.getPassword(), request.getDomain());
-			
+			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain());
+
 			return result.get();
 		}
 		catch (Exception ex) {
@@ -45,5 +49,15 @@ public class PasswordService {
 		}
 
 		return response;
+	}
+
+	public int activeSessions(String domain) {
+		List<Session> sessions = socketHandler.getSessions();
+		
+		if (domain != null) {
+			return (int) sessions.stream().filter(s -> Objects.equals(domain, s.getDomain())).count();
+		}
+		
+		return sessions.size();
 	}
 }

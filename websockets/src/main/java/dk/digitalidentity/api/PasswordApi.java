@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.api.dto.PasswordRequest;
@@ -40,5 +42,12 @@ public class PasswordApi {
 		PasswordResponse response = passwordService.setPassword(request);
 		
 		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+	@GetMapping("/api/sessions")
+	public ResponseEntity<?> activeSessions(@RequestParam(value = "domain", required = false) String domain) {
+		int activeSessions = passwordService.activeSessions(domain);
+
+		return new ResponseEntity<>(activeSessions, HttpStatus.OK);
 	}
 }

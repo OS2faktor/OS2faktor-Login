@@ -51,7 +51,7 @@ public class SocketHandler extends TextWebSocketHandler {
 		
 		Session session = getSession(domain);
 		if (session == null) {
-			log.error("Failed to get an authenticated WebSocket connection");
+			log.error("Failed to get an authenticated WebSocket connection for validatePassword");
 			response.setMessage("No authenticated WebSocket connection available");
 			return new AsyncResult<PasswordResponse>(response);
 		}
@@ -121,20 +121,20 @@ public class SocketHandler extends TextWebSocketHandler {
 	}
 	
 	@Async
-	public AsyncResult<PasswordResponse> setPassword(String username, String password, String domain) throws InterruptedException {
+	public AsyncResult<PasswordResponse> setPassword(String userId, String password, String domain) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setValid(false);
 
 		Session session = getSession(domain);
 		if (session == null) {
-			log.error("Failed to get an authenticated WebSocket connection");
+			log.error("Failed to get an authenticated WebSocket connection for setPassword");
 			response.setMessage("No authenticated WebSocket connection available");
 			return new AsyncResult<PasswordResponse>(response);
 		}
 		
 		Request request = new Request();
 		request.setCommand(Commands.SET_PASSWORD);
-		request.setTarget(username);
+		request.setTarget(userId);
 		request.setPayload(password);
 
 		try {
@@ -351,6 +351,10 @@ public class SocketHandler extends TextWebSocketHandler {
 		}
 		
 		return matchingSessions.get(random.nextInt(matchingSessions.size()));
+	}
+
+	public List<Session> getSessions() {
+		return sessions;
 	}
 	
 	public void cleanupRequestResponse() {
