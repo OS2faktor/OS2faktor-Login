@@ -10,7 +10,7 @@
                 </div>
 
                 <div class="ibox-content">
-                    <form id="loginForm" method="post">
+                    <form id="loginForm" method="get" th:action="@{/sso/saml/mfa/} + ${deviceId} + '/completed'">
                         <div>
                             <p>
                                 Af sikkerhedsmæssige årsager kræver vi yderligere oplysninger for at bekræfte din konto.
@@ -27,13 +27,14 @@
                                 <h2 th:text="${challenge}" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
                             </div>
                         </div>
+
                         <div th:if="${redirectUrl} != null">
                             <p class="mb-5">
-                                Din browser åbner nu et login-skærmbillede, hvor du skal gennemføre login med din OS2faktor klient. Hvis vinduet ikke åbner af sig selv, kan du åbne det ved at trykke på knappen nedenfor. Hvis vinduet ikke åbner, kan det skyldes at din browser blokerer popups.
+                                Din browser åbner nu et login-skærmbillede, hvor du skal gennemføre login med din OS2faktor klient. Hvis vinduet ikke åbner af sig selv, kan du åbne det ved at trykke på knappen nedenfor. Hvis vinduet ikke åbner, skal du blot trykke på nedenstående knap.
                             </p>
 
                             <div class="mb-5">
-                                <a onclick="mfaService.openRedirect()" class="btn btn-lg btn-primary" target="_blank">Login</a>
+                                <button style="font-size: 1.5em; min-width: 150px;" onclick="mfaService.openRedirect()" class="btn btn-primary" target="_blank">Login</a>
                             </div>
                         </div>
                     </form>
@@ -48,9 +49,11 @@
 	/*<![CDATA[*/
 
 		/*[+
+            var os2faktorBackend = [[${os2faktorBackend}]];
             var url = [[@{/ui/tempworker}]];
             var pollingKey = [[${pollingKey}]];
             var redirectUrl = [[${redirectUrl}]];
+            var finishUrl = [[${@OS2faktorConfiguration.baseUrl} + '/sso/saml/mfa/' + ${deviceId} + '/completed']];
 		+]*/
 		var token = $("meta[name='_csrf']").attr("content");
 
@@ -66,12 +69,12 @@
                 var tries = 0;
 
                 var pollingFn = setInterval(function() {
-                    if(tries++ > 60*5) {
+                    if (tries++ > 60 * 5) {
                         clearInterval(pollingFn);
                     }
 
                     $.ajax({
-                        url: "https://backend.os2faktor.dk/api/notification/" + pollingKey + "/poll",
+                        url: os2faktorBackend + "/api/notification/" + pollingKey + "/poll",
                         success: function(data, textStatus, xhr) {
                             if (data && data.stateChange == true) {
                                 $("#loginForm").submit();
@@ -87,8 +90,7 @@
             }
 
             this.openRedirect = function () {
-                var redirectWindow = window.open(redirectUrl);
-                redirectWindow.focus();
+            	window.location.href = redirectUrl + "?redirectUrl=" + finishUrl;
             }
         }
 

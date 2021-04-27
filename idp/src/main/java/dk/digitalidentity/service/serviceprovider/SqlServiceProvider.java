@@ -1,47 +1,55 @@
 package dk.digitalidentity.service.serviceprovider;
 
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
-import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
-import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.util.Constants;
-import dk.digitalidentity.util.RequesterException;
-import dk.digitalidentity.util.ResponderException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
-import net.shibboleth.utilities.java.support.resolver.ResolverException;
+
 import org.apache.http.client.HttpClient;
 import org.opensaml.core.criterion.EntityIdCriterion;
-import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
+import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.stereotype.Component;
 
-@Component
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.service.RoleCatalogueService;
+import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
+import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
+import net.shibboleth.utilities.java.support.resolver.ResolverException;
+
+@Slf4j
+@Component // TODO: not actually a component, so not autowire
 public class SqlServiceProvider extends ServiceProvider {
-
     private SqlServiceProviderConfiguration config;
+    private AbstractReloadingMetadataResolver resolver;
+    private RoleCatalogueService roleCatalogueService;
 
-    private HTTPMetadataResolver resolver;
-
+    // TODO: default constructor never used (well, not once we remove the @Component annotation
     public SqlServiceProvider() {
         this.config = new SqlServiceProviderConfiguration();
     }
 
-    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient) {
+    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient, RoleCatalogueService roleCatalogueService) {
         super.httpClient = httpClient;
+
+        this.roleCatalogueService = roleCatalogueService;
         this.config = config;
     }
 
     @Override
     public EntityDescriptor getMetadata() throws RequesterException, ResponderException {
         if (resolver == null || !resolver.isInitialized()) {
-            resolver = getMetadataResolver(config.getEntityId(), config.getMetadataUrl());
+            resolver = getMetadataResolver(config.getEntityId(), config.getMetadataUrl(), config.getMetadataContent());
         }
 
         // If last scheduled refresh failed, Refresh now to give up to date metadata
@@ -84,6 +92,12 @@ public class SqlServiceProvider extends ServiceProvider {
             case "cpr":
                 result = person.getCpr();
                 break;
+            case "name":
+            	result = person.getName();
+            	break;
+            case "alias":
+            	result = person.getNameAlias();
+            	break;
             default:
                 if (person.getAttributes() != null) {
                     result = person.getAttributes().get(requiredField);
@@ -92,7 +106,7 @@ public class SqlServiceProvider extends ServiceProvider {
         }
 
         if (result == null) {
-            throw new ResponderException("Brugeren har ikke det krævede 'NameId' felt (" + requiredField + ") i databasen");
+            throw new ResponderException("Brugeren har ikke det krævede 'Name ID' felt (" + requiredField + ") i databasen");
         }
 
         return result;
@@ -104,8 +118,8 @@ public class SqlServiceProvider extends ServiceProvider {
     }
 
     @Override
-    public Map<String, String> getAttributes(Person person) {
-        HashMap<String, String> attributes = new HashMap<>();
+    public Map<String, Object> getAttributes(Person person) {
+        HashMap<String, Object> attributes = new HashMap<>();
 
         // "Static" fields
         Set<SqlServiceProviderStaticClaim> staticClaims = config.getStaticClaims();
@@ -116,24 +130,53 @@ public class SqlServiceProvider extends ServiceProvider {
         // Person specific fields
         Set<SqlServiceProviderRequiredField> requiredFields = config.getRequiredFields();
         for (SqlServiceProviderRequiredField requiredField : requiredFields) {
-            String attribute = null;
-            switch (requiredField.getPersonField()) {
-                case "userId":
-                    attribute = person.getUserId();
-                    break;
-                case "sAMAccountName":
-                    attribute = person.getSamaccountName();
-                    break;
-                case "uuid":
-                    attribute = person.getUuid();
-                    break;
-                case "cpr":
-                    attribute = person.getCpr();
-                    break;
-                default:
-                    if (person.getAttributes() != null) {
-                        attribute = person.getAttributes().get(requiredField.getPersonField());
-                    }
+            Object attribute = null;
+            
+            if (requiredField.getPersonField().startsWith("os2rollekatalog")) {
+            	String[] tokens = requiredField.getPersonField().split("\\|");
+            	if (tokens.length != 3) {
+            		log.error("Invalid configuration: " + requiredField.getPersonField());
+            		continue;
+            	}
+            	else {
+            		switch (tokens[1]) {
+            			case "systemroles":
+            				List<String> systemRoles = roleCatalogueService.getSystemRoles(person, tokens[2]);
+            				if (systemRoles != null && systemRoles.size() > 0) {
+            					attribute = systemRoles;
+            				}
+            				break;
+        				default:
+        					log.error("invalid lookup parameter: " + tokens[1]);
+        					continue;
+            		}
+            	}
+            }
+            else {
+	            switch (requiredField.getPersonField()) {
+	                case "userId":
+	                    attribute = person.getUserId();
+	                    break;
+	                case "sAMAccountName":
+	                    attribute = person.getSamaccountName();
+	                    break;
+	                case "uuid":
+	                    attribute = person.getUuid();
+	                    break;
+	                case "cpr":
+	                    attribute = person.getCpr();
+	                    break;
+	                case "name":
+	                	attribute = person.getName();
+	                	break;
+	                case "alias":
+	                	attribute = person.getNameAlias();
+	                	break;
+	                default:
+	                    if (person.getAttributes() != null) {
+	                        attribute = person.getAttributes().get(requiredField.getPersonField());
+	                    }
+	            }
             }
 
             if (attribute != null) {
@@ -208,9 +251,13 @@ public class SqlServiceProvider extends ServiceProvider {
         return config.getName();
     }
 
-	@Override
+    @Override
+    public boolean encryptAssertions() {
+        return config.isEncryptAssertions();
+    }
+
+    @Override
 	public boolean enabled() {
-		// TODO: perhaps add this to the SQL schema
-		return true;
+        return config.isEnabled();
 	}
 }

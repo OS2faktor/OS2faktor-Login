@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.joda.time.DateTime;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.opensaml.saml.saml2.core.Conditions;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
@@ -17,6 +18,7 @@ import org.opensaml.saml.saml2.core.StatusMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.service.OpenSAMLHelperService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -87,21 +89,41 @@ public class LoggingUtil {
 		log.info(prefix + " Response - ID:'" + id + "' InResponseTo:'" + inResponseTo + "' Issuer:'" + issuerStr + "' Status:'" + statusStr + "' IssueInstant:'" + instant + "' Destination:'" + destination + "'");
 	}
 
-	public void logAssertion(Assertion assertion, String prefix) {
+	public void logAssertion(Assertion assertion, String prefix, Person person) {
+		if (assertion == null) {
+			log.warn("Couldnt log assertion since assertion was null");
+			return;
+		}
+
+		// Build log
+		StringBuilder logBuilder = new StringBuilder();
+		logBuilder.append(prefix).append(" Assertion - ");
+		logBuilder.append("Person:'").append(person != null ? person.getUuid() : "<null>").append("' ");
+
+		String id = assertion.getID();
+		logBuilder.append("ID:'").append(id != null ? id : "<null>").append("' ");
+
+		Conditions conditions = assertion.getConditions();
+		if (conditions != null) {
+			DateTime notOnOrAfter = conditions.getNotOnOrAfter();
+			logBuilder.append("NotOnOrAfter:'").append(notOnOrAfter != null ? notOnOrAfter : "<null>").append("' ");
+		}
+
 		if (assertion.getAttributeStatements() != null && assertion.getAttributeStatements().size() > 0) {
 			Map<String, String> attributeValues = openSAMLHelperService.extractAttributeValues(assertion.getAttributeStatements().get(0));
-			
-			StringBuilder builder = new StringBuilder();
+
+			StringBuilder attributeStringBuilder = new StringBuilder();
 			for (String key : attributeValues.keySet()) {
-				if (builder.length() > 0) {
-					builder.append(", ");
+				if (attributeStringBuilder.length() > 0) {
+					attributeStringBuilder.append(", ");
 				}
 				
-				builder.append(key + "=" + attributeValues.get(key));
+				attributeStringBuilder.append(key + "=" + attributeValues.get(key));
 			}
-
-			log.info(prefix + " Assertion: " + builder.toString());
+			logBuilder.append("Attributes:'").append(attributeStringBuilder.toString()).append("' ");
 		}
+
+		log.info(logBuilder.toString());
 	}
 
 	public void logLogoutRequest(LogoutRequest logoutRequest, String prefix) {

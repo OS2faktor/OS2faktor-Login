@@ -119,9 +119,135 @@ public class NemIDService {
 			}
 		}
 
-		log.error("NemID validation failed: " + result);
+		
 
-		return new PidAndCprOrError(result);
+		return new PidAndCprOrError(handleErrorCode(result));
+	}
+	
+	private String handleErrorCode(String errorCode) {
+		
+		/*
+		 * Translating error codes
+		 * via https://www.nets.eu/dk-da/kundeservice/nemid-tjenesteudbyder/Documents/TU-pakken/Java/Dokumentation/implementeringsvejledning_for_nemid.pdf
+		 * 3.7.4: Anbefaling til tekster for bruger-rettede fejlkoder
+		 */
+		String result = "";
+		switch (errorCode) {
+			case "CAN001":
+				result = errorCode + ": " + "Login blev afbrudt i forbindelse med brug af midlertidig adgangskode";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "CAN002":
+				result = errorCode + ": " + "Login blev afbrudt";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "LOCK001":
+				result = errorCode + ": " + "Du har angivet forkert bruger-id eller adgangskode 5 gange i træk."
+						+ " NemID er nu spærret i 8 timer, hvorefter du igen vil have 5 forsøg."
+						+ " Du kan logge på igen efter udløbet af den 8 timers spærreperiode."
+						+ " Du kan ophæve spærringen tidligere ved at kontakte NemIDsupport på tlf. 80 30 70 50";
+				log.error("NemID validation failed: " + result);
+				break;
+			case "LOCK002":
+				result = errorCode + ": " + "NemID er spærret og kan ikke bruges."
+						+ " For at få hjælp til dette, kan du kontakte NemID-support på tlf. 80 30 70 50";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "LOCK003":
+				result = errorCode + ": " + "NemID er spærret og kan ikke bruges."
+						+ " For at få hjælp til dette, kan du kontakte NemID-support på tlf." + "80 30 70 50";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "OCES001":
+				result = errorCode + ": " + "Du har kun sagt ja til at bruge NemID til netbank. Ønsker du at"
+						+ " bruge NemID til andre hjemmesider, skal du først tilknytte en"
+						+ " offentlig digital signatur (OCES) til dit NemID."
+						+ " [https://www.nemid.nu/privat/bestil_nemid/nemid_i_netbank/]";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "OCES002":
+				result = errorCode + ": " + "Ønsker du at bruge NemID til andet end netbank, skal du først"
+						+ " tilknytte en offentlig digital signatur. Det gør du nemt og hurtigt"
+						+ " ved at starte en ny bestilling af NemID på www.nemid.nu"
+						+ " hvorved du får mulighed for at tilknytte en offentlig digital signatur."
+						+ " [https://www.nemid.nu/privat/bestil_nemid/]";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "OCES003":
+				result = errorCode + ": " + "Der er ikke knyttet en digital signatur til det NemID, du har"
+						+ " forsøgt at logge på med."
+						+ " Hvis du plejer at logge på [TU] med NemID, kan problemet skyldes, at du har flere forskellige NemID og at du nu har brugt"
+						+ " et andet NemID, end du plejer.";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "OCES004":
+				result = errorCode + ": " + "Du kan kun bruge NemID til netbank. ";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "OCES005":
+				result = errorCode + ": " + "Der opstod en fejl under oprettelse af OCES certifikat til"
+						+ " NemID Prøv at logge på igen.";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "OCES006":
+				result = errorCode + ": " + "Du har ikke i øjeblikket ikke en aktiv offentlig digital signatur"
+						+ " (OCES-certifikat) til NemID. Det kan du få ved at starte en"
+						+ " bestilling af NemID, hvorved du vil få mulighed for at vælge at"
+						+ " bestille og tilknytte en offentlig digital signatur til dit nuværende NemID."
+						+ " [https://www.nemid.nu/privat/bestil_nemid/]";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "SRV006":
+				result = errorCode + ": " + "Tidsgrænse overskredet. Forsøg igen";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "APP001":
+			case "APP002":
+			case "APP004":
+			case "SRV001":
+			case "SRV002":
+			case "SRV003":
+			case "SRV005":
+				result = errorCode + ": " + "Der er opstået en teknisk fejl. Forsøg igen.";
+				log.error("NemID validation failed: " + result);
+				break;
+			case "APP003":
+			case "SRV004":
+				result = errorCode + ": " + "Der er opstået en teknisk fejl." + "Kontakt NemID-support på tlf. 80 30 70 50";
+				log.error("NemID validation failed: " + result);
+				break;
+			case "APP005":
+				result = errorCode + ": " + "Du skal godkende Nets DanIDs certifikat, før du kan logge på"
+						+ " med NemID. Genstart din browser og godkend certifikatet næste gang du"
+						+ " bliver spurgt. Har du brug for hjælp, kan du kontakte NemID-support på tlf."
+						+ " 80 30 70 50";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "AUTH001":
+				result = errorCode + ": " + "Din NemID er spærret. Kontakt venligst NemID-support på tlf. 80 30 70 50.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "AUTH004":
+				result = errorCode + ": " + "Dit NemID er midlertidigt låst og du kan endnu ikke logge på. Du kan logge på igen når den 8 timers tidslås er ophævet.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "AUTH005":
+				result = errorCode + ": " + "Dit NemID er spærret. Kontakt venligst NemID-support på tlf. 80 30 70 50.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "AUTH006":
+			case "AUTH007":
+			case "AUTH008":
+				result = errorCode + ": " + " Kontakt NemID-support på tlf. 80 30 70 50";
+				log.error("NemID validation failed: " + errorCode);
+				break;
+			default:
+				result = errorCode;
+				log.error("NemID validation failed: " + result);
+				break;
+		}
+		
+		return result;
 	}
 
 	private String getOrigin(HttpServletRequest request) {

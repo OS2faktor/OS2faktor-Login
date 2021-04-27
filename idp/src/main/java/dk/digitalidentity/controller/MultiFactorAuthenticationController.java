@@ -1,5 +1,6 @@
 package dk.digitalidentity.controller;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
@@ -12,9 +13,10 @@ import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import java.util.List;
 import java.util.Objects;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
+
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +24,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.ModelAndView;
 import org.thymeleaf.util.StringUtils;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Controller
 @Slf4j
@@ -44,6 +47,9 @@ public class MultiFactorAuthenticationController {
 
 	@Autowired
 	private LoginService loginService;
+	
+	@Autowired
+	private CommonConfiguration configuration;
 
 	@GetMapping("/sso/saml/mfa/{deviceId}")
 	public String mfaChallengePage(HttpServletResponse response, HttpServletRequest httpServletRequest, Model model, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
@@ -99,33 +105,36 @@ public class MultiFactorAuthenticationController {
 		else {
 			model.addAttribute("redirectUrl", redirectUrl);
 		}
+		
+		model.addAttribute("deviceId", deviceId);
+		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 
 		return "login-mfa-challenge";
 	}
 
-	@PostMapping("/sso/saml/mfa/{deviceId}")
-	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
+	@GetMapping("/sso/saml/mfa/{deviceId}/completed")
+	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
 		Person person = sessionHelper.getPerson();
 		if (sessionHelper.getLoginState() == null || person == null) {
 			throw new ResponderException("Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login");
 		}
+
 		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
 
 		MfaClient selectedMFAClient = sessionHelper.getSelectedMFAClient();
-		if (selectedMFAClient == null) {
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER,
-					new RequesterException("Fejl i 2-faktor login"));
+		if (selectedMFAClient == null || !Objects.equals(selectedMFAClient.getDeviceId(), deviceId)) {
+			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Fejl i 2-faktor login"));
 			return null;
 		}
 
 		if (!mfaService.isAuthenticated(sessionHelper.getSubscriptionKey())) {
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER,
-					new RequesterException("2-faktor login ikke gennemført"));
+			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException("2-faktor login ikke gennemført"));
 			return null;
 		}
 
 		sessionHelper.setMFALevel(selectedMFAClient.getNsisLevel());
 		sessionHelper.setSelectedMFAClient(null);
+
 		return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
 	}
 }

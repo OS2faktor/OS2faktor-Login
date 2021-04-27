@@ -12,4 +12,5 @@ public class SelfServiceConfiguration {
 	private String baseUrl;
 	private String metadataUrl;
 	private String entityId;
+	private boolean encryptAssertion = true;
 }

@@ -10,6 +10,8 @@ import javax.servlet.http.HttpServletResponse;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
+import org.opensaml.saml.common.binding.SAMLBindingSupport;
+import org.opensaml.saml.common.messaging.context.SAMLBindingContext;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPRedirectDeflateEncoder;
@@ -18,7 +20,6 @@ import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
-import org.opensaml.security.credential.UsageType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
@@ -60,6 +61,21 @@ public class LogoutController {
     @Autowired
     private LogoutResponseService logoutResponseService;
 
+    // user initiated logout from IdP UI
+    @GetMapping("/sso/saml/logoutIdP")
+    public String logoutIdp(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+        Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
+
+        try {
+        	logout(httpServletResponse, null, spSessions);
+        }
+        catch (Exception ex) {
+        	log.warn("Failed to perform SLO", ex);
+        }
+
+    	return "redirect:/";
+    }
+
     @GetMapping("/sso/saml/logout")
     public String logoutRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
         MessageContext<SAMLObject> messageContext = null;
@@ -70,47 +86,48 @@ public class LogoutController {
             logoutRequest = logoutRequestService.getLogoutRequest(messageContext);
             loggingUtil.logLogoutRequest(logoutRequest, Constants.INCOMING);
 
+            // Save RelayState
+            SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
+            String relayState = subcontext != null ? subcontext.getRelayState() : null;
+            sessionHelper.setRelayState(relayState);
+
             serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
-        } catch (RequesterException | ResponderException e) {
-            log.error("Error occurred, no destination to send error known", e);
-            return null;
-        }
+		}
+		catch (RequesterException | ResponderException e) {
+			log.error("Error occurred, no destination to send error known", e);
+			return null;
+		}
 
         try {
             // Validate logout request
             EntityDescriptor spMetadata = serviceProvider.getMetadata();
-            PublicKey spKey = serviceProvider.getPublicKey(UsageType.SIGNING);
+            PublicKey spKey = serviceProvider.getSigningKey();
             logoutRequestService.validateLogoutRequest(httpServletRequest, messageContext, spMetadata, spKey);
-
-            // Delete session
-            sessionHelper.setPasswordLevel(null);
-            sessionHelper.setMFALevel(null);
-            sessionHelper.setLogoutRequest(logoutRequest);
 
             // Remove the EntityId of the SP sending the LogoutRequest since the user is no longer logged in there
             Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
             spSessions.remove(serviceProvider.getEntityId());
             sessionHelper.setServiceProviderSessions(spSessions);
 
-            // Either send Response or send new request to a remaining service provider
-            if (spSessions.keySet().size() > 0) {
-                sendLogoutRequest(httpServletResponse, logoutRequest);
-            } else {
-                sendLogoutResponse(httpServletResponse, logoutRequest);
-            }
-        } catch (RequesterException ex) {
-            SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-            String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+            // TODO: virker forkert... bør logout requestet ikke komme fra IdP'en når den nu sendes til de andre SP'ere?
+            // bør testes med 2 SP'ere for at se hvordan logout requestet ser ud når det sendes videre til næste IdP
+            logout(httpServletResponse, logoutRequest, spSessions);
+		}
+		catch (RequesterException ex) {
+			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
+			String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex);
-        } catch (ResponderException ex) {
-            SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-            String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex);
-        }
+			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex);
+		}
+		catch (ResponderException ex) {
+			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
+			String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex);
+		}
+
         return null;
     }
-
+    
     @GetMapping("/sso/saml/logout/response")
     public void logoutResponse(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
         MessageContext<SAMLObject> messageContext;
@@ -130,13 +147,9 @@ public class LogoutController {
         LogoutRequest logoutRequest = null;
         try {
             logoutRequest = sessionHelper.getLogoutRequest();
+            Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
 
-            // Either send Response or send new request to a remaining service provider
-            if (sessionHelper.getServiceProviderSessions().keySet().size() > 0) {
-                sendLogoutRequest(httpServletResponse, logoutRequest);
-            } else {
-                sendLogoutResponse(httpServletResponse, logoutRequest);
-            }
+            logout(httpServletResponse, logoutRequest, spSessions);
         } catch (ResponderException ex) {
             SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
             String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
@@ -149,14 +162,18 @@ public class LogoutController {
     }
 
     private void sendLogoutResponse(HttpServletResponse httpServletResponse, LogoutRequest logoutRequest) throws ResponderException, RequesterException {
-        sessionHelper.setPerson(null);
-
         // Create LogoutResponse
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
         SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
 
         String destination = !StringUtils.isEmpty(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
         MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination);
+
+        // Set RelayState
+        SAMLBindingSupport.setRelayState(messageContext, sessionHelper.getRelayState());
+
+        // Logout Response is sent as the last thing after all LogoutRequests so delete the remaining values
+        sessionHelper.invalidateSession();
 
         // Deflating and sending the message
         try {
@@ -212,5 +229,18 @@ public class LogoutController {
             encoder.initialize();
             encoder.encode();
         }
+    }
+    
+    private void logout(HttpServletResponse response, LogoutRequest logoutRequest, Map<String, Map<String, String>> spSessions) throws ResponderException, RequesterException {
+        // Delete session and save logoutRequest
+        sessionHelper.logout(logoutRequest);
+
+        // Either send Response or send new request to a remaining service provider
+		if (spSessions.keySet().size() > 0) {
+			sendLogoutRequest(response, logoutRequest);
+		}
+		else {
+			sendLogoutResponse(response, logoutRequest);
+		}
     }
 }

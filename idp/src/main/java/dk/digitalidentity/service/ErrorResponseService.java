@@ -2,6 +2,9 @@ package dk.digitalidentity.service;
 
 import javax.servlet.http.HttpServletResponse;
 
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.log.ErrorLogDto;
 import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
@@ -33,13 +36,30 @@ public class ErrorResponseService {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
+	@Autowired
+	private AuditLogger auditLogger;
+
+	@Autowired
+	private SessionHelper sessionHelper;
+
 	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e) {
-		sendError(response, destination, inResponseTo, statusCode, e, true);
+		sendError(response, destination, inResponseTo, statusCode, e, true, false);
 	}
 
-	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, boolean logged) {
+	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, boolean logged, boolean logoutOfSession) {
 		if (logged) {
 			log.warn("Sending error to " + destination, e);
+		}
+
+		// If we have a person on the session AuditLog error, so Municipalities can troubleshoot via SelfService
+		Person person = sessionHelper.getPerson();
+		if (person != null) {
+			ErrorLogDto errorDetail = new ErrorLogDto(e, destination, person, sessionHelper.getPasswordLevel(), sessionHelper.getPasswordLevelTimestamp(), sessionHelper.getMFALevel(), sessionHelper.getMFALevelTimestamp());
+			auditLogger.errorSentToSP(person, errorDetail);
+		}
+
+		if (logoutOfSession) {
+			sessionHelper.invalidateSession();
 		}
 
 		send(response, destination, inResponseTo, statusCode, e);

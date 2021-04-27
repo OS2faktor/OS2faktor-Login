@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = false)" />
+<body class="gray-bg">
+<div class="loginColumns animated fadeInDown">
+	<div class="row">
+		<div class="ibox offset-md-2 col-md-8">
+			<div class="ibox-title">
+				<h5><em class="fa fa-calendar-times-o "></em> &nbsp; Aktiver erhvervsidentitet</h5>
+			</div>
+
+			<div class="ibox-content">
+				<p>Din erhvervsidentitet er ikke blevet aktiveret endnu. Nogle tjenesteudbydere kræver en erhvervsidentitet for at kunne gennemføre login. Ønsker du at aktivere den nu?</p>
+				<a th:href="@{/konto/aktiver}" class="btn btn-primary block full-width m-b">Ja, aktiver erhvervsidentitet</a>
+				<a th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b">Nej</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+</body>
+</html>

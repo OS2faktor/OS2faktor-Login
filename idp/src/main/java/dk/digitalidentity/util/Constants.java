@@ -7,7 +7,8 @@ public class Constants {
     public static final String RELAY_STATE = "RelayState";
     public static final String SAMLRequest = "SAMLRequest";
 
-    public static final String MFA_AUTHENTIFICATION_LEVEL = "MFA_AUTHENTIFICATION_LEVEL";
+    public static final String MFA_AUTHENTICATION_LEVEL = "MFA_AUTHENTICATION_LEVEL";
+    public static final String MFA_AUTHENTICATION_LEVEL_TIMESTAMP = "MFA_AUTHENTICATION_LEVEL_TIMESTAMP";
     public static final String MFA_CLIENTS = "MFA_CLIENTS";
     public static final String MFA_SELECTED_CLIENT = "MFA_CLIENTS";
     public static final String SUBSCRIPTION_KEY = "SubscriptionKey";
@@ -17,13 +18,19 @@ public class Constants {
     public static final String AUTHENTICATED_WITH_AD_PASSWORD = "AUTHENTICATED_WITH_AD_PASSWORD";
 
     public static final String PASSWORD_AUTHENTIFICATION_LEVEL = "PASSWORD_AUTHENTIFICATION_LEVEL";
+    public static final String PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP = "PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP";
     public static final String PASSWORD = "PASSWORD";
+    public static final String PASSWORD_CHANGE_FLOW = "PASSWORD_CHANGE_FLOW";
+    public static final String PASSWORD_CHANGE_SUCCESS_REDIRECT = "PASSWORD_CHANGE_SUCCESS_REDIRECT";
+    public static final String PASSWORD_EXPIRY_FLOW = "PASSWORD_EXPIRY_FLOW";
+
+    public static final String APPROVE_CONDITIONS_FLOW = "APPROVE_CONDITIONS_FLOW";
+    public static final String DECLINE_USER_ACTIVATION = "DECLINE_USER_ACTIVATION";
 
     public static final String AUTHENTICATED_WITH_NEMID = "AUTHENTICATED_WITH_NEMID";
     public static final String NEMID_PID = "NEMID_PID";
     public static final String AVAILABLE_PEOPLE = "AVAILABLE_PEOPLE";
-    public static final String ACTIVATE_ACCOUNT_COMPLETED = "ACTIVATE_ACCOUNT_COMPLETED";
-
+    public static final String ACTIVATE_ACCOUNT_FLOW = "ACTIVATE_ACCOUNT_FLOW";
 
     // TODO Cleanup
     // Common Attributes
@@ -35,7 +42,10 @@ public class Constants {
     public static final String LEVEL_OF_ASSURANCE_HIGH = "https://data.gov.dk/concept/core/nsis/loa/High";
     public static final String LEVEL_OF_ASSURANCE_SUBSTANTIAL = "https://data.gov.dk/concept/core/nsis/loa/Substantial";
     public static final String LEVEL_OF_ASSURANCE_LOW = "https://data.gov.dk/concept/core/nsis/loa/Low";
-
+    
+    // STIL constants
+    public static final String STIL_LEVEL_OF_ASSURANCE_TOFAKTOR = "dk:unilogin:loa:ToFaktor";
+    
     //Professional Person Attributes
     public static final String CVR = "https://data.gov.dk/model/core/eid/professional/cvr";
     public static final String CVR_VALUE = "20301823";

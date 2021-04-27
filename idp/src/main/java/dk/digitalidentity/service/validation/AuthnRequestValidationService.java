@@ -1,6 +1,5 @@
 package dk.digitalidentity.service.validation;
 
-import dk.digitalidentity.util.ResponderException;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.util.Base64;
@@ -8,8 +7,6 @@ import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.handler.MessageHandlerException;
 import org.opensaml.saml.common.SAMLObject;
@@ -24,15 +21,17 @@ import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
 import org.opensaml.saml.saml2.metadata.Endpoint;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
 import org.opensaml.security.SecurityException;
-import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.crypto.SigningUtil;
 import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 
@@ -172,7 +171,7 @@ public class AuthnRequestValidationService {
 	private void validateSignature(HttpServletRequest request, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		log.debug("Validating Signature");
 
-		PublicKey signingKey = serviceProvider.getPublicKey(UsageType.SIGNING);
+		PublicKey signingKey = serviceProvider.getSigningKey();
 
 		String queryString = request.getQueryString();
 		String signature = request.getParameter("Signature");

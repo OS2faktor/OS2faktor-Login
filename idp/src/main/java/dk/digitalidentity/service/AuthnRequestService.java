@@ -41,7 +41,8 @@ public class AuthnRequestService {
 			throw new ResponderException("Kunne ikke initialisere afkoder", e);
 		}
 		catch (MessageDecodingException e) {
-			throw new RequesterException("Kunne ikke afkode forespørgsel", e);
+			String referer = request.getHeader("referer");
+			throw new RequesterException("Kunne ikke afkode forespørgsel fra: " + referer, e);
 		}
 	}
 

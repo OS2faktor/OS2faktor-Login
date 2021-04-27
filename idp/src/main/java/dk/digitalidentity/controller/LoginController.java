@@ -1,11 +1,9 @@
 package dk.digitalidentity.controller;
 
-import dk.digitalidentity.service.model.enums.RequireNemIdReason;
-import dk.digitalidentity.common.service.PersonService;
 import java.util.List;
 import java.util.Map;
-
 import java.util.Objects;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -17,13 +15,17 @@ import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.controller.validator.PasswordChangeValidator;
 import dk.digitalidentity.service.AuthnRequestHelper;
 import dk.digitalidentity.service.AuthnRequestService;
 import dk.digitalidentity.service.ErrorResponseService;
@@ -67,6 +69,14 @@ public class LoginController {
 
 	@Autowired
 	private PersonService personService;
+
+	@Autowired
+	private PasswordChangeValidator passwordChangeFormValidator;
+
+	@InitBinder("passwordForm")
+	public void initClientBinder(WebDataBinder binder) {
+		binder.setValidator(passwordChangeFormValidator);
+	}
 	
 	@GetMapping("/sso/saml/login")
 	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
@@ -84,19 +94,41 @@ public class LoginController {
 
 			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
 			NSISLevel loginState = sessionHelper.getLoginState();
+
+			// If force Authn and mfa required we need to force a new MFA auth
+			if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
+				sessionHelper.setMFALevel(null);
+			}
+
 			if (authnRequest.isForceAuthn() || loginState == null) {
 				return loginService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
 			}
 
+			// TODO: what happens if person is null?
 			Person person = sessionHelper.getPerson();
 
-			// If logging in with NSIS LOW or above, conditions must be approved
-			if (!person.isApprovedConditions() && NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-				if (authnRequest.isPassive()) {
-					throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug af erhvervsidentiteter");
+			// If the SP requires NSIS LOW or above, extra checks required
+			if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
+				// Is user even allowed to login to nsis applications
+				if (!person.isNsisAllowed()) {
+					throw new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
 				}
-				else {
-					return loginService.initiateNemIDOnlyLogin(model, httpServletRequest, RequireNemIdReason.TERMS_AND_CONDITIONS);
+
+				// Has the user approved conditions?
+				if (!person.isApprovedConditions()) {
+					if (authnRequest.isPassive()) {
+						throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
+					}
+					else {
+						return loginService.initiateApproveConditions(model);
+					}
+				}
+
+				// Has the user activated their NSIS User?
+				if (person.isNsisAllowed() && !person.hasNSISUser()) {
+					if (!authnRequest.isPassive()) {
+						return loginService.initiateActivateNSISAccount(model);
+					}
 				}
 			}
 
@@ -129,6 +161,7 @@ public class LoginController {
 	public ModelAndView login(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
 		// Get User
 		String username = body.get("username");
+		String password = body.get("password");
 
 		List<Person> people = loginService.getPeople(username);
 
@@ -139,21 +172,38 @@ public class LoginController {
 
 		// If more than one match go to select user page
 		if (people.size() != 1) {
-			sessionHelper.setPassword(body.get("password"));
+			sessionHelper.setPassword(password);
 			return loginService.initiateUserSelect(model, people, false);
 		}
 
 		// If only one match
 		Person person = people.get(0);
+		sessionHelper.setPerson(person);
+
+
+
+
+		// Get ServiceProvider
+		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+
+		if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
+			// Instead of just initialising mfa we just set it to null so login service can do that instead since it chooses between nemid or mfa login
+			sessionHelper.setMFALevel(null);
+		}
 
 		// Check if locked
 		if (person.isLocked()) {
 			return new ModelAndView("error-locked-account");
 		}
 
-		// Get ServiceProvider
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+		// Initiate the password expired flow if necessary
+		ModelAndView modelAndView = loginService.initiatePasswordExpired(person, model);
+		if (modelAndView != null) {
+			sessionHelper.setInPasswordExpiryFlow(true);
+			sessionHelper.setPassword(password);
+			return modelAndView;
+		}
 
 		// Check password
 		if (!loginService.validPassword(body.get("password"), person)) {
@@ -168,16 +218,24 @@ public class LoginController {
 		}
 
 		personService.correctPasswordAttempt(person);
-		sessionHelper.setPerson(person);
 
-		// Check if confirmed conditions
-		if (!person.isApprovedConditions() && NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-			return loginService.initiateNemIDOnlyLogin(model, httpServletRequest, RequireNemIdReason.TERMS_AND_CONDITIONS);
-		}
+		// If the SP requires NSIS LOW or above, extra checks required
+		if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
+			if (!person.isNsisAllowed()) {
+				ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
+				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
+				return null;
+			}
 
-		if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
-			// Instead of just initialising mfa we just set it to null so login service can do that instead since it chooses between nemid or mfa login
-			sessionHelper.setMFALevel(null);
+			// Has the user approved conditions?
+			if (!person.isApprovedConditions()) {
+					return loginService.initiateApproveConditions(model);
+			}
+
+			// Has the user activated their NSIS User?
+			if (person.isNsisAllowed() && !person.hasNSISUser()) {
+				return loginService.initiateActivateNSISAccount(model);
+			}
 		}
 
 		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
@@ -207,6 +265,30 @@ public class LoginController {
 		}
 
 		sessionHelper.setPerson(person);
+		// Person has now been determined
+
+		// If we are currently in the process of changing password go to that flow
+		if (sessionHelper.isInPasswordChangeFlow()) {
+			try {
+				return loginService.continueChangePassword(model);
+			} catch (RequesterException e) {
+				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
+			}
+			return null;
+		}
+
+
+
+
+
+
+		// Get ServiceProvider
+		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+
+		if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
+			// Instead of just initialising mfa we just set it to null so login service can do that instead since it chooses between nemid or mfa login
+			sessionHelper.setMFALevel(null);
+		}
 
 		// If the user started login by using nemid continue straight to nemid login
 		if (sessionHelper.isAuthenticatedWithNemId()) {
@@ -218,12 +300,30 @@ public class LoginController {
 			return new ModelAndView("error-locked-account");
 		}
 
-		// Get ServiceProvider
-		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+		// If the SP requires NSIS LOW or above, extra checks required
+		if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
+			if (!person.isNsisAllowed()) {
+				ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
+				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
+				return null;
+			}
 
-		// Check confirmed conditions
-		if (!person.isApprovedConditions() && !(serviceProvider instanceof SelfServiceServiceProvider)) {
-			return new ModelAndView("error-conditions-not-approved");
+			// Has the user approved conditions?
+			if (!person.isApprovedConditions()) {
+				return loginService.initiateApproveConditions(model);
+			}
+
+			// Has the user activated their NSIS User?
+			if (person.isNsisAllowed() && !person.hasNSISUser()) {
+				return loginService.initiateActivateNSISAccount(model);
+			}
+		}
+
+		// Initiate the password expired flow if necessary
+		ModelAndView modelAndView = loginService.initiatePasswordExpired(person, model);
+		if (modelAndView != null) {
+			sessionHelper.setInPasswordExpiryFlow(true);
+			return modelAndView;
 		}
 
 		// Check password
@@ -242,27 +342,62 @@ public class LoginController {
 
 		personService.correctPasswordAttempt(person);
 
-		if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
-			// Instead of just initialising mfa we just set it to null so login service can do that instead since it chooses between nemid or mfa login
-			sessionHelper.setMFALevel(null);
+		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+	}
+
+	@GetMapping("/sso/saml/login/continueLogin")
+	public ModelAndView continueLoginWithoutChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
+		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+
+		if (!sessionHelper.isInPasswordExpiryFlow()) {
+			sessionHelper.clearSession();
+			RequesterException ex = new RequesterException("Bruger tilgik en url de ikke havde adgang til, prøv igen");
+			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+			return null;
+		}
+
+		sessionHelper.setInPasswordExpiryFlow(false); // allows only onetime access
+
+		Person person = sessionHelper.getPerson();
+
+		// Check if locked
+		if (person.isLocked()) {
+			return new ModelAndView("error-locked-account");
+		}
+
+		// Has the user approved conditions?
+		if (!person.isApprovedConditions()) {
+			return loginService.initiateApproveConditions(model);
+		}
+
+		// Has the user activated their NSIS User?
+		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+			return loginService.initiateActivateNSISAccount(model);
+		}
+
+		// Check password
+		String password = sessionHelper.getPassword();
+		sessionHelper.setPassword(null);
+
+		if (!loginService.validPassword(password, person)) {
+			personService.badPasswordAttempt(person);
+
+			if (person.isLocked()) {
+				return new ModelAndView("error-locked-account");
+			}
+			else {
+				return loginService.initiateLogin(model, httpServletRequest, false, true, "");
+			}
 		}
 
 		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
 	}
 
-	@GetMapping("/sso/saml/login/forgotpassword")
-	public String forgotPassword() {
-		return "forgot-password";		
-	}
-
 	@GetMapping("/sso/saml/login/cancel")
 	public String cancelLogin(HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
-		sessionHelper.clearSession();
-
 		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-
 		ResponderException ex = new ResponderException("Brugeren afbrød login flowet");
-		errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, ex, false);
+		errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, ex, false, true);
 		return null;
 	}
 }

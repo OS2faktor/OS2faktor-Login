@@ -1,13 +1,12 @@
 package dk.digitalidentity.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
+//import org.springframework.session.web.http.CookieSerializer;
+//import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.stereotype.Component;
 
 @Component
 public class CookieConfig {
-
+/* This requires Spring Sessions JDBC
 	@Bean
 	public CookieSerializer cookieSerializer() {
 		// Chrome 80+ and latest Edge browser defaults to SameSite=Lax if the SameSite attribute is
@@ -19,4 +18,5 @@ public class CookieConfig {
 
 		return serializer;
 	}
+*/
 }

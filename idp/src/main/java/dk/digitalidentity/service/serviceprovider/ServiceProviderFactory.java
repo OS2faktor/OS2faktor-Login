@@ -2,6 +2,7 @@ package dk.digitalidentity.service.serviceprovider;
 
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.service.RoleCatalogueService;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import java.util.List;
@@ -26,6 +27,9 @@ public class ServiceProviderFactory {
 
     @Autowired
     private HttpClient httpClient;
+    
+    @Autowired
+    private RoleCatalogueService roleCatalogueService;
 
     @SneakyThrows
     @PostConstruct
@@ -36,7 +40,7 @@ public class ServiceProviderFactory {
 
         for (SqlServiceProviderConfiguration config : serviceProviderConfigurationService.getAll()) {
             log.debug("Loading SQL SP with entityID: " + config.getEntityId());
-            serviceProviders.add(new SqlServiceProvider(config, httpClient));
+            serviceProviders.add(new SqlServiceProvider(config, httpClient, roleCatalogueService));
         }
 
         log.info(serviceProviders.size() + " ServiceProviders initialized");

@@ -44,9 +44,11 @@
                                         <button onclick="formService.save()" class="btn btn-primary block full-width m-b">Login</button>
                                         <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
 
-                                        <a th:href="@{/sso/saml/login/forgotpassword}">
-                                            <small>Glemt kodeord?</small>
+                                        <br>
+                                        <a th:href="${changePasswordUrl}">
+                                            <small>Skift kodeord</small>
                                         </a>
+
 
                                         <hr/>
 
@@ -165,8 +167,10 @@
 			}
 
 			if (message.command === "changeResponseAndSubmit") {
-				document.postBackForm.response.value = message.content;
-				document.postBackForm.submit();
+                if ($('#tab-2').hasClass('active')) {
+                    document.postBackForm.response.value = message.content;
+                    document.postBackForm.submit();
+                }
 			}
 		}
 

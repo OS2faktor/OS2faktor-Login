@@ -14,9 +14,13 @@
                             <h3>Dit AD Kodeord er blevet ændret</h3>
                             <p>For at øge sikkerhedsniveauet skal du første gang efter ændret kodeord logge ind med NemID</p>
                         </th:block>
-                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).TERMS_AND_CONDITIONS}">
-                            <h3>Vilkårne for brug af erhvervsidentiteter er ikke accepteret endnu</h3>
-                            <p>For at fortsætte login skal vilkårne accepteres. for at gøre dette kræves yderlige verifikation med NemID</p>
+                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).ACTIVATE_ACCOUNT}">
+                            <h3>Aktivering af erhvervsidentitet</h3>
+                            <p>For at aktivere din erhvervsidentitet, kræves verifikation med NemID</p>
+                        </th:block>
+                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).CHANGE_PASSWORD}">
+                            <h3>Skift kodeord</h3>
+                            <p>For at skifte kodeord skal du først logge ind med NemID.</p>
                         </th:block>
                     </div>
                 </div>

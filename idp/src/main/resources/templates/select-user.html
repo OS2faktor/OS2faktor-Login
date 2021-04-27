@@ -30,7 +30,7 @@
                         <tbody>
                             <tr th:each="person : ${people}" th:onclick="'selectService.selectUser(' + ${person.id} + ')'" style="cursor: pointer;">
                                 <td th:text="${person.name}"></td>
-                                <td th:text="${person.domain}"></td>
+                                <td th:text="${person.domain.name}"></td>
                                 <td th:text="${person.userId} != null ? ${person.userId} : ''"></td>
                                 <td th:text="${person.samaccountName} != null ? ${person.samaccountName} : ''"></td>
                             </tr>

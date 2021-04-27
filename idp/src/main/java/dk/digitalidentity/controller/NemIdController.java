@@ -1,9 +1,15 @@
 package dk.digitalidentity.controller;
 
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -30,7 +36,9 @@ import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Controller
 public class NemIdController {
 
@@ -54,15 +62,13 @@ public class NemIdController {
 
 	@Autowired
 	private LoginService loginService;
-
-	//TODO this logic is now almost the exact same as in LoginService.continueNemdIDLogin() should probably be merged
+	
 	@PostMapping("/sso/saml/nemid")
 	public ModelAndView loginPost(Model model, @RequestParam Map<String, String> map, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		String responseB64 = map.get("response");
 		PidAndCprOrError result = nemIDService.verify(responseB64, request);
 
 		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
 
 		// Check if NemID was successful
 		if (result.hasError()) {
@@ -98,27 +104,53 @@ public class NemIdController {
 			return null;
 		}
 
-		// Check if person has authenticated with their ad password. If they have, replicate the AD password to the nsis password field
-		if (sessionHelper.isAuthenticatedWithADPassword() && person.hasNSISUser()) {
-			Person adPerson = sessionHelper.getADPerson();
-			if (adPerson != null && Objects.equals(adPerson.getId(), person.getId())) {
-				if (!StringUtils.isEmpty(person.getAdPassword())) {
-					person.setNsisPassword(person.getAdPassword());
-					personService.save(person);
-
-					sessionHelper.setAuthenticatedWithADPassword(false);
-				}
-			}
-		}
-
 		// Set authentication levels
 		sessionHelper.setPerson(person);
 		sessionHelper.setPasswordLevel(NSISLevel.SUBSTANTIAL);
 		sessionHelper.setMFALevel(NSISLevel.SUBSTANTIAL);
 
-		// Check confirmed conditions
-		if (!person.isApprovedConditions() && NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-			return loginService.initiateAcceptTerms(model);
+		// User has now been verified with NemId
+
+		// Go to password change
+		if (sessionHelper.isInPasswordChangeFlow()) {
+			return loginService.continueChangePassword(model);
+		}
+
+		// TODO this logic is now the exact same as in LoginService.continueNemdIDLogin() should probably be merged
+		// Check if person has authenticated with their ad password. If they have, replicate the AD password to the nsis password field
+		if (sessionHelper.isAuthenticatedWithADPassword() && person.hasNSISUser()) {
+			Person adPerson = sessionHelper.getADPerson();
+			if (adPerson != null && Objects.equals(adPerson.getId(), person.getId())) {
+				if (!StringUtils.isEmpty(person.getAdPassword())) {
+					try {
+						personService.changePassword(person, person.getAdPassword(), false, true);
+						sessionHelper.setAuthenticatedWithADPassword(false);
+					} catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException e) {
+						log.error("Kunne ikke kryptere password, password blev derfor ikke ændret", e);
+						throw new ResponderException("Der opstod en fejl i skift kodeord");
+					}
+				}
+			}
+		}
+
+		// If the SP requires NSIS LOW or above, extra checks required
+		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+		if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
+			if (!person.isNsisAllowed()) {
+				ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
+				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
+				return null;
+			}
+		}
+
+		// Has the user accepted the required conditions?
+		if (!person.isApprovedConditions()) {
+			return loginService.initiateApproveConditions(model);
+		}
+
+		// Is the user allowed to get a NSIS User and do the already have one
+		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+			return loginService.initiateActivateNSISAccount(model, !sessionHelper.isInActivateAccountFlow());
 		}
 
 		// If trying to login to anything else than selfservice check if person is locked

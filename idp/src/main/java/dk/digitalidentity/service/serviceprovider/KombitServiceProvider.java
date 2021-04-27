@@ -6,15 +6,19 @@ import java.util.Map;
 
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
+import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.RoleCatalogueService;
+import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
@@ -29,6 +33,9 @@ public class KombitServiceProvider extends ServiceProvider {
 	
 	@Autowired
 	private OS2faktorConfiguration configuration;
+	
+	@Autowired
+	private CommonConfiguration common;
 
 	class ItSystemMetadata {
 		String name;
@@ -83,16 +90,16 @@ public class KombitServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) {
-		return "C=DK,O=" + configuration.getKombit().getCvr() + ",CN=" + person.getName() + ",Serial=" + person.getUuid();
+		return "C=DK,O=" + common.getCustomer().getCvr() + ",CN=" + person.getName() + ",Serial=" + person.getUuid();
 	}
 
 	@Override
-	public Map<String, String> getAttributes(Person person) {
-		Map<String, String> map = new HashMap<>();
+	public Map<String, Object> getAttributes(Person person) {
+		Map<String, Object> map = new HashMap<>();
 
 		map.put("dk:gov:saml:attribute:SpecVer", "DK-SAML-2.0");
 		map.put("dk:gov:saml:attribute:KombitSpecVer", "1.0");
-		map.put("dk:gov:saml:attribute:CvrNumberIdentifier", configuration.getKombit().getCvr());
+		map.put("dk:gov:saml:attribute:CvrNumberIdentifier", common.getCustomer().getCvr());
 		map.put("dk:gov:saml:attribute:AssuranceLevel", configuration.getKombit().getAssuranceLevel());
 
 		// TODO: we need to inspect the AuthnRequest to see what it-system we are looking up roles for
@@ -111,6 +118,20 @@ public class KombitServiceProvider extends ServiceProvider {
 
 	@Override
 	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
+    	// if the AuthnRequest supplies a required level, always use that
+        RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
+        if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
+            for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
+                if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return NSISLevel.SUBSTANTIAL;
+                }
+
+                if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return NSISLevel.LOW;
+                }
+            }
+        }
+
 		return NSISLevel.NONE;
 	}
 
@@ -127,6 +148,11 @@ public class KombitServiceProvider extends ServiceProvider {
 	@Override
 	public String getName() {
 		return "KOMBIT Context Handler";
+	}
+
+	@Override
+	public boolean encryptAssertions() {
+		return configuration.getKombit().isEncryptAssertion();
 	}
 
 	@Override

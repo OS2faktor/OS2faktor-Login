@@ -43,6 +43,20 @@
 		<finalName>os2faktor-nsis-idp</finalName>
 	</build>
 
+	<!-- We still need session jdbc for testing so it is included here in a profile -->
+	<!-- To run with this profile add "-P test-profile" to mvn command -->
+	<profiles>
+		<profile>
+			<id>test-profile</id>
+			<dependencies>
+				<dependency>
+					<groupId>org.springframework.session</groupId>
+					<artifactId>spring-session-jdbc</artifactId>
+				</dependency>
+			</dependencies>
+		</profile>
+	</profiles>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -64,11 +78,14 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+<!-- Waiting for version 2.5.0 to be released, so this bug can be fixed
+     https://github.com/spring-projects/spring-session/issues/1213
+
 		<dependency>
 			<groupId>org.springframework.session</groupId>
 			<artifactId>spring-session-jdbc</artifactId>
 		</dependency>
-
+-->
 		<dependency>
 			<groupId>dk.digitalidentity.os2faktor</groupId>
 			<artifactId>os2faktor-nsis-common</artifactId>

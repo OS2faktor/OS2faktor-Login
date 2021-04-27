@@ -10,8 +10,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http
-            .csrf().disable()
+            .csrf().ignoringAntMatchers("/sso/saml/login").and() // disable CSRF protection for the SAML login flow (but keep it everywhere else)
             .authorizeRequests()
+            .mvcMatchers("/").permitAll()
             .mvcMatchers("/sso/saml/**").permitAll()
             .mvcMatchers("/manage/**").permitAll()
             .mvcMatchers("/webjars/**").permitAll()
@@ -20,9 +21,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .mvcMatchers("/img/**").permitAll()
             .mvcMatchers("/favicon.ico").permitAll()
             .mvcMatchers("/error").permitAll()
+            .mvcMatchers("/vilkaar/godkendt").permitAll()
             .mvcMatchers("/konto/aktiver").permitAll()
             .mvcMatchers("/konto/vaelgkode").permitAll()
-            .mvcMatchers("/konto/login").permitAll()
+            .mvcMatchers("/konto/fortsaetlogin").permitAll()
             .anyRequest().denyAll();
     }
 }

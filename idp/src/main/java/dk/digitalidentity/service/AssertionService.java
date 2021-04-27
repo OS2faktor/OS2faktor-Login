@@ -1,5 +1,6 @@
 package dk.digitalidentity.service;
 
+import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
 
@@ -160,10 +161,11 @@ public class AssertionService {
 		status.setStatusCode(statusCode);
 		response.setStatus(status);
 
-		loggingUtil.logAssertion(assertion, Constants.OUTGOING);
+		loggingUtil.logAssertion(assertion, Constants.OUTGOING, person);
 
-		if (configuration.isEncryptAssertion()) {
-			EncryptedAssertion proxyEncryptedAssertion = encryptAssertion(assertion, serviceProvider.getX509Certificate(UsageType.ENCRYPTION));
+		X509Certificate encryptionCertificate = serviceProvider.getX509Certificate(UsageType.ENCRYPTION);
+		if (serviceProvider.encryptAssertions() && encryptionCertificate != null) {
+			EncryptedAssertion proxyEncryptedAssertion = encryptAssertion(assertion, encryptionCertificate);
 			response.getEncryptedAssertions().add(proxyEncryptedAssertion);
 		}
 		else {
@@ -258,9 +260,9 @@ public class AssertionService {
 		AttributeStatement attributeStatement = samlHelper.buildSAMLObject(AttributeStatement.class);
 		attributeStatements.add(attributeStatement);
 
-		Map<String, String> attributes = serviceProvider.getAttributes(person);
+		Map<String, Object> attributes = serviceProvider.getAttributes(person);
 		if (attributes != null) {
-			for (Map.Entry<String, String> entry : attributes.entrySet()) {
+			for (Map.Entry<String, Object> entry : attributes.entrySet()) {
 				attributeStatement.getAttributes().add(createSimpleAttribute(entry.getKey(), entry.getValue()));
 			}
 		}
@@ -323,17 +325,31 @@ public class AssertionService {
 		}
 	}
 
-	private Attribute createSimpleAttribute(String attributeName, String attributeValue) {
+	private Attribute createSimpleAttribute(String attributeName, Object attributeValue) {
 		Attribute attribute = samlHelper.buildSAMLObject(Attribute.class);
 
 		attribute.setName(attributeName);
 		attribute.setNameFormat(Constants.ATTRIBUTE_VALUE_FORMAT);
 
 		XSAnyBuilder xsAnyBuilder = new XSAnyBuilder();
-		XSAny value = xsAnyBuilder.buildObject(SAMLConstants.SAML20_NS, AttributeValue.DEFAULT_ELEMENT_LOCAL_NAME, SAMLConstants.SAML20_PREFIX);
 
-		value.setTextContent(attributeValue);
-		attribute.getAttributeValues().add(value);
+		if (attributeValue instanceof String) {
+			XSAny value = xsAnyBuilder.buildObject(SAMLConstants.SAML20_NS, AttributeValue.DEFAULT_ELEMENT_LOCAL_NAME, SAMLConstants.SAML20_PREFIX);
+			value.setTextContent((String) attributeValue);
+			attribute.getAttributeValues().add(value);
+		}
+		else if (attributeValue instanceof List) {
+			@SuppressWarnings("rawtypes")
+			List list = (List) attributeValue;
+			
+			for (Object o : list) {
+				if (o instanceof String) {
+					XSAny value = xsAnyBuilder.buildObject(SAMLConstants.SAML20_NS, AttributeValue.DEFAULT_ELEMENT_LOCAL_NAME, SAMLConstants.SAML20_PREFIX);
+					value.setTextContent((String) o);
+					attribute.getAttributeValues().add(value);
+				}
+			}
+		}
 
 		return attribute;
 	}

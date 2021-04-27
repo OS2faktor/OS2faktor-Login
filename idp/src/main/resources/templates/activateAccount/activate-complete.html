@@ -13,19 +13,17 @@
 
 						<div class="ibox-content">
 							<p>
-							Din erhvervsidentitet er nu udstedt. Når du skal logge ind med din erhvervsidentitet kan du anvende dit nuværende brugernavn til din computer.
-							Der er også dannet et personligt erhvervsidentitet brugernavn, som du også kan vælge at anvende. Alle mulige brugernavne er vist nedenfor.
+							Din erhvervsidentitet er nu udstedt. Når du skal logge ind med din erhvervsidentitet skal du anvende nedenstående brugernavn.
 							</p>
 
 							<ul>
 								<li><b th:text="${userId}"/></li>
-								<li th:if="${adUserId} != null"><b th:text="${adUserId}" /></li>
 							</ul>
 
-							<p th:unless="${passwordSet}">Inden du kan anvende din erhvervsidentitet skal du vælge et kodeord. Tryk på knappen nedenfor for at vælge et kodeord.</p>
+							<p th:unless="${continueLogin}">Inden du kan fortsætte login skal du vælge et kodeord. Tryk på knappen nedenfor for at vælge et kodeord.</p>
 
-							<a th:unless="${passwordSet}" type="button" th:href="@{/konto/vaelgkode}" class="btn btn-primary block full-width m-b mt-lg">Vælg kodeord</a>
-							<a th:if="${passwordSet}" type="button" th:href="@{/konto/login}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
+							<a th:unless="${continueLogin}" type="button" th:href="@{/konto/vaelgkode}" class="btn btn-primary block full-width m-b mt-lg">Vælg kodeord</a>
+							<a th:if="${continueLogin}" type="button" th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
 						</div>
 					</div>
 				</div>

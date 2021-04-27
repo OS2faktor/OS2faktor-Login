@@ -2,6 +2,7 @@ package dk.digitalidentity.service;
 
 import java.security.PublicKey;
 import java.util.Map;
+import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -117,12 +118,21 @@ public class LogoutRequestService {
 	private LogoutRequest createLogoutRequest(LogoutRequest logoutRequest, String destination, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
 		LogoutRequest outgoingLR = samlHelper.buildSAMLObject(LogoutRequest.class);
 
-		outgoingLR.setID(logoutRequest.getID());
+		if (logoutRequest != null) {
+			outgoingLR.setID(logoutRequest.getID());
+		}
+		else {
+			outgoingLR.setID(UUID.randomUUID().toString());
+		}
+
 		outgoingLR.setDestination(destination);
 		outgoingLR.setIssueInstant(new DateTime());
 
-		if (!StringUtils.isEmpty(logoutRequest.getReason())) {
+		if (logoutRequest != null && !StringUtils.isEmpty(logoutRequest.getReason())) {
 			outgoingLR.setReason(logoutRequest.getReason());
+		}
+		else if (logoutRequest == null) {
+			outgoingLR.setReason(LogoutRequest.USER_REASON);
 		}
 
 		// Create Issuer
