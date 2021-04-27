@@ -105,8 +105,9 @@ public class CRLDistributionPointsExtractor {
         try {
             Extension extension = extensions.getExtension(extensionOid);
             ASN1OctetString asOctetString = extension.getExtnValue();
-            ASN1InputStream asInputStream = new ASN1InputStream(new ByteArrayInputStream(asOctetString.getOctets()));
-            return CRLDistPoint.getInstance(asInputStream.readObject());
+            try (ASN1InputStream asInputStream = new ASN1InputStream(new ByteArrayInputStream(asOctetString.getOctets()))) {
+            	return CRLDistPoint.getInstance(asInputStream.readObject());
+            }
         } catch (IOException e) {
             throw new IllegalStateException("IO error while extracting CRL Distribution points", e);
         }

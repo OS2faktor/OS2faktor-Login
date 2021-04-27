@@ -144,13 +144,14 @@ public class X509CertificatePropertyExtrator {
             Extensions extensions = getX509Extensions(certificate);
 
             Extension e = extensions.getExtension(Extension.certificatePolicies);
-            ASN1InputStream extIn = new ASN1InputStream(new ByteArrayInputStream(e.getExtnValue().getOctets()));
-            ASN1Sequence piSeq = (ASN1Sequence) extIn.readObject();
-            if (piSeq.size() != 1) {
-                throw new NonOcesCertificateException("Could not find Certificate PolicyOID");
+            try (ASN1InputStream extIn = new ASN1InputStream(new ByteArrayInputStream(e.getExtnValue().getOctets()))) {
+	            ASN1Sequence piSeq = (ASN1Sequence) extIn.readObject();
+	            if (piSeq.size() != 1) {
+	                throw new NonOcesCertificateException("Could not find Certificate PolicyOID");
+	            }
+	            PolicyInformation pi = PolicyInformation.getInstance(piSeq.getObjectAt(0));
+	            return pi.getPolicyIdentifier().getId();
             }
-            PolicyInformation pi = PolicyInformation.getInstance(piSeq.getObjectAt(0));
-            return pi.getPolicyIdentifier().getId();
         } catch (IOException e) {
             throw new NonOcesCertificateException("Could not find Certificate PolicyOID", e);
         }
