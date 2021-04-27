@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'registration.mfa')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Manuel tilknytning af MFA klienter</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="persons" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 80px;">Konto</th>
+												<th style="width: 80px;">AD Konto</th>
+												<th style="width: 160px;">Person</th>
+												<th style="width: 100px;">Status</th>
+												<th style="width: 120px;">NSIS nivau</th>
+												<th style="width: 70px;">Domæne</th>
+												<th style="width: 70px;"></th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td></td>
+											</tr>
+										</tfoot>
+
+										<tbody>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'registration.mfa')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var baseUrl = [[@{/}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+	
+		var table;
+		var modalService;
+		$(document).ready(function(){
+
+			table = $('#persons').DataTable({
+				"destroy": true,
+				"ajax": {
+					"contentType": "application/json",
+					"url": baseUrl + "rest/admin/persons",
+					"type": 'POST',
+					"headers": {
+						'X-CSRF-TOKEN': token
+					},
+					"data": function(d) {
+					 	return JSON.stringify(d);
+					}
+				},
+				"serverSide" : true,
+				"columns": [
+					{
+						"data": "userId",
+						"orderable": false
+					},
+					{
+						"data": "samaccountName",
+						"orderable": false
+					},
+					{
+						"data": "name",
+						"orderable": false
+					},
+					{
+						"data": "locked",
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+
+							if (data) {
+								var content =
+									'<label>Spærret</label>&nbsp;<em class="fa fa-lg fa-question-circle-o" data-html="true" data-container="body" data-boundary="viewport" data-toggle="popover" data-trigger="hover" data-placement="auto" data-content="<p>Denne konto er spærret af følgende årsager:</p><ul>';
+
+								if (row.lockedAdmin) {
+									content += "<li>Spærret af Administrator</li>"
+								}
+								if (row.lockedPerson) {
+									content += "<li>Spærret af brugeren</li>"
+								}
+								if (row.lockedDataset) {
+									content += "<li>Brugeren ikke længere i datasæt</li>"
+								}
+								if (row.lockedPassword) {
+									content += "<li>For mange forkerte login forsøg</li>"
+								}
+
+								content += '</ul>"></em>';
+
+								return content;
+							}
+							return 'Aktiv';
+						}
+					},
+					{
+						"data": "nsisLevel",
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							if (data == 'LOW') {
+								return "Lav";
+							}
+							else if (data == 'SUBSTANTIAL') {
+								return "Betydelig";
+							}
+							else if (data == 'HIGH') {
+								return "Høj"
+							}
+
+							return "Ingen";
+						}
+					},
+					{
+						"data": "domain",
+						"orderable": false
+					},
+					{
+						"data": "id",
+						"searchable": false,
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							var content =  '<a href="' + baseUrl + 'admin/registration/mfa/' + data + '/search' + '" style="color: black;" title="Tilknyt MFA klient"><em class="fa fa-fw fa-plus"></em></a>';
+							return content;
+						}
+					}
+				],
+				"ordering": true,
+				"info": true,
+				"pageLength": 10,
+				"lengthChange": false,
+				"bSort": false,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"responsive": true,
+				"drawCallback": function (settings) {
+					$('[data-toggle="popover"]').popover();
+				},
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ identiteter",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ identiteter)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+
+			$.each($('.input-filter', table.table().footer()), function() {
+				var column = table.column($(this).index());
+	
+				$('input', this).on('keyup change', function () {
+					if (column.search() !== this.value) {
+						column.search(this.value).draw();
+					}
+				});
+			});
+		});
+
+		
+		/*]]>*/
+	</script>
+</body>
+</html>

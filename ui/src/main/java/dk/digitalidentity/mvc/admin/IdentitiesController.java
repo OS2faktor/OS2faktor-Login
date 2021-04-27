@@ -71,8 +71,12 @@ public class IdentitiesController {
 				form.setStatusMessage("page.admin.issuedidentitites.status.lockedPassword");
 			}
 		}
-
+		
 		form.setNsisLevel(person.getNsisLevel());
+		form.setName(person.getName());
+		form.setAlias(person.getNameAlias());
+		form.setNameProtected(person.isNameProtected());
+
 		model.addAttribute("form", form);
 
 		return "admin/identity";

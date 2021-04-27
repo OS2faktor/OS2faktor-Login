@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-links')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-link"></em> &nbsp; Links</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="modalService.openCreateModal()" class="btn btn-primary">Opret nyt link</button>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="links" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 200px;">Link tekst</th>
+												<th style="width: 300px;">link adresse</th>
+												<th style="width: 70px;">Handlinger</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr th:each="link : ${@linkService.getAll()}">
+												<td th:text="${link.linkText}" />
+												<td th:text="${link.link}" />
+												<td>
+													<i class="fa fa-trash" aria-hidden="true" title="Slet" th:attr="data-id=${link.id}" th:onClick="operationService.deleteLink(this)"></i>
+												</td>
+											</tr>
+										</tbody>
+										
+									</table>
+								</div>
+							</div>
+							
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-links')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<!-- create link Modal -->
+	<div class="modal inmodal" id="modalLink" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title">Opret link</h4>
+				</div>
+
+				<div class="modal-body">
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Link tekst</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast link tekst" id="modalTextInput" maxlength="64">
+					</div>
+					
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Link adresse</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast link adresse" id="modalLinkInput" maxlength="500">
+					</div>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" data-dismiss="modal">Annuller</button>
+					<button type="button" class="btn btn-primary" onclick="modalService.save()">Gem</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End create link Modal -->
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	
+	<script th:inline="javascript">
+	
+		/*<![CDATA[*/
+	
+		/*[+
+			var restUrlNew = [[@{/rest/admin/settings/link/new}]];
+			var restUrlDelete = [[@{/rest/admin/settings/link/delete/}]];
+		+]*/
+	
+		var token = $("meta[name='_csrf']").attr("content");	
+
+		var modalService, operationService;
+		$(document).ready(function() {
+			modalService = new ModalService();
+			operationService = new OperationService();
+			
+            $('#links').DataTable({
+                "pageLength": 10,
+                "bSort": false,
+                "responsive": true,
+		        "language": {
+		            "info":         "Viser _START_ til _END_ af _TOTAL_ links",
+		            "zeroRecords":  "Ingen links...",
+		            "infoEmpty":    "Ingen links...",
+		            "paginate": {
+		                "previous": "Forrige",
+		                "next": "Næste"
+		            }
+		        }
+            });
+		});
+		
+		function ModalService() {
+			this.openCreateModal = function() {
+				$('#modalTextInput').val('');
+				$('#modalLinkInput').val('');
+				$('#modalLink').modal("show");
+				$('#modalTextInput').focus();				
+			}
+			
+			this.save = function() {
+				var text = $('#modalTextInput').val();
+				var link = $('#modalLinkInput').val();
+				
+				$.ajax({
+     			   url: restUrlNew,
+     			   headers: {
+     			      'X-CSRF-TOKEN': token
+     			   },
+     			   type: 'post',
+     			   contentType: 'application/json',
+     			   data: JSON.stringify({
+     			      'text': text,
+     			      'link' : link
+     			   }),
+     			   success: function(data, textStatus, jQxhr) {
+     				   location.reload(true);
+     			   },
+     			   error: function(jQxhr, textStatus, errorThrown) {
+     				 toastr.error("Fejl!");
+     			   }
+     			});
+			}
+		}
+		
+		function OperationService() {
+			this.deleteLink = function(obj) {
+				$.ajax({
+					   url: restUrlDelete + $(obj).data("id"),
+					   headers: {
+						  'X-CSRF-TOKEN': token
+					   },
+					   type: 'post',
+					   success: function(data, textStatus, jQxhr) {
+						 location.reload(true);
+					   },
+					   error: function(jQxhr, textStatus, errorThrown) {
+							toastr.error("Fejl! Kunne ikke slette link.");
+					   }
+				});
+			};
+		}
+		
+	/*]]>*/
+	</script>
+</body>
+</html>

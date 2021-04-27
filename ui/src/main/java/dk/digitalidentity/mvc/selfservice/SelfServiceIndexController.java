@@ -59,6 +59,8 @@ public class SelfServiceIndexController {
 		}
 
 		form.setNsisLevel(person.getNsisLevel());
+		form.setName(person.getName());
+		form.setAlias(person.getNameAlias());
 		model.addAttribute("form", form);
 
 		return "selfservice/index";

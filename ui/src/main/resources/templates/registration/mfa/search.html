@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'registration.mfa.search')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-search"></em> &nbsp; Søg efter MFA klienter</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<label class="col-sm-3 col-form-label">MFA ID</label>
+									<input class="col-sm-3 form-control" placeholder="xxx-xxx-xxx-xxx" id="search" minlenght="15" maxlength="15"/>
+								</div>
+								
+								<hr/>
+								
+								<div class="form-group row">
+									<button type="button" class="btn btn-primary m-b ml-2" onclick="search()">Søg</button>
+									<a th:href="@{/admin/registration}" type="button" class="btn btn-danger m-b ml-2">Annuller</a>
+								</div>
+
+								<br>								
+								
+								<div id="found" style="display: none;">
+									<h3>MFA klient fundet:</h3>
+										<form id="manualActivationForm" th:object="${activationForm}">
+										<input type="hidden" th:field="*{personId}">
+										<input type="hidden" th:field="*{deviceId}">
+
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Klient type</label>
+											<span id="type" />
+										</div>
+										
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Navn</label>
+											<span id="name" />
+										</div>
+										
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Type af identifikation</label>
+											<div class="col-sm-4 row">
+												<select class="form-control" th:field="*{identificationType}">
+													<option th:each="type : ${T(dk.digitalidentity.mvc.admin.dto.IdentificationType).values()}" 
+														th:value="${type}" th:text="#{__${type.message}__}"></option>
+												</select>
+											</div>
+										</div>
+	
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">ID nummer</label>
+											<div class="col-sm-4 row">
+												<input class="form-control" th:field="*{identification}" autocomplete="off" />
+												<ul style="color: red; display: none;" id="idValidationErrorMsg">
+													<li>ID nummer skal være udfyldt!</li>
+												</ul>
+											</div>
+											<div class="col-sm-3 row">
+												<label class="col-form-label ml-2">(kørekort-nummer, pas-nummer eller lignende)</label>
+											</div>
+										</div>
+										
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Yderligere noter</label>
+											<div class="col-sm-4 row">
+												<textarea rows="5" class="form-control" th:field="*{note}"></textarea>
+											</div>
+										</div>
+										
+										<div class="form-group row">
+											<button type="button" class="btn btn-primary block full-width m-b" onclick="associate()">Tilknyt</button>
+											<a th:href="@{/admin/registration/mfa}" type="button" class="btn btn-danger block full-width">Annuller</a>
+										</div>
+									</form>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'registration.mfa.search')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+
+	<div th:replace="fragments/footer :: scripts" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+			var restUrl = [[@{/rest/admin/registration/mfa/search}]];
+			var baseUrl = [[@{/}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+		
+		$(document).ready(function() {
+		});
+		
+		function search() {
+			var searchVal = $("#search").val();
+			
+			$("#found").hide();
+			
+			if (searchVal.length == 15) {
+				$.ajax({
+					url : restUrl + '?deviceId=' + searchVal,
+					type : 'get',
+					contentType: 'application/json',
+					headers: {
+						'X-CSRF-TOKEN': token
+					},
+					success : function(data) {
+						$("#deviceId").val(data.deviceId);
+						$("#type").text(data.typeMessage);
+						$("#name").text(data.name);
+
+						$("#found").show();
+					},
+					error: function(jqXHR, textStatus, error) {
+						if (jqXHR.status == 404) {
+							toastr.warning("Kunne ikke finde MFA klient med ID " + searchVal);
+						}
+						else {
+							toastr.error("MFA klient med ID " + searchVal + " er allerede knyttet en person");
+						}
+					}
+				});
+			}
+			
+		}
+		
+		function associate() {
+			
+			var form = $('#manualActivationForm').serializeArray();
+			var formObject = {};
+			
+			$.each(form,
+				function(i, v) {
+					formObject[v.name] = v.value;
+				}
+			);
+			
+			$('#idValidationErrorMsg').hide();
+			if (formObject.identification.trim().length < 2) {
+				$('#idValidationErrorMsg').show();
+				return;
+			}
+
+			$.ajax({
+				url : baseUrl + 'admin/registration/mfa/associate',
+				type : 'post',
+				contentType: 'application/json',
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+				data : JSON.stringify(formObject),
+				success : function(data) {
+					toastr.success("mfa tilknyttet");
+
+					setTimeout(function() {
+						window.location = baseUrl + "admin/registration/mfa";
+					}, 1500);
+				},
+				error: function(jqXHR, textStatus, error) {
+					toastr.error("Teknisk fejl - tilknytning fejlede: " + jqXHR.responseText);
+				}
+			});
+			
+		}
+	
+		/*]]>*/
+	</script>
+</body>
+</html>

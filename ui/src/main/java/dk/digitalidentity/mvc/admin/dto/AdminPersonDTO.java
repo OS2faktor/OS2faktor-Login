@@ -17,4 +17,7 @@ public class AdminPersonDTO {
 	private NSISLevel nsisLevel;
 	private String email;
 	private Map<String, String> attributes;
+	private String name;
+	private String alias;
+	private boolean nameProtected;
 }

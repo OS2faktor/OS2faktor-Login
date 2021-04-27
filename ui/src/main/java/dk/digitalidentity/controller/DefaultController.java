@@ -37,7 +37,7 @@ public class DefaultController implements ErrorController {
 	@GetMapping("/")
 	public String defaultPage() {
 		if (securityUtil.isAuthenticated()) {
-			if (securityUtil.isAdmin()) {
+			if (securityUtil.hasAnyAdminRole()) {
 				return "redirect:/admin";
 			}
 			else if (securityUtil.isAuthenticated()) {
@@ -102,7 +102,6 @@ public class DefaultController implements ErrorController {
 			}
 		}
 
-		// default to ordinary error message in case error is not SAML related
 		model.addAllAttributes(body);
 
 		return "error";

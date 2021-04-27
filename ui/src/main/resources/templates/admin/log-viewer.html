@@ -29,7 +29,7 @@
 										
 										<tfoot style="display: table-row-group">
 											<tr>
-												<td></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
@@ -64,7 +64,21 @@
 
 		var token = $("meta[name='_csrf']").attr("content");
 
-		$(document).ready(function(){
+		function disableDataTablesAlerts() {
+			$.fn.dataTable.ext.errMode = 'none';
+
+			$('#persons').on('error.dt', function(e, settings, techNote, message) {
+				// it is a bit of a hack, but we assume this means that the user has been logged out
+				if (message.indexOf("Ajax error") >= 0) {
+					window.location.reload();
+				}
+			});
+		}
+
+		$(document).ready(function() {
+			
+			disableDataTablesAlerts();
+			
 			var table = $('#eventlog').DataTable({
 				"destroy": true,
 				"ajax": {

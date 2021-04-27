@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
@@ -29,6 +30,9 @@ public class CprService {
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
+	
+	@Autowired
+	private CommonConfiguration common;
 
 	@Autowired
 	private PersonService personService;
@@ -53,7 +57,7 @@ public class CprService {
 		List<Person> toBeSaved = new ArrayList<>();
 		for (String cpr : personMap.keySet()) {
 			if (failedAttempts >= 3) {
-	                        log.error("Got 3 timeouts in a row - aborting further lookup");
+				log.error("Got 3 timeouts in a row - aborting further lookup");
 				break;
 			}
 
@@ -73,13 +77,23 @@ public class CprService {
 						continue;
 					}
 
-					// Change name for updated people
+					// Change name and nameProtection for updated people
 					List<Person> people = personMap.get(cpr);
 					for (Person person : people) {
 						String updatedName = dto.getFirstname() + " " + dto.getLastname();
-
+						boolean change = false;
+						
 						if (!Objects.equals(person.getName(), updatedName)) {
 							person.setName(updatedName);
+							change = true;
+						}
+						
+						if (!Objects.equals(person.isNameProtected(), dto.isAddressProtected())) {
+							person.setNameProtected(dto.isAddressProtected());
+							change = true;
+						}
+						
+						if (change) {
 							toBeSaved.add(person);
 						}
 
@@ -112,13 +126,13 @@ public class CprService {
 		if (!cprResourceUrl.endsWith("/")) {
 			cprResourceUrl += "/";
 		}
-		cprResourceUrl += "api/person?cpr=" + cpr + "&cvr=" + configuration.getCpr().getCvr();
+		cprResourceUrl += "api/person?cpr=" + cpr + "&cvr=" + common.getCustomer().getCvr();
 
 		try {
 			ResponseEntity<CprLookupDTO> response = restTemplate.getForEntity(cprResourceUrl, CprLookupDTO.class);
 			return new AsyncResult<CprLookupDTO>(response.getBody());
 		}
-		catch (RestClientException ex) {
+		catch (IllegalArgumentException | RestClientException ex) {
 			log.warn("Failed to lookup: " + safeCprSubstring(cpr), ex);
 
 			return null;

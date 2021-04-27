@@ -8,4 +8,5 @@ import lombok.Setter;
 public class ToggleAdminDTO {
 	private String type;
 	private boolean state;
+	private long domainId;
 }

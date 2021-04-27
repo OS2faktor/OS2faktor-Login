@@ -23,7 +23,9 @@
 												<th>AD Konto</th>
 												<th>Person</th>
 												<th>Administrator</th>
+												<th>Registrant</th>
 												<th>Supporter</th>
+												<th>Supporter Domæne</th>
 											</tr>
 										</thead>
 
@@ -33,7 +35,14 @@
 												<td th:text="${admin.samaccountName}"></td>
 												<td th:text="${admin.personName}"></td>
 												<td><input th:checked="${admin.admin}" type="checkbox" class="i-checks typeAdmin" th:data-id="${admin.id}" /></td>
+												<td><input th:checked="${admin.registrant}" type="checkbox" class="i-checks typeRegistrant" th:data-id="${admin.id}" /></td>
 												<td><input th:checked="${admin.supporter}" type="checkbox" class="i-checks typeSupporter" th:data-id="${admin.id}" /></td>
+												<td>
+													<select th:disabled="${!admin.supporter}" class="form-control m-b domainSelect" th:data-id="${admin.id}">
+														<option th:selected="${!admin.supporter}" value="0">---</option>
+														<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.name}" th:selected="${domain.id == admin.domainId}"></option>
+													</select>
+												</td>
 											</tr>
 										</tbody>
 									</table>
@@ -41,6 +50,7 @@
 
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj administrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj supporter</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj registrant</a>
 							</div>
 						</div>
 					</div>
@@ -71,21 +81,46 @@
 		$(document).ready(function(){
 			$('.typeAdmin').on('ifChecked', function(event){
 				var adminID = event.currentTarget.dataset.id;
-				post(adminID, "ROLE_ADMIN", true);
+				post(adminID, null, "ROLE_ADMIN", true);
 			});
+			
 			$('.typeAdmin').on('ifUnchecked', function(event){
 				var adminID = event.currentTarget.dataset.id;
-				post(adminID, "ROLE_ADMIN", false);
+				post(adminID, null, "ROLE_ADMIN", false);
 			});
+			
 			$('.typeSupporter').on('ifChecked', function(event){
 				var adminID = event.currentTarget.dataset.id;
-				post(adminID, "ROLE_SUPPORTER", true);
+				var domainSelect = $('select[data-id=' + adminID + ']');
+				domainSelect.prop("disabled", false);
 			});
+			
 			$('.typeSupporter').on('ifUnchecked', function(event){
 				var adminID = event.currentTarget.dataset.id;
-				post(adminID, "ROLE_SUPPORTER", false);
+				var domainSelect = $('select[data-id=' + adminID + ']');
+				domainSelect.prop("disabled", true);
+				post(adminID, null, "ROLE_SUPPORTER", false);
 			});
 
+			$('.domainSelect').on('change', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				var domainID = $('select[data-id=' + adminID + ']').val();
+				var isSupporter = $('.typeSupporter[data-id=' + adminID + ']').iCheck('update')[0].checked;
+
+				if (domainID != 0 && isSupporter) {
+					post(adminID, domainID, "ROLE_SUPPORTER", true);
+				}
+			});
+			
+			$('.typeRegistrant').on('ifChecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, null, "ROLE_REGISTRANT", true);
+			});
+			
+			$('.typeRegistrant').on('ifUnchecked', function(event){
+				var adminID = event.currentTarget.dataset.id;
+				post(adminID, null, "ROLE_REGISTRANT", false);
+			});
 
 			$('#adminsTable').DataTable({
 				"bSort": false,
@@ -107,7 +142,15 @@
 			});
 		});
 		
-		function post(adminID, type, state) {
+		function post(adminID, domainID, type, state) {
+			var data = {}
+			data.type = type;
+			data.state = state
+
+			if (domainID != null) {
+				data.domainId = domainID;
+			}
+
 			$.ajax({
 				method : "POST",
 				url: "/rest/admin/toggleAdmin/" + adminID,
@@ -115,7 +158,7 @@
 					'X-CSRF-TOKEN': token
 				},
 				contentType: 'application/json',
-				data: JSON.stringify({ "type": type, "state" : state })
+				data: JSON.stringify(data)
 			}).done(function (data) {
 				window.location.reload(true);
 			});

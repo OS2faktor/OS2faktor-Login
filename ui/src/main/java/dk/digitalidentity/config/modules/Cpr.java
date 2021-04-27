@@ -6,6 +6,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Cpr {
-	private String cvr;
-	private String url;
+	private String url = "http://cprservice.digital-identity.dk";
 }

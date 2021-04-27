@@ -16,7 +16,7 @@
 						<a role="button" th:href="@{/selvbetjening}">Min identitet</a>
 					</li>
 					
-					<li sec:authorize="hasRole('ROLE_SUPPORTER')" th:class="${page != null and #strings.startsWith(page, 'admin')} ? 'active' : ''">
+					<li sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_REGISTRANT')" th:class="${page != null and #strings.startsWith(page, 'admin')} ? 'active' : ''">
 						<a role="button" th:href="@{/admin}">Administration</a>
 					</li>
 				</ul>

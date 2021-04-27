@@ -25,9 +25,23 @@ public class ReportService {
 		return model;
 	}
 
+	public Map<String, Object> getAuditLogReportModelByDomain(String domain) {
+		Map<String, Object> model = new HashMap<>();
+		model.put("auditLogs", auditLogService.findFromLastWeekAndDomain(domain));
+
+		return model;
+	}
+
 	public Map<String, Object> getPersonsReportModel() {
 		Map<String, Object> model = new HashMap<>();
 		model.put("persons", personService.getAll());
+
+		return model;
+	}
+
+	public Map<String, Object> getPersonsReportModelByDomain(String domain) {
+		Map<String, Object> model = new HashMap<>();
+		model.put("persons", personService.getByDomain(domain));
 
 		return model;
 	}

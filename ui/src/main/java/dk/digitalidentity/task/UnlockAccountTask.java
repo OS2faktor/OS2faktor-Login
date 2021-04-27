@@ -20,8 +20,8 @@ public class UnlockAccountTask {
     @Autowired
     private OS2faktorConfiguration configuration;
 
-    // check every 5 minutes
-    @Scheduled(fixedRate = 5 * 60 * 1000)
+    // check every minute
+    @Scheduled(fixedRate = 60 * 1000)
     public void processChanges() {
     	if (configuration.getScheduled().isEnabled()) {
 	        log.debug("Unlocking of locked accounts started");

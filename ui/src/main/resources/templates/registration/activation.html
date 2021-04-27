@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.activation')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-user-plus"></em> &nbsp; Manuel aktivering</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form id="manualActivationForm" th:object="${activationForm}">
+									<input type="hidden" tH:field="*{personId}">
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Medarbejder</label>
+										<div class="col-sm-4 row">
+											<input class="form-control" th:value="${person.name}" disabled="disabled" />
+											<span style="font-size: smaller;" th:text="'CPR: ' + ${person.cpr}" />
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Type af identifikation</label>
+										<div class="col-sm-4 row">
+											<select class="form-control" th:field="*{identificationType}">
+												<option th:each="type : ${T(dk.digitalidentity.mvc.admin.dto.IdentificationType).values()}" 
+													th:value="${type}" th:text="#{__${type.message}__}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">ID nummer</label>
+										<div class="col-sm-4 row">
+											<input class="form-control" th:field="*{identification}" autocomplete="off" />
+											<ul style="color: red; display: none;" id="idValidationErrorMsg">
+												<li>ID nummer skal være udfyldt!</li>
+											</ul>
+										</div>
+										<div class="col-sm-4 row">
+											<label class="col-form-label ml-2">(kørekort-nummer, pas-nummer eller lignende)</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Yderligere noter</label>
+										<div class="col-sm-4 row">
+											<textarea rows="5" class="form-control" th:field="*{note}"></textarea>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">NSIS sikringsniveau</label>
+										<div class="col-sm-4 row">
+											<select class="form-control" th:field="*{nsisLevel}">
+												<option value="LOW" th:text="#{enum.nsislevel.low}"></option>
+												<option value="SUBSTANTIAL" th:text="#{enum.nsislevel.substantial}"></option>
+											</select>
+										</div>
+									</div>
+
+									<hr/>
+									
+									<div class="form-group row">
+										<button type="button" class="btn btn-primary m-b ml-2" id="activateBtn">Aktiver</button>
+										<a th:href="@{/admin/registration}" type="button" class="btn btn-danger m-b ml-2">Annuller</a>
+									</div>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.activation')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<!-- Show Username/Password Modal -->
+	<div class="modal inmodal" id="modalDisplayCredentials" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<span class="badge badge-warning"><i class="fa fa-2x fa-warning"></i></span>
+					<h4 class="modal-title">Aflevering via e-boks fejlede</h4>
+					<h4>Vil du vise adgangskoden på skærmen og udlevere den personligt?</h4>
+				</div>
+				
+				<div class="modal-body">
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Brugernavn</label>
+						<input class="col-sm-10 form-control" readonly="readonly" id="username" placeholder="*******"></input>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Kodeord</label>
+						<input class="col-sm-10 form-control" readonly="readonly" id="password" placeholder="*******"></input>
+					</div>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" onclick="done()" id="cancelBtn">Annuller</button>
+					<button type="button" class="btn btn-primary" onclick="showCredentials()" id="showBtn">Vis</button>
+					<button type="button" class="btn btn-success" style="display: none;" onclick="done()" id="finishBtn">Færdig</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+			var baseUrl = [[@{/}]];
+			var personId = [[${activationForm.personId}]];
+			var activatedMsg = [[#{page.registration.activation.alert.activated}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function() {
+			$('#activateBtn').click(function() {
+				var form = $('#manualActivationForm').serializeArray();
+				var formObject = {};
+				
+				$.each(form,
+					function(i, v) {
+						formObject[v.name] = v.value;
+					}
+				);
+				
+				$('#idValidationErrorMsg').hide();
+				if (formObject.identification.trim().length < 2) {
+					$('#idValidationErrorMsg').show();
+					return;
+				}
+
+				$.ajax({
+					url : baseUrl + 'admin/registration/activation/step1',
+					type : 'post',
+					contentType: 'application/json',
+					headers: {
+						'X-CSRF-TOKEN': token
+					},
+					data : JSON.stringify(formObject),
+					success : function(data) {
+						toastr.success(activatedMsg);
+
+						setTimeout(function() {
+							window.location = baseUrl + "admin/registration";
+						}, 1500);
+					},
+					error: function(jqXHR, textStatus, error) {
+						if ("eboks" == jqXHR.responseText) {
+							$('#modalDisplayCredentials').modal({backdrop: 'static', keyboard: false});
+						}
+						else {
+							toastr.warning("Teknisk fejl - aktiveringen fejlede: " + jqXHR.responseText);
+						}
+					}
+				});
+			});
+		});
+
+		function showCredentials() {
+			var form = $('#manualActivationForm').serializeArray();
+			var formObject = {};
+			
+			$.each(form,
+				function(i, v) {
+					formObject[v.name] = v.value;
+				}
+			);
+
+			$('#idValidationErrorMsg').hide();
+			if (formObject.identification.trim().length < 2) {
+				$('#idValidationErrorMsg').show();
+				$('#modalDisplayCredentials').modal("hide");
+				return;
+			}
+			
+			$.ajax({
+				url : baseUrl + 'admin/registration/activation/step2',
+				type : 'post',
+				contentType: 'application/json',
+				dataType: 'json',
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+				data : JSON.stringify(formObject),
+				success : function(data) {
+					$('#username').val(data.userId);
+					$('#password').val(data.password);
+					$('#finishBtn').show();
+					$('#showBtn').hide();
+					$('#cancelBtn').hide();
+
+					toastr.success(activatedMsg);
+				},
+				error: function(jqXHR, textStatus, error) {
+					toastr.warning("Teknisk fejl - aktiveringen fejlede: " + jqXHR.responseText);
+				}
+			});
+		}
+
+		function done() {
+			window.location = baseUrl + "admin/registration";
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

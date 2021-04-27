@@ -10,9 +10,9 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li th:if="${@securityUtil.isLockedByPersonOnly()}"><a th:href="@{/selvbetjening/genaktiver}">Re-aktiver identitet</a></li>
-						<li th:if="${@securityUtil.isUnlocked()}"><a th:href="@{/selvbetjening/spaerre}">Spær identitet</a></li>
-						<li><a th:href="@{/selvbetjening/skiftkode}">Skift kodeord</a></li>
+						<li th:if="${@securityUtil.isLockedByPersonOnly() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/genaktiver}">Re-aktiver identitet</a></li>
+						<li th:if="${@securityUtil.isUnlocked() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/spaerre}">Spær identitet</a></li>
+						<li><a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Få et nyt kodeord</a></li>
 						<li th:if="${page != 'selfservice.index'}"><a th:href="@{/selvbetjening}">Gå til min identitet</a></li>
 					</ul>
 				</div>
@@ -33,10 +33,24 @@
 				</div>
 			</div>
 		</div>
+		
+		<div class="ibox" th:if="${not #lists.isEmpty(@linkService.getAll())}">
+			<div class="ibox-title">
+				<h5><em class="fa fa-link"></em> &nbsp; Links</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li th:each="link : ${@linkService.getAll()}"><a th:href="${link.link}" th:text="${link.linkText}" target="_blank"></a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
 	</div>
 	
 	<div th:fragment="admin" class="col-lg-3">
-		<div class="ibox">
+		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
 			</div>
@@ -45,7 +59,7 @@
 				<div class="row">
 					<ul>
 						<li><a th:href="@{/admin/logs}">Se hændelseslog</a></li>
-						<li><a th:href="@{/admin/identiteter}">Se udstedte identiteter</a></li>
+						<li><a th:href="@{/admin/identiteter}">Se brugere</a></li>
 						<li><a th:href="@{/admin/rapporter}">Hent rapporter</a></li>
 						<li><a th:href="@{/admin/infoboks}">Infoboks</a></li>
 					</ul>
@@ -62,8 +76,25 @@
 				<div class="row">
 					<ul>
 						<li><a th:href="@{/admin/konfiguration/password}">Opsæt passwordregler</a></li>
+						<li><a th:href="@{/admin/konfiguration/sessioner}">Opsæt sessionsudløb</a></li>
 						<li><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
+						<li><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
 						<li><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+
+		<div class="ibox" sec:authorize="hasRole('ROLE_REGISTRANT')">
+			<div class="ibox-title">
+				<h5><em class="fa fa-users"></em> &nbsp; Aktivering</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li><a th:href="@{/admin/registration}">Aktivering af erhvervsidentiter</a></li>
+						<li><a th:href="@{/admin/registration/mfa}">Tilknyt MFA klient</a></li>
 					</ul>
 				</div>
 			</div>

@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.config.modules.CoreData;
 import dk.digitalidentity.config.modules.Cpr;
+import dk.digitalidentity.config.modules.EBoks;
+import dk.digitalidentity.config.modules.IdP;
 import dk.digitalidentity.config.modules.Scheduled;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,4 +19,6 @@ public class OS2faktorConfiguration {
 	private Scheduled scheduled = new Scheduled();
 	private Cpr cpr = new Cpr();
 	private CoreData coreData = new CoreData();
+	private IdP idp = new IdP();
+	private EBoks eboks = new EBoks();
 }

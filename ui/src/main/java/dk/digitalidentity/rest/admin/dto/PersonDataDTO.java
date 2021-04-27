@@ -23,6 +23,7 @@ public class PersonDataDTO {
 	private String domain;
 	private Map<String, String> attributes;
 	private boolean newPerson;
+	private boolean nameProtected;
 
 	public PersonDataDTO(Person person) {
 		this.personId = person.getId();
@@ -33,16 +34,17 @@ public class PersonDataDTO {
 		this.admin = person.isAdmin();
 		this.supporter = person.isSupporter();
 		this.samAccountName = person.getSamaccountName();
-		this.domain = person.getDomain();
+		this.domain = person.getDomain().getName();
 		this.attributes = person.getAttributes();
 		this.setNewPerson(false);
+		this.nameProtected = person.isNameProtected();
 	}
 
 	// Compare method also exists on CoreDataEntry
 	public static boolean compare(Person person, PersonDataDTO dto) {
 		boolean cprEqual = Objects.equals(person.getCpr(), dto.getCpr());
 		boolean uuidEqual = Objects.equals(person.getUuid(), dto.getUuid());
-		boolean domainEqual = Objects.equals(person.getDomain(), dto.getDomain());
+		boolean domainEqual = Objects.equals(person.getDomain().getName(), dto.getDomain());
 		boolean sAMAccountNameEqual = Objects.equals(person.getSamaccountName(), dto.getSamAccountName());
 
 		return cprEqual && uuidEqual && domainEqual && sAMAccountNameEqual;

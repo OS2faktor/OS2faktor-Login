@@ -13,6 +13,8 @@ public class AdministratorDTO {
 	private String personName;
 	private boolean admin;
 	private boolean supporter;
+	private long domainId;
+	private boolean registrant;
 
 	public AdministratorDTO(Person person) {
 		this.id = person.getId();
@@ -21,5 +23,11 @@ public class AdministratorDTO {
 		this.personName = person.getName();
 		this.admin = person.isAdmin();
 		this.supporter = person.isSupporter();
+
+		if (this.supporter) {
+			this.domainId = person.getSupporter().getDomain().getId();
+		}
+
+		this.registrant = person.isRegistrant();
 	}
 }

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = true, slider = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-sessions')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-gears"></em> &nbsp; Sessionsudløb</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>Angiv længden på sessioner for hhv kodeord og MFA logins i minutter. Hvis værdien for kodeord sessionen er længere end
+								værdien for MFA sessioner, så ændres brugerens session fra en MFA session til en kodeord session ved overgangen mellem de to
+								sessionsudløb.</p>
+								<form action="#" th:action="@{/admin/konfiguration/sessioner}" th:object="${configForm}" method="post">
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Vælg domæne</label>
+										<div class="col-sm-8 row">
+											<select th:field="*{domainId}" class="form-control m-b" onchange="settingsFetchService.fetchSettings();">
+												<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.name}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Sessionsudløb for kodeord</label>
+										<div class="col-sm-8 row">
+											<input type="number" class="form-control col-sm-4" th:field="*{passwordExpiry}" th:classappend="${incorrectInput} ? is-invalid : ''" disabled="disabled"/>
+											<label class="col-sm-4 col-form-label">i minutter</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-4 col-form-label">Sessionsudløb for MFA</label>
+										<div class="col-sm-8 row">
+											<input type="number" class="form-control col-sm-4" th:field="*{mfaExpiry}" th:classappend="${incorrectInput} ? is-invalid : ''" disabled="disabled"/>
+											<label class="col-sm-4 col-form-label">i minutter</label>
+										</div>
+									</div>
+
+
+									<div class="form-group" th:if="${incorrectInput}">
+										<ul>
+											<li class="text-danger">Begge felter skal være udfyldt</li>
+											<li class="text-danger">Begge felter har et maks på 540 minutter (9 timer)</li>
+											<li class="text-danger">Sessionsudløb for kodeord må ikke være mindre end Sessionsudløb for MFA</li>
+										</ul>
+									</div>
+
+									<hr/>
+									
+									<button type="submit" class="btn btn-primary block full-width m-b">Opdater regler</button>
+									<a th:href="@{/admin}" type="button" class="btn btn-danger block full-width cancelBtn">Annuller</a>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-sessions')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var url = [[@{/rest/admin/settings/session/}]];
+		+]*/
+
+		var settingsFetchService;
+		$(document).ready(function() {
+			settingsFetchService = new SettingsFetchService();
+			settingsFetchService.fetchSettings();
+		});
+
+		function SettingsFetchService() {
+			this.fetchSettings = function() {
+				var domainId = $('#domainId').val();
+				var passwordExpiry = $('#passwordExpiry');
+				var mfaExpiry = $('#mfaExpiry');
+
+				$.ajax({
+					url: url + domainId,
+					method: "GET"
+				}).done(function(data) {
+					passwordExpiry.val(data.passwordExpiry);
+					passwordExpiry.prop("disabled", false);
+
+					mfaExpiry.val(data.mfaExpiry);
+					mfaExpiry.prop("disabled", false);
+				}).fail(function(data) {
+					passwordExpiry.prop("disabled", true);
+					mfaExpiry.prop("disabled", true);
+					toastr.error("Kunne ikke hente indstillingerne for det valgte domæne. Prøv igen.");
+				});
+			};
+		}
+	    
+		/*]]>*/
+	</script>
+</body>
+</html>

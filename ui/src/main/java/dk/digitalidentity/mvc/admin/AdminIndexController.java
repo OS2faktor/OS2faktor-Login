@@ -5,12 +5,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import dk.digitalidentity.security.RequireSupporter;
+import dk.digitalidentity.security.RequireAnyAdminRole;
 import dk.digitalidentity.service.StatisticsService;
 
-@RequireSupporter
+@RequireAnyAdminRole
 @Controller
 public class AdminIndexController {
+	
 	@Autowired
 	private StatisticsService statisticsService;
 	
@@ -22,6 +23,7 @@ public class AdminIndexController {
 		model.addAttribute("yesterdayTotalLogins", statisticsService.getTotalLoginCountYesterday());
 		model.addAttribute("personCount", statisticsService.getPersonCount());
 		model.addAttribute("aprovedConditionsCount", statisticsService.getAprovedConditionCount());
+
 		return "admin/index";
 	}
 }

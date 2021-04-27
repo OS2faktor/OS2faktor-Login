@@ -27,7 +27,7 @@ public class StateController {
 	@GetMapping("/selvbetjening/spaerre")
 	public String getLockAccount() {
 		Person person = personService.getById(securityUtils.getPersonId());
-		if (person == null || person.isLockedPerson()) {
+		if (person == null || person.isLockedPerson() || !person.hasNSISUser()) {
 			return "redirect:/selvbetjening";
 		}
 
@@ -39,6 +39,11 @@ public class StateController {
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null) {
 			log.error("Person did not exist: " + securityUtils.getPersonId());
+			return "redirect:/selvbetjening";
+		}
+
+		if (!person.hasNSISUser()) {
+			log.warn("Person tried to lock account but person does not have an NSIS account. (" + person.getUuid() + ")");
 			return "redirect:/selvbetjening";
 		}
 
@@ -59,7 +64,7 @@ public class StateController {
 	@GetMapping("/selvbetjening/genaktiver")
 	public String getReactivateAccount() {
 		Person person = personService.getById(securityUtils.getPersonId());
-		if (person == null || !person.isLockedPerson()) {
+		if (person == null || !person.isLockedPerson() || !person.hasNSISUser()) {
 			return "redirect:/selvbetjening";
 		}
 
@@ -71,6 +76,11 @@ public class StateController {
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null) {
 			log.error("Person did not exists: " + securityUtils.getPersonId());
+			return "redirect:/selvbetjening";
+		}
+
+		if (!person.hasNSISUser()) {
+			log.warn("Person tried to unlock account but person does not have an NSIS account. (" + person.getUuid() + ")");
 			return "redirect:/selvbetjening";
 		}
 

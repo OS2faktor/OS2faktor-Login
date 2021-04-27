@@ -133,25 +133,31 @@
 			});
 			$('#termsAndConditionsContent').summernote('disable');
 
-			var editor_one = CodeMirror.fromTextArea(document.getElementById("detailContent"), {
-				lineNumbers: true,
-				matchBrackets: true,
-				styleActiveLine: true,
-				readOnly: true,
-				mode: selectedMode,
-				htmlMode: detailType == 'XML',
-				json : detailType == 'JSON'
-			});
+			var txtArea1 = document.getElementById("detailContent");
+			if (txtArea1) {
+				var editor_one = CodeMirror.fromTextArea(txtArea1, {
+					lineNumbers: true,
+					matchBrackets: true,
+					styleActiveLine: true,
+					readOnly: true,
+					mode: selectedMode,
+					htmlMode: detailType == 'XML',
+					json : detailType == 'JSON'
+				});
+			}
 
-			var editor_two = CodeMirror.fromTextArea(document.getElementById("detailSupplement"), {
-				lineNumbers: true,
-				matchBrackets: true,
-				styleActiveLine: true,
-				readOnly: true,
-				mode: selectedMode,
-				htmlMode: detailType == 'XML',
-				json : detailType == 'JSON'
-			});
+			var txtArea2 = document.getElementById("detailSupplement");
+			if (txtArea2) {
+				var editor_two = CodeMirror.fromTextArea(txtArea2, {
+					lineNumbers: true,
+					matchBrackets: true,
+					styleActiveLine: true,
+					readOnly: true,
+					mode: selectedMode,
+					htmlMode: detailType == 'XML',
+					json : detailType == 'JSON'
+				});
+			}
 		});
 		/*]]>*/
 	</script>

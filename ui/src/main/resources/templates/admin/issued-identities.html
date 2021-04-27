@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
@@ -37,9 +37,9 @@
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
-												<td></td>
-												<td></td>
-												<td></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td></td>
 											</tr>
 										</tfoot>
@@ -85,6 +85,7 @@
 		</div>
 	</div>
 	<!-- End CPR Modal -->
+
 	<!-- Edit Modal -->
 	<div class="modal inmodal" id="modalEdit" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
 		<div class="modal-dialog modal-lg">
@@ -115,10 +116,6 @@
 						<input class="col-sm-10 form-control" id="modalEditName">
 					</div>
 					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">AD-Bruger</label>
-						<input class="col-sm-10 form-control" id="modalEditSamAccountName">
-					</div>
-					<div class="form-group row">
 						<label class="col-sm-2 col-form-label">Email</label>
 						<input type="email" class="col-sm-10 form-control" id="modalEditEmail">
 					</div>
@@ -146,8 +143,40 @@
 		</div>
 	</div>
 	<!-- End Edit Modal -->
+	
+	<!-- lock Modal -->
+	<div class="modal inmodal" id="modalLock" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<h4 class="modal-title" id="modalLockTitle">Spær adgang</h4>
+				</div>
+				
+				<div class="modal-body">
+					<div class="form-group col-md-12">
+						<span th:text="#{page.admin.issuedidentities.lockText}"/>
+					</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+					<div class="form-group col-md-12 suspendRow">
+						<input th:id="suspend" type="checkbox" class="i-checks col-sm-2 form-control">
+						<label class="col-sm-10 col-form-label">Suspender også erhvervsidentiteten<span style="vertical-align: super; font-size: smaller;">*</span></label>
+					</div>
+					
+					<div class="form-group col-md-12 suspendRow">
+						<span style="vertical-align: super; font-size: smaller;">*</span>
+						<span>Hvis erhvervsidentiteten suspenderes, skal brugeren gennemføre en ny aktivering af erhvervsidentiten hvis spærringen af kontoen fjernes.</span>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" style="width: 80px;" onclick="$(modalLock).hide();">Nej</button>
+					<button type="button" class="btn btn-primary" style="width: 80px;" onclick="modalService.saveLockModal()">Ja</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End lock Modal -->
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -165,12 +194,24 @@
 
 		var token = $("meta[name='_csrf']").attr("content");
 	
+		function disableDataTablesAlerts() {
+			$.fn.dataTable.ext.errMode = 'none';
+
+			$('#persons').on('error.dt', function(e, settings, techNote, message) {
+				// it is a bit of a hack, but we assume this means that the user has been logged out
+				if (message.indexOf("Ajax error") >= 0) {
+					window.location.reload();
+				}
+			});
+		}
+
 		var table;
 		var modalService;
 		$(document).ready(function(){
 			modalService = new ModalService();
 
-
+			disableDataTablesAlerts();
+			
 			table = $('#persons').DataTable({
 				"destroy": true,
 				"ajax": {
@@ -241,7 +282,7 @@
 								return "Høj"
 							}
 
-							return "Ukendt";
+							return "Ingen";
 						}
 					},
 					{
@@ -302,41 +343,65 @@
 		});
 
 		function lock(id, isLocked) {
-			swal({
-				title: '',
-				text: isLocked ? unlockText : lockText,
-				showCancelButton: true,
-				confirmButtonColor: "#3085d6",
-				confirmButtonText: lockButtonConfirm,
-				cancelButtonText: lockButtonCancel,
-				closeOnConfirm: true,
-				closeOnCancel: true
-			},
-			function(isConfirm) {
-				if (isConfirm) {
-					$.ajax({
-						method : "POST",
-						url: baseUrl + "rest/admin/lock/" + id + "?lock=" + !isLocked,
-						headers: {
-							"content-type": "application/json",
-							'X-CSRF-TOKEN': token
-						}
-					}).done(function (data) {
-						table.ajax.reload();
-					}).fail(function (jqXHR, textStatus, errorThrown) {
-						toastr.warning(lockFail);
-					});
-				}
-			});
+			if (isLocked) {
+				swal({
+					title: '',
+					text: unlockText,
+					showCancelButton: true,
+					confirmButtonColor: "#3085d6",
+					confirmButtonText: lockButtonConfirm,
+					cancelButtonText: lockButtonCancel,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						$.ajax({
+							method : "POST",
+							url: baseUrl + "rest/admin/lock/" + id + "?lock=" + !isLocked + "&suspend=false",
+							headers: {
+								"content-type": "application/json",
+								'X-CSRF-TOKEN': token
+							}
+						}).done(function (data) {
+							table.ajax.reload();
+						}).fail(function (jqXHR, textStatus, errorThrown) {
+							toastr.warning(lockFail);
+						});
+					}
+				});
+			}
+			else {
+				$.ajax({
+					method : "GET",
+					url: baseUrl + "rest/admin/lock/check/" + id,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					if (data) {
+						$(".suspendRow").show();
+					}
+					else {
+						$(".suspendRow").hide();
+					}
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					$(".suspendRow").hide();
+				});
+				
+				$("#suspend").iCheck('uncheck');
+				$("#modalLock").show();
+				$("#modalLock").attr("personid", id);
+			}
 		}
 
 		function ModalService() {
-			
+
 			this.openCreateModal = function() {
 				$('#modalCprInput').val('');
 				$('#modalCpr').modal("show");
-				$('#modalCprInput').focus();
-				
+				$('#modalCprInput').focus();				
 			}
 
 			this.editById = function(id=0) {
@@ -359,12 +424,11 @@
 				}
 
 				$('#modalEditPersonId').val(person.personId);
-				$('#modalEditUuid').val(person.uuid);
-			
+				$('#modalEditUuid').val(person.uuid);			
 				$('#modalEditCpr').val(person.cpr);
 				$('#modalEditName').val(person.name);
-				$('#modalEditSamAccountName').val(person.samAccountName);
 				$('#modalEditEmail').val(person.email);
+
 				modalService.loadAttributes(person.attributes);
 
 				$('#modalCpr').modal("hide");
@@ -372,7 +436,7 @@
 			}
 
 			this.loadAttributes = function(attributes) {
-				//Clear table rows here
+				// Clear table rows here
 				$('#attributeTable tbody').empty();
 
 				if (attributes == null) {
@@ -383,12 +447,11 @@
 				for (let i = 0; i < entries.length; i += 1) {
 					// Add rows to table here
 					var row = '<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][0] + '"></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][1] + '"></td></tr>';
-					//var row = '<tr><td>' + entries[i][0] + '</td><td>' + entries[i][1] + '</td></tr>';
 
 					$('#attributeTable > tbody:last-child').append(row);
 				}
 
-				//Add additional blank row here
+				// Add additional blank row here
 
 				$('#attributeTable > tbody:last-child').append('<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
 			}
@@ -463,12 +526,12 @@
 						dict[$(inputs[0]).val()] = $(inputs[1]).val();
 					}
 				}
+
 				var person = {
 					personId: $('#modalEditPersonId').val(),
 					uuid: $('#modalEditUuid').val(),
 					cpr: $('#modalEditCpr').val(),
 					name: $('#modalEditName').val(),
-					samAccountName: $('#modalEditSamAccountName').val(),
 					email: $('#modalEditEmail').val(),
 					attributes: dict
 				}
@@ -513,6 +576,25 @@
 					}).fail(function (jqXHR, textStatus, errorThrown) {
 						toastr.warning("Fejl! Kunne ikke slette personen");
 					});
+				});
+			}
+			
+			this.saveLockModal = function() {
+				var personId = $("#modalLock").attr("personid");
+				var suspend = $("#suspend").is(":checked");
+				
+				$.ajax({
+					method : "POST",
+					url: baseUrl + "rest/admin/lock/" + personId + "?lock=true&suspend=" + suspend,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					$("#modalLock").hide();
+					table.ajax.reload();
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					toastr.warning(lockFail);
 				});
 			}
 		}

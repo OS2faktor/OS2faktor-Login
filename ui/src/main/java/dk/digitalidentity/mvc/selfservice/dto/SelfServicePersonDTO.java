@@ -13,4 +13,6 @@ public class SelfServicePersonDTO {
 	private String statusMessage;
 	private NSISLevel nsisLevel;
 	private String email;
+	private String name;
+	private String alias;
 }

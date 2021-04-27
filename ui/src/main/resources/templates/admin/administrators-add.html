@@ -20,6 +20,8 @@
 										<thead>
 											<tr>
 												<th style="width: 115px;">Konto</th>
+												<th style="width: 115px;">AD Konto</th>
+												<th style="width: 220px;">Domæne</th>
 												<th>Person</th>
 												<th style="width: 45px;"></th>
 											</tr>
@@ -27,6 +29,8 @@
 										
 										<tfoot style="display: table-row-group">
 											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td></td>
@@ -85,6 +89,14 @@
 				"columns": [
 					{
 						"data": "userId",
+						"orderable": false
+					},
+					{
+						"data": "samaccountName",
+						"orderable": false
+					},
+					{
+						"data": "domain",
 						"orderable": false
 					},
 					{

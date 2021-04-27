@@ -55,6 +55,7 @@ public class LogViewerController {
 			auditLogView.setId(auditLog.getId());
 			auditLogView.setMessage(auditLog.getMessage());
 			auditLogView.setPersonName(auditLog.getPersonName());
+			auditLogView.setPersonDomain(auditLog.getPersonDomain());
 			auditLogView.setSamaccountName(person != null ? person.getSamaccountName() : null);
 			auditLogView.setTts(auditLog.getTts());
 			auditLogView.setUserId((person != null && !StringUtils.isEmpty(person.getUserId())) ? person.getUserId() : null);

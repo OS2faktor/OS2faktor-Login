@@ -17,6 +17,7 @@ public class AuditLogDTO {
 	private String ipAddress;
 	private String correlationId;
 	private String personName;
+	private String personDomain;
 	private String cpr;
 	private String performerName;
 	private LogAction logAction;
@@ -38,6 +39,7 @@ public class AuditLogDTO {
 		this.message = auditLog.getMessage();
 		this.performerName = auditLog.getPerformerName();
 		this.personName = auditLog.getPersonName();
+		this.personDomain = auditLog.getPersonDomain();
 		this.tts = auditLog.getTts();
 	}
 }

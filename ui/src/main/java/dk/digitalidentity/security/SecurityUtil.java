@@ -8,6 +8,7 @@ import java.util.Objects;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
+import dk.digitalidentity.common.service.PersonService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -34,6 +35,9 @@ public class SecurityUtil {
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
+
+	@Autowired
+	private PersonService personService;
 	
 	/**
 	 * returns true if a person is currently logged in
@@ -79,6 +83,40 @@ public class SecurityUtil {
 	}
 
 	/**
+	 * Returns the person object of the currently logged in person
+	 * @return {@link dk.digitalidentity.common.dao.model.Person} object or null if no person is logged in or there was an error fetching person by id from database
+	 */
+	public Person getPerson() {
+		Long personId = getPersonId();
+		if (personId == null) {
+			return null;
+		}
+
+		return personService.getById(personId);
+	}
+
+	/**
+	 * returns true if the currently logged in person is an admin
+	 */
+	public boolean hasAnyAdminRole() {
+		if (!isAuthenticated()) {
+			return false;
+		}
+
+		TokenUser tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
+		for (GrantedAuthority role : tokenUser.getAuthorities()) {
+			if (role.getAuthority().equals(Constants.ROLE_ADMINISTRATOR) ||
+				role.getAuthority().equals(Constants.ROLE_REGISTRANT) ||
+				role.getAuthority().equals(Constants.ROLE_SUPPORTER)) {
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * returns true if the currently logged in person is an admin
 	 */
 	public boolean isAdmin() {
@@ -94,6 +132,14 @@ public class SecurityUtil {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Returns true if the currently logged in person has an NSIS user
+	 */
+	public boolean hasNsisUser() {
+		Person person = getPerson();
+		return person != null && person.hasNSISUser();
 	}
 
 	/**
@@ -120,7 +166,7 @@ public class SecurityUtil {
 							 	 person.isLockedPassword() == false &&
 							 	 person.isLockedPerson() == true;
 
-			isUnlocked = person.isLocked() == false;
+			isUnlocked = (person.isLocked() == false);
 		}
 		else {
 			isWithoutUser = true;
@@ -131,16 +177,24 @@ public class SecurityUtil {
 		tokenUser.getAttributes().put(IS_UNLOCKED, isUnlocked);
 
 		List<GrantedAuthority> authorities = new ArrayList<>();
-		if (person.isAdmin()) {
-			authorities.add(new SimpleGrantedAuthority(Constants.ROLE_ADMINISTRATOR));
-			authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
-
-			if (configuration.getCoreData().isEnabled()) {
-				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_COREDATA_EDITOR));
+		
+		// only those with an NSIS account can have any kind of administrative access
+		if (person.hasNSISUser()) {
+			if (person.isAdmin()) {
+				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_ADMINISTRATOR));
+				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
+	
+				if (configuration.getCoreData().isEnabled()) {
+					authorities.add(new SimpleGrantedAuthority(Constants.ROLE_COREDATA_EDITOR));
+				}
 			}
-		}
-		else if (person.isSupporter()) {
-			authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
+			else if (person.isSupporter()) {
+				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
+			}
+
+			if (person.isRegistrant()) {
+				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_REGISTRANT));
+			}
 		}
 
 		tokenUser.setAuthorities(authorities);
