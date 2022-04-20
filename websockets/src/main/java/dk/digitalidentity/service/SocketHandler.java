@@ -4,13 +4,11 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -27,6 +25,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dk.digitalidentity.api.dto.PasswordResponse;
+import dk.digitalidentity.api.dto.PasswordResponse.PasswordStatus;
 import dk.digitalidentity.config.Commands;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.model.Request;
@@ -47,12 +46,13 @@ public class SocketHandler extends TextWebSocketHandler {
 	@Async
 	public AsyncResult<PasswordResponse> validatePassword(String username, String password, String domain) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid(false);
+		response.setStatus(PasswordStatus.FAILURE);
 		
 		Session session = getSession(domain);
 		if (session == null) {
-			log.error("Failed to get an authenticated WebSocket connection for validatePassword");
+			log.error("Failed to get an authenticated WebSocket connection for validatePassword for domain: " + domain);
 			response.setMessage("No authenticated WebSocket connection available");
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 		
@@ -67,6 +67,7 @@ public class SocketHandler extends TextWebSocketHandler {
 		catch (Exception ex) {
 			log.error("Failed to sign validatePassword message", ex);
 			response.setMessage("Failed to sign validatePassword message: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -80,6 +81,7 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Cannot serialize validatePassword request", ex);
 			
 			response.setMessage("Cannot serialize validatePassword request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -93,6 +95,7 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to send valiatePassword request", ex);
 			
 			response.setMessage("Failed to send valiatePassword request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 		
@@ -112,8 +115,9 @@ public class SocketHandler extends TextWebSocketHandler {
 		} while(tries <= 50);
 		
 		if (holder == null) {
-			log.error("Timeout waiting for response on validatePassword!");
+			log.error("Timeout waiting for response on validatePassword on transactionUuid " + request.getTransactionUuid());
 			response.setMessage("Timeout waiting for response");
+			response.setStatus(PasswordStatus.TIMEOUT);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -123,7 +127,7 @@ public class SocketHandler extends TextWebSocketHandler {
 	@Async
 	public AsyncResult<PasswordResponse> setPassword(String userId, String password, String domain) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid(false);
+		response.setStatus(PasswordStatus.FAILURE);
 
 		Session session = getSession(domain);
 		if (session == null) {
@@ -143,6 +147,7 @@ public class SocketHandler extends TextWebSocketHandler {
 		catch (Exception ex) {
 			log.error("Failed to sign setPassword message", ex);
 			response.setMessage("Failed to sign setPassword message: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -154,6 +159,7 @@ public class SocketHandler extends TextWebSocketHandler {
 		}
 		catch (JsonProcessingException ex) {
 			response.setMessage("Cannot serialize setPassword request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -167,6 +173,7 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to send setPassword request", ex);
 						
 			response.setMessage("Failed to send setPassword request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 		
@@ -186,8 +193,86 @@ public class SocketHandler extends TextWebSocketHandler {
 		} while(tries <= 50);
 		
 		if (holder == null) {
-			log.error("Timeout waiting for response on setPassword!");
+			log.error("Timeout waiting for response on setPassword with transactionUUid " + request.getTransactionUuid());
 			response.setMessage("Timeout waiting for response");
+			response.setStatus(PasswordStatus.TIMEOUT);
+			return new AsyncResult<PasswordResponse>(response);
+		}
+
+		return new AsyncResult<PasswordResponse>(holder.getResponse());
+	}
+	
+	@Async
+	public AsyncResult<PasswordResponse> unlockAccount(String userId, String domain) throws InterruptedException {
+		PasswordResponse response = new PasswordResponse();
+		response.setStatus(PasswordStatus.FAILURE);
+
+		Session session = getSession(domain);
+		if (session == null) {
+			log.error("Failed to get an authenticated WebSocket connection for unlockAccount");
+			response.setMessage("No authenticated WebSocket connection available");
+			return new AsyncResult<PasswordResponse>(response);
+		}
+		
+		Request request = new Request();
+		request.setCommand(Commands.UNLOCK_ACCOUNT);
+		request.setTarget(userId);
+
+		try {
+			request.sign(configuration.getWebSocketKey());
+		}
+		catch (Exception ex) {
+			log.error("Failed to sign unlockAccount message", ex);
+			response.setMessage("Failed to sign unlockAccount message: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
+			return new AsyncResult<PasswordResponse>(response);
+		}
+
+		String data = null;
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+
+			data = mapper.writeValueAsString(request);
+		}
+		catch (JsonProcessingException ex) {
+			response.setMessage("Cannot serialize unlockAccount request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
+			return new AsyncResult<PasswordResponse>(response);
+		}
+
+		TextMessage message = new TextMessage(data);
+		try {
+			requests.put(request.getTransactionUuid(), new RequestHolder(request));
+
+			session.getSession().sendMessage(message);
+		}
+		catch (IOException ex) {
+			log.error("Failed to send unlockAccount request", ex);
+						
+			response.setMessage("Failed to send unlockAccount request: " + ex.getMessage());
+			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
+			return new AsyncResult<PasswordResponse>(response);
+		}
+		
+		// wait for result for 5 seconds
+		int tries = 0;
+		ResponseHolder holder = null;
+		do {
+			holder = responses.get(request.getTransactionUuid());
+			
+			if (holder != null) {
+				break;
+			}
+			
+			Thread.sleep(100);
+			
+			tries++;
+		} while(tries <= 50);
+		
+		if (holder == null) {
+			log.error("Timeout waiting for response on unlockAccount with transactionUUid " + request.getTransactionUuid());
+			response.setMessage("Timeout waiting for response");
+			response.setStatus(PasswordStatus.TIMEOUT);
 			return new AsyncResult<PasswordResponse>(response);
 		}
 
@@ -265,6 +350,7 @@ public class SocketHandler extends TextWebSocketHandler {
 				break;
 			case Commands.VALIDATE_PASSWORD:
 			case Commands.SET_PASSWORD:
+			case Commands.UNLOCK_ACCOUNT:
 				handlePasswordResponse(message);
 				break;
 			default:
@@ -275,7 +361,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 	private void invalidateRequest(String transactionUuid, String message) {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid(false);
+		response.setStatus(PasswordStatus.TECHNICAL_ERROR);
 		response.setMessage(message);
 
 		ResponseHolder holder = new ResponseHolder(response);
@@ -285,7 +371,8 @@ public class SocketHandler extends TextWebSocketHandler {
 
 	private void handlePasswordResponse(Response message) {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid("true".equals(message.getStatus()));
+		response.setStatus(("true".equals(message.getStatus())) ? PasswordStatus.OK : PasswordStatus.FAILURE);
+		response.setMessage(message.getMessage());
 
 		ResponseHolder holder = new ResponseHolder(response);
 		
@@ -293,7 +380,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		switch (message.getCommand()) {
 			case "VALIDATE_PASSWORD":
-				log.info("Valiate password for " + message.getTarget() + ": " + message.getStatus());
+				log.info("Validate password for " + message.getTarget() + ": " + message.getStatus() + " / " + message.getMessage());
 				break;
 			case "SET_PASSWORD":
 				log.info("Set password for " + message.getTarget() + ": " + message.getStatus());
@@ -306,8 +393,8 @@ public class SocketHandler extends TextWebSocketHandler {
 	
 	private void handleAuthenticateResponse(Session session, Response message, Request inResponseTo) {
 		if (!message.verify(configuration.getWebSocketKey())) {
-			log.error("Got invalid hmac on Authenticate response: " + message);
-			
+			log.error("Got invalid hmac on Authenticate response: " + message + " - sessionID = " + session.getId());
+
 			// we keep the connection open on purpose, otherwise it will just reconnect immediately, spamming us
 			return;
 		}
@@ -316,10 +403,10 @@ public class SocketHandler extends TextWebSocketHandler {
 			session.setAuthenticated(true);
 			session.setDomain(message.getTarget());
 
-			log.info("Authenticated connection from client (version " + message.getClientVersion() + ")");
+			log.info("Authenticated connection from client (version " + message.getClientVersion() + ") for domain " + message.getTarget() + " - sessionID = " + session.getId() + ", activeSession=" + activeConnections(session.getDomain()));
 		}
 		else {
-			log.warn("Client refused to authenticate (version " + message.getClientVersion() + ")");
+			log.warn("Client refused to authenticate (version " + message.getClientVersion() + ") for domain " + message.getTarget() + " - sessionID = " + session.getId() + ", activeSession=" + activeConnections(session.getDomain()));
 		}
 	}
 
@@ -330,7 +417,9 @@ public class SocketHandler extends TextWebSocketHandler {
 		synchronized (sessions) {
 			sessions.add(session);			
 		}
-	
+		
+		log.info("Connection established - sending AuthRequest - sessionID=" + session.getId());
+
 		sendAuthenticateRequest(session);
 	}
 
@@ -339,6 +428,18 @@ public class SocketHandler extends TextWebSocketHandler {
 		synchronized (sessions) {
 			sessions.removeIf(s -> s.getSession().equals(webSocketSession));			
 		}
+		
+		Map<String, Long> sessionCount = new HashMap<>();
+		for (Session session : sessions) {
+			Long count = sessionCount.get(session.getDomain());
+			if (count == null) {
+				count = 0L;
+			}
+
+			sessionCount.put(session.getDomain(), ++count);
+		}
+		
+		log.info("After closing connection: " + sessionCount.toString());
 	}
 	
 	private Session getSession(String domain) {
@@ -376,25 +477,28 @@ public class SocketHandler extends TextWebSocketHandler {
 	}
 	
 	public void closeStaleSessions() {
-		Set<Session> toClose = new HashSet<>();
-
-		for (Iterator<Session> iterator = sessions.iterator(); iterator.hasNext();) {
-			Session session = iterator.next();
-
+		for (Session session : sessions) {
 			if (session.getCleanupTimestamp().isBefore(LocalDateTime.now())) {
-				toClose.add(session);
+				try {
+					log.info("Closing stale connection on websocket client - sessionID = " + session.getId());
+
+					session.getSession().close();
+				}
+				catch (Exception ex) {
+					log.warn("Failed to close connection - sessionID = " + session.getId(), ex);
+				}
+				
+				// only close a single state connection per loop - do not want to end up with 0 connections during a single cleanup run
+				break;
 			}
 		}
-
-		for (Session session : toClose) {
-			try {
-				log.info("Closing stale connection on websocket client");
-
-				session.getSession().close();
-			}
-			catch (Exception ex) {
-				log.warn("Failed to close connection", ex);
-			}
+	}
+	
+	private int activeConnections(String domain) {
+		if (domain != null) {
+			return (int) sessions.stream().filter(s -> Objects.equals(domain, s.getDomain())).count();
 		}
+		
+		return sessions.size();
 	}
 }

@@ -16,6 +16,9 @@ public class MfaClient implements Serializable {
 	private ClientType type;
 	private boolean hasPincode;
 	private NSISLevel nsisLevel;
+	private boolean prime;
+	private boolean roaming;
+	private boolean localClient = false;
 	
 	// used for UI
 	private transient String typeMessage;

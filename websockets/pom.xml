@@ -26,9 +26,9 @@
 				<configuration>
 					<layout>ZIP</layout>
 					<addResources>true</addResources>
-					<folders>
-						<folder>${basedir}/config</folder>
-					</folders>
+                                        <directories>
+                                                <directory>${basedir}/config</directory>
+                                        </directories>
 				</configuration>
 			</plugin>
 

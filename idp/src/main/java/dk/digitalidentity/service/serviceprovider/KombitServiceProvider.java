@@ -1,9 +1,11 @@
 package dk.digitalidentity.service.serviceprovider;
 
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import java.nio.charset.Charset;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -15,9 +17,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.KombitJfr;
+import dk.digitalidentity.common.dao.model.KombitSubsystem;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.service.RoleCatalogueService;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.service.KombitSubSystemService;
+import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -32,38 +38,18 @@ public class KombitServiceProvider extends ServiceProvider {
 	private RoleCatalogueService roleCatalogueService;
 	
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private CommonConfiguration commonConfig;
+
+	@Autowired
+	private KombitServiceProviderConfig kombitConfig;
 	
 	@Autowired
-	private CommonConfiguration common;
-
-	class ItSystemMetadata {
-		String name;
-		String uuid;
-		
-		ItSystemMetadata(String name, String uuid) {
-			this.uuid = uuid;
-			this.name = name;
-		}
-	}
-
-	private static final Map<String, ItSystemMetadata> itSystemMap = new HashMap<>();
-	static {
-		KombitServiceProvider ksp = new KombitServiceProvider();
-		
-		// TODO: we need to get KOMBIT to expose these through an API, otherwise we have to keep them updated over time
-		itSystemMap.put("https://saml.prod-dar.dk/", ksp.new ItSystemMetadata("DAR", "7bffce30-10a8-4808-8157-3a773fc1cdfb"));
-		itSystemMap.put("https://www.dubu.dk/sp", ksp.new ItSystemMetadata("DUBU", "38e166c7-f465-48b7-bf6e-46e4ae40fea7"));
-		itSystemMap.put("https://saml.test-sitprod-ejf.dk/", ksp.new ItSystemMetadata("Ejerfortegnelsen", "f149ca59-1cf6-4e08-8bfb-20e7ab2ccfa5"));
-		itSystemMap.put("https://saml.prod-bbr.dk/", ksp.new ItSystemMetadata("BBR", "22189878-b7c7-44c0-8ef9-ade230844587"));
-		itSystemMap.put("https://sapaadvis.dk", ksp.new ItSystemMetadata("SAPA Advis", "d0648cdc-4e99-4879-be07-bdfc8c6e9cee"));
-		itSystemMap.put("https://sapaoverblik.dk/", ksp.new ItSystemMetadata("SAPA Overblik", "b75fb26d-2b2d-4d42-a7d5-f06eb7a93067"));
-	}
+	private KombitSubSystemService subsystemService;
 	
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
-			resolver = getMetadataResolver(configuration.getKombit().getEntityId(), configuration.getKombit().getMetadataUrl());
+			resolver = getMetadataResolver(kombitConfig.getEntityId(), getMetadataUrl());
 		}
 
 		// If last scheduled refresh failed, Refresh now to give up to date metadata
@@ -78,7 +64,7 @@ public class KombitServiceProvider extends ServiceProvider {
 
 		// Extract EntityDescriptor by configured EntityID
 		CriteriaSet criteriaSet = new CriteriaSet();
-		criteriaSet.add(new EntityIdCriterion(configuration.getKombit().getEntityId()));
+		criteriaSet.add(new EntityIdCriterion(kombitConfig.getEntityId()));
 
 		try {
 			return resolver.resolveSingle(criteriaSet);
@@ -90,20 +76,37 @@ public class KombitServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) {
-		return "C=DK,O=" + common.getCustomer().getCvr() + ",CN=" + person.getName() + ",Serial=" + person.getUuid();
+		return "C=DK,O=" + commonConfig.getCustomer().getCvr() + ",CN=" + person.getName() + ",Serial=" + person.getUuid();
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(Person person) {
+	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
 		Map<String, Object> map = new HashMap<>();
 
 		map.put("dk:gov:saml:attribute:SpecVer", "DK-SAML-2.0");
 		map.put("dk:gov:saml:attribute:KombitSpecVer", "1.0");
-		map.put("dk:gov:saml:attribute:CvrNumberIdentifier", common.getCustomer().getCvr());
-		map.put("dk:gov:saml:attribute:AssuranceLevel", configuration.getKombit().getAssuranceLevel());
+		map.put("dk:gov:saml:attribute:CvrNumberIdentifier", commonConfig.getCustomer().getCvr());
+		map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
 
-		// TODO: we need to inspect the AuthnRequest to see what it-system we are looking up roles for
-		String oiobpp = roleCatalogueService.getOIOBPP(person, "KOMBIT");
+		String lookupIdentifier = "KOMBIT";
+		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+		if (entityId != null) {
+			KombitSubsystem subsystem = getSubsystem(entityId);
+			if (StringUtils.hasLength(subsystem.getOS2rollekatalogIdentifier())) {
+				lookupIdentifier = subsystem.getOS2rollekatalogIdentifier();
+			}
+		}
+
+		String oiobpp = null;
+		switch (commonConfig.getKombit().getRoleSource()) {
+			case JFR_GROUPS:
+				oiobpp = generateFromKombitJfr(person, commonConfig.getKombit().isConvertDashToUnderscore());
+				break;
+			case OS2ROLLEKATALOG:
+				oiobpp = roleCatalogueService.getOIOBPP(person, lookupIdentifier);
+				break;
+		}
+		
 		if (oiobpp != null) {
 			map.put("dk:gov:saml:attribute:Privileges_intermediate", oiobpp);
 		}
@@ -113,59 +116,153 @@ public class KombitServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean mfaRequired(AuthnRequest authnRequest) {
+		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+
+		if (entityId != null) {
+			KombitSubsystem subSystem = getSubsystem(entityId);
+
+			if (subSystem.isAlwaysRequireMfa()) {
+				return true;
+			}
+		}
+		
 		return false;
 	}
 
 	@Override
 	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
-    	// if the AuthnRequest supplies a required level, always use that
+		NSISLevel requiredLevel = NSISLevel.NONE;
+		
+		// if the subsystem has a configured minimum level, upgrade to that
+		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+		if (entityId != null) {
+			KombitSubsystem subSystem = getSubsystem(entityId);
+
+			if (subSystem.getMinNsisLevel().isGreater(requiredLevel)) {
+				requiredLevel = subSystem.getMinNsisLevel();
+			}
+		}
+
+    	// if the AuthnRequest supplies a required level, upgrade to that
         RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
                 if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                    return NSISLevel.SUBSTANTIAL;
+        			if (NSISLevel.SUBSTANTIAL.isGreater(requiredLevel)) {
+        				requiredLevel = NSISLevel.SUBSTANTIAL;
+        			}
                 }
-
-                if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                    return NSISLevel.LOW;
+                else if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
+        			if (NSISLevel.LOW.isGreater(requiredLevel)) {
+        				requiredLevel = NSISLevel.LOW;
+        			}
                 }
             }
         }
 
-		return NSISLevel.NONE;
+		return requiredLevel;
 	}
 
 	@Override
 	public boolean preferNemId() {
-		return false;
+		return kombitConfig.preferNemId();
 	}
 
 	@Override
-	public String getEntityId() throws RequesterException, ResponderException {
-		return configuration.getKombit().getEntityId();
+	public String getEntityId() {
+		return kombitConfig.getEntityId();
 	}
 
 	@Override
-	public String getName() {
-		return "KOMBIT Context Handler";
+	public String getName(AuthnRequest authnRequest) {
+		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+		if (entityId != null) {
+			KombitSubsystem subSystem = getSubsystem(entityId);
+			if (StringUtils.hasLength(subSystem.getName())) {
+				return subSystem.getName();
+			}
+			
+			return subSystem.getEntityId();
+		}
+
+		return kombitConfig.getName();
+	}
+
+	@Override
+	public RequirementCheckResult personMeetsRequirements(Person person) {
+		return RequirementCheckResult.OK;
 	}
 
 	@Override
 	public boolean encryptAssertions() {
-		return configuration.getKombit().isEncryptAssertion();
+		return kombitConfig.encryptAssertions();
 	}
 
 	@Override
 	public String getNameIdFormat() {
-		return "urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName";
+		return kombitConfig.getNameIdFormat();
+	}
+
+	public String getMetadataUrl() {
+		return kombitConfig.getMetadataUrl();
 	}
 
 	@Override
 	public boolean enabled() {
-		if (configuration.getKombit() == null || StringUtils.isEmpty(configuration.getKombit().getMetadataUrl())) {
-			return false;
-		}
+		return kombitConfig.enabled();
+	}
 
-		return true;
+	@Override
+	public String getProtocol() {
+		return kombitConfig.getProtocol();
+	}
+	
+	private KombitSubsystem getSubsystem(String entityId) {
+		KombitSubsystem subsystem = subsystemService.findByEntityId(entityId);
+		if (subsystem == null) {
+			subsystem = new KombitSubsystem();
+			subsystem.setEntityId(entityId);
+			subsystem.setMinNsisLevel(NSISLevel.NONE);
+
+			subsystem = subsystemService.save(subsystem);
+		}
+		
+		return subsystem;
+	}
+	
+	private String getEntityIdFromAuthnRequest(AuthnRequest authnRequest) {
+		if (authnRequest != null && authnRequest.getScoping() != null &&
+			authnRequest.getScoping().getRequesterIDs() != null &&
+			authnRequest.getScoping().getRequesterIDs().size() > 0 &&
+			StringUtils.hasLength(authnRequest.getScoping().getRequesterIDs().get(0).getRequesterID())) {
+
+			return authnRequest.getScoping().getRequesterIDs().get(0).getRequesterID();
+		}
+		
+		return null;
+	}
+
+	private String generateFromKombitJfr(Person person, boolean convertDashToUnderscore) {
+		StringBuilder builder = new StringBuilder();
+		
+		builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+		builder.append("<bpp:PrivilegeList xmlns:bpp=\"http://itst.dk/oiosaml/basic_privilege_profile\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">");
+
+		for (KombitJfr kombitJfr : person.getKombitJfrs()) {
+			String identifier = kombitJfr.getIdentifier();
+			if (convertDashToUnderscore) {
+				identifier = identifier.replace("-", "_");
+			}
+
+			builder.append("<PrivilegeGroup Scope=\"urn:dk:gov:saml:cvrNumberIdentifier:" + kombitJfr.getCvr() + "\">");
+			builder.append("<Privilege>" + identifier + "</Privilege>");					
+			builder.append("</PrivilegeGroup>");
+		}
+		
+		builder.append("</bpp:PrivilegeList>");
+		
+		String oiobpp = builder.toString();
+		
+		return Base64.getEncoder().encodeToString(oiobpp.getBytes(Charset.forName("UTF-8")));
 	}
 }

@@ -10,6 +10,8 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Session {
+	private static long idMax = 0;
+	private long id;
 	private WebSocketSession session;
 	private String domain;
 	private LocalDateTime cleanupTimestamp;
@@ -20,5 +22,10 @@ public class Session {
 		this.domain = null;
 		this.cleanupTimestamp = LocalDateTime.now().plusHours(2L);
 		this.authenticated = false;
+		this.id = Session.getNextId();
+	}
+	
+	private static synchronized long getNextId() {
+		return (++idMax);
 	}
 }

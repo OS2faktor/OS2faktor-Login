@@ -4,31 +4,38 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
-import dk.digitalidentity.common.service.PersonService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.service.GroupService;
+import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.saml.model.TokenUser;
+import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
+import dk.digitalidentity.samlmodule.model.TokenUser;
 
 @Component
 public class SecurityUtil {
 	private static final String LOCKED_BY_PERSON_ONLY = "LOCKED_BY_PERSON_ONLY";
 	private static final String IS_WITHOUT_USER = "IS_WITHOUT_USER";
 	private static final String IS_UNLOCKED = "IS_UNLOCKED";
+	private static final String AUTHENTICATION_ASSURANCE_LEVEL = "https://data.gov.dk/concept/core/nsis/aal";
 
 	@Autowired
 	private HttpServletRequest request;
@@ -38,6 +45,9 @@ public class SecurityUtil {
 
 	@Autowired
 	private PersonService personService;
+
+	@Autowired
+	private PasswordSettingService passwordSettingService;
 	
 	/**
 	 * returns true if a person is currently logged in
@@ -95,6 +105,41 @@ public class SecurityUtil {
 		return personService.getById(personId);
 	}
 
+	public boolean hasSamAccountName() {
+		Person person = getPerson();
+		if (person == null) {
+			return false;
+		}
+		
+		return StringUtils.hasLength(person.getSamaccountName());
+	}
+
+	/**
+	 * Returns the domain object of the currently logged in person
+	 * @return {@link dk.digitalidentity.common.dao.model.Domain} object or null if no person is logged in or there was an error fetching person by id from database
+	 */
+	public Domain getDomain() {
+		Person person = getPerson();
+		if (person == null) {
+			return null;
+		}
+
+		return person.getDomain();
+	}
+	
+	/**
+	 * Returns the topLevel domain object of the currently logged in person
+	 * @return {@link dk.digitalidentity.common.dao.model.Domain} object or null if no person is logged in or there was an error fetching person by id from database
+	 */
+	public Domain getTopLevelDomain() {
+		Person person = getPerson();
+		if (person == null) {
+			return null;
+		}
+
+		return person.getTopLevelDomain();
+	}
+
 	/**
 	 * returns true if the currently logged in person is an admin
 	 */
@@ -107,7 +152,9 @@ public class SecurityUtil {
 		for (GrantedAuthority role : tokenUser.getAuthorities()) {
 			if (role.getAuthority().equals(Constants.ROLE_ADMINISTRATOR) ||
 				role.getAuthority().equals(Constants.ROLE_REGISTRANT) ||
-				role.getAuthority().equals(Constants.ROLE_SUPPORTER)) {
+				role.getAuthority().equals(Constants.ROLE_SERVICE_PROVIDER_ADMIN) ||
+				role.getAuthority().equals(Constants.ROLE_SUPPORTER) ||
+				role.getAuthority().equals(Constants.ROLE_USER_ADMIN)) {
 
 				return true;
 			}
@@ -152,48 +199,54 @@ public class SecurityUtil {
 		}
 	}
 
-	/**
-	 * Update the tokenUser object on the session with the supplied Person
-	 */
+	// called during login, to grant access-roles to admin-portal
 	public void updateTokenUser(Person person, TokenUser tokenUser) {
-		Boolean lockedByPersonOnly = false;
-		Boolean isWithoutUser = false;
-		Boolean isUnlocked = false;
+		Boolean hasActivatedNsisAccount = person.hasNSISUser();             // the has an active NSIS account
+		Boolean isLocked = person.isLocked();                               // the is not locked
+		Boolean lockedByPersonOnly = person.isLockedDataset() == false &&   // not locked by municipality
+									 person.isLockedAdmin() == false &&     // not locked by admin
+									 person.isLockedPassword() == false &&  // not time-locked due to too many wrong password attempts
+									 person.isLockedDead() == false &&      // not locked because they are registered as dead in CPR
+									 person.isLockedPerson() == true;       // but IS locked by a self-service action
+		NSISLevel nsisLevel = getAuthenticationAssuranceLevel(tokenUser);   // currently logged-in NSIS authentication level
 
-		if (person.hasNSISUser()) {
-			lockedByPersonOnly = person.isLockedDataset() == false &&
-								 person.isLockedAdmin() == false &&
-							 	 person.isLockedPassword() == false &&
-							 	 person.isLockedPerson() == true;
-
-			isUnlocked = (person.isLocked() == false);
-		}
-		else {
-			isWithoutUser = true;
-		}
-		
 		tokenUser.getAttributes().put(LOCKED_BY_PERSON_ONLY, lockedByPersonOnly);
-		tokenUser.getAttributes().put(IS_WITHOUT_USER, isWithoutUser);
-		tokenUser.getAttributes().put(IS_UNLOCKED, isUnlocked);
+		tokenUser.getAttributes().put(IS_WITHOUT_USER, (hasActivatedNsisAccount == false));
+		tokenUser.getAttributes().put(IS_UNLOCKED, (isLocked == false));
 
-		List<GrantedAuthority> authorities = new ArrayList<>();
+		List<SamlGrantedAuthority> authorities = new ArrayList<>();
 		
-		// only those with an NSIS account can have any kind of administrative access
-		if (person.hasNSISUser()) {
+		// if the user it not locked, and the user has an activated NSIS account, and login occurred at Substantial or better, allow admin access
+		if (hasActivatedNsisAccount && isLocked == false && NSISLevel.SUBSTANTIAL.equalOrLesser(nsisLevel)) {
 			if (person.isAdmin()) {
-				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_ADMINISTRATOR));
-				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_ADMINISTRATOR));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SERVICE_PROVIDER_ADMIN));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_USER_ADMIN));
 	
 				if (configuration.getCoreData().isEnabled()) {
-					authorities.add(new SimpleGrantedAuthority(Constants.ROLE_COREDATA_EDITOR));
+					authorities.add(new SamlGrantedAuthority(Constants.ROLE_COREDATA_EDITOR));
 				}
 			}
 			else if (person.isSupporter()) {
-				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_SUPPORTER));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
 			}
 
 			if (person.isRegistrant()) {
-				authorities.add(new SimpleGrantedAuthority(Constants.ROLE_REGISTRANT));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_REGISTRANT));
+			}
+
+			if (person.isServiceProviderAdmin()) {
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SERVICE_PROVIDER_ADMIN));
+			}
+			
+			if (person.isUserAdmin()) {
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_USER_ADMIN));
+			}
+
+			List<Group> passwordGroups = passwordSettingService.getSettingsByChangePasswordOnUsersEnabled().stream().map(s -> s.getChangePasswordOnUsersGroup()).collect(Collectors.toList());
+			if (GroupService.memberOfGroup(person, passwordGroups)) {
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_CHANGE_PASSWORD_ON_OTHERS));
 			}
 		}
 
@@ -266,10 +319,31 @@ public class SecurityUtil {
 		Map<String, Object> attributes = tokenUser.getAttributes();
 		if (attributes != null) {
 			String nemIDPid = (String) attributes.get("NemIDPid");
-			if (!StringUtils.isEmpty(nemIDPid)) {
+			if (StringUtils.hasLength(nemIDPid)) {
 				return nemIDPid;
 			}
 		}
 		return null;
+	}
+
+	public NSISLevel getAuthenticationAssuranceLevel() {
+		return getAuthenticationAssuranceLevel(null);
+	}
+	
+	public NSISLevel getAuthenticationAssuranceLevel(TokenUser tokenUser) {
+		if (tokenUser == null) {
+			tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
+		}
+
+		Map<String, Object> attributes = tokenUser.getAttributes();
+		if (attributes != null) {
+			String aalString = (String) attributes.get(AUTHENTICATION_ASSURANCE_LEVEL);
+
+			if (StringUtils.hasLength(aalString)) {
+				return NSISLevel.valueOf(aalString);
+			}
+		}
+
+		return NSISLevel.NONE;
 	}
 }

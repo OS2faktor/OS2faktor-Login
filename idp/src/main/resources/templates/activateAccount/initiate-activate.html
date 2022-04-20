@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = false)" />
+<body class="gray-bg">
+<div class="loginColumns animated fadeInDown">
+	<div class="row">
+		<div class="ibox col-md-12">
+			<div class="ibox-title">
+				<h5><em class="fa fa-user "></em> &nbsp; Aktiver brugerkonto</h5>
+			</div>
+
+			<div class="ibox-content">
+				<p th:utext="${@cmsMessageBundle.getText('cms.activate.initiate')}" />
+
+				<form action="#" th:action="@{/konto/init-aktiver}" method="post">
+				    <button type="submit" class="btn btn-primary block full-width m-b">Start aktivering</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+</body>
+</html>

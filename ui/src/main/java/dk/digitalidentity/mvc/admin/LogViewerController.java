@@ -1,9 +1,12 @@
 package dk.digitalidentity.mvc.admin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -12,11 +15,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.LogAction;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.AuditLogDTO;
 import dk.digitalidentity.security.RequireSupporter;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequireSupporter
 @Controller
 public class LogViewerController {
@@ -24,8 +31,15 @@ public class LogViewerController {
 	@Autowired
 	private AuditLogService auditLogService;
 	
+	@Autowired
+	private AuditLogger auditLogger;
+	
+	@Autowired
+	private ResourceBundleMessageSource resourceBundle;
+	
 	@GetMapping("/admin/logs")
-	public String logs() {
+	public String logs(Model model, Locale locale) {
+		model.addAttribute("logActions", LogAction.getSorted(resourceBundle, locale));
 		return "admin/log-viewer";
 	}
 
@@ -36,8 +50,15 @@ public class LogViewerController {
 			return "redirect:/admin/logs";
 		}
 
-		AuditLogDTO auditLogDTO = new AuditLogDTO(auditLog);
-		model.addAttribute("auditlog", auditLogDTO);
+		if (Arrays.equals(auditLog.getHmac(), auditLogger.processHmac(auditLog))) {
+			model.addAttribute("hmac", true);
+		}
+		else {
+			model.addAttribute("hmac", false);
+			log.error("The hmac value from the database and the calculated hmac value are not the same: " + auditLog.getId());			
+		}
+
+		model.addAttribute("auditlog", new AuditLogDTO(auditLog));
 
 		return "admin/log-detail";
 	}
@@ -56,9 +77,9 @@ public class LogViewerController {
 			auditLogView.setMessage(auditLog.getMessage());
 			auditLogView.setPersonName(auditLog.getPersonName());
 			auditLogView.setPersonDomain(auditLog.getPersonDomain());
-			auditLogView.setSamaccountName(person != null ? person.getSamaccountName() : null);
 			auditLogView.setTts(auditLog.getTts());
-			auditLogView.setUserId((person != null && !StringUtils.isEmpty(person.getUserId())) ? person.getUserId() : null);
+			//samacount name if not null or empty else userId if not null or empty else null
+			auditLogView.setUserId(person != null ? (StringUtils.hasLength(person.getSamaccountName()) ? person.getSamaccountName() : (StringUtils.hasLength(person.getUserId()) ? person.getUserId() : null)) : null);
 			
 			relatedLogs.add(auditLogView);
 		}

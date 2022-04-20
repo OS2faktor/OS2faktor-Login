@@ -1,0 +1,12 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{0e4029c5-fab7-44dc-ac19-7060791f9b19}]
+@="os2faktorCredentialProvider"
+
+[HKEY_CLASSES_ROOT\CLSID\{0e4029c5-fab7-44dc-ac19-7060791f9b19}]
+@="os2faktorCredentialProvider"
+
+[HKEY_CLASSES_ROOT\CLSID\{0e4029c5-fab7-44dc-ac19-7060791f9b19}\InprocServer32]
+@="os2faktorCredentialProvider.dll"
+"ThreadingModel"="Apartment"
+

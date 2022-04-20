@@ -1,14 +1,9 @@
 package dk.digitalidentity.service.serviceprovider;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -18,9 +13,10 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.common.serviceprovider.StilServiceProviderConfig;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
@@ -33,7 +29,10 @@ public class StilServiceProvider extends ServiceProvider {
 	private AbstractReloadingMetadataResolver resolver;
 	
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private CommonConfiguration commonConfig;
+
+	@Autowired
+	private StilServiceProviderConfig stilConfig;
 	
 	@Autowired
 	private SessionHelper sessionHelper;
@@ -41,8 +40,14 @@ public class StilServiceProvider extends ServiceProvider {
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
-			String metadataContent = loadMetadata(configuration.getStil().getMetadataLocation());
-			resolver = getMetadataResolver(configuration.getStil().getEntityId(), null, metadataContent);
+
+			String metadataContent = null;
+			try {
+				metadataContent = getMetadataContent();
+			} catch (Exception ex) {
+				throw new ResponderException("Kunne ikke hente metadata fra fil", ex);
+			}
+			resolver = getMetadataResolver(getEntityId(), null, metadataContent);
 		}
 
 		// If last scheduled refresh failed, Refresh now to give up to date metadata
@@ -57,7 +62,7 @@ public class StilServiceProvider extends ServiceProvider {
 
 		// Extract EntityDescriptor by configured EntityID
 		CriteriaSet criteriaSet = new CriteriaSet();
-		criteriaSet.add(new EntityIdCriterion(configuration.getStil().getEntityId()));
+		criteriaSet.add(new EntityIdCriterion(getEntityId()));
 
 		try {
 			return resolver.resolveSingle(criteriaSet);
@@ -69,7 +74,7 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) throws ResponderException {
-        String requiredField = configuration.getStil().getUniloginAttribute();
+        String requiredField = commonConfig.getStil().getUniloginAttribute();
 
         String result = null;
         switch (requiredField) {
@@ -94,7 +99,7 @@ public class StilServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(Person person) {
+	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
 		Map<String, Object> map = new HashMap<>();
 
 		// TODO: could argue that LOW or better would be fine until STIL requires actual NSIS
@@ -105,7 +110,7 @@ public class StilServiceProvider extends ServiceProvider {
 			map.put("dk:gov:saml:attribute:AssuranceLevel", "2");
 		}
 
-		if ("cpr".equals(configuration.getStil().getUniloginAttribute())) {
+		if ("cpr".equals(commonConfig.getStil().getUniloginAttribute())) {
 			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
 		}
 
@@ -138,50 +143,45 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean preferNemId() {
-		return false;
+		return stilConfig.preferNemId();
 	}
 
 	@Override
-	public String getEntityId() throws RequesterException, ResponderException {
-		return configuration.getStil().getEntityId();
+	public String getEntityId() {
+		return stilConfig.getEntityId();
 	}
 
 	@Override
-	public String getName() {
-		return "STIL UniLogin";
+	public String getName(AuthnRequest authnRequest) {
+		return stilConfig.getName();
+	}
+
+	@Override
+	public RequirementCheckResult personMeetsRequirements(Person person) {
+		return RequirementCheckResult.OK;
 	}
 
 	@Override
 	public boolean encryptAssertions() {
-		return configuration.getStil().isEncryptAssertion();
+		return stilConfig.encryptAssertions();
 	}
 
 	@Override
 	public String getNameIdFormat() {
-		return "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent";
+		return stilConfig.getNameIdFormat();
+	}
+
+	public String getMetadataContent() throws Exception {
+		return stilConfig.getMetadataContent();
 	}
 
 	@Override
 	public boolean enabled() {
-		return configuration.getStil().isEnabled();
+		return stilConfig.enabled();
 	}
-	
-	private String loadMetadata(String metadataLocation) throws ResponderException {
-		try (InputStream is = new FileInputStream(metadataLocation)) {
-		    StringBuilder builder = new StringBuilder();
 
-		    try (Reader reader = new BufferedReader(new InputStreamReader(is, Charset.forName("UTF-8")))) {
-    	        int c = 0;
-
-    	        while ((c = reader.read()) != -1) {
-    	            builder.append((char) c);
-    	        }
-    	    }
-		    
-		    return builder.toString();
-		}
-		catch (Exception ex) {
-			throw new ResponderException(ex);
-		}
+	@Override
+	public String getProtocol() {
+		return stilConfig.getProtocol();
 	}
 }

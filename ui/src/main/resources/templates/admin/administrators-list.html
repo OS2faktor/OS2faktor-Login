@@ -15,42 +15,52 @@
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle nuværende administratorer i løsningnen, samt de rettigheder de har i løsningen. For at redigere
+									rettighederne for en eksisterende administrator, anvendes blot blyanten til højre for navnet.
+								</p>
+								<p>
+									Knapperne nederst på siden kan anvendes til at tilføje yderligere administratorer. Bemærk at en administrator
+									ikke får adgang til Administrationsmodulet før de har aktiveret deres erhvervsidentitet.
+								</p>
+								
+								<h4>Administratorer</h4>
+								
 								<div class="table-responsive">
 									<table style="padding-right:0px !important;" id="adminsTable" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
-												<th>Konto</th>
-												<th>AD Konto</th>
+												<th style="width: 150px;">Brugernavn</th>
 												<th>Person</th>
-												<th>Administrator</th>
-												<th>Registrant</th>
-												<th>Supporter</th>
-												<th>Supporter Domæne</th>
+												<th style="width: 250px;">Roller</th>
+												<th style="width: 100px;">Handlinger</th>
 											</tr>
 										</thead>
 
 										<tbody>
 											<tr th:each="admin : ${admins}">
 												<td th:text="${admin.userId}"></td>
-												<td th:text="${admin.samaccountName}"></td>
 												<td th:text="${admin.personName}"></td>
-												<td><input th:checked="${admin.admin}" type="checkbox" class="i-checks typeAdmin" th:data-id="${admin.id}" /></td>
-												<td><input th:checked="${admin.registrant}" type="checkbox" class="i-checks typeRegistrant" th:data-id="${admin.id}" /></td>
-												<td><input th:checked="${admin.supporter}" type="checkbox" class="i-checks typeSupporter" th:data-id="${admin.id}" /></td>
 												<td>
-													<select th:disabled="${!admin.supporter}" class="form-control m-b domainSelect" th:data-id="${admin.id}">
-														<option th:selected="${!admin.supporter}" value="0">---</option>
-														<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.name}" th:selected="${domain.id == admin.domainId}"></option>
-													</select>
+													<ul style="padding-left: 20px; margin-bottom: 0px;">
+														<li th:if="${admin.admin}">Administrator</li>
+														<li th:if="${admin.serviceProviderAdmin}">TU administrator</li>
+														<li th:if="${admin.userAdmin}">Brugeradministrator</li>
+														<li th:if="${admin.registrant}">Registrant</li>
+														<li th:if="${admin.supporter}">Supporter</li>
+													</ul>
 												</td>
+												<td onclick="modalService.openModal(this);" th:attr="data-id=${admin.id}, data-name=${admin.personName}, data-self=${admin.self}, data-admin=${admin.admin}, data-serviceprovideradmin=${admin.serviceProviderAdmin}, data-useradmin=${admin.userAdmin}, data-registrant=${admin.registrant}, data-supporter=${admin.supporter}, data-domainid=${admin.domainId}"><i class="fa fa-pencil" aria-hidden="true"></i></td>
 											</tr>
 										</tbody>
 									</table>
 								</div>
 
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj administrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj supporter</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary"><em class="fa fa-plus"></em>&nbsp&nbsp Tilføj registrant</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
 							</div>
 						</div>
 					</div>
@@ -60,6 +70,61 @@
 			</div>
 
 			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+	
+	<div class="modal inmodal" id="adminModal" tabindex="-1" role="dialog" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" onclick="modalService.closeModal();" aria-label="Close">
+		          		<span aria-hidden="true">&times;</span>
+		        	</button>
+		        	<h5 class="modal-title" id ="title">Rediger administratoren </h5>
+		        </div>
+				<div class="modal-body">
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">Administrator</label>
+						<div class="col-sm-8">
+							<input id="adminCheck" type="checkbox" class="i-checks typeAdmin defaultRoleCheckbox" data-type="ROLE_ADMIN" />
+						</div>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">TU admininistrator</label>
+						<div class="col-sm-8">
+							<input id="serviceProviderAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_SERVICE_PROVIDER_ADMIN" />
+						</div>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">Brugeradministrator</label>
+						<div class="col-sm-8">
+							<input id="userAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_USER_ADMIN" />
+						</div>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">Registrant</label>
+						<div class="col-sm-8">
+							<input id="registrantCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_REGISTRANT" />
+						</div>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">Supporter</label>
+						<div class="col-sm-8">
+							<input id="supporterCheck" type="checkbox" class="i-checks typeSupporter"/>
+						</div>
+					</div>
+					<div class="form-group row">
+						<label class="col-sm-4 col-form-label">Supporter domæne</label>
+						<div class="col-sm-8">
+							<select id="domainSelect" class="form-control m-b domainSelect" disabled="disabled">
+							</select>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+			        <button type="button" onclick="modalService.closeModal();" class="btn btn-primary">Færdig</button>
+			    </div>
+			</div>
 		</div>
 	</div>
 
@@ -75,52 +140,29 @@
 		}
 	</style>
 	
-	<script type="text/javascript">
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+	
+		/*[+
+			var domains = [[${domains}]];
+		+]*/
 		var token = $("meta[name='_csrf']").attr("content");
-
+		var modalService;
 		$(document).ready(function(){
-			$('.typeAdmin').on('ifChecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				post(adminID, null, "ROLE_ADMIN", true);
-			});
+			//init 
+			modalService = new ModalService();
 			
-			$('.typeAdmin').on('ifUnchecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				post(adminID, null, "ROLE_ADMIN", false);
-			});
+			//Handle potential success msg
+			const { search } = window.location;
+			const addSuccess = (new URLSearchParams(search)).get('addSuccess');
+			if (addSuccess === '1') {
+			  toastr.success("Rollen er tildelt")
+			}
 			
-			$('.typeSupporter').on('ifChecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				var domainSelect = $('select[data-id=' + adminID + ']');
-				domainSelect.prop("disabled", false);
-			});
-			
-			$('.typeSupporter').on('ifUnchecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				var domainSelect = $('select[data-id=' + adminID + ']');
-				domainSelect.prop("disabled", true);
-				post(adminID, null, "ROLE_SUPPORTER", false);
-			});
-
-			$('.domainSelect').on('change', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				var domainID = $('select[data-id=' + adminID + ']').val();
-				var isSupporter = $('.typeSupporter[data-id=' + adminID + ']').iCheck('update')[0].checked;
-
-				if (domainID != 0 && isSupporter) {
-					post(adminID, domainID, "ROLE_SUPPORTER", true);
-				}
-			});
-			
-			$('.typeRegistrant').on('ifChecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				post(adminID, null, "ROLE_REGISTRANT", true);
-			});
-			
-			$('.typeRegistrant').on('ifUnchecked', function(event){
-				var adminID = event.currentTarget.dataset.id;
-				post(adminID, null, "ROLE_REGISTRANT", false);
-			});
+			const removeSuccess = (new URLSearchParams(search)).get('removeSuccess');
+			if (removeSuccess === '1') {
+			  toastr.success("Rollen er frataget")
+			}
 
 			$('#adminsTable').DataTable({
 				"bSort": false,
@@ -160,9 +202,116 @@
 				contentType: 'application/json',
 				data: JSON.stringify(data)
 			}).done(function (data) {
-				window.location.reload(true);
+				if (state) {
+					toastr.success("Rollen er tildelt")
+				} else {
+					toastr.success("Rollen er frataget")
+				}
+			}).fail(function(jqXHR, textStatus, errorThrown) {
+				toastr.warning("Der opstod en fejl under tildelingen af rollen");
 			});
 		}
+		
+		function ModalService() {
+			this.openModal = function(elem) {
+				modalService.turnListenersOff();
+				
+				$(".defaultRoleCheckbox").attr("data-id", $(elem).data("id"));
+				$(".typeSupporter").attr("data-id", $(elem).data("id"));
+				$(".domainSelect").attr("data-id", $(elem).data("id"));
+				
+				$('#adminCheck').iCheck($(elem).data("admin") ? 'check' : 'uncheck');
+				$('#serviceProviderAdminCheck').iCheck($(elem).data("serviceprovideradmin") ? 'check' : 'uncheck');
+				$('#userAdminCheck').iCheck($(elem).data("useradmin") ? 'check' : 'uncheck');
+				$('#registrantCheck').iCheck($(elem).data("registrant") ? 'check' : 'uncheck');
+				$('#supporterCheck').iCheck($(elem).data("supporter") ? 'check' : 'uncheck');
+				$("#title").text("Redigerer administratoren " + $(elem).data("name"));
+				
+				$("#domainSelect").prop( "disabled", $(elem).data("domainid") == 0 );
+				
+				$('#domainSelect').append($('<option>', { 
+			        value: 0,
+			        text : '---',
+			        selected : 0 == $(elem).data("domainid")
+			    }));
+				
+				$.each(domains, function (i, domain) {
+				    $('#domainSelect').append($('<option>', { 
+				        value: domain.id,
+				        text : domain.name,
+				        selected : domain.id == $(elem).data("domainid")
+				    }));
+				});
+				
+				$('#adminModal').modal({backdrop: 'static', keyboard: false})  
+				$("#adminModal").modal("show");
+				
+				if($(elem).data("self")) {
+					modalService.disableAll();
+				}
+				
+				modalService.turnListenersOn();
+			}
+			
+			this.closeModal = function() {
+				window.location.href = window.location.pathname;
+			}
+			
+			this.turnListenersOff = function() {
+				// Handle admin, serviceProviderAdmin and registrant checkboxes
+				$('.defaultRoleCheckbox').off('ifChecked');
+				$('.defaultRoleCheckbox').off('ifUnchecked');
+
+				// Handle special logic for supporter checkboxes
+				$('#supporterCheck').off('ifChecked');
+				$('#supporterCheck').off('ifUnchecked');
+				$('#domainSelect').off('change');
+			}
+			
+			this.turnListenersOn = function() {
+				// Handle admin, serviceProviderAdmin and registrant checkboxes
+				$('.defaultRoleCheckbox').on('ifChecked', function(event){
+					var adminID = event.currentTarget.dataset.id;
+					post(adminID, null, event.currentTarget.dataset.type, true);
+				});
+
+				$('.defaultRoleCheckbox').on('ifUnchecked', function(event){
+					var adminID = event.currentTarget.dataset.id;
+					post(adminID, null, event.currentTarget.dataset.type, false);
+				});
+
+				// Handle special logic for supporter checkboxes
+				$('#supporterCheck').on('ifChecked', function(event){
+					var adminID = event.currentTarget.dataset.id;
+					$('#domainSelect').prop("disabled", false);
+				});
+				
+				$('#supporterCheck').on('ifUnchecked', function(event){
+					var adminID = event.currentTarget.dataset.id;
+					$('#domainSelect option[value="0"]').attr("selected", "selected");
+					$('#domainSelect').prop("disabled", true);
+					post(adminID, null, "ROLE_SUPPORTER", false);
+				});
+
+				$('#domainSelect').on('change', function(event){
+					var adminID = event.currentTarget.dataset.id;
+					var domainID = $('#domainSelect').val();
+					var isSupporter = $('#supporterCheck').iCheck('update')[0].checked;
+
+					if (domainID != 0 && isSupporter) {
+						post(adminID, domainID, "ROLE_SUPPORTER", true);
+					}
+				});
+			}
+			
+			this.disableAll = function() {
+				$(".defaultRoleCheckbox").prop('disabled', true).iCheck('update');
+				$("#supporterCheck").prop('disabled', true).iCheck('update');
+				$('#domainSelect').prop("disabled", true);
+			}
+		}
+		
+		/*]]>*/
 	</script>
 </body>
 </html>

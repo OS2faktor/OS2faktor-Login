@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.groups-list')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Se Grupper</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle grupper der er opsat i løsningen.
+									De grupper der er synkroniseret fra AD kan ikke redigeres, da de er styret af AD integrationen.
+									Grupper der er oprettet direkte i OS2faktor Login kan redigeres og man kan tilføje og fjerne medlemmer ved at klikke på blyants-ikonet ud for disse.
+								</p>
+								
+								<p>
+									Anvend menupunktet "Opret ny gruppe" i højre-menuen for at oprette en ny gruppe.
+								</p>
+								
+								<h4>Grupper</h4>
+								
+								<div class="table-responsive">
+									<table id="groups" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="width: 250px;">Navn</th>
+												<th style="width: 80px;">Domæne</th>
+												<th style="width: 250px;">Beskrivelse</th>
+												<th style="width: 80px;">Handlinger</th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td></td>
+											</tr>
+										</tfoot>
+										
+										<tbody style="display: table-row-group">
+											<tr th:each="group : ${groups}">
+												<td th:text="${group.name}"></td>
+												<td th:text="${group.domain.name}"></td>
+												<td th:text="${group.description}"></td>
+												<td>
+													<a th:href="@{/admin/konfiguration/grupper/} + ${group.id}" th:data-id="${group.id}" style="color: black;" title="Vis/rediger gruppe">
+														<em class="fa fa-fw fa-search"></em>
+													</a>
+													<th:block th:if="${group.domain.id} == ${@domainService.getInternalDomain().id}">
+														&nbsp;
+														<a th:onclick="'groupListService.deleteGroup(' + ${group.id} + ')'" style="color: black;" title="Slet gruppe">
+															<em class="fa fa-fw fa-times"></em>
+														</a>
+													</th:block>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceproviders-list')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var initialMemberListShown = [[${!(group == null || group.id == 0)}]];
+		var restUrl = [[@{/rest/admin/groups/}]];
+
+		var buttonDelete = [[#{shared.button.delete}]];
+		var buttonCancel = [[#{shared.button.cancel}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+		var deleteTitle = "Slet gruppe?";
+		var deleteText = "Denne handling vil permanent slette gruppen";
+
+		var groupListService;
+		$(document).ready(function(){
+			groupListService = new GroupListService();
+			groupListService.initializeDatatable();
+		});
+
+		function GroupListService() {
+
+			this.initializeDatatable = function() {
+				// Initialize datatable
+				var table = $('#groups').DataTable({
+	                "pageLength": 25,
+	                "bLengthChange": false,
+	                "bSort": false,
+	                "responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+			        "language": {
+			        	"search":	   "Søg",
+						"lengthMenu":   "_MENU_ hændelser per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ grupper",
+						"zeroRecords":  "Ingen grupper...",
+						"infoEmpty":	"Henter grupper...",
+						"infoFiltered": "(ud af _MAX_ hændelser)",
+			            "paginate": {
+			                "previous": "Forrige",
+			                "next": "Næste"
+			            }
+			        }
+	            });
+
+				// Configure searching
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+		
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.deleteGroup = function(id) {
+
+				swal({
+					title: deleteTitle,
+					text: deleteText,
+					type: "warning",
+					confirmButtonColor: "#DD6B55",
+					showCancelButton: true,
+					confirmButtonText: buttonDelete,
+					cancelButtonText: buttonCancel,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+					function(isConfirm) {
+						if (isConfirm) {
+							$.ajax({
+								url: restUrl + id + "/delete",
+								method: "POST",
+								headers: {
+									'X-CSRF-TOKEN': token
+								},
+								contentType: 'application/json',
+								success: function(data, textStatus, jQxhr) {
+									window.location.reload(true);
+								},
+								error: function(jQxhr, textStatus, errorThrown) {
+									toastr.error("Fejl: " + jQxhr.responseText);
+								}
+							});
+						}
+					}
+				);
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

@@ -42,7 +42,8 @@ public class AuthnRequestService {
 		}
 		catch (MessageDecodingException e) {
 			String referer = request.getHeader("referer");
-			throw new RequesterException("Kunne ikke afkode forespørgsel fra: " + referer, e);
+			String method = request.getMethod();
+			throw new RequesterException("Kunne ikke afkode " + method + " forespørgsel fra: " + referer, e);
 		}
 	}
 

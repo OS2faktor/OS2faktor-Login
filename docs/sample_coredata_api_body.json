@@ -1,0 +1,53 @@
+{
+    "domain": "digital-identity.dk",
+    "entryList": [
+        {
+            "uuid": "46889ca3-e686-4e77-b548-290343f178d0",
+            "cpr": "0701913477",
+            "email": "psu@digital-identity.dk",
+            "name": "Piotr Suski",
+            "samAccountName": "psu",
+            "nsisAllowed" : false,
+            "attributes": {
+                "shoesize": "46"
+            },
+            "groups": {
+                "2f81b31d-e0a6-4d01-9402-5c1319d35019": "ADGrp1",
+                "da4af052-9f78-43a5-9fa0-7a1cc8033fae": "ADGrp2",
+                "f25814d9-6795-49ca-abef-dfad1dc0f468": "ADGrp3",
+                "a7317e3e-86df-48d4-870d-4e36d4015028": "ADGrp4",
+                "d70d70a2-0ade-4e6e-98b9-ee178d62acb6": "ADGrp5"
+            }
+        },
+        {
+            "uuid": "54dfff62-b5ff-49d8-a1bd-e1e256043f5b",
+            "cpr": "2105791197",
+            "email": "bsg@digital-identity.dk",
+            "name": "Brian Storm Graversen",
+            "samAccountName": "bsg",
+            "nsisAllowed" : true,
+            "groups": {
+                "2f81b31d-e0a6-4d01-9402-5c1319d35019": "ADGrp1",
+                "f25814d9-6795-49ca-abef-dfad1dc0f468": "ADGrp3"
+            }
+        },
+        {
+            "uuid": "69afa825-2127-46aa-8eb6-3693b1092d1a",
+            "cpr": "1809960621",
+            "email": "mpo@digital-identity.dk",
+            "name": "Malthe Plenge Overgaard",
+            "samAccountName": "mpo",
+            "nsisAllowed" : true,
+            "attributes": {
+                "shoesize": "44"
+            },
+            "groups": {
+                "2f81b31d-e0a6-4d01-9402-5c1319d35019": "ADGrp1",
+                "da4af052-9f78-43a5-9fa0-7a1cc8033fae": "ADGrp2",
+                "f25814d9-6795-49ca-abef-dfad1dc0f468": "ADGrp3",
+                "a7317e3e-86df-48d4-870d-4e36d4015028": "ADGrp4",
+                "f5290ec4-cb3d-4f33-bf54-d1914efd8aaf": "ADGrp7"
+            }
+        }
+    ]
+}

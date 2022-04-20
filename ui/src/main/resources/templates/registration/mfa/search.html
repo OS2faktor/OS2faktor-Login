@@ -4,46 +4,69 @@
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'registration.mfa.search')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.mfa.search')" />
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-search"></em> &nbsp; Søg efter MFA klienter</h5>
+								<h5><em class="fa fa-key"></em> &nbsp; Tilknyt 2-faktor enhed</h5>
 							</div>
 
 							<div class="ibox-content">
-								<div class="form-group row">
-									<label class="col-sm-3 col-form-label">MFA ID</label>
-									<input class="col-sm-3 form-control" placeholder="xxx-xxx-xxx-xxx" id="search" minlenght="15" maxlength="15"/>
-								</div>
-								
-								<hr/>
-								
-								<div class="form-group row">
-									<button type="button" class="btn btn-primary m-b ml-2" onclick="search()">Søg</button>
-									<a th:href="@{/admin/registration}" type="button" class="btn btn-danger m-b ml-2">Annuller</a>
+								<div id="searchBox">
+									<p>
+										Nedenfor indtastes det 12-cifrede ID som brugerens 2-faktor enhed er udstyret med. Brugeren kan se ID'et
+										ved at åbne deres 2-faktor enhed. Det står typisk nederst på skærmbilledet.
+									</p>
+									
+									<h4>Søg efter 2-faktor enhed</h4>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">2-faktor ID</label>
+										<input class="col-sm-3 form-control" placeholder="xxx-xxx-xxx-xxx" id="search" minlength="15" maxlength="15"/>
+									</div>
+									
+									<hr/>
+									
+									<div class="form-group row">
+										<button type="button" style="width: 125px;" class="btn btn-primary m-b ml-2" onclick="search()">Søg</button>
+										<a th:href="@{/admin/registration/mfa}" style="width: 125px;" type="button" class="btn btn-danger m-b ml-2">Annuller</a>
+										<button type="button" class="btn btn-success m-b ml-2" style="width: 125px;" onclick="yubikey()">Tilføj Yubikey</button>
+									</div>
 								</div>
 
 								<br>								
-								
-								<div id="found" style="display: none;">
-									<h3>MFA klient fundet:</h3>
-										<form id="manualActivationForm" th:object="${activationForm}">
-										<input type="hidden" th:field="*{personId}">
-										<input type="hidden" th:field="*{deviceId}">
 
+								<div id="found" style="display: none;">
+									<p>
+										Den interne proces for identifikation af medarbejderen skal gennemføres, og efterfølgende
+										skal de relevante oplysninger fra identifikationsprocessen dokumenteres nedenfor. Det er vigtigt
+										at der er et korrekt dokumentationsspor for den identifikation der er blevet foretaget.
+									</p>
+									
+									<p>
+										Når formularen er blevet udfyldt med den nødvendige dokumentation, skal der trykkes på knappen "Tilknyt"
+										nederst på siden. Herefter bliver 2-faktor enheden knyttet til brugerens brugerkonto, og kan anvendes
+										til login.
+									</p>
+
+									<h4>2-faktor enhedsdetaljer</h4>
+									<form>
 										<div class="form-group row">
-											<label class="col-sm-3 col-form-label">Klient type</label>
-											<span id="type" />
+											<label class="col-sm-3 col-form-label">2-faktor enhedstype</label>
+											<span class="col-sm-9" id="type"></span>
+											<label class="col-sm-3 col-form-label">2-faktor enhedsnavn</label>
+											<span class="col-sm-9" id="name"></span>
 										</div>
-										
-										<div class="form-group row">
-											<label class="col-sm-3 col-form-label">Navn</label>
-											<span id="name" />
-										</div>
+									</form>
+									
+									<h4>Dokumentation for identifikation</h4>
+
+									<form id="manualActivationForm" th:object="${activationForm}">
+										<input type="hidden" th:field="*{personId}"></input>
+										<input type="hidden" th:field="*{deviceId}"></input>
 										
 										<div class="form-group row">
 											<label class="col-sm-3 col-form-label">Type af identifikation</label>
@@ -77,7 +100,7 @@
 										
 										<div class="form-group row">
 											<button type="button" class="btn btn-primary block full-width m-b" onclick="associate()">Tilknyt</button>
-											<a th:href="@{/admin/registration/mfa}" type="button" class="btn btn-danger block full-width">Annuller</a>
+											<a th:href="@{/admin/registration/mfa}" type="button" class="btn btn-danger block full-width m-b">Annuller</a>
 										</div>
 									</form>
 								</div>
@@ -85,7 +108,7 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'registration.mfa.search')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.mfa.search')" />
 				</div>
 			</div>
 
@@ -128,22 +151,25 @@
 						$("#name").text(data.name);
 
 						$("#found").show();
+						$("#searchBox").hide();
 					},
 					error: function(jqXHR, textStatus, error) {
 						if (jqXHR.status == 404) {
-							toastr.warning("Kunne ikke finde MFA klient med ID " + searchVal);
+							toastr.warning("Kunne ikke finde 2-faktor enhed med ID " + searchVal);
 						}
 						else {
-							toastr.error("MFA klient med ID " + searchVal + " er allerede knyttet en person");
+							toastr.error("2-faktor enhed med ID " + searchVal + " er allerede knyttet en person");
 						}
 					}
 				});
+			}
+			else {
+				toastr.warning("ID'et skal indtastes på formatet: xxx-xxx-xxx-xxx")
 			}
 			
 		}
 		
 		function associate() {
-			
 			var form = $('#manualActivationForm').serializeArray();
 			var formObject = {};
 			
@@ -168,17 +194,29 @@
 				},
 				data : JSON.stringify(formObject),
 				success : function(data) {
-					toastr.success("mfa tilknyttet");
-
-					setTimeout(function() {
-						window.location = baseUrl + "admin/registration/mfa";
-					}, 1500);
+					if (data != null) {
+						window.location = data;
+					}
+					else {
+						toastr.success("mfa tilknyttet");
+	
+						setTimeout(function() {
+							window.location = baseUrl + "admin/registration/mfa";
+						}, 1500);
+					}
 				},
 				error: function(jqXHR, textStatus, error) {
 					toastr.error("Teknisk fejl - tilknytning fejlede: " + jqXHR.responseText);
 				}
 			});
 			
+		}
+
+		function yubikey() {
+			$("#type").text("Yubikey");
+
+			$("#found").show();
+			$("#searchBox").hide();
 		}
 	
 		/*]]>*/

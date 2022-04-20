@@ -35,7 +35,7 @@ public class IndexController {
 			try {
 				ServiceProvider sp = serviceProviderFactory.getServiceProvider(key);
 				if (sp != null) {
-					sps.add(sp.getName());
+					sps.add(sp.getName(null));
 				}
 			}
 			catch (Exception ex) {

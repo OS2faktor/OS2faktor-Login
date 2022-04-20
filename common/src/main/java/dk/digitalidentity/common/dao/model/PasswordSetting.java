@@ -22,8 +22,14 @@ public class PasswordSetting {
 	@Column
 	private Long minLength;
 
-	@Column(name = "capital_and_small_letters")
-	private boolean bothCapitalAndSmallLetters;
+	@Column(name = "complex_password")
+	private boolean requireComplexPassword;
+
+	@Column(name = "lowercase_letters")
+	private boolean requireLowercaseLetters;
+	
+	@Column(name = "uppercase_letters")
+	private boolean requireUppercaseLetters;
 
 	@Column(name = "digits")
 	private boolean requireDigits;
@@ -41,9 +47,6 @@ public class PasswordSetting {
 	private boolean replicateToAdEnabled;
 
 	@Column
-	private Long cacheAdPasswordInterval;
-
-	@Column
 	private boolean validateAgainstAdEnabled;
 	
 	@Column
@@ -56,8 +59,21 @@ public class PasswordSetting {
 	private boolean disallowDanishCharacters;
 
 	@Column
+	private boolean disallowNameAndUsername;
+	
+	@Column
+	private String alternativePasswordChangeLink;
+
+	@Column
 	@Size(max = 255)
 	private String monitoringEmail;
+
+	@Column
+	private boolean changePasswordOnUsersEnabled;
+
+	@OneToOne
+	@JoinColumn(name = "change_password_on_users_group_id")
+	private Group changePasswordOnUsersGroup;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")

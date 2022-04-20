@@ -1,0 +1,2 @@
+ALTER TABLE persons ADD COLUMN user_admin BOOLEAN NOT NULL DEFAULT FALSE AFTER service_provider_admin;
+ALTER TABLE persons_aud ADD COLUMN user_admin BOOLEAN NOT NULL DEFAULT FALSE AFTER service_provider_admin;

@@ -4,17 +4,19 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletResponse;
 
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.security.SecurityUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.mvc.admin.xlsview.ActivatedAccountsReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.PersonsReportXlsView;
+import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.RequireSupporter;
+import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.ReportService;
 
 @RequireSupporter
@@ -29,7 +31,7 @@ public class ReportController {
 
 	@Autowired
 	private PersonService personService;
-
+	
 	@GetMapping("/admin/rapporter")
 	public String reports() {
 		return "admin/reports";
@@ -43,29 +45,42 @@ public class ReportController {
 		}
 		else {
 			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
-			model = reportService.getAuditLogReportModelByDomain(loggedInPerson.getDomain().getName());
+			model = reportService.getAuditLogReportModelByDomain(loggedInPerson.getSupporter().getDomain().getName());
 		}
 
 		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Hændelseslog.xls\"");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Hændelseslog.xlsx\"");
 
 		return new ModelAndView(new AuditLogReportXlsView(), model);
 	}
-
+	
 	@GetMapping("/ui/report/download/persons")
 	public ModelAndView downloadPersons(HttpServletResponse response) {
 		Map<String, Object> model;
+
 		if (securityUtil.isAdmin()) {
 			model = reportService.getPersonsReportModel();
 		}
 		else {
 			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
-			model = reportService.getPersonsReportModelByDomain(loggedInPerson.getDomain().getName());
+
+			model = reportService.getPersonsReportModelByDomain(loggedInPerson.getSupporter().getDomain());
 		}
 
 		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Erhvervsidentiteter.xls\"");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Erhvervsidentiteter.xlsx\"");
 
 		return new ModelAndView(new PersonsReportXlsView(), model);
+	}
+	
+	@RequireAdministrator
+	@GetMapping("/ui/report/download/activatedAccounts")
+	public ModelAndView downloadReportApprovedTerms(HttpServletResponse response) {
+		Map<String, Object> model = reportService.getActivatedAccountsReport();
+
+		response.setContentType("application/ms-excel");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Fortegnelse over ansøgere.xlsx\"");
+
+		return new ModelAndView(new ActivatedAccountsReportXlsView(), model);
 	}
 }

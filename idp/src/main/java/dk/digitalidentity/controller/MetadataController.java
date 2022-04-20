@@ -1,18 +1,9 @@
 package dk.digitalidentity.controller;
 
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.CredentialService;
 import dk.digitalidentity.service.OpenSAMLHelperService;
 import dk.digitalidentity.util.ResponderException;
-import java.io.StringWriter;
-import java.util.List;
-import java.util.UUID;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Source;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
@@ -29,8 +20,16 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
-import dk.digitalidentity.config.OS2faktorConfiguration;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSOutput;
+import org.w3c.dom.ls.LSSerializer;
+
+import java.io.StringWriter;
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @EnableCaching
 public class MetadataController {
@@ -86,23 +85,21 @@ public class MetadataController {
 		try {
 			EntityDescriptorMarshaller entityDescriptorMarshaller = new EntityDescriptorMarshaller();
 			Element element = entityDescriptorMarshaller.marshall(entityDescriptor);
-			Source source = new DOMSource(element);
 
-			TransformerFactory transFactory = TransformerFactory.newInstance();
-			Transformer transformer = transFactory.newTransformer();
+			StringWriter writer = new StringWriter();
 
-			transformer.setOutputProperty(OutputKeys.METHOD, "xml");
-			transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
-			transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
-			transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-			transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+			DOMImplementation domImpl = element.getOwnerDocument().getImplementation();
+			DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
 
-			StringWriter buffer = new StringWriter();
-			transformer.transform(source, new StreamResult(buffer));
+			LSOutput serializerOut = domImplLS.createLSOutput();
+			serializerOut.setCharacterStream(writer);
 
-			return buffer.toString();
+			LSSerializer serializer = domImplLS.createLSSerializer();
+			serializer.write(element, serializerOut);
+
+			return writer.toString();
 		}
-		catch (TransformerException | MarshallingException e) {
+		catch (MarshallingException e) {
 			throw new ResponderException("Kunne ikke omforme metadata", e);
 		}
 	}

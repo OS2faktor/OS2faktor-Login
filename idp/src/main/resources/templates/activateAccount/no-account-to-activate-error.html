@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = false)" />
+<body class="gray-bg">
+<div class="loginColumns animated fadeInDown">
+	<div class="row">
+		<div class="ibox col-md-12">
+			<div class="ibox-title">
+				<h5><em class="fa fa-user-times "></em> &nbsp; Fejl under aktivering</h5>
+			</div>
+
+			<div class="ibox-content">
+				<p>Du har ikke nogen brugerkonti, eller alle dine brugerkonti er allerede aktiveret.</p>
+				
+				<p>
+					<a type="button" th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>
+				</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+</body>
+</html>

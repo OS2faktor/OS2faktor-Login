@@ -4,8 +4,11 @@ import java.time.LocalDateTime;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.Id;
 
+import dk.digitalidentity.common.dao.model.enums.LogAction;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -22,16 +25,13 @@ public class AuditLogView {
 	private LocalDateTime tts;
 
 	@Column
-	private long personId;
+	private Long personId;
 
 	@Column
 	private String cpr;
 
 	@Column
 	private String userId;
-
-	@Column
-	private String samaccountName;
 	
 	@Column
 	private String personName;
@@ -41,4 +41,8 @@ public class AuditLogView {
 
 	@Column
 	private String message;
+	
+	@Column
+	@Enumerated(EnumType.STRING)
+	private LogAction logAction;
 }

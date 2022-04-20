@@ -5,6 +5,8 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 import lombok.Getter;
@@ -26,4 +28,8 @@ public class Link {
 
 	@Column
 	private String link;
+	
+	@OneToOne
+	@JoinColumn(name = "domain_id")
+	private Domain domain;
 }

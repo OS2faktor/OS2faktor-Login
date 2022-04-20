@@ -4,14 +4,17 @@
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.index')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.index')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-user"></em> &nbsp; Erhvervsidentitet</h5>
+								<h5><em class="fa fa-user"></em> &nbsp; Brugerkonto</h5>
+								<div class="ibox-tools">
+									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mydata.help')}"></em>
+								</div>
 							</div>
 
 							<div class="ibox-content">
@@ -19,25 +22,16 @@
 									<div class="form-group row">
 										<label class="col-sm-2 col-form-label">Navn</label>
 										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="${form.alias}"/>
+											<input type="text" class="form-control" disabled="disabled" th:value="${form.name}"/>
 										</div>
 									</div>
-									
+
 									<div class="hr-line-dashed"></div>
-									
+
 									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">Bruger-ID</label>
+										<label class="col-sm-2 col-form-label">Brugernavn</label>
 										<div class="col-sm-10">
 											<input type="text" class="form-control" disabled="disabled" th:value="${form.userId}"/>
-										</div>
-									</div>
-
-									<div class="hr-line-dashed"></div>
-
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">Tilknyttet AD konto</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="${form.samAccountName}"/>
 										</div>
 									</div>
 
@@ -82,15 +76,47 @@
 					
 					<div class="col-lg-12">
 						<div class="ibox ">
-							<div class="ibox-title">
-								<h5><em class="fa fa-mobile"></em> &nbsp; MFA Klienter</h5>
-							</div>
-
-							<div id="mfa-devices-holder" class="ibox-content">
-								<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
-									<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+							<div class="ibox-title" style="height: 50px;">
+								<h5><em class="fa fa-mobile"></em> &nbsp; Mine 2-faktor enheder</h5>
+								<div class="ibox-tools" style="top: 10px;">
+									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mfaclients.help')}"></em>
 								</div>
 							</div>
+
+							<div class="ibox-content">
+								<div id="mfa-devices-holder">
+									<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
+										<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+									</div>
+								</div>
+
+								<!-- Hidden on mobile -->
+								<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
+									<a href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
+										<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
+									</a>
+									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
+										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
+									</a>
+									<a href="/selvbetjening/yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
+										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+									</a>
+								</div>
+								
+								<!-- Visible on mobile -->
+								<div class="d-block d-lg-none" style="text-align: right; margin-right: 15px">
+									<a href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg btn-block">
+										<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
+									</a>
+									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg btn-block">
+										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
+									</a>
+									<a href="/selvbetjening/yubikey" class="btn btn-primary btn-lg btn-block">
+										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+									</a>
+								</div>
+							</div>
+							
 						</div>
 					</div>
 					
@@ -98,6 +124,9 @@
 						<div class="ibox ">
 							<div class="ibox-title">
 								<h5><em class="fa fa-bars"></em> &nbsp; Hændelseslog</h5>
+								<div class="ibox-tools">
+									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.logs.help')}"></em>
+								</div>
 							</div>
 
 							<div class="ibox-content">
@@ -124,6 +153,99 @@
 			<div th:replace="fragments/footer :: footer" />
 		</div>
 	</div>
+	
+	<div class="modal inmodal" id="modalPrimary" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" onclick="primaryModalService.closeModal()">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title">Vælg primær 2-faktor enhed</h4>
+				</div>
+				<div class="modal-body">
+					<div id="mfa-devices-holder-primary">
+						<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
+							<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal inmodal" id="modalAddDevice" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" onclick="addDeviceModalService.closeModal()">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title">Tilknyt 2-faktor enhed</h4>
+				</div>
+
+				<div class="modal-body">
+					<div class="ibox-content">
+						<div id="searchBox">							
+							<h4>Find 2-faktor enhed</h4>
+
+							<p>
+								Nedenfor indtastes det 12-cifrede ID fra din 2-faktor enhed. Du kan se ID'et
+								ved at åbne din 2-faktor enhed. Det står typisk nederst på skærmbilledet.
+							</p>
+
+							<div class="form-group row">
+								<label class="col-sm-3 col-form-label">2-faktor ID</label>
+								<input class="col-sm-3 form-control" placeholder="xxx-xxx-xxx-xxx" id="search" minlength="15" maxlength="15"/>
+							</div>
+							
+							<hr/>
+							
+							<div class="form-group row">
+								<button type="button" class="btn btn-primary btn-block btn-lg m-b ml-2" onclick="addDeviceModalService.search()">Søg</button>
+							</div>
+						</div>
+
+						<div id="foundBox" style="display: none;">
+							<p>
+								2-faktor enheden er fundet. Tryk på knappen "Verificer" for at verificere enheden og gennemføre
+								tilknytningen af enheden til din brugerkonto.
+							</p>
+
+							<hr/>
+
+							<div class="form-group row">
+								<button type="button" class="btn btn-primary btn-block btn-lg m-b ml-2" onclick="addDeviceModalService.confirm()">Verificer</button>
+							</div>
+						</div>
+
+						<div id="confirmBox" style="text-align: center; padding-top: 20px; padding-bottom: 20px; display: none;">
+							<p class="mb-5">
+								Din 2-faktor enhed åbner om lidt og spørger om du vil tillade login, når dette sker, skal du verificere at den kode der vises i din 2-faktor enhed matcher nedenstående
+							</p>
+
+							<div class="mb-5">
+								<h2 id="challenge" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
+							</div>
+							<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+						</div>
+
+						<div id="finishBox" style="display: none;">
+							<p id="challengeStatus"></p>
+
+							<hr/>
+
+							<div class="form-group row">
+								<button type="button" class="btn btn-primary btn-block btn-lg m-b ml-2" onclick="addDeviceModalService.finish()">Afslut</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
 
 	<div th:replace="fragments/footer :: scripts (datatables = true)" />
 	
@@ -131,10 +253,27 @@
 		/*<![CDATA[*/
 		
 		/*[+
+		var os2faktorBackend = [[${@commonConfiguration.mfa.baseUrl}]];
 		var flashMessage = [[${flashMessage}]];
+		var flashWarnMessage = [[${flashWarnMessage}]];
+		var deleteClientButtonConfirm = [[#{shared.button.yes}]];
+		var deleteClientButtonCancel = [[#{shared.button.no}]];
+		
+		var challengeError = [[#{page.selfservice.manual.registration.challengeError}]];
+		var deviceNotFound = [[#{page.selfservice.manual.registration.deviceNotFound}]];
+		var challengeTimeout = [[#{page.selfservice.manual.registration.challengeTimeout}]];
+		
+		var challengeOk = [[#{page.selfservice.manual.registration.challengeOk}]];
+		var challengeRejected = [[#{page.selfservice.manual.registration.challengeRejected}]];
+		
 		+]*/
 
+		var deleteClientText = "Er du sikker på at du vil slette denne 2-faktor enhed?";
+
 		var token = $("meta[name='_csrf']").attr("content");
+		var primaryModalService;
+		var addDeviceModalService;
+		var mfaService;
 
         $(document).ready(function() {
             $('#eventlog').DataTable({
@@ -181,28 +320,258 @@
 		        }
             });
             
-            $('#mfa-devices-holder').load('/selvbetjening/fragment/mfa-devices', function() {
-	            $('#mfa-devices').DataTable({
-	                "pageLength": 10,
-	                "bSort": false,
-	                "dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-	                "responsive": true,
-			        "language": {
-			            "info":         "Viser _START_ til _END_ af _TOTAL_ klienter",
-			            "zeroRecords":  "Ingen klienter...",
-			            "infoEmpty":    "Ingen klienter...",
-			            "paginate": {
-			                "previous": "Forrige",
-			                "next": "Næste"
-			            }
-			        }
-	            });
-            });
+			loadMfaDevicesDataTable();
 
 			if (flashMessage != undefined) {
 				toastr.success(flashMessage);
 			}
+			
+			if (flashWarnMessage != undefined) {
+				toastr.warning(flashWarnMessage);
+			}
+			
+			primaryModalService = new PrimaryModalService();
+			addDeviceModalService = new AddDeviceModalService();
+			mfaService = new MfaService();
         });
+
+		function loadMfaDevicesDataTable() {
+			$('#mfa-devices-holder').load('/selvbetjening/fragment/mfa-devices', function() {
+				$('#mfa-devices-holder .mfa-devices').DataTable({
+					"pageLength": 10,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"language": {
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ klienter",
+						"zeroRecords":  "Ingen klienter...",
+						"infoEmpty":    "Ingen klienter...",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+			});
+		}
+
+		function deleteClient(element) {
+			var deviceId = element.dataset.deviceid;
+
+			swal({
+				title: '',
+				text: deleteClientText,
+				showCancelButton: true,
+				confirmButtonColor: "#3085d6",
+				confirmButtonText: deleteClientButtonConfirm,
+				cancelButtonText: deleteClientButtonCancel,
+				closeOnConfirm: true,
+				closeOnCancel: true
+			},
+			function(isConfirm) {
+				if (isConfirm) {
+					$.ajax({
+						method : "POST",
+						url: "/rest/selvbetjening/delete/" + deviceId,
+						headers: {
+							"content-type": "application/json",
+							'X-CSRF-TOKEN': token
+						}
+					}).done(function (data) {
+						$('#mfa-devices-holder').html('<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;"><i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i></div>');
+						loadMfaDevicesDataTable();
+						toastr.success("Enheden er slettet");
+					}).fail(function(jqXHR, textStatus, errorThrown) {
+						toastr.warning("Der opstod en teknisk fejl");
+					});
+				}
+			});
+		}
+		
+		function PrimaryModalService() {
+			this.openModal = function() {
+				$("#modalPrimary").show();
+				primaryModalService.loadMfaDevicesDataTable();
+			}
+			
+			this.closeModal = function() {
+				$("#modalPrimary").hide();
+			}
+			
+			this.loadMfaDevicesDataTable = function() {
+				$('#mfa-devices-holder-primary').load('/selvbetjening/fragment/mfa-devices-primary', function() {
+					$('#mfa-devices-holder-primary .mfa-devices').DataTable({
+						"pageLength": 10,
+						"bSort": false,
+						"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+						"responsive": true,
+						"language": {
+							"info":		 "Viser _START_ til _END_ af _TOTAL_ klienter",
+							"zeroRecords":  "Ingen klienter...",
+							"infoEmpty":    "Ingen klienter...",
+							"paginate": {
+								"previous": "Forrige",
+								"next": "Næste"
+							}
+						}
+					});
+				});
+			}
+			
+			this.setPrimaryClient = function(element) {
+				var deviceId = element.dataset.deviceid;
+				var prime = element.dataset.prime;
+				
+				if (prime == 'true') {
+					prime = false;
+				} else {
+					prime = true;
+				}
+				
+				$.ajax({
+					method : "POST",
+					url: "/rest/selvbetjening/primary/" + deviceId + "?setPrimary=" + prime,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					$('#mfa-devices-holder').html('<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;"><i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i></div>');
+					primaryModalService.closeModal();
+					loadMfaDevicesDataTable();
+					toastr.success("Enheden er valgt som primær");
+				}).fail(function(jqXHR, textStatus, errorThrown) {
+					toastr.warning("Der opstod en teknisk fejl");
+				});
+			
+			}
+		}
+
+		function AddDeviceModalService() {
+			this.deviceId = null;
+			this.openModal = function() {
+				$("#modalAddDevice").show();
+				this.deviceId = null;
+				
+				// hide all
+				$('div[id$="Box"').hide();
+				
+				// show first page
+				$("#searchBox").show();
+				
+				// clear textbox
+				$("#search").val("");
+			}
+			
+			this.closeModal = function() {
+				$("#modalAddDevice").hide();
+			}
+
+			this.finish = function() {
+				addDeviceModalService.closeModal();
+				loadMfaDevicesDataTable();
+			}
+
+			this.search = function () {
+				var deviceId = $("#search").val();
+				$.ajax({
+					method : "GET",
+					url: "/rest/selvbetjening/findDevice/" + deviceId,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					$("#searchBox").fadeOut(300, () => $("#foundBox").fadeIn(300));
+					addDeviceModalService.deviceId = deviceId;
+				}).fail(function(jqXHR, textStatus, errorThrown) {
+					toastr.warning(deviceNotFound);
+				});
+			}
+
+			this.confirm = function () {
+				$.ajax({
+					method : "POST",
+					url: "/rest/selvbetjening/confirmNewDevice/" + addDeviceModalService.deviceId,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					//Transition to await confirmation for challenge
+					$("#foundBox").fadeOut(300, () => $("#confirmBox").fadeIn(300));
+					$("#challenge").text(data.challenge);
+					
+					var stateChangeCallback = function() {
+						$.ajax({
+							method : "POST",
+							url: "/rest/selvbetjening/challenge/" + addDeviceModalService.deviceId + "/completed",
+							headers: {
+								"content-type": "application/json",
+								'X-CSRF-TOKEN': token
+							}
+						}).done(function (data) {
+							if (data == true) {
+								$("#challengeStatus").text(challengeOk);
+							} else {
+								$("#challengeStatus").text(challengeRejected);
+							}
+							addDeviceModalService.deviceId = null;
+							$("#confirmBox").fadeOut(300, () => $("#finishBox").fadeIn(300));
+						}).fail(function(jqXHR, textStatus, errorThrown) {
+							toastr.warning(challengeError);
+							mfaService.stop();
+						});
+					};
+
+					var timeoutCallback = function() {
+						$("#challengeStatus").text(challengeTimeout);
+						$("#confirmBox").fadeOut(300, () => $("#finishBox").fadeIn(300));
+					};
+
+					mfaService.init(data.pollingKey, data.wakeEvent, stateChangeCallback, timeoutCallback);
+				}).fail(function(jqXHR, textStatus, errorThrown) {
+					toastr.warning(challengeError);
+				});
+			}
+		}
+
+        function MfaService() {
+        	this.pollingFn = null;
+            this.init = function(pollingKey, wakeEvent, stateChangeCallback, timeoutCallback) {
+                // Init polling
+                var tries = 0;
+
+                mfaService.pollingFn = setInterval(function() {
+                    if (tries++ > 60 * 5) {
+                        clearInterval(mfaService.pollingFn);
+                        timeoutCallback();
+                    }
+
+                    $.ajax({
+                        url: os2faktorBackend + "/api/notification/" + pollingKey + "/poll",
+                        success: function(data, textStatus, xhr) {
+                            if (data && data.stateChange == true) {
+                                stateChangeCallback();
+                                clearInterval(mfaService.pollingFn);
+                            }
+                        }
+                    });
+                }, 1000);
+
+                if (wakeEvent) {
+                    // fire the os2faktorEvent for clients that can listen for it
+                    setTimeout(function () {
+                        var evt = document.createEvent('Event');
+                        evt.initEvent('os2faktorEvent', true, true);
+                        document.dispatchEvent(evt);
+                    }, 500);
+                }
+            }
+            this.stop = function() {
+                clearInterval(mfaService.pollingFn);
+            }
+        }
 
         /*]]>*/
    	</script>

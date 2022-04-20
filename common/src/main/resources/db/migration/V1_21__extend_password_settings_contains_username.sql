@@ -1,0 +1,1 @@
+ALTER TABLE password_settings ADD COLUMN disallow_name_and_username BOOLEAN NOT NULL DEFAULT 0;

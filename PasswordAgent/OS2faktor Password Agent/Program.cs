@@ -1,16 +1,19 @@
 ﻿using System;
+using System.Net;
 using Quartz;
 using StructureMap;
 using Topshelf;
 using Topshelf.Quartz.StructureMap;
 using Topshelf.StructureMap;
 
-namespace OS2faktor_Password_Agent
+namespace OS2faktor
 {
     class Program
     {
         static void Main(string[] args)
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
             Environment.CurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
 
             HostFactory.Run(configure =>

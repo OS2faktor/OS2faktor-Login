@@ -14,11 +14,11 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.springframework.web.servlet.view.document.AbstractXlsView;
+import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.Person;
 
-public class PersonsReportXlsView extends AbstractXlsView {
+public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
@@ -26,7 +26,6 @@ public class PersonsReportXlsView extends AbstractXlsView {
 	@SuppressWarnings("unchecked")
 	@Override
 	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
-
 		// Get data
 		persons = (List<Person>) model.get("persons");
 
@@ -45,15 +44,16 @@ public class PersonsReportXlsView extends AbstractXlsView {
 	}
 
 	private void createPersonsSheet(Workbook workbook) {
-		Sheet sheet = workbook.createSheet("PersonSheet");
+		Sheet sheet = workbook.createSheet("Brugerkonti");
 
 		ArrayList<String> headers = new ArrayList<>();
 		headers.add("Navn");
 		headers.add("Bruger-ID");
 		headers.add("AD konto");
 		headers.add("Personnummer");
+		headers.add("Domæne");
 		headers.add("Dato for godkendt vilkår");
-		headers.add("NSIS niveau");
+		headers.add("NSIS sikringsniveau");
 
 		createHeaderRow(sheet, headers);
 
@@ -73,28 +73,37 @@ public class PersonsReportXlsView extends AbstractXlsView {
 
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
+
+			// Navn
 			createCell(dataRow, column++, entry.getName(), null);
+
+			// Bruger-ID
 			if (entry.getUserId() != null) {
 				createCell(dataRow, column++, entry.getUserId(), null);
 			}
 			else {
 				createCell(dataRow, column++, "", null);
 			}
-			
+
+			// AD konto
 			createCell(dataRow, column++, entry.getSamaccountName(), null);
+
+			// Personnummer
 			createCell(dataRow, column++, entry.getCpr().substring(0, 6) + "-xxxx", null);
 
+			// Domæne
+			createCell(dataRow, column++, entry.getDomain().getName(), null);
+
+			// Dato for godkendt vilkår
 			if (entry.getApprovedConditionsTts() != null) {
 				createCell(dataRow, column++, entry.getApprovedConditionsTts().toString(), null);
 			}
 			else {
 				createCell(dataRow, column++, "", null);
 			}
-			createCell(dataRow, column++, nsisNiveau, null);
 
-			for (int i = 0; i <= column; i++) {
-				sheet.autoSizeColumn(i);
-			}
+			// NSIS niveau
+			createCell(dataRow, column++, nsisNiveau, null);
 		}
 	}
 
@@ -104,7 +113,6 @@ public class PersonsReportXlsView extends AbstractXlsView {
 		int column = 0;
 		for (String header : headers) {
 			createCell(headerRow, column++, header, headerStyle);
-			sheet.autoSizeColumn(column);
 		}
 	}
 

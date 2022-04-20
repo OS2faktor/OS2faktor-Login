@@ -1,6 +1,6 @@
 ﻿using Quartz;
 
-namespace OS2faktor_Password_Agent
+namespace OS2faktor
 {
     [DisallowConcurrentExecution]
     public class ReconnectJob : IJob

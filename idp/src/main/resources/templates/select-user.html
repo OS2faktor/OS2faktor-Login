@@ -7,9 +7,16 @@
             <div class="ibox offset-md-2 col-md-8">
                 <div class="ibox-title">
                     <h5><em class="fa fa-users"></em> &nbsp; Vælg bruger</h5>
+                    <div class="ibox-tools">
+						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.selectUser.help')}"></em>
+					</div>
                 </div>
 
                 <div class="ibox-content">
+                	<div th:if="${@cmsMessageBundle.getText('cms.login.selectUser.content')} != ''">
+	               		<div th:utext="${@cmsMessageBundle.getText('cms.login.selectUser.content')}"></div>
+	               		<br/>
+	               	</div>
                     <div style="display:none;">
                         <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login/multiple/accounts}" method="post">
                             <div class="form-group">
@@ -22,17 +29,15 @@
                         <thead>
                             <tr>
                                 <th>Navn</th>
-                                <th>Domæne</th>
-                                <th>NSIS Bruger</th>
-                                <th>AD Bruger</th>
+                                <th style="width: 200px;">Brugernavn</th>
+                                <th style="width: 200px;">Domæne</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr th:each="person : ${people}" th:onclick="'selectService.selectUser(' + ${person.id} + ')'" style="cursor: pointer;">
                                 <td th:text="${person.name}"></td>
+                                <td th:text="${T(dk.digitalidentity.common.service.PersonService).getUsername(person)}"></td>
                                 <td th:text="${person.domain.name}"></td>
-                                <td th:text="${person.userId} != null ? ${person.userId} : ''"></td>
-                                <td th:text="${person.samaccountName} != null ? ${person.samaccountName} : ''"></td>
                             </tr>
                         </tbody>
                     </table>

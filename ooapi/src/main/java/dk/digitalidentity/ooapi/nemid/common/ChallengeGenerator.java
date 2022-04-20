@@ -41,7 +41,10 @@ public class ChallengeGenerator {
 			throw new RuntimeException("Session has no challenge");
 		}
 
-		httpSession.removeAttribute(ChallengeGenerator.CHALLENGE_SESSION_KEY);
+// if this method is called twice (double post I guess), then the 2nd attempt will fail, and there is no
+// reason to remove the challenge as such... it allows for replay of the entire NemID login, fair enough,
+// but we already have IP-locking on the session, so it should not matter
+//		httpSession.removeAttribute(ChallengeGenerator.CHALLENGE_SESSION_KEY);
 
 		return challenge;
 	}

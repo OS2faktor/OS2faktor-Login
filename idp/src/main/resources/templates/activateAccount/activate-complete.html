@@ -1,29 +1,28 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header" />
+<head th:replace="fragments/header :: header"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+			
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="ibox offset-md-2 col-md-8">
 						<div class="ibox-title">
-							<h5><em class="fa fa-birthday-cake"></em> &nbsp; Erhvervsidentitet udstedt</h5>
+							<h5><em class="fa fa-birthday-cake"></em> &nbsp; Brugerkonto aktiveret</h5>
 						</div>
 
 						<div class="ibox-content">
 							<p>
-							Din erhvervsidentitet er nu udstedt. Når du skal logge ind med din erhvervsidentitet skal du anvende nedenstående brugernavn.
+								Din brugerkonto er nu aktiveret. Når du skal logge ind med din brugerkonto skal du anvende nedenstående brugernavn.
 							</p>
 
 							<ul>
 								<li><b th:text="${userId}"/></li>
 							</ul>
 
-							<p th:unless="${continueLogin}">Inden du kan fortsætte login skal du vælge et kodeord. Tryk på knappen nedenfor for at vælge et kodeord.</p>
-
-							<a th:unless="${continueLogin}" type="button" th:href="@{/konto/vaelgkode}" class="btn btn-primary block full-width m-b mt-lg">Vælg kodeord</a>
-							<a th:if="${continueLogin}" type="button" th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
+							<a type="button" th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
 						</div>
 					</div>
 				</div>

@@ -33,7 +33,6 @@ namespace OS2faktorADSync
                 }
                 catch (System.Exception e)
                 {
-                    System.Console.WriteLine("ERROR" + e);
                     Logger.Error(e, "Exception caught in SynchronizeJob (full)");
                 }
 

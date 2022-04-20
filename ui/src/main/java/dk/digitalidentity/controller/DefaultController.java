@@ -4,7 +4,7 @@ import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.opensaml.common.SAMLException;
+import org.opensaml.saml.common.SAMLException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
+import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.security.SecurityUtil;
 
@@ -33,6 +34,9 @@ public class DefaultController implements ErrorController {
 
 	@Autowired
 	private TermsAndConditionsService termsAndConditionsService;
+
+	@Autowired
+	private PrivacyPolicyService privacyPolicyService;
 	
 	@GetMapping("/")
 	public String defaultPage() {
@@ -49,7 +53,8 @@ public class DefaultController implements ErrorController {
 	}
 	
 	@GetMapping("/privatlivspolitik")
-	public String privacyPage() {
+	public String privacyPage(Model model) {
+		model.addAttribute("privacy", privacyPolicyService.getPrivacyPolicy().getContent());
 		return "privacy";
 	}
 
@@ -89,7 +94,7 @@ public class DefaultController implements ErrorController {
 
 						String[] split = message.split(", status message is ");
 						String actualMessage = split[split.length - 1];
-						if (!StringUtils.isEmpty(actualMessage)) {
+						if (StringUtils.hasLength(actualMessage)) {
 							model.addAttribute("message", actualMessage);
 						}
 					}
@@ -120,11 +125,6 @@ public class DefaultController implements ErrorController {
 		}
 
 		return new ResponseEntity<>(body, status);
-	}
-
-	@Override
-	public String getErrorPath() {
-		return "/_dummyErrorPath";
 	}
 
 	private Map<String, Object> getErrorAttributes(WebRequest request) {

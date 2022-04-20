@@ -11,19 +11,23 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-gears"></em> &nbsp; Sessionsudløb</h5>
+								<h5><em class="fa fa-gears"></em> &nbsp; Opsæt sessionsudløb</h5>
 							</div>
 
 							<div class="ibox-content">
-								<p>Angiv længden på sessioner for hhv kodeord og MFA logins i minutter. Hvis værdien for kodeord sessionen er længere end
-								værdien for MFA sessioner, så ændres brugerens session fra en MFA session til en kodeord session ved overgangen mellem de to
-								sessionsudløb.</p>
+								<p>
+									Angiv længden på sessioner for hhv kodeord og 2-faktor logins i minutter. Hvis værdien for kodeord sessionen er længere end
+									værdien for 2-faktor sessioner, så ændres brugerens session fra en 2-faktor session til en kodeord session ved overgangen mellem de to
+									sessionsudløb.
+								</p>
+								
+								<h4>Sessionsudløb</h4>
 								<form action="#" th:action="@{/admin/konfiguration/sessioner}" th:object="${configForm}" method="post">
 									<div class="form-group row">
 										<label class="col-sm-4 col-form-label">Vælg domæne</label>
 										<div class="col-sm-8 row">
 											<select th:field="*{domainId}" class="form-control m-b" onchange="settingsFetchService.fetchSettings();">
-												<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.name}"></option>
+												<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.toString()}"></option>
 											</select>
 										</div>
 									</div>
@@ -37,7 +41,7 @@
 									</div>
 
 									<div class="form-group row">
-										<label class="col-sm-4 col-form-label">Sessionsudløb for MFA</label>
+										<label class="col-sm-4 col-form-label">Sessionsudløb for 2-faktor</label>
 										<div class="col-sm-8 row">
 											<input type="number" class="form-control col-sm-4" th:field="*{mfaExpiry}" th:classappend="${incorrectInput} ? is-invalid : ''" disabled="disabled"/>
 											<label class="col-sm-4 col-form-label">i minutter</label>
@@ -48,8 +52,7 @@
 									<div class="form-group" th:if="${incorrectInput}">
 										<ul>
 											<li class="text-danger">Begge felter skal være udfyldt</li>
-											<li class="text-danger">Begge felter har et maks på 540 minutter (9 timer)</li>
-											<li class="text-danger">Sessionsudløb for kodeord må ikke være mindre end Sessionsudløb for MFA</li>
+											<li class="text-danger">Sessionsudløb for kodeord må ikke være mindre end sessionsudløb for 2-faktor</li>
 										</ul>
 									</div>
 

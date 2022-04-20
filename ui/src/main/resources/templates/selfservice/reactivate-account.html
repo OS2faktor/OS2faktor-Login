@@ -11,21 +11,21 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-user"></em> &nbsp; Reaktiver identitet</h5>
+								<h5><em class="fa fa-user"></em> &nbsp; Reaktiver brugerkonto</h5>
 							</div>
 
 							<div class="ibox-content">
 								<form id="reactivateForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/genaktiver}">
 									<p>
-									Hvis du ønsker at reaktivere din spærrede erhvervsidentitet, skal du trykke på "Reaktiver identitet" nedenfor.
-									Efter identitet er blevet reaktiveret, kan den igen anvendes til login. 
+									Hvis du ønsker at reaktivere din spærrede brugerkonto, skal du trykke på "Reaktiver brugerkonto" nedenfor.
+									Efter din brugerkonto er blevet reaktiveret, kan den igen anvendes til login. 
 									</p>
 									
 									<p class="mb-5">
 									Hvis du samtidig ønsker at skifte dit kodeord, kan du gøre det via menuen i højre side.
 									</p>
 
-									<button id="reactivateBtn" type="button" class="btn btn-success block full-width m-b">Reaktiver identitet</button>
+									<button id="reactivateBtn" type="button" class="btn btn-success block full-width m-b">Reaktiver brugerkonto</button>
 								</form>
 							</div>
 						</div>
@@ -44,11 +44,12 @@
 		/*<![CDATA[*/
 			
 		/*[+
-		var lockText = [[#{page.selfservice.stateChange.unlockText}]];
 		var lockButtonConfirm = [[#{shared.button.yes}]];
 		var lockButtonCancel = [[#{shared.button.no}]];
 		+]*/
 
+		var lockText = "Er du sikker på at du vil reaktivere din brugerkonto?";
+		
 		$(document).ready(function() {
 			$("#reactivateBtn").click(function(){
 				swal({

@@ -7,5 +7,5 @@ import lombok.Setter;
 @Setter
 public class Scheduled {
 	private boolean enabled = false;
-	private boolean cprNameSyncEnabled = false;
+	private boolean cprNameSyncEnabled = true;
 }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.api.dto.PasswordRequest;
 import dk.digitalidentity.api.dto.PasswordResponse;
+import dk.digitalidentity.api.dto.PasswordResponse.PasswordStatus;
+import dk.digitalidentity.api.dto.UnlockRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -20,7 +22,7 @@ public class PasswordService {
 
 	public PasswordResponse validatePassword(PasswordRequest request) {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid(false);
+		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
 			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain());
@@ -37,7 +39,7 @@ public class PasswordService {
 
 	public PasswordResponse setPassword(PasswordRequest request) {
 		PasswordResponse response = new PasswordResponse();
-		response.setValid(false);
+		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
 			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain());
@@ -46,6 +48,22 @@ public class PasswordService {
 		}
 		catch (Exception ex) {
 			log.error("Failed to set password", ex);
+		}
+
+		return response;
+	}
+	
+	public PasswordResponse unlockAccount(UnlockRequest request) {
+		PasswordResponse response = new PasswordResponse();
+		response.setStatus(PasswordStatus.FAILURE);
+
+		try {
+			AsyncResult<PasswordResponse> result = socketHandler.unlockAccount(request.getUserName(), request.getDomain());
+
+			return result.get();
+		}
+		catch (Exception ex) {
+			log.error("Failed to unlock account", ex);
 		}
 
 		return response;

@@ -6,6 +6,7 @@ import lombok.Getter;
 public enum IdentificationType {
 	PASSPORT("enum.identification.passport"),
 	DRIVERS_LICENSE("enum.identification.driverslicense"),
+	RESIDENCE_CARD("enum.identification.residencecard"),
 	OTHER("enum.identification.other");
 
 	private String message;

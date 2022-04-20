@@ -44,7 +44,7 @@ public class NemIDService {
 	public void populateModel(Model model, HttpServletRequest request) {
 		try {
 			String origin = configuration.getOrigin();
-			if (StringUtils.isEmpty(origin)) {
+			if (!StringUtils.hasLength(origin)) {
 				origin = getOrigin(request);
 			}
 	
@@ -113,13 +113,16 @@ public class NemIDService {
 				return new PidAndCprOrError("Certificate is not FOCES");
 			}
 			catch (Exception ex) {
-				log.error("Failure during NemID validation", ex);
+				if ("Session has no challenge".equals(ex.getMessage())) {
+					log.warn("Failure during NemID validation", ex);
+				}
+				else {
+					log.error("Failure during NemID validation", ex);
+				}
 
 				return new PidAndCprOrError(ex.getMessage());
 			}
-		}
-
-		
+		}		
 
 		return new PidAndCprOrError(handleErrorCode(result));
 	}
@@ -139,6 +142,22 @@ public class NemIDService {
 				break;
 			case "CAN002":
 				result = errorCode + ": " + "Login blev afbrudt";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "CAN003":
+				result = errorCode + ": " + "Forbindelsen til applikationen er timet ud eller er blevet afbrudt af en anden app. Forsøg igen.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "CAN005":
+				result = errorCode + ": " + "Det tog for lang tid, før du godkendte den anmodning, du havde sendt til din nøgleapp.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "CAN007":
+				result = errorCode + ": " + "Du har afvist din anmodning om godkendelse i din nøgleapp. Hvis det var en fejl, kan du sende en ny anmodning, når du har afsluttet ved at klikke på OK.";
+				log.warn("NemID validation failed: " + result);
+				break;
+			case "CAN008":
+				result = errorCode + ": " + "Du har sendt en ny anmodning til godkendelse i din nøgleapp, som overskriver en eksisterende.";
 				log.warn("NemID validation failed: " + result);
 				break;
 			case "LOCK001":
@@ -209,17 +228,23 @@ public class NemIDService {
 			case "SRV003":
 			case "SRV005":
 				result = errorCode + ": " + "Der er opstået en teknisk fejl. Forsøg igen.";
-				log.error("NemID validation failed: " + result);
+				log.warn("NemID validation failed: " + result);
 				break;
 			case "APP003":
 			case "SRV004":
 				result = errorCode + ": " + "Der er opstået en teknisk fejl." + "Kontakt NemID-support på tlf. 80 30 70 50";
-				log.error("NemID validation failed: " + result);
+				log.warn("NemID validation failed: " + result);
 				break;
 			case "APP005":
 				result = errorCode + ": " + "Du skal godkende Nets DanIDs certifikat, før du kan logge på"
 						+ " med NemID. Genstart din browser og godkend certifikatet næste gang du"
 						+ " bliver spurgt. Har du brug for hjælp, kan du kontakte NemID-support på tlf."
+						+ " 80 30 70 50";
+				log.info("NemID validation failed: " + result);
+				break;
+			case "APP010":
+				result = errorCode + ": " + "NemID kunne ikke starte - prøv igen."
+						+ " Har du brug for hjælp, kan du kontakte NemID-support på tlf."
 						+ " 80 30 70 50";
 				log.info("NemID validation failed: " + result);
 				break;
@@ -239,7 +264,11 @@ public class NemIDService {
 			case "AUTH007":
 			case "AUTH008":
 				result = errorCode + ": " + " Kontakt NemID-support på tlf. 80 30 70 50";
-				log.error("NemID validation failed: " + errorCode);
+				log.warn("NemID validation failed: " + errorCode);
+				break;
+			case "AUTH017":
+				result = errorCode + ": " + " En teknisk fejl i browseren gør at NemID ikke kan starte. Forsøg at slå unødige plug-ins fra, eller prøv igen med en anden browser.";
+				log.warn("NemID validation failed: " + errorCode);
 				break;
 			default:
 				result = errorCode;

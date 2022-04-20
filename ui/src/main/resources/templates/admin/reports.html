@@ -41,6 +41,20 @@
 						                        	<a th:href="@{/ui/report/download/persons}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
 						                        </td>
 						                    </tr>
+						                    
+						                    <th:block sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
+						                    <!-- audit reports - only shown for admins -->
+						                     
+						                    <tr>
+						                        <td>Revisionsrapport</td>
+						                        <td>Hent en fortegnelse over alle ansøgere de sidste 13 måneder (godkendelse af vilkår og aktivering)</td>
+						                        <td class="text-center">
+						                        	<a th:href="@{/ui/report/download/activatedAccounts}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        </td>
+						                    </tr>
+						                    
+						                    <!-- end of audit reports -->
+						                    </th:block>
 					                    </tbody>
 				                    </table>
 		                        </div>

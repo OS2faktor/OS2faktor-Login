@@ -12,8 +12,8 @@ CREATE TABLE domains_aud (
 
   name                         VARCHAR(255) NULL,
 
-  FOREIGN KEY fk_supporters_aud_rev (rev) REFERENCES revinfo(id),
-  PRIMARY KEY pk_supporters_aud (id, rev)
+  FOREIGN KEY fk_domains_aud_rev (rev) REFERENCES revinfo(id),
+  PRIMARY KEY pk_domains_aud (id, rev)
 );
 
 CREATE TABLE supporters (

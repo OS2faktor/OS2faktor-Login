@@ -4,14 +4,14 @@
 <body class="gray-bg">
 <div class="loginColumns animated fadeInDown">
 	<div class="row">
-		<div class="ibox offset-md-2 col-md-8">
+		<div class="ibox col-md-12">
 			<div class="ibox-title">
-				<h5><em class="fa fa-calendar-times-o "></em> &nbsp; Aktiver erhvervsidentitet</h5>
+				<h5><em class="fa fa-calendar-times-o "></em> &nbsp; Aktiver brugerkonto</h5>
 			</div>
 
 			<div class="ibox-content">
-				<p>Din erhvervsidentitet er ikke blevet aktiveret endnu. Nogle tjenesteudbydere kræver en erhvervsidentitet for at kunne gennemføre login. Ønsker du at aktivere den nu?</p>
-				<a th:href="@{/konto/aktiver}" class="btn btn-primary block full-width m-b">Ja, aktiver erhvervsidentitet</a>
+				<p>Din brugerkonto er ikke blevet aktiveret endnu, og kan ikke anvendes til login på webtjenester der kræver et højt sikkerhedsniveau. Ønsker du at aktivere brugerkontoen nu?</p>
+				<a th:href="@{/konto/aktiver}" class="btn btn-primary block full-width m-b">Ja, aktiver brugerkonto</a>
 				<a th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b">Nej</a>
 			</div>
 		</div>

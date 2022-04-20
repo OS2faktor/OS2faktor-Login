@@ -11,10 +11,23 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-users"></em> &nbsp; Manuel aktivering af erhvervsidentiteter</h5>
+								<h5><em class="fa fa-users"></em> &nbsp; Aktivering af erhvervsidentiteter</h5>
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Nedenfor er en liste over alle brugere som må få en erhvervsidentitet, men som endnu ikke har
+									aktiveret denne. Hvis en bruger ikke kan fremsøges på listen, så skyldes det at brugeren enten ikke
+									må få en erhvervsidentitet, eller at de allerede har aktiveret den.
+								</p>
+								
+								<p>
+									Klik på ikonet ud for den enkelte bruger, for at navigere til registreringssiden. Brugeren skal have
+									et nationalt anderkendt billed-id klar, så identifikationsprocessen kan gennemføres.
+								</p>
+								
+								<h4>Brugere</h4>
+
 								<div class="table-responsive">
 									<table id="persons" class="table table-striped table-bordered table-hover" >
 										<thead>
@@ -115,13 +128,7 @@
 						"searchable": false,
 						"orderable": false,
 						"render": function (data, type, row, meta) {
-							var content = '';
-
-							if (row.approvedConditions) {
-								content += '<a href="' + baseUrl + 'admin/registration/activation/' + data + '" style="color:black" title="Aktiver Erhvervsidentitet"><em class="fa fa-fw fa-user-plus"></em></a>';
-							}
-
-							return content;
+							return '<a href="' + baseUrl + 'admin/registration/activation/' + data + '" style="color:black" title="Aktiver Erhvervsidentitet"><em class="fa fa-fw fa-user-plus"></em></a>';
 						}
 					}
 				],

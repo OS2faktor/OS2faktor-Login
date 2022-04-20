@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.group')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<th:block th:if="${editMode}">
+								<div th:replace="admin/groups/fragments/group-details :: edit (group = ${group})" />
+							</th:block>
+							<th:block th:if="not ${editMode}">
+								<div th:replace="admin/groups/fragments/group-details :: view (group = ${group})" />
+							</th:block>
+						</div>
+						
+						<div class="ibox" th:unless="${group == null || group.id == 0}">
+							<div th:replace="admin/groups/fragments/group-members-list :: view" />
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.group')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	
+</body>
+<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var initialMemberListShown = [[${!(group == null || group.id == 0)}]];
+		var groupId = [[${group.id}]];
+		var internalDomainId = [[${@domainService.getInternalDomain().id}]];
+		var groupDomainId = [[${groupDomainId}]];
+		var baseUrl = [[@{/}]];
+		var restUrl = [[@{/rest/admin/groups/}]];
+		+]*/
+
+		// Messages
+		var placeHolderMessage = "Vil du gemme ændringerne?";
+
+		// Token
+		var token = $("meta[name='_csrf']").attr("content");
+
+		// Initialization of page
+		var groupService;
+		$(document).ready(function() {
+			groupService = new GroupService();
+			groupService.init();
+		});
+
+		// Logic
+		function GroupService() {
+			this.init = function() {
+				// Initialize datatable if necessary
+				if (initialMemberListShown) {
+					groupService.initMemberDatatable();
+				}
+			}
+
+			this.initAddDatatable = function() {
+				var table = $('#addMemberTable').DataTable({
+					"destroy": true,
+					"ajax": {
+						"contentType": "application/json",
+						"url": baseUrl + "rest/admin/persons",
+						"type": 'POST',
+						"headers": {
+							'X-CSRF-TOKEN': token
+						},
+						"data": function(d) {
+						 	return JSON.stringify(d);
+						}
+					},
+					"serverSide" : true,
+					"columns": [
+						{
+							"data": "name",
+							"orderable": false
+						},
+						{
+							"data": "userId",
+							"orderable": false
+						},
+						{
+							"data": "domain",
+							"orderable": false
+						},
+						{
+							"data": "id",
+							"searchable": false,
+							"orderable": false,
+							"render": function (data, type, row, meta) {
+								return '<a onclick="groupService.addMember(' + groupId + ', ' + data + ')" style="color: black;" title="Tilføj medlem"><em class="fa fa-fw fa-plus"></em></a>';
+							}
+						}
+					],
+					"ordering": true,
+					"info": true,
+					"pageLength": 10,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ identiteter",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ identiteter)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+
+				// configure searching
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.initMemberDatatable = function() {
+				var table = $('#viewMemberTable').DataTable({
+					"destroy": true,
+					"ajax": {
+						"contentType": "application/json",
+						"url": baseUrl + "rest/admin/groups/" + groupId + "/members",
+						"type": 'POST',
+						"headers": {
+							'X-CSRF-TOKEN': token
+						},
+						"data": function(d) {
+						 	return JSON.stringify(d);
+						}
+					},
+					"serverSide" : true,
+					"columns": [
+						{
+							"data": "name",
+							"orderable": false
+						},
+						{
+							"data": "userId",
+							"orderable": false
+						},
+						{
+							"data": "domain",
+							"orderable": false
+						},
+						{
+							"data": "id",
+							"searchable": false,
+							"orderable": false,
+							"render": function (data, type, row, meta) {
+								if (groupDomainId == internalDomainId) {
+									return '<a onclick="groupService.removeMember(' + groupId + ', ' + data + ')" style="color: black;" title="Slet medlem"><em class="fa fa-fw fa-times"></em></a>';
+								} 
+								return "";
+							}
+						}
+					],
+					"ordering": true,
+					"info": true,
+					"pageLength": 10,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ brugere per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ brugere",
+						"zeroRecords":  "Ingen brugere...",
+						"infoEmpty":	"Henter brugere...",
+						"infoFiltered": "(ud af _MAX_ hændelser)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+
+				// configure searching
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.saveGroup = function() {
+				var id = $("#editGroupForm #id").val()
+				var data = {
+					id: $("#editGroupForm #id").val(),
+					name: $("#editGroupForm #name").val(),
+					description: $("#editGroupForm #description").val()
+				}
+
+				$.ajax({
+					url: restUrl + "edit",
+					method: "POST",
+					headers: {
+					  'X-CSRF-TOKEN': token
+					},
+					contentType: 'application/json',
+					data: JSON.stringify(data),
+					success: function(data, textStatus, jQxhr) {
+						if (id == 0) {
+							window.location = "/admin/konfiguration/grupper"
+						}
+						groupService.viewGroupDetail(data);
+					},
+					error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error("Fejl: " + jQxhr.responseText);
+					}
+				});
+			}
+
+			this.viewGroupDetail = function(id) {
+				if (!id || id == 0) {
+					window.location = "/admin/konfiguration/grupper";
+				}
+				$('div[data-name="groupDetailsFragment"]').load('/admin/fragment/grupper/' + id + '/view/', function(responseText, textStatus, jqXHR) {
+					if (jqXHR.status != 200) {
+						toastr.error("Fejl: " + responseText);
+					}
+				});
+			}
+
+			this.editGroupDetail = function(id) {
+				$('div[data-name="groupDetailsFragment"]').load('/admin/fragment/grupper/' + id + '/edit/', function(responseText, textStatus, jqXHR) {
+					if (jqXHR.status != 200) {
+						toastr.error("Fejl: " + responseText);
+					}
+				});
+			}
+
+			this.viewGroupMembers = function(id) {
+				$('div[data-name="groupMembersFragment"]').load('/admin/fragment/grupper/' + id + '/medlemmer/view/', function(responseText, textStatus, jqXHR) {
+					if (jqXHR.status != 200) {
+						toastr.error("Fejl: " + responseText);
+					}
+					groupService.initMemberDatatable();
+				});
+			}
+
+			this.addGroupMembers = function(id) {
+				$('div[data-name="groupMembersFragment"]').load('/admin/fragment/grupper/'+ id + '/medlemmer/edit/', function(responseText, textStatus, jqXHR) {
+					if (jqXHR.status != 200) {
+						toastr.error("Fejl: " + responseText);
+					}
+
+					groupService.initAddDatatable();
+				});
+			}
+
+			this.addMember = function(groupId, personId) {
+				$.ajax({
+					url: restUrl + groupId +"/members/add",
+					method: "POST",
+					headers: {
+					  'X-CSRF-TOKEN': token
+					},
+					contentType: 'application/json',
+					data: JSON.stringify(personId),
+					success: function(data, textStatus, jQxhr) {
+						groupService.viewGroupMembers(data);
+					},
+					error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error("Fejl: " + jQxhr.responseText);
+					}
+				});
+			}
+
+			this.removeMember = function(groupId, personId) {
+				swal({
+					title: 'Fjern bruger',
+					text: 'Ønsker du at fjerne brugeren fra gruppen?',
+					showCancelButton: true,
+					type: "warning",
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: 'Ja',
+					cancelButtonText: 'Nej',
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function (isConfirm) {
+					if (isConfirm) {
+						$.ajax({
+							url: restUrl + groupId +"/members/remove",
+							method: "POST",
+							headers: {
+							  'X-CSRF-TOKEN': token
+							},
+							contentType: 'application/json',
+							data: JSON.stringify(personId),
+							success: function(data, textStatus, jQxhr) {
+								window.location.reload(true);
+							},
+							error: function(jQxhr, textStatus, errorThrown) {
+								toastr.error("Fejl: " + jQxhr.responseText);
+							}
+						});
+					}
+				});
+			}
+		}
+		/*]]>*/
+	</script>
+</html>

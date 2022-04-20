@@ -7,9 +7,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.saml.extension.SamlLoginPostProcessor;
-import dk.digitalidentity.saml.model.TokenUser;
+import dk.digitalidentity.samlmodule.model.SamlLoginPostProcessor;
+import dk.digitalidentity.samlmodule.model.TokenUser;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -22,6 +23,9 @@ public class LoginPostProcessor implements SamlLoginPostProcessor {
 
 	@Autowired
 	private SecurityUtil securityUtil;
+
+	@Autowired
+	private AuditLogger auditLogger;
 
 	@Override
 	public void process(TokenUser tokenUser) {
@@ -40,5 +44,9 @@ public class LoginPostProcessor implements SamlLoginPostProcessor {
 		}
 
 		securityUtil.updateTokenUser(person, tokenUser);
+		
+		String token = tokenUser.getAndClearRawToken();
+		
+		auditLogger.loginSelfService(person, token);
 	}
 }

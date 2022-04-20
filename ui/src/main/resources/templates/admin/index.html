@@ -11,14 +11,31 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-info"></em> &nbsp; Status</h5>
+								<h5><em class="fa fa-info"></em> &nbsp; Administrationsmodulet</h5>
 							</div>
 
 							<div class="ibox-content">
+								<p>
+								Nedenfor kan du danne dig et overblik over anvendelsen af OS2faktor Login. I højre side vises de administrative
+								funktioner som du har adgang til. Afhængig af de rettigheder du er tildelt kan du få adgang til
+								</p>
+
+								<ul>
+									<li>Supportfunktioner, herunder adgang til bruger-stamdata, logs og rapporter</li>
+									<li>Konfiguration og opsætning, herunder også muligheden for at administrere hvem der har rettigheder i administrationsmodulet</li>
+									<li>Administration af tjensteudbydere</li>
+									<li>Manuel aktivering af erhvervsidentiteter (kun for registranter)</li>
+								</ul>
+								
+								<p>
+								Klik på de enkelte menupunkter i højre side for at tilgå den valgte administrative funktion.
+								</p>
+								
+								<h4>Status</h4>
 								<div class="row">
 									<div class="col-lg-3">
 										<div class="ibox">
-											<div class="ibox-content">
+											<div class="ibox-content" style="min-height: 260px;">
 												<h5>Logins den sidste time</h5>
 												<h2 id="totalLoginHour">[[${lastHourTotalLogins}]]</h2>
 												<div id="loginCountByHour"></div>
@@ -28,7 +45,7 @@
 
 									<div class="col-lg-3">
 										<div class="ibox">
-											<div class="ibox-content">
+											<div class="ibox-content" style="min-height: 260px;">
 												<h5>Logins i går</h5>
 												<h2>[[${yesterdayTotalLogins}]]</h2>
 												<div id="loginCount"></div>
@@ -38,10 +55,20 @@
 	
 									<div class="col-lg-3">
 										<div class="ibox">
-											<div class="ibox-content">
+											<div class="ibox-content" style="min-height: 260px;">
 												<h5>Aktive identiteter</h5>
 												<h2>[[${aprovedConditionsCount}]] / [[${personCount}]]</h2>
 												<div id="activeCount"></div>
+											</div>
+										</div>
+									</div>
+
+									<div class="col-lg-3" th:each="websocketConnection : ${websocketConnections}">
+										<div class="ibox">
+											<div class="ibox-content" style="min-height: 260px;">
+												<h5>AD Forbindelser ([[${websocketConnection.key}]])</h5>
+												<h2>[[${websocketConnection.value.first}]] / [[${websocketConnection.value.second}]]</h2>
+												<div th:id="'connections-' + ${#strings.replace(websocketConnection.key, '.', '-')}"></div>
 											</div>
 										</div>
 									</div>
@@ -69,7 +96,8 @@
 		var yesterday = [[${yesterdayLogins}]];
 		var personCount = [[${personCount}]];
 		var aprovedConditionsCount = [[${aprovedConditionsCount}]];
-		+]*/
+		var webSocketConnectionMap = [[${websocketConnections}]];
+        +]*/
 
 		$(document).ready(function() {
 			
@@ -94,7 +122,17 @@
 				height: '140',
 				sliceColors: ['#1ab394', '#F5F5F5']
 			});
-	
+
+			for (var key in webSocketConnectionMap) {
+				var fieldId = '#connections-' + key.replace('.', '-');
+
+				$(fieldId).sparkline([webSocketConnectionMap[key].first, (webSocketConnectionMap[key].second - webSocketConnectionMap[key].first)], {
+					type: 'pie',
+					height: '140',
+					sliceColors: ['#1ab394', '#F5F5F5']					
+				});
+			}
+
 			if (flashMessage != undefined) {
 				toastr.success(flashMessage);
 			}

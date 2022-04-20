@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = false)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-picture-o"></em> &nbsp; Rediger logo</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Her kan du uploade et nyt logo, som præsenteres for alle brugerne i højre øverste hjørne. Det er vigtigt
+									at logoet er i PNG format, og har en gennemsigtig baggrund. Bemærk at logoet bliver skaleret ned til en
+									højde på 25 pixels, så test evt udseendet af logoet i den højde før det uploades.
+								</p>
+								
+								<p>
+									Bemærk at der kan gå op til 5 minutter fra logo'et uploades til det kan ses i brugergrænsefladen.
+								</p>
+
+								<button class="btn btn-primary" id="uploadBtn">Upload logo</button>
+								<input type='file' id="uploadInput" accept=".png" style="display: none">
+								<br/><br/>
+								
+								<h3>Logo preview</h3>
+								<img id="img" th:src="${logo}" />
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.cms')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = false)" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+			var redirectUrl = [[@{/admin}]];
+			var restUrl = [[@{/rest/admin}]];
+		+]*/
+		
+		var imageService;
+		var token = $("meta[name='_csrf']").attr("content");
+		$(document).ready(function(){
+			imageService = new ImageService();
+			imageService.init();
+		});
+		
+		function ImageService() {
+			this.init = function() {
+				$("#uploadBtn").click(function () {
+				    $("#uploadInput").trigger('click');
+				});
+				
+				$("#uploadInput").change(function(){
+					imageService.readImage( this );
+				});
+			}
+			this.readImage = function(input) {
+				if (input.files && input.files[0]) {
+			        var FR = new FileReader();
+			        FR.onload = function(e) {
+			             $('#img').attr( "src", e.target.result );
+			             imageService.saveLogo(e.target.result);
+			        };  
+			        FR.readAsDataURL( input.files[0] );
+			    }
+			}
+
+			this.saveLogo = function(base64) {
+				$.ajax({
+					url : restUrl + '/savelogo',
+					type : 'post',
+					data : base64,
+					contentType: 'application/json',
+					headers: {
+						'X-CSRF-TOKEN': token
+					},
+					success : function(response) {
+						toastr.success("Logoet er gemt. Der går lidt tid inden du kan se ændringen.")
+					},
+					error: function(jqXHR, textStatus, error) {
+						switch (jqXHR.status) {
+							case 400:
+								toastr.warning(jqXHR.responseText);
+								break;
+							default:
+								toastr.warning('Teknisk fejl: ' + jqXHR.responseText);
+								break;
+						}
+					}
+				});
+			}
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

@@ -7,15 +7,17 @@
             <div class="ibox offset-md-2 col-md-8">
                 <div class="ibox-title">
                     <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                    <div class="ibox-tools">
+						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.mfa.help')}"></em>
+					</div>
                 </div>
 
                 <div class="ibox-content">
-                	<p class="mb-5">
-                	Adgang til den ønskede tjeneste kræver aktivering af en 2-faktor klient.
-                	Vælg en af nedenstående for at gennemføre login processen.
+                	<p class="mb-5" th:utext="${@cmsMessageBundle.getText('cms.login.mfa.content')}">
                 	</p>
 
 					<ul class="mb-5" style="list-style-type: none; font-size: x-large;">
+
 						<li th:each="client : ${clients}">
 							<a th:href="@{/sso/saml/mfa/} + ${client.deviceId}" style="color: black;">
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" class="fa fa-fw fa-chrome"></em>
@@ -23,8 +25,26 @@
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" class="fa fa-fw fa-apple"></em>
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).WINDOWS}" class="fa fa-fw fa-windows"></em>
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" class="fa fa-fw fa-key"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).EDGE}" class="fa fa-fw fa-edge"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTP}" class="fa fa-fw fa-mobile"></em>
 								&nbsp;
 								<th:block th:text="${#strings.isEmpty(client.name) ? client.deviceId : client.name}"></th:block>
+							</a>
+						</li>
+
+						<li th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">
+							<a th:href="@{/sso/saml/login/nemid}" style="color: black;">
+								<em class="fa fa-fw fa-key"></em>
+								&nbsp;
+								Log ind med NemID
+							</a>
+						</li>
+						
+						<li th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
+							<a th:href="@{/sso/saml/login/nemid}" style="color: black;">
+								<em class="fa fa-fw fa-key"></em>
+								&nbsp;
+								Log ind med NemLog-in
 							</a>
 						</li>
 					</ul>

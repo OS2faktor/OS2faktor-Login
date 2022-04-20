@@ -28,12 +28,12 @@
 							</thead>
 							
 							<tbody>
-								<tr>
-									<td>NSIS Niveau</td>
+								<tr th:if="${nsis != null}">
+									<td>Sikringsniveau</td>
 									<td th:text="#{__${nsis.message}__}" />
 								</tr>
 								<tr>
-									<td>MFA anvendt</td>
+									<td>2-faktor enhed anvendt</td>
 									<td th:text="${mfa}" />
 								</tr>
 							</tbody>

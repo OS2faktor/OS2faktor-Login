@@ -8,10 +8,10 @@
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
-					<div class="col-lg-9">
+					<div th:class="${#authorization.expression('isAuthenticated()')} ? col-lg-9 : col-lg-12">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-info"></em> &nbsp; Vilkår for anvendelse af erhvervsidentiteter</h5>
+								<h5><em class="fa fa-info"></em> &nbsp; Vilkår for anvendelse af brugerkonto</h5>
 							</div>
 
 							<div class="ibox-content">
@@ -19,7 +19,7 @@
 							</div>
 						</div>
 					</div>
-					<div th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')" />
+					<div sec:authorize="isAuthenticated()" th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')" />
 				</div>
 			</div>
 

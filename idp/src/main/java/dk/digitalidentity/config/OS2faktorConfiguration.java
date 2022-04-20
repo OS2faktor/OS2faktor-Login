@@ -1,14 +1,10 @@
 package dk.digitalidentity.config;
 
-import dk.digitalidentity.config.modules.PasswordConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.config.modules.IdPKeystoreConfiguration;
-import dk.digitalidentity.config.modules.KombitConfiguration;
-import dk.digitalidentity.config.modules.RoleCatalogueConfiguration;
-import dk.digitalidentity.config.modules.SelfServiceConfiguration;
-import dk.digitalidentity.config.modules.StilConfiguration;
+import dk.digitalidentity.config.modules.PasswordConfiguration;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,12 +13,17 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.idp")
 public class OS2faktorConfiguration {
-	private RoleCatalogueConfiguration roleCatalogue = new RoleCatalogueConfiguration();
 	private IdPKeystoreConfiguration keystore = new IdPKeystoreConfiguration();
-	private KombitConfiguration kombit = new KombitConfiguration();
-	private StilConfiguration stil = new StilConfiguration();
-	private SelfServiceConfiguration selfService = new SelfServiceConfiguration();
 	private PasswordConfiguration password = new PasswordConfiguration();
 	private String entityId;
 	private String baseUrl;
+	
+	// allow users to login using only username/password when no MFA
+	// registered and the user has nsis_allowed = false. Used when allowing
+	// the registration of the first MFA device using self-service
+	private boolean allowUsernamePasswordLoginIfNoMfa = false;
+	
+	// TODO: flip these around in the future, so default is MitID instead of NemID
+	private boolean nemIdEnabled = true;
+	private boolean mitIdEnabled = false;
 }

@@ -15,6 +15,14 @@
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Her kan man opsætte indholdet af en infoboks, og vælge at slå den til på loginsiden. Hvis
+									man sæter flueben i "Vis infoboks på login siden", så vises den indtastede besked
+									for alle brugere når de foretager et login.
+								</p>
+								
+								<h4>Infoboks</h4>
+
 								<form action="#" th:action="@{/admin/infoboks}" th:object="${infobox}" method="post">
 									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
 									

@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
@@ -35,7 +36,7 @@ public class StateController {
 	}
 
 	@PostMapping("/selvbetjening/spaerre")
-	public String postLockAccount() {
+	public String postLockAccount(RedirectAttributes redirectAttributes) {
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null) {
 			log.error("Person did not exist: " + securityUtils.getPersonId());
@@ -53,10 +54,13 @@ public class StateController {
 		}
 
 		person.setLockedPerson(true);
+		personService.suspend(person);
 		person = personService.save(person);
 
 		auditLogger.deactivateByPerson(person);
 		securityUtils.updateTokenUser(person);
+		
+		redirectAttributes.addFlashAttribute("flashMessage", "Din identitet er spærret");
 
 		return "redirect:/selvbetjening";
 	}

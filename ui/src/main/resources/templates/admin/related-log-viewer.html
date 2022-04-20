@@ -20,9 +20,9 @@
 										class="table table-striped table-hover listTable">
 										<thead>
 											<tr>
+												<th style="display:none;">Id</th>
 												<th style="width: 110px;">Tidspunkt</th>
 												<th style="width: 80px;">Konto</th>
-												<th style="width: 80px;">AD Konto</th>
 												<th style="width: 160px;">Person</th>
 												<th>Hændelse</th>
 											</tr>
@@ -30,9 +30,9 @@
 										
 										<tbody>
 											<tr th:each="log : ${relatedlogs}">
+												<td class="logId" th:text="${log.id}" style="display:none;" />
 												<td th:text="${#temporals.format(log.tts, 'yyyy-MM-dd HH:mm:ss')}" />
 												<td th:text="${log.userId}" />
-												<td th:text="${log.samaccountName}" />
 												<td th:text="${log.personName}" />
 												<td th:text="${log.message}" />
 											</tr>
@@ -89,7 +89,12 @@
 						"next": "Næste"
 					}
 				}
-			});			
+			});
+
+			$('#logTable tbody').on('click', 'tr', function () {
+				var data = table.row(this).data();
+				window.location = rootUrl + "admin/logs/" + data[0];
+			});
 		}
 		
 		/*]]>*/

@@ -3,6 +3,7 @@
 <head th:fragment="header">
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
     <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}" />
 
     <title>OS2faktor</title>
@@ -24,6 +25,11 @@
 	<th:block th:if="${checkbox == true}">
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/iCheck/custom.css}" />
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css}" />
+	<style>
+		.i-checks {
+			display: none;
+		}
+	</style>
 	</th:block>
 	
 	<th:block th:if="${slider == true}">
@@ -42,6 +48,11 @@
 	<th:block th:if="${texteditor == true}">
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/summernote/summernote-bs4.css}" />
 	</th:block>
+	<style>
+		.no-p-wrap > p {
+			display: inline;
+		}
+	</style>
 	
 	<th:block th:if="${jstree == true}">
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/jsTree/style.min.css}" />

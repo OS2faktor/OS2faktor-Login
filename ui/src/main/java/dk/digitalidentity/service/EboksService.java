@@ -1,8 +1,8 @@
 package dk.digitalidentity.service;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Base64;
 
-import org.apache.xml.security.utils.Base64;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -18,9 +18,9 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.eboks.dto.EboksMessage;
-import lombok.extern.log4j.Log4j;
+import lombok.extern.slf4j.Slf4j;
 
-@Log4j
+@Slf4j
 @Service
 public class EboksService {
 
@@ -56,7 +56,7 @@ public class EboksService {
 			eBoks.setCvr(common.getCustomer().getCvr());
 			eBoks.setSenderId(configuration.getEboks().getSenderId());
 			eBoks.setSubject(subject);
-			eBoks.setPdfFileBase64(Base64.encode(generatePDF(subject, message)));
+			eBoks.setPdfFileBase64(Base64.getEncoder().encodeToString(generatePDF(subject, message)));
 
 			HttpHeaders headers = new HttpHeaders();
 			headers.add("Content-Type", "application/json");

@@ -1,15 +1,5 @@
 package dk.digitalidentity.service;
 
-import java.io.StringWriter;
-import java.util.HashMap;
-import java.util.Map;
-import javax.xml.namespace.QName;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Source;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.xml.SerializeSupport;
 import org.opensaml.core.config.ConfigurationService;
@@ -27,10 +17,25 @@ import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.AttributeStatement;
 import org.opensaml.saml.saml2.core.AttributeValue;
+import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.opensaml.saml.saml2.core.LogoutRequest;
+import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.impl.AssertionMarshaller;
+import org.opensaml.saml.saml2.core.impl.AuthnRequestMarshaller;
+import org.opensaml.saml.saml2.core.impl.LogoutRequestMarshaller;
+import org.opensaml.saml.saml2.core.impl.LogoutResponseMarshaller;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSOutput;
+import org.w3c.dom.ls.LSSerializer;
+
+import javax.xml.namespace.QName;
+import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -63,7 +68,7 @@ public class OpenSAMLHelperService {
 				continue;
 			}
 			
-			if (!StringUtils.isEmpty(name) && !StringUtils.isEmpty(value)) {
+			if (StringUtils.hasLength(name) && StringUtils.hasLength(value)) {
 				result.put(name, value);
 			}
 		}
@@ -73,28 +78,65 @@ public class OpenSAMLHelperService {
 
 	public String prettyPrint(Assertion assertion) {
 		try {
-			AssertionMarshaller assertionMarshaller = new AssertionMarshaller();
-			Element element = assertionMarshaller.marshall(assertion);
-			Source source = new DOMSource(element);
-
-			TransformerFactory transFactory = TransformerFactory.newInstance();
-			Transformer transformer = transFactory.newTransformer();
-
-			transformer.setOutputProperty(OutputKeys.METHOD, "xml");
-			transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
-			transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-			transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-			transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-
-			StringWriter buffer = new StringWriter();
-			transformer.transform(source, new StreamResult(buffer));
-			return buffer.toString();
+			AssertionMarshaller marshaller = new AssertionMarshaller();
+			Element element = marshaller.marshall(assertion);
+			return stringifyXmlElement(element);
 		}
 		catch (Exception ex) {
 			log.error("Failed to generate XML string from Assertion", ex);
-			
 			return ex.getMessage();
 		}
+	}
+
+	public String prettyPrint(AuthnRequest authnRequest) {
+		try {
+			AuthnRequestMarshaller marshaller = new AuthnRequestMarshaller();
+			Element element = marshaller.marshall(authnRequest);
+			return stringifyXmlElement(element);
+		}
+		catch (Exception ex) {
+			log.error("Failed to generate XML string from AuthnRequest", ex);
+			return ex.getMessage();
+		}
+	}
+
+	public String prettyPrint(LogoutRequest logoutRequest) {
+		try {
+			LogoutRequestMarshaller marshaller = new LogoutRequestMarshaller();
+			Element element = marshaller.marshall(logoutRequest);
+			return stringifyXmlElement(element);
+		}
+		catch (Exception ex) {
+			log.error("Failed to generate XML string from LogoutRequest", ex);
+			return ex.getMessage();
+		}
+	}
+
+	public String prettyPrint(LogoutResponse logoutResponse) {
+		try {
+			LogoutResponseMarshaller marshaller = new LogoutResponseMarshaller();
+			Element element = marshaller.marshall(logoutResponse);
+			return stringifyXmlElement(element);
+		}
+		catch (Exception ex) {
+			log.error("Failed to generate XML string from LogoutResponse", ex);
+			return ex.getMessage();
+		}
+	}
+
+	private String stringifyXmlElement(Element element) {
+		StringWriter writer = new StringWriter();
+
+		DOMImplementation domImpl = element.getOwnerDocument().getImplementation();
+		DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
+
+		LSOutput serializerOut = domImplLS.createLSOutput();
+		serializerOut.setCharacterStream(writer);
+
+		LSSerializer serializer = domImplLS.createLSSerializer();
+		serializer.write(element, serializerOut);
+
+		return writer.toString();
 	}
 
 	private String extractAttributeValueValue(Attribute attribute) {

@@ -23,6 +23,7 @@ public class AdminIndexController {
 		model.addAttribute("yesterdayTotalLogins", statisticsService.getTotalLoginCountYesterday());
 		model.addAttribute("personCount", statisticsService.getPersonCount());
 		model.addAttribute("aprovedConditionsCount", statisticsService.getAprovedConditionCount());
+		model.addAttribute("websocketConnections", statisticsService.getWebsocketConnections());
 
 		return "admin/index";
 	}

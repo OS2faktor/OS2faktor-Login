@@ -8,7 +8,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>OS2faktorADSync</RootNamespace>
     <AssemblyName>OS2faktorADSync</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
@@ -111,18 +111,30 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Model\Kombit\CoreDataFullJfr.cs" />
+    <Compile Include="Model\Kombit\CoreDataFullJfrEntry.cs" />
+    <Compile Include="Model\Kombit\Jfr.cs" />
+    <Compile Include="Model\Kombit\JobFunctionsRole.cs" />
+    <Compile Include="Job\KombitRolesSyncJob.cs" />
+    <Compile Include="Job\NSISAllowedSyncJob.cs" />
+    <Compile Include="Model\CoredataNSISAllowed.cs" />
     <Compile Include="ActiveDirectory\PropertyResolver.cs" />
     <Compile Include="ActiveDirectory\DictionaryExtention.cs" />
     <Compile Include="Backend\BackendService.cs" />
     <Compile Include="DependencyResolution\DefaultRegistry.cs" />
     <Compile Include="DependencyResolution\LoggingForClassPolicy.cs" />
+    <Compile Include="Job\GroupSyncJob.cs" />
     <Compile Include="Job\SynchronizeJob.cs" />
     <Compile Include="Job\ResetDirSyncJob.cs" />
+    <Compile Include="Model\CoredataGroupEntry.cs" />
+    <Compile Include="Model\CoredataGroup.cs" />
     <Compile Include="Model\CoredataDelete.cs" />
     <Compile Include="Model\Coredata.cs" />
     <Compile Include="Model\DeltaSync.cs" />
     <Compile Include="Model\CoredataDeleteEntry.cs" />
     <Compile Include="Model\CoredataEntry.cs" />
+    <Compile Include="Model\Group.cs" />
+    <Compile Include="Model\Kombit\User.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ActiveDirectory\ActiveDirectoryService.cs" />

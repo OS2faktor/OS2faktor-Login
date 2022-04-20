@@ -11,10 +11,16 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-info"></em> &nbsp; Vilkår for anvendelse af erhvervsidentiteter</h5>
+								<h5><em class="fa fa-info"></em> &nbsp; Opsæt anvendelsesvilkår</h5>
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Opsæt de vilkår der er gældende for anvendelsen af løsningen. Brugerne skal godkende disse
+									vilkår første gang de bruger løsningen.
+								</p>
+								
+								<h4>Vilkår</h4>
 								<form action="#" th:action="@{/admin/konfiguration/vilkaar}" th:object="${termsAndConditions}" method="post">
 									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
 									

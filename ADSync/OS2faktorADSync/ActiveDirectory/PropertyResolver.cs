@@ -13,13 +13,21 @@ namespace OS2faktorADSync
         public string DeletedProperty { get; set; }
         public string ObjectGuidProperty { get; set; }
         public string[] AllProperties { get; set; }
+        public string[] GroupProperties { get; set; }
+        public string[] KombitProperties { get; set; }
         public string UserAccountControlProperty { get; set; }
         public string MemberOfProperty { get; set; }
-
+        public string DistinguishedNameProperty { get; set; }
+        public string NameProperty { get; set; }
+        public string RoleNameProperty { get; set; }
+        public string RoleDomainProperty { get; set; }
+        public string RoleCvrProperty { get; set; }
+        public string DescriptionProperty { get; set; }
 
         public PropertyResolver()
         {
             CprProperty = Settings.GetStringValue("ActiveDirectory.Property.Cpr");
+            DistinguishedNameProperty = "DistinguishedName";
             ChosenNameProperty = "displayName";
             FirstnameProperty = "givenName";
             SurnameProperty = "sn";
@@ -28,13 +36,19 @@ namespace OS2faktorADSync
             DeletedProperty = "isdeleted";
             ObjectGuidProperty = "objectGUID";
             UserAccountControlProperty = "useraccountcontrol";
-            MemberOfProperty = "memberOf";
+            MemberOfProperty = "MemberOf";
+            NameProperty = "Name";
+            RoleNameProperty = Settings.GetStringValue("Kombit.RoleNameAttribute");
+            RoleDomainProperty = Settings.GetStringValue("Kombit.RoleDomainAttribute");
+            RoleCvrProperty = Settings.GetStringValue("Kombit.RoleCvrAttribute");
+            DescriptionProperty = "description";
 
             var allProperties = new List<string>();
             allProperties.AddRange(
                 new string[]
                 {
                     CprProperty,
+                    DistinguishedNameProperty,
                     ChosenNameProperty,
                     FirstnameProperty,
                     SurnameProperty,
@@ -46,7 +60,44 @@ namespace OS2faktorADSync
                     MemberOfProperty
                 });
 
+            // Resolve attributes fields, Value is eqial to AD attributes that needs to be read.
+            Dictionary<string, string> attributes = Settings.GetStringValues("ActiveDirectory.Attributes.");
+            if (attributes != null)
+            {
+                foreach (var value in attributes.Values)
+                {
+                    if (value.Length > 0)
+                    {
+                        allProperties.Add(value);
+                    }
+                }
+            }
+
             AllProperties = allProperties.ToArray();
+
+            var groupProperties = new List<string>();
+            groupProperties.AddRange(
+                new string[]
+                {
+                    DistinguishedNameProperty,
+                    ObjectGuidProperty,
+                    NameProperty,
+                    DescriptionProperty
+                });
+
+            GroupProperties = groupProperties.ToArray();
+
+            var kombitProperties = new List<string>();
+            kombitProperties.AddRange(
+                new string[]
+                {
+                    DistinguishedNameProperty,
+                    RoleNameProperty,
+                    RoleDomainProperty,
+                    RoleCvrProperty
+                });
+
+            KombitProperties = kombitProperties.ToArray();
         }
     }
 }

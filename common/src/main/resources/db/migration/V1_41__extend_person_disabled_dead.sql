@@ -1,0 +1,2 @@
+ALTER TABLE persons ADD COLUMN locked_dead BOOLEAN NOT NULL DEFAULT FALSE AFTER locked_dataset;
+ALTER TABLE persons_aud ADD COLUMN locked_dead BOOLEAN NOT NULL DEFAULT FALSE AFTER locked_dataset;

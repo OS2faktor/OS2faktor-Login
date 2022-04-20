@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.model.AuditLog;
+import dk.digitalidentity.common.dao.model.enums.LogAction;
 
 @Service
 public class AuditLogService {
@@ -30,5 +31,11 @@ public class AuditLogService {
 
 	public List<AuditLog> findFromLastWeekAndDomain(String domain) {
 		return auditLogDao.findByPersonDomainAndTtsAfter(domain, LocalDateTime.now().minus(7, ChronoUnit.DAYS));
+	}
+	
+	public List<AuditLog> findByLogActionsForLast13Months(LogAction... actions) {
+		LocalDateTime tts = LocalDateTime.now().minusMonths(13);
+
+		return auditLogDao.findByTtsAfterAndLogActionIn(tts, actions);
 	}
 }

@@ -23,9 +23,9 @@
 				<configuration>
 					<layout>ZIP</layout>
 					<addResources>true</addResources>
-					<folders>
-						<folder>${basedir}/config</folder>
-					</folders>
+                                        <directories>
+                                                <directory>${basedir}/config</directory>
+                                        </directories>
 				</configuration>
 			</plugin>
 
@@ -58,6 +58,13 @@
 	</profiles>
 
 	<dependencies>
+		<!-- need to be at the top to ensure dependency upgrades to OpenSAML -->
+		<dependency>
+			<groupId>dk.digitalidentity</groupId>
+			<artifactId>saml-module</artifactId>
+			<version>2.1.5</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
@@ -86,6 +93,19 @@
 			<artifactId>spring-session-jdbc</artifactId>
 		</dependency>
 -->
+
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+			<version>4.2.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.tinyradius</groupId>
+			<artifactId>os2faktor-nsis-tinyradius</artifactId>
+			<version>1.1.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>dk.digitalidentity.os2faktor</groupId>
 			<artifactId>os2faktor-nsis-common</artifactId>
@@ -101,25 +121,25 @@
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-core</artifactId>
-			<version>3.4.3</version>
+			<version>3.4.6</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-saml-impl</artifactId>
-			<version>3.4.3</version>
+			<version>3.4.6</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-saml-api</artifactId>
-			<version>3.4.3</version>
+			<version>3.4.6</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.opensaml</groupId>
 			<artifactId>opensaml-messaging-impl</artifactId>
-			<version>3.4.3</version>
+			<version>3.4.6</version>
 		</dependency>
 
 		<dependency>
@@ -147,4 +167,12 @@
 			<version>2.3.0</version>
 		</dependency>
 	</dependencies>
+
+	<repositories>
+		<repository>
+			<id>shared-resources</id>
+			<name>Shared Resources</name>
+			<url>https://mvn.digital-identity.dk/release</url>
+		</repository>
+	</repositories>
 </project>

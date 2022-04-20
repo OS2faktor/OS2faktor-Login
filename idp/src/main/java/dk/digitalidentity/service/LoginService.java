@@ -1,26 +1,32 @@
 package dk.digitalidentity.service;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
+import dk.digitalidentity.common.dao.model.PasswordSetting;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.ADPasswordService;
+import dk.digitalidentity.common.service.LoginInfoMessageService;
+import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.PrivacyPolicyService;
+import dk.digitalidentity.common.service.TermsAndConditionsService;
+import dk.digitalidentity.common.service.mfa.MFAService;
+import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.controller.dto.PasswordChangeForm;
+import dk.digitalidentity.service.model.enums.RequireNemIdReason;
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.LoggingUtil;
+import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
@@ -35,28 +41,27 @@ import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
-import dk.digitalidentity.common.dao.model.PasswordSetting;
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.service.ADPasswordService;
-import dk.digitalidentity.common.service.LoginInfoMessageService;
-import dk.digitalidentity.common.service.PasswordSettingService;
-import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.common.service.TermsAndConditionsService;
-import dk.digitalidentity.common.service.mfa.MFAService;
-import dk.digitalidentity.common.service.mfa.model.MfaClient;
-import dk.digitalidentity.controller.dto.PasswordChangeForm;
-import dk.digitalidentity.service.model.enums.RequireNemIdReason;
-import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
-import dk.digitalidentity.util.Constants;
-import dk.digitalidentity.util.LoggingUtil;
-import dk.digitalidentity.util.RequesterException;
-import dk.digitalidentity.util.ResponderException;
-import lombok.extern.slf4j.Slf4j;
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+import javax.annotation.Nullable;
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -104,6 +109,15 @@ public class LoginService {
     @Autowired
     private TermsAndConditionsService termsAndConditionsService;
 
+    @Autowired
+    private PrivacyPolicyService privacyPolicyService;
+
+    @Autowired
+    private AuditLogger auditLogger;
+
+    @Autowired
+    private OS2faktorConfiguration configuration;
+
     public ModelAndView initiateFlowOrCreateAssertion(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
         ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
 
@@ -116,8 +130,10 @@ public class LoginService {
             throw new ResponderException("Understøtter ikke NSIS Høj");
         }
 
-        // If no login state, initiate login
-        if (currentNSISLevel == null) {
+        boolean valid = sessionHelper.handleValidateIP();
+
+        // if no login state or changed IP, initiate login
+        if (!valid || currentNSISLevel == null) {
             if (authnRequest.isPassive()) {
                 throw cannotPerformPassiveLogin;
             }
@@ -131,6 +147,13 @@ public class LoginService {
         }
 
         // At this point the user is actually logged in, so we can start validation against the session
+
+        // Should be caught earlier, but this is an extra check so we never approve a user that is not allowed access to a specific service
+        RequirementCheckResult meetsRequirementsResult = serviceProvider.personMeetsRequirements(person);
+        if (!RequirementCheckResult.OK.equals(meetsRequirementsResult)) {
+            auditLogger.loginRejectedByConditions(person, meetsRequirementsResult);
+            throw new ResponderException("Login afbrudt, da brugeren ikke opfylder kravene til denne tjenesteudbyder");
+        }
 
         // Has the user approved conditions?
         if (!person.isApprovedConditions()) {
@@ -149,7 +172,7 @@ public class LoginService {
                 return initiateActivateNSISAccount(model);
             }
         }
-        
+
         // if the services provider requires NSIS, perform the following controls
         if (NSISLevel.LOW.equalOrLesser(requiredNSISLevel)) {
 
@@ -157,7 +180,7 @@ public class LoginService {
             if (!person.isNsisAllowed()) {
                 throw new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
             }
-            
+
             // does the user have the required NSIS level?
 	        switch (currentNSISLevel) {
 	            case SUBSTANTIAL:
@@ -168,18 +191,18 @@ public class LoginService {
 	                    if (authnRequest.isPassive()) {
 	                        throw cannotPerformPassiveLogin;
 	                    }
-	
+
 	                    if (authnRequestService.requireNemId(authnRequest)) {
 	                        return initiateNemIDOnlyLogin(model, request, null);
 	                    }
-	
+
 	                    if (!NSISLevel.SUBSTANTIAL.equalOrLesser(person.getNsisLevel())) {
-	                        throw new ResponderException("Brugerens sikringsniveau er for lavt og brugeren kan derfor kun logge ind på tjenesteudbydere, der bruger NSIS Lav");
+	                        throw new ResponderException("Brugerens sikringsniveau er for lavt og brugeren kan derfor kun logge ind på tjenesteudbydere, der kræver et NSIS sikringsniveau på Lav");
 	                    }
 
                         return initiateMFA(model, person, NSISLevel.SUBSTANTIAL);
 	                }
-	
+
 	                return createAndSendAssertion(response, person, serviceProvider);
 	            case NONE:
                     if (authnRequest.isPassive()) {
@@ -187,7 +210,7 @@ public class LoginService {
                     }
 
                     if (!NSISLevel.LOW.equalOrLesser(person.getNsisLevel())) {
-                        throw new ResponderException("Brugerens sikringsniveau er for lavt og brugeren kan derfor kun logge ind på tjenesteudbydere, der ikke bruger NSIS");
+                        throw new ResponderException("Brugerens sikringsniveau er for lavt og brugeren kan derfor kun logge ind på tjenesteudbydere, der ikke kræver et NSIS sikringsniveau");
                     }
 
                     RequireNemIdReason reason = authnRequestService.requireNemId(authnRequest) ? null : RequireNemIdReason.AD;
@@ -209,19 +232,55 @@ public class LoginService {
                 throw cannotPerformPassiveLogin;
             }
 
-            return initiateMFA(model, person, NSISLevel.NONE);
+            if (!allowMfaBypass(serviceProvider, person)) {
+                return initiateMFA(model, person, NSISLevel.NONE);
+            }
+        }
+
+        // If a person was manually activated, after successful password login they must change their password
+        ModelAndView forceChangePassword = initiateForceChangePassword(person, model);
+        if (forceChangePassword != null) {
+            sessionHelper.setInForceChangePasswordFlow(true);
+            return forceChangePassword;
         }
 
         // user is already logged in at the required level
         return createAndSendAssertion(response, person, serviceProvider);
     }
 
-    public boolean validPassword(String password, Person person) {
-        return validPassword(password, person, false);
+    private boolean allowMfaBypass(ServiceProvider serviceProvider, Person person) {
+        boolean allowMfaBypass = false;
+
+        boolean selfRegisterFeatureEnabled = configuration.isAllowUsernamePasswordLoginIfNoMfa();
+        boolean isSelfService = serviceProvider instanceof SelfServiceServiceProvider;
+
+        // if (and only if), the above feature is enabled, and this is SelfService the user is trying to login
+        // to, and the user is a non-NSIS user, AND the user does not already have a MFA device, THEN we allow
+        // them to login without MFA so they can self-register the first MFA device
+        if (selfRegisterFeatureEnabled && isSelfService && !person.isNsisAllowed()) {
+        	List<MfaClient> mfaClients = mfaService.getClients(person.getCpr());
+
+        	if (mfaClients == null || mfaClients.isEmpty()) {
+        		allowMfaBypass = true;
+        	}
+        }
+
+        return allowMfaBypass;
     }
 
+    public boolean validPassword(String password, Person person) {
+        boolean passwordValid = validPassword(password, person, false);
+
+        if (!passwordValid) {
+        	personService.badPasswordAttempt(person);
+        }
+
+        return passwordValid;
+    }
+
+    // TODO: 3rd argument is always FALSE - what is up with that?
     private boolean validPassword(String password, Person person, boolean allowExpiredPassword) {
-        if (StringUtils.isEmpty(password)) {
+        if (!StringUtils.hasLength(password)) {
             sessionHelper.setPasswordLevel(null);
             return false;
         }
@@ -230,44 +289,32 @@ public class LoginService {
         PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
 
         // NSIS Password validation
-        if (!StringUtils.isEmpty(person.getNsisPassword())) {
+        if (StringUtils.hasLength(person.getNsisPassword())) {
             if (!allowExpiredPassword && settings.isForceChangePasswordEnabled() && person.getNsisPasswordTimestamp() != null) {
                 LocalDateTime maxPasswordAge = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
                 if (person.getNsisPasswordTimestamp().isAfter(maxPasswordAge)) {
                     if (encoder.matches(password, person.getNsisPassword())) {
                         sessionHelper.setPasswordLevel(NSISLevel.SUBSTANTIAL);
+                        sessionHelper.setAuthnInstant(new DateTime());
                         return true;
                     }
                 }
             }
             else if (encoder.matches(password, person.getNsisPassword())) {
                 sessionHelper.setPasswordLevel(NSISLevel.SUBSTANTIAL);
+                sessionHelper.setAuthnInstant(new DateTime());
                 return true;
             }
         }
 
-        if (!StringUtils.isEmpty(person.getSamaccountName())) {
-            // Local AD password validation
-            LocalDateTime maxRetention = LocalDateTime.now().minusDays(settings.getCacheAdPasswordInterval());
-            if (!StringUtils.isEmpty(person.getAdPassword()) && person.getAdPasswordTimestamp() != null && person.getAdPasswordTimestamp().isAfter(maxRetention)) {
-                if (encoder.matches(password, person.getAdPassword())) {
-                    sessionHelper.setAuthenticatedWithADPassword(true);
-                    sessionHelper.setADPerson(person);
-                    sessionHelper.setPasswordLevel(NSISLevel.NONE);
-                    return true;
-                }
-            }
-
+        if (StringUtils.hasLength(person.getSamaccountName())) {
             // Remote AD password validation
             if (adPasswordService.validatePassword(person, password)) {
-                String encodedPassword = encoder.encode(password);
-                person.setAdPassword(encodedPassword);
-                person.setAdPasswordTimestamp(LocalDateTime.now());
-                personService.save(person);
-
                 sessionHelper.setAuthenticatedWithADPassword(true);
                 sessionHelper.setADPerson(person);
                 sessionHelper.setPasswordLevel(NSISLevel.NONE);
+                sessionHelper.setAuthnInstant(new DateTime());
+                sessionHelper.setPassword(password);
                 return true;
             }
         }
@@ -277,7 +324,7 @@ public class LoginService {
     }
 
     public List<Person> getPeople(String username) {
-        if (StringUtils.isEmpty(username)) {
+        if (!StringUtils.hasLength(username)) {
             return null;
         }
 
@@ -324,11 +371,23 @@ public class LoginService {
         return new ModelAndView("login", model.asMap());
     }
 
-    public ModelAndView initiateUserSelect(Model model, List<Person> people, boolean nemIdAuthenticated) {
-        sessionHelper.setAuthenticatedWithNemId(nemIdAuthenticated);
+    public ModelAndView initiateUserSelect(Model model, List<Person> people, boolean nemIdOrMitIdAuthenticated) {
+    	// If the person is in a dedicated activation flow,
+        // the list of available people will be filtered to only match the people that CAN be activated
+        if (sessionHelper.isInDedicatedActivateAccountFlow()) {
+    		people = people.stream().filter(p -> !p.hasNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
+
+    		if (people.isEmpty()) {
+    			sessionHelper.clearSession();
+    			return new ModelAndView("activateAccount/no-account-to-activate-error");
+    		}
+    	}
+
+    	sessionHelper.setAuthenticatedWithNemIdOrMitId(nemIdOrMitIdAuthenticated);
         sessionHelper.setAvailablePeople(people);
 
         model.addAttribute("people", people);
+
         return new ModelAndView("select-user", model.asMap());
     }
 
@@ -367,6 +426,7 @@ public class LoginService {
     public ModelAndView initiateApproveConditions(Model model) {
         sessionHelper.setInApproveConditionsFlow(true);
         model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions().getContent());
+        model.addAttribute("privacy", privacyPolicyService.getPrivacyPolicy().getContent());
         return new ModelAndView("approve-conditions", model.asMap());
     }
 
@@ -388,8 +448,13 @@ public class LoginService {
         PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
         if (person.hasNSISUser() && settings.isForceChangePasswordEnabled()) {
             if (person.getNsisPasswordTimestamp() == null) {
-                log.error("Person: " + person.getUuid() + " has no NSIS Password timestamp");
-                return null;
+                log.warn("Person: " + person.getUuid() + " has no NSIS Password timestamp");
+                
+                // force a password change here - they skipped picking a password during initial enrollment
+                model.addAttribute("forced", true);
+                model.addAttribute("daysLeft", 0);
+                model.addAttribute("alternativeLink", passwordSettingService.getSettings(person.getDomain()).getAlternativePasswordChangeLink());
+                return new ModelAndView("password-expiry-prompt", model.asMap());
             }
 
             LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
@@ -398,6 +463,7 @@ public class LoginService {
             if (person.getNsisPasswordTimestamp().isBefore(almostExpiredTimestamp)) {
                 model.addAttribute("forced", person.getNsisPasswordTimestamp().isBefore(expiredTimestamp));
                 model.addAttribute("daysLeft", ChronoUnit.DAYS.between(expiredTimestamp, person.getNsisPasswordTimestamp()));
+                model.addAttribute("alternativeLink", passwordSettingService.getSettings(person.getDomain()).getAlternativePasswordChangeLink());
                 return new ModelAndView("password-expiry-prompt", model.asMap());
             }
         }
@@ -405,10 +471,24 @@ public class LoginService {
         return null;
     }
 
+    public ModelAndView initiateForceChangePassword(Person person, Model model) {
+        if (person.isForceChangePassword()) {
+            return new ModelAndView("password-force-change-prompt", model.asMap());
+        }
+        return null;
+    }
+
     private ModelAndView createAndSendAssertion(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
         AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-        sessionHelper.setAuthenticatedWithNemId(null);
-        sessionHelper.setPassword(null);
+
+		// attempt to clear any residual incoming authnRequest, to avoid strange behaviour on
+		// any following actions that might not be related to an authnRequest
+		try {
+			sessionHelper.setAuthnRequest(null);
+		}
+		catch (Exception ex) {
+			; // ignore
+		}
 
         try {
             Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
@@ -417,6 +497,9 @@ public class LoginService {
 
             // Create assertion
             MessageContext<SAMLObject> message = assertionService.createMessageContextWithAssertion(authnRequest, person);
+
+            sessionHelper.setAuthenticatedWithNemIdOrMitId(null);
+            sessionHelper.setPassword(null);
 
             loggingUtil.logResponse((Response) message.getMessage(), Constants.OUTGOING);
 
@@ -444,45 +527,36 @@ public class LoginService {
         return null;
     }
 
-    // TODO this logic is now almost the exact same as in NemIdController should probably be merged
-    public ModelAndView continueNemdIDLogin(Model model, HttpServletResponse response, HttpServletRequest request) throws ResponderException, RequesterException {
-        AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-        ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
-
-        if (!(sessionHelper.isAuthenticatedWithNemId() && sessionHelper.getPerson() != null)) {
-            errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new ResponderException("Brugeren tilgik den alternative nemid login uden at have været igennem det normale authentification"));
+    public ModelAndView continueNemIDLogin(Model model, HttpServletResponse response, HttpServletRequest request) throws ResponderException, RequesterException {
+        if (!(sessionHelper.isAuthenticatedWithNemIdOrMitId() && sessionHelper.getPerson() != null)) {
+            ResponderException ex = new ResponderException("Brugeren tilgik den alternative nemid login uden at have været igennem det normale authentification");
+            errorResponseService.sendResponderError(response, sessionHelper.getAuthnRequest(), ex);
             return null;
         }
 
         Person person = sessionHelper.getPerson();
+        AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
 
-        // Check if person has authenticated with their ad password. If they have, replicate the AD password to the nsis password field
-        if (sessionHelper.isAuthenticatedWithADPassword() && person.hasNSISUser()) {
-            Person adPerson = sessionHelper.getADPerson();
-            if (adPerson != null && Objects.equals(adPerson.getId(), person.getId())) {
-                if (!StringUtils.isEmpty(person.getAdPassword())) {
-                    try {
-                        personService.changePassword(person, person.getAdPassword(), false, true);
-                        sessionHelper.setAuthenticatedWithADPassword(false);
-                    } catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException e) {
-                        log.error("Kunne ikke kryptere password, password blev derfor ikke ændret", e);
-                        throw new ResponderException("Der opstod en fejl i skift kodeord");
-                    }
-                }
-            }
-        }
+        return continueLoginWithMitIdOrNemId(person, NSISLevel.SUBSTANTIAL, authnRequest, request, response, model);
+    }
 
-        // Set authentication levels
+    public ModelAndView continueLoginWithMitIdOrNemId(Person person, NSISLevel authenticationLevel, @Nullable AuthnRequest authnRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
+        // Set authentication levels on the session
         sessionHelper.setPerson(person);
-        sessionHelper.setPasswordLevel(NSISLevel.SUBSTANTIAL);
-        sessionHelper.setMFALevel(NSISLevel.SUBSTANTIAL);
+        sessionHelper.setPasswordLevel(authenticationLevel);
+        sessionHelper.setMFALevel(authenticationLevel);
+        sessionHelper.setAuthnInstant(new DateTime());
 
-        // If the SP requires NSIS LOW or above, extra checks required
-        if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-            if (!person.isNsisAllowed()) {
-                throw new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
-            }
-        }
+        // Dedicated Activate Account Flow: Go to "accept terms and conditions"-page
+		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
+            // Any user who has gotten to this point correctly SHOULD not have this configuration
+			if (person.hasNSISUser() || !person.isNsisAllowed()) {
+				sessionHelper.clearSession();
+				return new ModelAndView("activateAccount/no-account-to-activate-error");
+			}
+
+			return initiateApproveConditions(model);
+		}
 
         // Has the user accepted the required conditions?
         if (!person.isApprovedConditions()) {
@@ -494,15 +568,71 @@ public class LoginService {
             return initiateActivateNSISAccount(model, !sessionHelper.isInActivateAccountFlow());
         }
 
+      	// Password Change Flow: Go to "password change"-page
+        if (sessionHelper.isInPasswordChangeFlow()) {
+            return continueChangePassword(model);
+        }
 
-        // If trying to login to anything else than selfservice check if person is locked
-        if (!(serviceProvider instanceof SelfServiceServiceProvider)) {
-            if (person.isLocked()) {
-                return new ModelAndView("error-locked-account");
+        // Check if person has authenticated with their ad password Before MitID/NemID login.
+        // If they have, replicate the AD password to the nsis password field
+        if (sessionHelper.isAuthenticatedWithADPassword() && person.hasNSISUser()) {
+            Person adPerson = sessionHelper.getADPerson();
+            if (adPerson != null && Objects.equals(adPerson.getId(), person.getId())) {
+                if (StringUtils.hasLength(sessionHelper.getPassword())) {
+                    try {
+                        // We ignore the return value of changePassword because we bypass replication to AD
+                        personService.changePassword(person, sessionHelper.getPassword(), true);
+                        sessionHelper.setAuthenticatedWithADPassword(false);
+                    }
+                    catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
+                        log.error("Kunne ikke kryptere password, password blev derfor ikke ændret", e);
+                        throw new ResponderException("Der opstod en fejl i skift kodeord");
+                    }
+                }
             }
         }
 
-        return initiateFlowOrCreateAssertion(model, response, request, person);
+        // Check if the users ForceChangePassword is set to true.
+        // Usually happens if user has been manually activated
+        if (person.isForceChangePassword()) {
+            sessionHelper.setInForceChangePasswordFlow(true);
+            return new ModelAndView("password-force-change-prompt", model.asMap());
+        }
+
+        // AuthnRequest required from here.
+        // Other features does not necessarily require it
+        if (authnRequest == null) {
+            log.warn("No authnRequest found on session, redirecting to index page");
+            return new ModelAndView("redirect:/");
+        }
+
+        ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+
+        // the ServiceProvider might have additional requires of the person, before usage is allowed
+        RequirementCheckResult meetsRequirementsResult = serviceProvider.personMeetsRequirements(person);
+        if (!RequirementCheckResult.OK.equals(meetsRequirementsResult)) {
+            auditLogger.loginRejectedByConditions(person, meetsRequirementsResult);
+            throw new ResponderException("Login afbrudt, da brugeren ikke opfylder kravene til denne tjenesteudbyder");
+        }
+
+        // if the ServiceProvider requires NSIS LOW or above, extra checks required
+        if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
+            if (!person.isNsisAllowed()) {
+                errorResponseService.sendResponderError(httpServletResponse, authnRequest, new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login"));
+                return null;
+            }
+        }
+
+        boolean locked = person.isLocked();
+        boolean onlySelfLocked = person.isOnlyLockedByPerson();
+        boolean selfService = (serviceProvider instanceof SelfServiceServiceProvider);
+
+        // block locker persons (except if they locked themselves and want to access self-service)
+        if (locked && !(onlySelfLocked && selfService)) {
+            return new ModelAndView("error-locked-account");
+        }
+
+        return initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
     }
 
     public ModelAndView continueChangePassword(Model model) throws RequesterException, ResponderException {
@@ -517,7 +647,15 @@ public class LoginService {
             throw new ResponderException("Person var ikke gemt på session da fortsæt password skift blev tilgået");
         }
 
-        model.addAttribute("settings", passwordSettingService.getSettings(person.getDomain()));
+        PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+        String samaccountName = null;
+
+        if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
+        	samaccountName = person.getSamaccountName();
+        }
+		
+        model.addAttribute("samaccountName", samaccountName);
+        model.addAttribute("settings", settings);
         model.addAttribute("passwordForm", new PasswordChangeForm());
 
         return new ModelAndView("changePassword/change-password");

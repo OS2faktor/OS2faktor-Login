@@ -4,31 +4,58 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.data.util.Pair;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.AuditLog;
+import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
+import dk.digitalidentity.common.service.ADPasswordService;
+import dk.digitalidentity.common.service.PasswordSettingService;
 
 @Service
 public class StatisticsService {
 
+	// TODO: autowire service instead, instead of direct DAO access, and recode to use count() instead of find()
 	@Autowired
 	private AuditLogDao auditLogDao;
 
 	@Autowired
 	private PersonDao personDao;
+	
+	@Autowired
+	private ADPasswordService adPasswordService;
+	
+	@Autowired
+	private PasswordSettingService passwordSettingsService;
 
 	@Autowired
 	private StatisticsService self;
+
+	@Cacheable("websocketConnections")
+	public Map<String, Pair<Integer, Integer>> getWebsocketConnections() {
+		Map<String, Pair<Integer, Integer>> connectionMap = new HashMap<>();
+		
+		for (PasswordSetting settings : passwordSettingsService.getAllSettings()) {
+			if ((settings.isReplicateToAdEnabled() || settings.isValidateAgainstAdEnabled()) && settings.getDomain().getParent() == null) {
+				Pair<Integer, Integer> count = adPasswordService.getWebsocketSessionCountPair(settings.getDomain().getName());
+				connectionMap.put(settings.getDomain().getName(), count);
+			}
+		}
+		
+		return connectionMap;
+	}
 
 	@Cacheable("lastHourLogins")
 	public List<Integer> getLoginCountLastHour() {
@@ -114,6 +141,18 @@ public class StatisticsService {
 	})
 	public void cleanupHourly() {
 
+	}
+
+	@Caching(evict = {
+		@CacheEvict(value = "websocketConnections", allEntries = true)
+	})
+	public void cleanupRealtimeValues() {
+
+	}
+	
+	@Scheduled(fixedRate = 2 * 60 * 1000)
+	public void cleanUpTaskRealtimeValues() {
+		self.cleanupRealtimeValues();
 	}
 
 	@Scheduled(fixedRate = 10 * 60 * 1000)

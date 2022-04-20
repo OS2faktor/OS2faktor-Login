@@ -1,6 +1,6 @@
 ﻿using StructureMap;
 
-namespace OS2faktor_Password_Agent
+namespace OS2faktor
 {
     public class DefaultRegistry : Registry
     {

@@ -2,6 +2,7 @@ package dk.digitalidentity.mvc.admin.xlsview;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
@@ -13,14 +14,19 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.springframework.web.servlet.view.document.AbstractXlsView;
+import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.service.PersonService;
 
-public class AuditLogReportXlsView extends AbstractXlsView {
+public class AuditLogReportXlsView extends AbstractXlsxStreamingView {
 	private List<AuditLog> auditLogs;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
+	private ResourceBundleMessageSource resourceBundle;
 
 	@SuppressWarnings("unchecked")
 	@Override
@@ -28,6 +34,7 @@ public class AuditLogReportXlsView extends AbstractXlsView {
 
 		// Get data
 		auditLogs = (List<AuditLog>) model.get("auditLogs");
+		resourceBundle = (ResourceBundleMessageSource) model.get("resourceBundle");
 
 		// Setup shared resources
 		Font headerFont = workbook.createFont();
@@ -44,7 +51,7 @@ public class AuditLogReportXlsView extends AbstractXlsView {
 	}
 
 	private void createAuditLogSheet(Workbook workbook) {
-		Sheet sheet = workbook.createSheet("AuditLogSheet");
+		Sheet sheet = workbook.createSheet("Auditlog");
 
 		ArrayList<String> headers = new ArrayList<>();
 		headers.add("Tidspunkt");
@@ -63,18 +70,17 @@ public class AuditLogReportXlsView extends AbstractXlsView {
 
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
+
+			Person person = entry.getPerson();
+
 			createCell(dataRow, column++, entry.getTts().toString(), null);
 			createCell(dataRow, column++, entry.getIpAddress(), null);
-			createCell(dataRow, column++, entry.getLogAction().toString(), null);
+			createCell(dataRow, column++, resourceBundle.getMessage(entry.getLogAction().getMessage(), null, Locale.ENGLISH), null);
 			createCell(dataRow, column++, entry.getMessage(), null);
-			createCell(dataRow, column++, entry.getCpr().substring(0, 6) + "-xxxx", null);
+			createCell(dataRow, column++, !StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX", null);
 			createCell(dataRow, column++, entry.getPersonName(), null);
-			createCell(dataRow, column++, String.valueOf(entry.getPerson().getId()), null);
-			createCell(dataRow, column++, entry.getPerson().getSamaccountName(), null);
-
-			for (int i = 0; i <= column; i++) {
-				sheet.autoSizeColumn(i);
-			}
+			createCell(dataRow, column++, (person != null ? PersonService.getUsername(person) : ""), null);
+			createCell(dataRow, column++, (person != null ? person.getSamaccountName() : ""), null);
 		}
 	}
 

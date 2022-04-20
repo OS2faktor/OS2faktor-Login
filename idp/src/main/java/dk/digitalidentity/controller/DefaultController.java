@@ -1,6 +1,7 @@
 package dk.digitalidentity.controller;
 
 import java.util.Map;
+import java.util.Objects;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -15,14 +16,30 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
 public class DefaultController implements ErrorController {
 	private ErrorAttributes errorAttributes = new DefaultErrorAttributes();
 
 	@RequestMapping(value = "/error", produces = "text/html")
-	public String errorPage(Model model, HttpServletRequest request) {
+	public String errorPage(Model model, HttpServletRequest request, RedirectAttributes redirectAttributes) {
 		Map<String, Object> body = getErrorAttributes(new ServletWebRequest(request));
+		
+		try {
+			// TODO: could we catch most expire messages like this?
+			if (body.containsKey("status") &&
+				HttpStatus.valueOf((int) body.get("status")) == HttpStatus.FORBIDDEN &&
+				Objects.equals((String) body.get("path"), "/sso/saml/changepassword")) {
+				
+				redirectAttributes.addFlashAttribute("errorMessage", "Din session er udløbet, prøv igen.");
+				return "redirect:/sso/saml/changepassword";
+			
+			}
+		}
+		catch (Exception ex) {
+			; // ignore
+		}
 
 		// Default error message, IdP should not have any saml errors since these are sent back
 		model.addAllAttributes(body);
@@ -42,11 +59,6 @@ public class DefaultController implements ErrorController {
 		}
 
 		return new ResponseEntity<>(body, status);
-	}
-
-	@Override
-	public String getErrorPath() {
-		return "/_dummyErrorPath";
 	}
 
 	private Map<String, Object> getErrorAttributes(WebRequest request) {

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.api.dto.PasswordRequest;
 import dk.digitalidentity.api.dto.PasswordResponse;
+import dk.digitalidentity.api.dto.UnlockRequest;
 import dk.digitalidentity.service.PasswordService;
 
 @RestController
@@ -40,6 +41,17 @@ public class PasswordApi {
 		}
 
 		PasswordResponse response = passwordService.setPassword(request);
+		
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	
+	@PostMapping("/api/unlockAccount")
+	public ResponseEntity<?> unlockAccount(@Valid @RequestBody UnlockRequest request, BindingResult bindingResult) {
+		if (bindingResult.hasErrors()) {
+			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
+		}
+
+		PasswordResponse response = passwordService.unlockAccount(request);
 		
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}

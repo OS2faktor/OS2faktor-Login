@@ -128,7 +128,7 @@ public class LogoutRequestService {
 		outgoingLR.setDestination(destination);
 		outgoingLR.setIssueInstant(new DateTime());
 
-		if (logoutRequest != null && !StringUtils.isEmpty(logoutRequest.getReason())) {
+		if (logoutRequest != null && StringUtils.hasLength(logoutRequest.getReason())) {
 			outgoingLR.setReason(logoutRequest.getReason());
 		}
 		else if (logoutRequest == null) {

@@ -2,15 +2,16 @@
 <html>
 <body>
 	<div th:fragment="table" class="table-responsive">
-		<p th:if="${clients} == null">Fejl! Kunne ikke hente 2-faktor klienter</p>
+		<p th:if="${clients} == null">Fejl! Kunne ikke hente 2-faktor enheder</p>
 		<th:block th:unless="${clients} == null">
-			<table id="mfa-devices" class="table table-striped table-bordered table-hover">
+			<table class="table table-striped table-bordered table-hover mfa-devices">
 				<thead>
 					<tr>
 						<th style="width: 180px;">OS2faktor ID</th>
-						<th style="width: 300px;">Type</th>
+						<th style="width: 180px;">Type</th>
 						<th>Navn</th>
-						<th>NSIS Niveau</th>
+						<th style="width: 160px;">NSIS sikringsniveau</th>
+						<th th:if="${showDeleteAction || showPrimaryAction || (#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction)}" style="width: 100px;">Handlinger</th>
 					</tr>
 				</thead>
 
@@ -18,12 +19,92 @@
 					<tr th:each="client : ${clients}">
 						<td th:text="${client.deviceId}" />
 						<td th:text="#{__${client.type.message}__}" />
-						<td th:text="${client.name}" />
+						<td>
+							<span th:text="${client.name}"></span>
+							<span th:if="${client.prime}" class="badge badge-primary">Primær</span>
+							<span th:if="${client.roaming}" class="badge badge-warning">Roaming</span>
+						</td>
 						<td th:text="#{__${client.nsisLevel.message}__}" />
+
+						<td th:if="${showDeleteAction || showPrimaryAction || (#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction)}">
+							<a th:if="${showLocalDeleteAction && client.localClient}" href="#" onclick="clientService.deleteLocalClient(this)" th:attr="data-deviceid=${client.deviceId}" style="color: black;" title="Slet enhed"><em class="fa fa-fw fa-times"></em></a>
+							<a th:if="${showDeleteAction}" href="#" onclick="deleteClient(this)" th:attr="data-deviceid=${client.deviceId}" style="color: black;" title="Slet enhed"><em class="fa fa-fw fa-times"></em></a>
+							<a th:if="${showPrimaryAction && client.type != T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" href="#" onclick="primaryModalService.setPrimaryClient(this)" th:attr="data-deviceid=${client.deviceId}, data-prime=${client.prime}" style="color: black;">
+								<em th:unless="${client.prime}" class="fa fa-fw fa-heart-o" title="Vælg enhed som primær"></em>
+								<em th:if="${client.prime}" class="fa fa-fw fa-heart" title="Fravælg enhed som primær"></em>
+							</a>
+							<a th:if="${#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction}" style="color: black;" onclick="detailService.getDetails(this)" th:attr="data-deviceid=${client.deviceId}" title="Hent information"><em class="fa fa-fw fa-info"></em></a>
+						</td>
 					</tr>
 				</tbody>
 			</table>
 		</th:block>
 	</div>
+
+	<div th:fragment="detailsModal">
+		<div class="modal inmodal" id="modalClaimDetails" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+			<div class="modal-dialog modal-lg">
+				<div class="modal-content animated fadeIn">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal">
+							<span aria-hidden="true">×</span>
+							<span class="sr-only">Luk</span>
+						</button>
+						<h4 class="modal-title">Registreringsdata for 2-faktor enhed</h4>
+					</div>
+
+					<div class="modal-body">
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Tidspunkt for oprettelse</label>
+							<input th:value="${#dates.format(client.created, 'yyyy-MM-dd HH:mm')}" class="col-sm-8 form-control" disabled="disabled">
+						</div>
+
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Tidspunkt for bruger tilkobling</label>
+							<input th:value="${#dates.format(client.associatedUserTimestamp, 'yyy-MM-dd HH:mm')}" class="col-sm-8 form-control" disabled="disabled">
+						</div>
+
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">NemID PID</label>
+							<input th:value="${client.pid}" class="col-sm-8 form-control" disabled="disabled">
+						</div>
+
+						<div class="form-group row" th:if="${localClient}">
+							<label class="col-sm-12 col-form-label" id="">2-faktor enheden er koblet til personen via selvbetjeningen</label>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script th:fragment="detailsScript" th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+		var detailService;
+        $(document).ready(function() {
+			detailService = new DetailService();
+        });
+
+        function DetailService() {
+        	this.getDetails = function(obj) {
+				var deviceId = $(obj).data('deviceid');
+        		$('#detailsModal').load('/admin/fragment/modal/mfa/' + deviceId + '/details', function(responseTxt, statusTxt, xhr) {
+        			if(statusTxt == 'error') {
+        				toastr.error("Kunne ikke hente registreringsdata for den valge 2-faktor enhed. Prøv igen.");
+        			}
+        			else {
+						$('#modalClaimDetails').modal("show");
+        			}
+				});
+			}
+        }
+
+        /*]]>*/
+	</script>
 </body>
 </html>

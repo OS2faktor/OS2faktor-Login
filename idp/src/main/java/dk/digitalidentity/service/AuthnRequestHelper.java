@@ -19,7 +19,7 @@ public class AuthnRequestHelper {
 	public String getConsumerEndpoint(AuthnRequest authnRequest) throws ResponderException, RequesterException  {
 		String assertionConsumerServiceURL = authnRequest.getAssertionConsumerServiceURL();
 
-		if (StringUtils.isEmpty(assertionConsumerServiceURL)) {
+		if (!StringUtils.hasLength(assertionConsumerServiceURL)) {
 			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
 			assertionConsumerServiceURL = serviceProvider.getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS).getDefaultAssertionConsumerService().getLocation();
 		}

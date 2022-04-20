@@ -1,33 +1,65 @@
 package dk.digitalidentity.common.service;
 
-import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.dao.model.PasswordHistory;
 import java.io.UnsupportedEncodingException;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.PersonDao;
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Group;
+import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
+import dk.digitalidentity.common.dao.model.PasswordHistory;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
+import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.log.AuditLogger;
-import org.springframework.util.StringUtils;
+import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class PersonService {
+	
+	/*
+	 * SELECT p.id
+  		FROM persons p
+  			INNER JOIN (
+        			SELECT pa.id AS id, max(r.revtstmp) AS tts
+        			FROM persons_aud pa
+        			JOIN revinfo r ON r.id = pa.rev GROUP BY pa.id) rs
+     			ON rs.id = p.id
+  			WHERE p.locked_dataset = 1
+    			AND rs.tts < ((UNIX_TIMESTAMP() - 60 * 60 * 24 * 30 * 13) * 1000);
+	 */
+	private static final String SELECT_PERSON_IDS = "SELECT p.id FROM persons p INNER JOIN (SELECT pa.id AS id, max(r.revtstmp) AS tts FROM persons_aud pa JOIN revinfo r ON r.id = pa.rev GROUP BY pa.id) rs ON rs.id = p.id WHERE p.locked_dataset = 1 AND rs.tts < ((UNIX_TIMESTAMP() - 60 * 60 * 24 * 30 * 13) * 1000);";
 
+	/*
+	 * DELETE FROM persons_aud
+		WHERE id = ?;
+	 */
+	private static final String DELETE_FROM_AUD_BY_ID = "DELETE FROM persons_aud WHERE id = ?;";
+	
 	@Autowired
 	private PersonDao personDao;
 
@@ -45,6 +77,13 @@ public class PersonService {
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private ADPasswordService adPasswordService;
+
+	@Qualifier("defaultTemplate")
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	public Person getById(long id) {
 		return personDao.findById(id);
@@ -76,7 +115,7 @@ public class PersonService {
 	}
 
 	public List<Person> getAllAdminsAndSupporters() {
-		return personDao.findByAdminTrueOrRegistrantTrueOrSupporterNotNull();
+		return personDao.findByAdminTrueOrServiceProviderAdminTrueOrRegistrantTrueOrSupporterNotNullOrUserAdminTrue();
 	}
 
 	public List<Person> saveAll(List<Person> entities) {
@@ -87,21 +126,72 @@ public class PersonService {
 		return personDao.findBySamaccountName(samAccountName);
 	}
 
+	@Transactional
+	public List<Person> getBySamaccountNameFullyLoaded(String samAccountName) {
+		List<Person> bySamaccountName = personDao.findBySamaccountName(samAccountName);
+		bySamaccountName.forEach(p -> p.getGroups().forEach(PersonGroupMapping::loadFully));
+		return bySamaccountName;
+	}
+
 	public List<Person> getByDomain(String domain) {
 		Domain domainObj = domainService.getByName(domain);
 		if (domainObj == null) {
-			return null;
+			return Collections.emptyList();
 		}
 
-		return personDao.findByDomain(domainObj);
+		return getByDomain(domainObj, false);
 	}
 
-	public List<Person> getByDomain(Domain domain) {
-		return personDao.findByDomain(domain);
+
+	public List<Person> getByDomain(String domain, boolean searchChildren) {
+		Domain domainObj = domainService.getByName(domain);
+		if (domainObj == null) {
+			return Collections.emptyList();
+		}
+
+		return getByDomain(domainObj, searchChildren);
+	}
+
+	public List<Person> getByDomain(Domain domain, boolean searchChildren) {
+		ArrayList<Domain> toBeSearched = new ArrayList<>();
+		toBeSearched.add(domain); // Always search the main domain
+
+		if (searchChildren && domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
+			List<Domain> childDomains = domain.getChildDomains();
+
+			if (childDomains != null && !childDomains.isEmpty()) {
+				toBeSearched.addAll(childDomains);
+			}
+		}
+
+		return personDao.findByDomainIn(toBeSearched);
+	}
+
+	public List<Person> getByNotInGroup(Group group) {
+		return personDao.findDistinctByGroupsGroupNotOrGroupsGroupNull(group);
+	}
+
+	public List<Person> getByDomainAndNotNSISAllowed(Domain domain) {
+		return personDao.findByDomainAndNsisAllowed(domain, false);
 	}
 
 	public List<Person> getByDomainAndCpr(Domain domain, String cpr) {
-		return personDao.findByDomainAndCpr(domain, cpr);
+		return getByDomainAndCpr(domain, cpr, false);
+	}
+
+	public List<Person> getByDomainAndCpr(Domain domain, String cpr, boolean searchChildren) {
+		ArrayList<Domain> toBeSearched = new ArrayList<>();
+		toBeSearched.add(domain);
+
+		if (searchChildren && domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
+			List<Domain> childDomains = domain.getChildDomains();
+
+			if (childDomains != null && !childDomains.isEmpty()) {
+				toBeSearched.addAll(childDomains);
+			}
+		}
+
+		return personDao.findByCprAndDomainIn(cpr, toBeSearched);
 	}
 
 	public List<Person> getBySamaccountNameAndDomain(String samAccountName, Domain domain) {
@@ -117,6 +207,7 @@ public class PersonService {
 		person.setBadPasswordCount(person.getBadPasswordCount() + 1);
 
 		if (person.getBadPasswordCount() >= 5) {
+			auditLogger.tooManyBadPasswordAttempts(person);
 			person.setLockedPassword(true);
 			person.setLockedPasswordUntil(LocalDateTime.now().plusMinutes(5L));
 		}
@@ -124,7 +215,8 @@ public class PersonService {
 		save(person);
 	}
 
-	public void correctPasswordAttempt(Person person) {
+	public void correctPasswordAttempt(Person person, boolean authenticatedWithADPassword) {
+		auditLogger.goodPassword(person, authenticatedWithADPassword);
 		if (person.getBadPasswordCount() > 0) {
 			person.setBadPasswordCount(0L);
 
@@ -132,8 +224,8 @@ public class PersonService {
 		}
 	}
 
-	public boolean changePassword(Person person, String newPassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
-		return changePassword(person, newPassword, false, false);
+	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+		return changePassword(person, newPassword, bypassReplication, true, null);
 	}
 
 	/**
@@ -141,46 +233,93 @@ public class PersonService {
 	 * common use-case for this, is an admin setting the users password, which should not be replicated to AD,
 	 * as that could potentially lock out the user (also we do not want to expose AD passwords to the registrant)
 	 */
-	public boolean changePassword(Person person, String newPassword, boolean bypassValidation, boolean bypassReplication) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException {
+	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication, boolean shouldEncodePassword, Person admin) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
 		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 		PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
-		
-		// Check for reuse of old passwords
-		if (!bypassValidation) {
-			if (settings.isDisallowOldPasswords()) {
-				List<String> lastTenPasswords = passwordHistoryService.getLastTenPasswords(person);
-				for (String oldPassword : lastTenPasswords) {
-					if (encoder.matches(newPassword, oldPassword)) {
-						return false;
-					}
-				}
-			}
+
+		// sanity check if admin is available
+		if (admin != null && !admin.isRegistrant() && person.isNsisAllowed()) {
+			throw new RuntimeException("Kun registranter kan skifte kodeord på personer med en erhvervsidentitet!");
 		}
 
-		// Set new password and log
-		if (person.hasNSISUser()) {
-			String encodedPassword = encoder.encode(newPassword);
+		// Replicate password to AD if enabled
+		boolean replicateToAD = false;
+		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
+		
+		// we want to avoid replicating pre-encoded passwords (just an extra safety check, to protect against lazy programmers ;))
+		// we can't replicate passwords that are already encoded,
+		// so in addition to bypassReplication we check if we are asked to encode the password while changing it as a sanity check
+		if (!bypassReplication && shouldEncodePassword) {
+			if (settings.isReplicateToAdEnabled() && StringUtils.hasLength(person.getSamaccountName())) {
+				adPasswordStatus = passwordChangeQueueService.attemptPasswordChange(person, newPassword);
+
+				switch (adPasswordStatus) {
+		            case FAILURE:
+		            case TECHNICAL_ERROR:
+		            	// this should be handled by the caller - either bypass replication, or fail
+		            	return adPasswordStatus;
+		            case NOOP:
+		            case OK:
+		            case TIMEOUT:
+		            	// these are OK
+		            	break;
+	            }
+
+				replicateToAD = true;
+			}
+		}
+		else {
+			PasswordChangeQueue change = new PasswordChangeQueue();
+			change.setStatus(ReplicationStatus.DO_NOT_REPLICATE);
+			change.setDomain(person.getDomain().getName());
+			change.setSamaccountName(person.getSamaccountName());
+			change.setUuid(person.getUuid());
+			change.setPassword("N/A");
+
+			passwordChangeQueueService.save(change);
+		}
+
+		// set new password
+		boolean nsisPasswordChanged = false;
+		if (person.isNsisAllowed()) {
+			String encodedPassword = newPassword;
+			if (shouldEncodePassword) {
+				encodedPassword = encoder.encode(newPassword);
+			}
+
 			person.setNsisPassword(encodedPassword);
 			person.setNsisPasswordTimestamp(LocalDateTime.now());
+			person.setForceChangePassword(false);
 
 			PasswordHistory passwordHistory = new PasswordHistory();
 			passwordHistory.setPerson(person);
 			passwordHistory.setPassword(encodedPassword);
 
 			passwordHistoryService.save(passwordHistory);
+			nsisPasswordChanged = true;
 
-			auditLogger.changePasswordByPerson(person);
 			save(person);
 		}
-		
-		// Replicate password to AD if enabled
-		if (!bypassReplication) {
-			if (settings.isReplicateToAdEnabled() && !StringUtils.isEmpty(person.getSamaccountName())) {
-				passwordChangeQueueService.createChange(person, newPassword);
-			}
+
+		// auditlog it
+		if (admin == null) {
+			auditLogger.changePasswordByPerson(person, nsisPasswordChanged, replicateToAD);
+		}
+		else {
+			auditLogger.changePasswordByAdmin(admin, person, replicateToAD);
 		}
 
-		return true;
+		return adPasswordStatus;
+	}
+	
+	public ADPasswordStatus unlockADAccount(Person person) {
+		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
+		if (StringUtils.hasLength(person.getSamaccountName())) {
+			adPasswordStatus = adPasswordService.attemptUnlockAccount(person);
+			auditLogger.unlockAccountByPerson(person);
+		}
+
+		return adPasswordStatus;
 	}
 
 	@Transactional(rollbackFor = Exception.class)
@@ -220,5 +359,35 @@ public class PersonService {
 		person.setApprovedConditionsTts(null);
 		person.setNsisPassword(null);
 		person.setNsisPasswordTimestamp(null);
+	}
+
+	public static String getUsername(Person person) {
+		if (person == null) {
+			return null;
+		}
+		else if (StringUtils.hasLength(person.getSamaccountName())) {
+			return person.getSamaccountName();
+		}
+
+		return person.getUserId();
+	}
+
+	@Transactional(rollbackFor = Exception.class)
+	public void cleanUp() {
+		List<Long> idsToBeDeleted = jdbcTemplate.query(SELECT_PERSON_IDS, new Object[] {}, (RowMapper<Long>) (rs, rownum) -> {
+			return rs.getLong("id");
+		});
+		
+		for (Long id : idsToBeDeleted) {
+		    Object[] args = new Object[] {id};
+		    int rows = jdbcTemplate.update(DELETE_FROM_AUD_BY_ID, args);
+
+		    log.info("Deleted " + rows + " aud row for id = " + id);
+		}
+		
+		List<Person> personsToBeDeleted = personDao.findAll().stream().filter(p -> idsToBeDeleted.contains(p.getId())).collect(Collectors.toList());
+		personDao.deleteAll(personsToBeDeleted);
+		
+		log.info("Deleted " + personsToBeDeleted.size() + " persons because they where removed from dataset more than 13 months ago");
 	}
 }

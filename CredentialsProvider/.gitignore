@@ -1,0 +1,18 @@
+# Exclude large exe files and msi, just compile again
+AdvancedInstaller/**/*.msi
+AdvancedInstaller/os2faktor-cache
+AdvancedInstaller/Prerequisites
+
+# The packages folder can be ignored because of Package Restore
+CredentialProviderFunctionality/[Pp]ackages/*
+
+# except build/, which is used as an MSBuild target.
+!CredentialProviderFunctionality/[Pp]ackages/build/
+
+# Uncomment if necessary however generally it will be regenerated when needed
+!CredentialProviderFunctionality/[Pp]ackages/repositories.config
+
+.vs/*
+
+obj/*
+bin/*

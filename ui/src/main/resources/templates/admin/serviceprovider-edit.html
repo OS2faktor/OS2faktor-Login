@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-gear"></em> &nbsp; Tjenesteudbyder</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="serviceProviderService.save()" class="btn btn-primary">
+										<em class="fa fa-floppy-o"></em>
+										&nbsp;
+										Gem
+									</button>
+									<a th:href="@{/admin/konfiguration/tjenesteudbydere/} + ${serviceprovider.id}" class="btn btn-danger" style="color:#ffffff !important">
+										<em class="fa fa-ban"></em>
+										&nbsp;
+										Annuller
+									</a>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<form>
+									<input type="text" class="form-control" th:field="${serviceprovider.id}" style="display:none;"/>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Navn</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="${serviceprovider.name}"/>
+										</div>
+									</div>
+									
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Entity ID</label>
+										<div class="col-sm-9">
+											<input title="EntityID kan aldrig redigeres, den hentes fra metadata" type="text" class="form-control" th:field="${serviceprovider.entityId}" disabled="disabled" t/>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">NameID Format</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" id="nameIdFormatSelect">
+												<option th:each="nameIdFormat : ${T(dk.digitalidentity.common.dao.model.enums.NameIdFormat).values()}" th:value="${nameIdFormat}" th:text="${nameIdFormat.value}" th:selected="${nameIdFormat} == ${serviceprovider.nameIdFormat}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">NameID Værdi</label>
+										<div class="col-sm-9">
+											<select id="nameIdValueDropdown" class="form-control m-b" onchange="serviceProviderService.nameIdValueChange();">
+												<option id="nameIdValueOther" label="Andet" value="" ></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'userId'" label="UserId" value="userId" ></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'sAMAccountName'" label="sAMAccountName" value="sAMAccountName" ></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'uuid'" label="UUID" value="uuid" ></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'cpr'" label="CPR" value="cpr" ></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<div class="offset-md-3 col-sm-9">
+											<input placeholder="Indtast venligst et felt alle personer har, f.eks. en attribut" th:field="${serviceprovider.nameIdValue}" type="text" class="form-control" style="display: none;"/>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" id="forceMfaRequiredSelect">
+												<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${serviceprovider.forceMfaRequired}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" id="nsisLevelRequiredSelect">
+												<option th:each="nsisLevel : ${T(dk.digitalidentity.common.dao.model.enums.NSISLevel).values()}" th:value="${nsisLevel}" th:text="#{__${nsisLevel.message}__}" th:selected="${nsisLevel} == ${serviceprovider.nsisLevelRequired}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks passwordField">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks passwordField">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Aktiv</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks passwordField">
+											</label>
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Metadata konfiguration</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<label class="col-sm-2 col-form-label">
+										<input class="i-checks" type="radio" value="url" id="metadataRadio1" name="metadataRadios" th:checked="${#strings.isEmpty(serviceprovider.metadataContent)}">
+										URL
+									</label>
+									<div class="col-sm-10">
+										<input type="text" class="form-control" th:field="${serviceprovider.metadataUrl}"/>
+									</div>
+								</div>
+
+								<div class="hr-line-dashed"></div>
+
+								<div class="form-group row">
+									<label class="col-sm-2 col-form-label">
+										<input class="i-checks" type="radio" value="file" id="metadataRadio2" name="metadataRadios" th:checked="${!#strings.isEmpty(serviceprovider.metadataContent)}">
+										XML fil
+									</label>
+									<div class="col-sm-10">
+										<div class="custom-file">
+											<input id="metadataFile" type="file" class="custom-file-input" onchange="metadataService.handleFileSelection()">
+											<label for="metadataFile" class="custom-file-label">Upload ny metadata XML fil her ellers bruges den eksisterende fil</label>
+											<input th:field="${serviceprovider.metadataContent}" type="text" style="display:none;">
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Claims</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="modalService.openCreateClaimModal()" class="btn btn-primary">Opret nyt claim</button>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="claimTable" class="table table-striped table-bordered table-hover">
+										<thead>
+										<tr>
+											<th style="display:none;">Id</th>
+											<th style="width: 200px;">Type</th>
+											<th>Attribut</th>
+											<th style="width: 300px;">Værdi</th>
+											<th style="width: 80px;">Handlinger</th>
+										</tr>
+										</thead>
+
+										<tbody>
+										<tr th:each="claim : ${serviceprovider.claims}">
+											<td data-type="id" th:data-extop="${claim.externalOperation}" th:data-extoparg="${claim.externalOperationArgument}" th:text="${claim.id}" style="display:none;"/>
+											<td data-type="type" th:attr="data-enum=${claim.type}" th:text="${claim.type.message}" />
+											<td data-type="attribute" th:text="${claim.attribute}" />
+											<td data-type="value" th:text="${claim.value}" />
+											<td>
+												<a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim">
+													<em class="fa fa-fw fa-pencil"></em>
+												</a>
+												<a onclick="modalService.delete(this)" title="Slet claim">
+													<em class="fa fa-fw fa-times"></em>
+												</a>
+											</td>
+										</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox" id="iboxConditionalAccess">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group">
+									<div class="form-group row">	
+										<div class="col-sm-12">
+											<h4>Begræns adgang til udvalgte domæner</h4>
+										</div>
+									</div>
+
+									<div class="table-responsive conditionDomainTable">
+										<table id="conditionDomainTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 60px;">Valgt</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="domain : ${@domainService.getAll()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${domain.id}" type="checkbox" class="i-checks conditionDomainCheckbox"></label>
+													</td>
+													<td th:text="${domain.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+								
+								<div class="form-group">
+									<div class="form-group row">
+										<div class="col-sm-12">
+											<h4>Begræns adgang til udvalgte grupper</h4>
+										</div>
+									</div>
+
+									<div class="table-responsive conditionGroupTable">
+										<table id="conditionGroupTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 60px;">Valgt</th>
+													<th style="width: 200px;">Domæne</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="group : ${@groupService.getAll()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${group.id}" type="checkbox" class="i-checks conditionGroupCheckbox"></label>
+													</td>
+													<td th:text="${group.domain.name}"></td>
+													<td th:text="${group.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<!-- Claim Modal -->
+	<div class="modal inmodal" id="modalClaim" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title" id="modalClaimTitle">Opret/Rediger claim</h4>
+				</div>
+				<div class="modal-body">
+					<input id="modalIDField" style="display:none;">
+
+					<div class="form-group row">
+						<label class="col-sm-2 col-form-label">Type</label>
+						<select class="col-sm-10 form-control m-b" id="modalTypeSelect" onchange="modalService.typeChanged(this)">
+							<option th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}" th:value="${claimType}" th:text="${claimType.message}"></option>
+						</select>
+					</div>
+
+					<div class="form-group row" id="modalExternalOperation">
+						<label class="col-sm-2 col-form-label" id="modalExternalOperationLabel">Operation</label>
+						<select class="col-sm-10 form-control" id="modalExternalOperationField" onchange="modalService.externalOperationChanged(this)">
+							<option th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.RoleCatalogueOperation).values()}" th:value="${claimType}" th:text="${claimType.message}"></option>
+						</select>
+					</div>
+					
+					<div class="form-group row" id="modalExternalOperationArgument">
+						<label class="col-sm-2 col-form-label" id="modalExternalOperationArgumentLabel">Argument</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast værdi" id="modalExternalOperationArgumentField"></input>
+					</div>
+
+					<div class="form-group row" id="modalAttribute">
+						<label class="col-sm-2 col-form-label" id="modalAttributeLabel">Attribut</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast attribut" id="modalAttributeField"></input>
+					</div>
+
+					<div class="form-group row" id="modalValue">
+						<label class="col-sm-2 col-form-label" id="modalValueLabel">Værdi</label>
+						<input class="col-sm-10 form-control" placeholder="Indtast værdi" id="modalValueField"></input>
+					</div>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-danger" data-dismiss="modal">Annuller</button>
+					<button type="button" class="btn btn-primary" onclick="modalService.save()">Gem</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End Claim Modal -->
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	
+</body>
+<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var rcEnabled = [[${@commonConfiguration.roleCatalogue.enabled}]];
+		var rootUrl = [[@{/}]];
+		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
+		var claimTypes = [[${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}]];
+
+		var buttonConfirm = [[#{shared.button.save}]];
+		var buttonCancel = [[#{shared.button.cancel}]];
+
+		var nameIdValue = [[${serviceprovider.nameIdValue}]];
+		var forceMfaRequired = [[${serviceprovider.forceMfaRequired}]];
+		var conditionsDomains = [[${serviceprovider.conditionsDomains}]];
+		var conditionsGroups = [[${serviceprovider.conditionsGroups}]];
+		+]*/
+
+		// messages
+		var savetitle = "Vil du gemme ændringerne?";
+		var saveText = "Det kan tage op til 10 minutter før de gemte ændringer tager effekt";
+		var dynamicPlaceholderMsg = "Indtast person felt";
+		var staticPlaceholderMsg = "Indtast værdi";
+		
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var modalService;
+		var metadataService;
+		var serviceProviderService;
+		var conditionsService;
+		$(document).ready(function() {
+			serviceProviderService = new ServiceProviderService();
+			serviceProviderService.init();
+
+			modalService = new ModalService();
+			modalService.init();
+
+			metadataService = new MetadataService();
+			metadataService.init();
+
+			conditionsService = new ConditionsService();
+			conditionsService.init();
+		});
+
+		function ServiceProviderService() {
+			this.init = function() {
+				serviceProviderService.nameIdActualValueToggleVisible();
+				serviceProviderService.defaultValues();
+			}
+
+			this.defaultValues = function() {
+				if (nameIdValue == null) {
+					$("#nameIdValueDropdown").val("sAMAccountName").change();
+				}
+				if (forceMfaRequired == null) {
+					$("#forceMfaRequiredSelect").val("DEPENDS").change();
+				}
+			}
+
+			this.save = function() {
+				swal({
+						title: savetitle,
+						text: saveText,
+						showCancelButton: true,
+						confirmButtonColor: "#3085d6",
+						confirmButtonText: buttonConfirm,
+						cancelButtonText: buttonCancel,
+						closeOnConfirm: true,
+						closeOnCancel: true
+					},
+					function(isConfirm) {
+						if (isConfirm) {
+							var data = {};
+
+							// Get all normal fields.
+							var id = $('#id').val();
+
+							data.id = id;
+							data.name = $('#name').val();
+							data.entityId = $('#entityId').val();
+							data.nameIdValue = $('#nameIdValue').val();
+
+							// Handle dropdowns
+							data.nameIdFormat = $('#nameIdFormatSelect option:selected').val();
+							data.forceMfaRequired = $('#forceMfaRequiredSelect option:selected').val();
+							data.nsisLevelRequired = $('#nsisLevelRequiredSelect option:selected').val();
+								
+							// Handle iCheck
+							data.preferNemid = $('input[name=preferNemid]').iCheck('update')[0].checked;
+							data.encryptAssertions = $('input[name=encryptAssertions]').iCheck('update')[0].checked;
+							data.enabled = $('input[name=enabled]').iCheck('update')[0].checked;
+							
+							// Handle metadata
+							var selectedMetadataOption = $(".checked input[name=metadataRadios]").val();
+							
+							if(selectedMetadataOption == "file") {
+								data.metadataContent = $('#metadataContent').val();
+							} 
+							else if (selectedMetadataOption == "url") {
+								data.metadataUrl = $('#metadataUrl').val();
+							} 
+
+							// Handle Claims table
+							var claims = $('#claimTable tbody tr');
+
+							var claimData = [];
+							for (var i = 0; i < claims.length; i++) {
+								var claimObj = {};
+
+								claimObj.id = $(claims[i]).children('td[data-type="id"]').text();
+								claimObj.type = $(claims[i]).children('td[data-type="type"]').data('enum');
+								claimObj.attribute = $(claims[i]).children('td[data-type="attribute"]').text();
+								claimObj.value = $(claims[i]).children('td[data-type="value"]').text();
+								claimObj.externalOperation = $(claims[i]).children('td[data-type="id"]').data('extop');
+								claimObj.externalOperationArgument = $(claims[i]).children('td[data-type="id"]').data('extoparg');
+
+								claimData.push(claimObj);
+							}
+
+							data.claims = claimData;
+
+							// Handle conditions
+							var conditionsDomains = [];
+							$('.conditionDomainCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {	
+									conditionsDomains.push({id: $(element).data("id")});
+								}
+							})
+							
+							var conditionsGroups = [];
+							$('.conditionGroupCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {
+									conditionsGroups.push({id: $(element).data("id")});
+								}
+							})
+
+							data.conditionsDomains = conditionsDomains;
+							data.conditionsGroups = conditionsGroups;
+
+							// Save
+							$.ajax({
+								url: spUrl + "edit",
+								method: "POST",
+								headers: {
+			     			      'X-CSRF-TOKEN': token
+			     			   	},
+			     			   	contentType: 'application/json',
+			     			   	data: JSON.stringify(data),
+			     			   	success: function(data, textStatus, jQxhr) {
+									window.location.replace(spUrl + data);
+			     			   	},
+			     			   	error: function(jQxhr, textStatus, errorThrown) {
+									toastr.error("Fejl: " + jQxhr.responseText);
+			     			   	}
+							});
+						}
+					}
+				);	
+			}
+
+			this.nameIdValueChange = function() {
+				var value = $('#nameIdValueDropdown').children("option:selected").val();
+				$('#nameIdValue').val(value);
+				serviceProviderService.nameIdActualValueToggleVisible();
+			}
+
+			this.nameIdActualValueToggleVisible = function() {
+				var value = $('#nameIdValueDropdown').children("option:selected").val();
+
+				if (value === "") {
+					$('#nameIdValue').show();
+				}
+				else {
+					$('#nameIdValue').hide();
+				}
+			}
+		}
+
+
+		function ConditionsService() {
+			this.init = function() {
+				conditionsService.initTables();
+			}
+
+			this.initTables = function() {
+				// Domain table
+				conditionsDomains.forEach(element => {
+					$('.conditionDomainCheckbox[data-id="'+ element.id +'"]').iCheck('check');
+				});
+				conditionsService.initDatatables("#conditionDomainTable");
+				
+				// Group table
+				conditionsGroups.forEach(element => {
+					$('.conditionGroupCheckbox[data-id="'+ element.id +'"]').iCheck('check');
+				});
+				conditionsService.initDatatables("#conditionGroupTable");
+				
+				// Update checkboxes
+				$('#iboxConditionalAccess').iCheck('update'); // Update all ichecks with values set by jquery
+			}
+
+			this.initDatatables = function(id) {
+				var table = $(id).DataTable({
+	                "pageLength": 25,
+	                "bLengthChange": false,
+	                "bSort": true,
+	                "responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+			        "language": {
+			        	"search":	   "Søg",
+						"lengthMenu":   "_MENU_ hændelser per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ grupper",
+						"zeroRecords":  "Ingen grupper...",
+						"infoEmpty":	"Henter grupper...",
+						"infoFiltered": "(ud af _MAX_ hændelser)",
+			            "paginate": {
+			                "previous": "Forrige",
+			                "next": "Næste"
+			            }
+			        }
+	            });
+
+				// Configure searching
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+		
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+		}
+
+		function MetadataService() {
+			this.init = function() {
+				// Init of file selector
+				$('.custom-file-input').on('change', function() {
+				   let fileName = $(this).val().split('\\').pop();
+				   $(this).next('.custom-file-label').addClass("selected").html(fileName);
+				});
+
+				// Add Metadata Radio button listener
+				$('input[name="metadataRadios"]').on('ifClicked', function (event) {
+					metadataService.radioChanged($(this).val());
+				});
+
+				// Set initial state of metadataRadio disabled
+				metadataService.radioChanged($(".checked input[name=metadataRadios]").val());
+			}
+
+			this.handleFileSelection = function() {
+				var fileChooser = $('#metadataFile');
+				var file = fileChooser[0].files[0];
+				var reader = new FileReader();
+
+				metadataService.waitForTextReadComplete(reader);
+				reader.readAsText(file);
+			}
+
+			this.waitForTextReadComplete = function(reader) {
+				reader.onloadend = function(event) {
+					var text = event.target.result;
+					$('#metadataContent').val(text);
+				}
+			}
+
+			this.radioChanged = function(radioValue) {
+				$('#metadataUrl').attr('disabled', radioValue === "file");
+				$('#metadataFile').attr('disabled', radioValue === "url");
+			}
+		}
+
+		function ModalService() {
+			this.editedRow;
+
+			this.init = function() {
+				if (!rcEnabled) {
+					$('#modalTypeSelect option[value="ROLE_CATALOGUE"]').remove();
+				}
+			}
+
+			this.typeChanged = function(obj) {
+				var claimType = $(obj).children('option:selected').val();
+				if (claimType == 'STATIC') {
+					$('#modalValueField').attr('placeholder', staticPlaceholderMsg);
+
+					$('#modalAttribute').show();
+					$('#modalValue').show();
+					$('#modalExternalOperation').hide();
+					$('#modalExternalOperationArgument').hide();
+				} 
+				else if (claimType == 'DYNAMIC') {
+					$('#modalValueField').attr('placeholder', dynamicPlaceholderMsg);
+
+					$('#modalAttribute').show();
+					$('#modalValue').show();
+					$('#modalExternalOperation').hide();
+					$('#modalExternalOperationArgument').hide();
+				}
+				else if (claimType == 'ROLE_CATALOGUE') {
+					$('#modalAttribute').show();
+					$('#modalValue').show();
+					$('#modalExternalOperation').show();
+					$('#modalExternalOperationArgument').show();
+					
+					// update UI depending on choice in dropdown
+					$("#modalExternalOperationField").trigger("change");
+				}
+			}
+
+			this.externalOperationChanged = function(obj) {
+				var operationType = $(obj).children('option:selected').val();
+				if (operationType == 'CONDITION_MEMBER_OF_USER_ROLE') {
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på Jobfunktionsrolle');
+					$('#modalValue').show();
+				}
+				else if (operationType == 'CONDITION_MEMBER_OF_SYSTEM_ROLE') {
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på Systemrolle');
+					$('#modalValue').show();
+				}
+				else if (operationType == 'GET_USER_ROLES') {
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
+					$('#modalValue').hide();
+				}
+				else if (operationType == 'GET_SYSTEM_ROLES') {
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
+					$('#modalValue').hide();
+				}
+				else if (operationType == 'GET_SYSTEM_ROLES_OIOBPP') {
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
+					$('#modalValue').hide();
+				}
+			}
+
+			this.showModal = function() {
+
+				// clear input fields
+				$('#modalExternalOperationArgumentField').val("");
+				$('#modalAttributeField').val("");
+				$('#modalValueField').val("");
+
+				// make sure dropdowns are set to default values
+				$('#modalExternalOperationField').val("GET_USER_ROLES");
+				$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
+				$("#modalTypeSelect").val("STATIC");
+
+				// display default fields
+				$('#modalAttribute').show();
+				$('#modalValue').show();
+				$('#modalExternalOperation').hide();
+				$('#modalExternalOperationArgument').hide();
+				
+				// show
+				$('#modalClaim').modal("show");
+			}
+
+			this.openCreateClaimModal = function() {
+				$('#modalIDField').val(0);
+				modalService.editedRow = null;
+				
+				modalService.showModal();
+			}
+
+			this.save = function() {
+				var tableBody = $("#claimTable tbody");
+
+				var id = $('#modalIDField').val();
+
+				var innerRow =
+					'<td data-type="id" data-extop="' + $('#modalExternalOperationField option:selected').val() + '" data-extoparg="' + $('#modalExternalOperationArgumentField').val() + '" style="display:none;">' + id + '</td>' +
+					'<td data-type="type" data-enum="' + $('#modalTypeSelect option:selected').val() + '">' + $('#modalTypeSelect option:selected').text() + '</td>' +
+					'<td data-type="attribute">' + $('#modalAttributeField').val() + '</td>' +
+					'<td data-type="value">' + $('#modalValueField').val() + '</td>' +
+					'<td><a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim"><em class="fa fa-fw fa-pencil"></em></a>&nbsp;<a onclick="modalService.delete(this)" title="Slet claim"><em class="fa fa-fw fa-times"></em></a></td>';
+
+				if (modalService.editedRow == null) {
+					// Create scenario
+					var newRow = '<tr>' + innerRow + '</tr>';
+					tableBody.append(newRow);
+				}
+				else {
+					// Edit scenario
+					$(modalService.editedRow).closest('tr').html(innerRow);
+				}
+
+				$('#modalClaim').modal("hide");
+			}
+
+			this.edit = function(obj) {
+				modalService.editedRow = obj;
+				modalService.showModal();
+
+				var idColumn = $(obj).closest('tr').children("td[data-type='id']");
+				var id = $(idColumn).text();
+				var extop = $(idColumn).data('extop');
+				var extoparg = $(idColumn).data('extoparg');
+				
+				// set selected type
+				$('#modalTypeSelect option:contains(' + $(obj).closest('tr').children("td[data-type='type']").text() + ')').prop('selected', 'selected');
+				$("#modalTypeSelect").trigger("change");
+
+				// set selected operation
+				if ($('#modalTypeSelect').val() == 'ROLE_CATALOGUE') {
+					$('#modalExternalOperationField').val(extop);
+					$("#modalExternalOperationField").trigger("change");
+				}
+
+				// copy data into fields
+				$('#modalIDField').val(id);
+				$('#modalExternalOperationArgumentField').val(extoparg);
+				$('#modalAttributeField').val($(obj).closest('tr').children("td[data-type='attribute']").text());
+				$('#modalValueField').val($(obj).closest('tr').children("td[data-type='value']").text());
+			}
+
+			this.delete = function(obj) {
+				$(obj).closest('tr').remove();
+			}
+		}
+		
+		/*]]>*/
+	</script>
+</html>

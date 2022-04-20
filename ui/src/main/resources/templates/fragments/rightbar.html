@@ -5,14 +5,18 @@
 		<div class="ibox">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
+				<div class="ibox-tools">
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.actions.help')}"></em>
+				</div>
 			</div>
 
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li th:if="${@securityUtil.isLockedByPersonOnly() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/genaktiver}">Re-aktiver identitet</a></li>
-						<li th:if="${@securityUtil.isUnlocked() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/spaerre}">Spær identitet</a></li>
+						<li th:if="${@securityUtil.isLockedByPersonOnly() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/genaktiver}">Re-aktiver brugerkonto</a></li>
+						<li th:if="${@securityUtil.isUnlocked() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/spaerre}">Spær brugerkonto</a></li>
 						<li><a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Få et nyt kodeord</a></li>
+						<li th:if="${page != 'selfservice.unlock-ad-account' and @securityUtil.hasSamAccountName()}"><a th:href="@{/selvbetjening/unlockADAccount}">Lås min AD konto op</a></li>
 						<li th:if="${page != 'selfservice.index'}"><a th:href="@{/selvbetjening}">Gå til min identitet</a></li>
 					</ul>
 				</div>
@@ -22,6 +26,9 @@
 		<div class="ibox">
 			<div class="ibox-title">
 				<h5><em class="fa fa-share"></em> &nbsp; Referencer</h5>
+				<div class="ibox-tools">
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.references.help')}"></em>
+				</div>
 			</div>
 
 			<div class="ibox-content">
@@ -34,15 +41,18 @@
 			</div>
 		</div>
 		
-		<div class="ibox" th:if="${not #lists.isEmpty(@linkService.getAll())}">
+		<div class="ibox" th:if="${not #lists.isEmpty(@linkService.getAllForMe())}">
 			<div class="ibox-title">
 				<h5><em class="fa fa-link"></em> &nbsp; Links</h5>
+				<div class="ibox-tools">
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.links.help')}"></em>
+				</div>
 			</div>
 
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li th:each="link : ${@linkService.getAll()}"><a th:href="${link.link}" th:text="${link.linkText}" target="_blank"></a></li>
+						<li th:each="link : ${@linkService.getAllForMe()}"><a th:href="${link.link}" th:text="${link.linkText}" target="_blank"></a></li>
 					</ul>
 				</div>
 			</div>
@@ -62,12 +72,28 @@
 						<li><a th:href="@{/admin/identiteter}">Se brugere</a></li>
 						<li><a th:href="@{/admin/rapporter}">Hent rapporter</a></li>
 						<li><a th:href="@{/admin/infoboks}">Infoboks</a></li>
+						<li><a th:href="@{/admin/password_change_queue}">Log over kodeordsskifte</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+		
+		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER')">
+			<div class="ibox-title">
+				<h5><em class="fa fa-info"></em> &nbsp; CMS</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li><a th:href="@{/admin/cms/list}">Rediger tekster</a></li>
+						<li><a th:href="@{/admin/cms/logo}">Rediger logo</a></li>
 					</ul>
 				</div>
 			</div>
 		</div>
 
-		<div class="ibox" sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
+		<div class="ibox" sec:authorize="hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_USER_ADMIN')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gears"></em> &nbsp; Konfiguration</h5>
 			</div>
@@ -75,11 +101,44 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/konfiguration/password}">Opsæt passwordregler</a></li>
-						<li><a th:href="@{/admin/konfiguration/sessioner}">Opsæt sessionsudløb</a></li>
-						<li><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
-						<li><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
-						<li><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/password}">Opsæt kodeordsregler</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/sessioner}">Opsæt sessionsudløb</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/privacypolicy}">Opsæt privatlivspolitik</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_USER_ADMIN')"><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+
+		<div class="ibox" sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
+			<div class="ibox-title">
+				<h5><em class="fa fa-users"></em> &nbsp; Grupper</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li><a th:href="@{/admin/konfiguration/grupper/0/rediger}">Opret ny gruppe</a></li>
+						<li><a th:href="@{/admin/konfiguration/grupper}">Se grupper</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+
+		<div class="ibox" sec:authorize="hasRole('ROLE_SERVICE_PROVIDER_ADMIN')">
+			<div class="ibox-title">
+				<h5><em class="fa fa-gears"></em> &nbsp; Tjenesteudbydere</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere/0/edit}">Opret ny tjenesteudbyder</a></li>
+						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere}">Se Tjenesteudbydere</a></li>
+						<li><a th:href="@{/admin/konfiguration/radiusklienter/0/edit}">Opret ny RADIUS klient</a></li>
+						<li><a th:href="@{/admin/konfiguration/radiusklienter}">Se RADIUS klienter</a></li>
 					</ul>
 				</div>
 			</div>
@@ -93,12 +152,32 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/registration}">Aktivering af erhvervsidentiter</a></li>
-						<li><a th:href="@{/admin/registration/mfa}">Tilknyt MFA klient</a></li>
+						<li><a th:href="@{/admin/registration}">Aktivering af brugerkonto</a></li>
+						<li><a th:href="@{/admin/registration/mfa}">Tilknyt 2-faktor enhed</a></li>
+						<li><a th:href="@{/admin/registration/changepassword}">Tildel nyt kodeord</a></li>
 					</ul>
 				</div>
 			</div>
 		</div>
 	</div>
+
+	
+	<div th:fragment="otherUsers" class="col-lg-3">
+		<div class="ibox" sec:authorize="hasRole('ROLE_CHANGE_PASSWORD_ON_OTHERS')">
+			<div class="ibox-title">
+				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
+			</div>
+
+			<div class="ibox-content">
+				<div class="row">
+					<ul>
+						<li><a th:href="@{/andre-brugere/kodeord/skift/list}">Skift kodeord på bruger</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
 </body>
 </html>

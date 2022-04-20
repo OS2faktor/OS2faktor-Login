@@ -2,10 +2,15 @@ package dk.digitalidentity.common.service;
 
 import dk.digitalidentity.common.dao.DomainDao;
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Person;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class DomainService {
@@ -32,10 +37,47 @@ public class DomainService {
 	}
 
 	public List<Domain> getAll() {
-		return domainDao.findAll();
+		List<Domain> domains = domainDao.findAll();
+		
+		domains.sort(Comparator.comparing(Domain::toString));
+		
+		//making sure the default domain OS2faktor is last in list
+		Domain defaultDomain = domains.stream().filter(d -> d.getName().equals("OS2faktor")).findAny().orElse(null);
+		if (defaultDomain != null) {
+			domains.remove(defaultDomain);
+			domains.add(defaultDomain);
+		}
+
+		return domains;
+	}
+
+	public List<Domain> getAllParents() {
+		List<Domain> domains = domainDao.findAll().stream().filter(d -> d.getParent() == null).collect(Collectors.toList());
+		
+		//making sure the default domain OS2faktor is last in list
+		Domain defaultDomain = domains.stream().filter(d -> d.getName().equals("OS2faktor")).findAny().orElse(null);
+		if (defaultDomain != null) {
+			domains.remove(defaultDomain);
+			domains.add(defaultDomain);
+		}
+		return domains;
 	}
 
 	public void save(Domain domain) {
 		domainDao.save(domain);
+	}
+
+	public Domain findByName(String name) {
+		return domainDao.findByName(name);
+	}
+
+	public Domain getInternalDomain() {
+		return findByName("OS2faktor");
+	}
+	
+	public static boolean isMember(Person person, List<Domain> domains) {
+		Set<Long> domainIds = domains.stream().map(d -> d.getId()).collect(Collectors.toSet());
+		
+		return (domainIds.contains(person.getDomain().getId()));
 	}
 }

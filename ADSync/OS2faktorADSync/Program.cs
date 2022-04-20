@@ -1,6 +1,7 @@
 ﻿using Quartz;
 using StructureMap;
 using System;
+using System.Net;
 using Topshelf;
 using Topshelf.Quartz.StructureMap;
 using Topshelf.StructureMap;
@@ -14,6 +15,8 @@ namespace OS2faktorADSync
 
         static void Main(string[] args)
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
             // Setting Environment directory to store logs to relative paths correctly
             Environment.CurrentDirectory = AppDomain.CurrentDomain.BaseDirectory;
             System.Net.ServicePointManager.ServerCertificateValidationCallback = (senderX, certificate, chain, sslPolicyErrors) => { return true; };
@@ -31,19 +34,74 @@ namespace OS2faktorADSync
                 {
                     s.ConstructUsingStructureMap();
                     s.UseQuartzStructureMap();
+                    
                     s.ScheduleQuartzJob(q =>
                         q.WithJob(() => JobBuilder.Create<SynchronizeJob>().Build())
                             .AddTrigger(() => TriggerBuilder.Create()
                             .WithSimpleSchedule(b => b.WithIntervalInSeconds(10)
                             .RepeatForever())
                         .Build()));
+                    
                     s.ScheduleQuartzJob(q =>
                         q.WithJob(() => JobBuilder.Create<ResetDirSyncJob>().Build())
                             .AddTrigger(() => TriggerBuilder.Create()
                             .WithCronSchedule("0 " + minute + " " + hour + " ? * * *")
                         .Build()));
+
+                    string kombitCron = Settings.GetStringValue("Scheduled.Kombit.cron");
+                    if (!string.IsNullOrEmpty(kombitCron))
+                    {
+                        kombitCron = fuzz(kombitCron);
+
+                        s.ScheduleQuartzJob(q =>
+                            q.WithJob(() => JobBuilder.Create<KombitRolesSyncJob>().Build())
+                                .AddTrigger(() => TriggerBuilder.Create()
+                                .WithCronSchedule(kombitCron)
+                            .Build()));
+                    }
+
+                    string groupCron = Settings.GetStringValue("Scheduled.GroupSyncTask.cron");
+                    if (!string.IsNullOrEmpty(groupCron))
+                    {
+                        groupCron = fuzz(groupCron);
+
+                        s.ScheduleQuartzJob(q =>
+                             q.WithJob(() => JobBuilder.Create<GroupSyncJob>().Build())
+                                .AddTrigger(() => TriggerBuilder.Create()
+                                .WithCronSchedule(groupCron)
+                            .Build()));
+                    }
+
+                    string nsisCron = Settings.GetStringValue("Scheduled.NSISAllowedSyncTask.cron");
+                    if (!string.IsNullOrEmpty(nsisCron))
+                    {
+                        nsisCron = fuzz(nsisCron);
+
+                        s.ScheduleQuartzJob(q =>
+                             q.WithJob(() => JobBuilder.Create<NSISAllowedSyncJob>().Build())
+                                .AddTrigger(() => TriggerBuilder.Create()
+                                .WithCronSchedule(nsisCron)
+                            .Build()));
+                    }
                 });
             });
+        }
+
+        private static string fuzz(string cron)
+        {
+            if (cron.StartsWith("0 "))
+            {
+                // use password as random seed
+                string tmp = Settings.GetStringValue("Backend.Password");
+                if (!string.IsNullOrEmpty(tmp) && tmp.Length >= 2)
+                {
+                    int x = (int)tmp[0] % 60;
+
+                    return x + cron.Substring(1);
+                }
+            }
+
+            return cron;
         }
 
         private static void InitCronSchedule()

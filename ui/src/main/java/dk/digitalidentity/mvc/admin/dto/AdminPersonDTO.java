@@ -18,6 +18,5 @@ public class AdminPersonDTO {
 	private String email;
 	private Map<String, String> attributes;
 	private String name;
-	private String alias;
 	private boolean nameProtected;
 }

@@ -8,4 +8,5 @@ import lombok.Setter;
 public class LinkDTO {
 	private String text;
 	private String link;
+	private Long domainId;
 }

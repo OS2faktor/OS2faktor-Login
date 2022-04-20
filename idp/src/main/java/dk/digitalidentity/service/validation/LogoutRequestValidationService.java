@@ -101,7 +101,7 @@ public class LogoutRequestValidationService {
 		if (logoutRequest.getSessionIndexes().size() != 1) {
 			throw new RequesterException("Kunne ikke finde et enktelt 'sessionIndex' i forespørgslen");
 		}
-		if (StringUtils.isEmpty(logoutRequest.getSessionIndexes().get(0).getSessionIndex())) {
+		if (!StringUtils.hasLength(logoutRequest.getSessionIndexes().get(0).getSessionIndex())) {
 			throw new RequesterException("'SessionIndex' Er tomt");
 		}
 	}
@@ -125,7 +125,7 @@ public class LogoutRequestValidationService {
 		String signature = request.getParameter("Signature");
 		String sigAlg = request.getParameter("SigAlg");
 
-		if (!validateSignature(queryString, Constants.SAMLRequest, publicKey, signature, sigAlg)) {
+		if (!validateSignature(queryString, Constants.SAML_REQUEST, publicKey, signature, sigAlg)) {
 			throw new RequesterException("Logout forespørgsel (LogoutRequest) Signatur forkert");
 		}
 	}

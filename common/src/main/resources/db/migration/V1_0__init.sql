@@ -85,6 +85,6 @@ CREATE TABLE persons_attributes_aud (
   attribute_key                VARCHAR(255),
   attribute_value              TEXT,
 
-  FOREIGN KEY fk_persons_aud_rev (rev) REFERENCES revinfo(id),
-  PRIMARY KEY pk_persons_aud (id, rev)
+  FOREIGN KEY fk_persons_attr_aud_rev (rev) REFERENCES revinfo(id),
+  PRIMARY KEY pk_persons_attr_aud (id, rev)
 );

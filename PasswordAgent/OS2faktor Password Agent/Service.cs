@@ -1,7 +1,7 @@
 ﻿using Serilog;
 using Topshelf;
 
-namespace OS2faktor_Password_Agent
+namespace OS2faktor
 {
     class Service : ServiceControl
     {

@@ -139,7 +139,7 @@ public class AuthnRequestValidationService {
 		log.debug("Validating AssertionConsumerURL");
 
 		String url = authnRequest.getAssertionConsumerServiceURL();
-		if (!StringUtils.isEmpty(url)) {
+		if (StringUtils.hasLength(url)) {
 			log.debug("Checking AssertionConsumerServiceURL against list of AssertionConsumerServiceURLs in SP metadata");
 
 			SPSSODescriptor spssoDescriptor = serviceProvider.getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
@@ -177,7 +177,7 @@ public class AuthnRequestValidationService {
 		String signature = request.getParameter("Signature");
 		String sigAlg = request.getParameter("SigAlg");
 
-		if (!validateSignature(queryString, Constants.SAMLRequest, signingKey, signature, sigAlg)) {
+		if (!validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
 			throw new RequesterException("Login forespørgsel (AuthnRequest) Signatur forkert");
 		}
 	}

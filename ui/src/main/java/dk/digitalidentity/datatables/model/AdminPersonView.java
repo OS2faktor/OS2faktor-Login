@@ -1,11 +1,18 @@
 package dk.digitalidentity.datatables.model;
 
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import java.util.List;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.Id;
+import javax.persistence.OneToMany;
+
+import org.hibernate.annotations.BatchSize;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -29,9 +36,6 @@ public class AdminPersonView {
 	private String userId;
 
 	@Column
-	private String samaccountName;
-
-	@Column
 	private boolean locked;
 
 	@Column
@@ -47,5 +51,12 @@ public class AdminPersonView {
 	private boolean lockedPassword;
 	
 	@Column
+	private boolean lockedDead;
+	
+	@Column
 	private String domain;
+	
+	@BatchSize(size = 100)
+	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
+	private List<PersonGroupView> groups;
 }

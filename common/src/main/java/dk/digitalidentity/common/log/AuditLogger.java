@@ -1,40 +1,60 @@
 package dk.digitalidentity.common.log;
 
-import dk.digitalidentity.common.dao.model.SessionSetting;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.security.spec.KeySpec;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.AuditLogDetail;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.PrivacyPolicy;
+import dk.digitalidentity.common.dao.model.SessionSetting;
+import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.dao.model.enums.DetailType;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
 public class AuditLogger {
+	private SecretKeySpec secretKey;
 
 	@Autowired
 	private AuditLogDao auditLogDao;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 	
 	public void errorSentToSP(Person person, ErrorLogDto errorDetail) {
 		AuditLog auditLog = new AuditLog();
@@ -77,8 +97,35 @@ public class AuditLogger {
 		else if (Constants.ROLE_REGISTRANT.equals(role)) {
 			auditLog.setMessage(message + "registrant rollen af en administrator");
 		}
+		else if (Constants.ROLE_SERVICE_PROVIDER_ADMIN.equals(role)) {
+			auditLog.setMessage(message + "tjenesteudbyder-admin rollen af en administrator");
+		}
+		else if (Constants.ROLE_USER_ADMIN.equals(role)) {
+			auditLog.setMessage(message + "brugeradministrator rollen af en administrator");
+		}
+		else {
+			auditLog.setMessage(message + role);
+			log.error("Unknown role: " + role);
+		}
 
 		log(auditLog, person, admin);
+	}
+
+
+	public void sessionKeyIssued(TemporaryClientSessionKey saved) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.SESSION_KEY_ISSUED);
+		auditLog.setMessage("Session etableret via Windows login");
+
+		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+
+		String detailMsg = "NSIS Level: " + saved.getNsisLevel();
+		detail.setDetailContent(detailMsg);
+		auditLog.setDetails(detail);
+
+		log(auditLog, saved.getPerson(), null);
 	}
 
 	public void removedAllFromDataset(List<Person> people) {
@@ -94,6 +141,10 @@ public class AuditLogger {
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
+			
+			byte[] hmac = processHmac(auditLog);
+			auditLog.setHmac(hmac);
+
 			logs.add(auditLog);
 		}
 
@@ -121,12 +172,27 @@ public class AuditLogger {
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
+			
+			byte[] hmac = processHmac(auditLog);
+			auditLog.setHmac(hmac);
+
 			logs.add(auditLog);
 		}
 
 		auditLogDao.saveAll(logs);
 	}
 
+	public void loginSelfService(Person person, String assertion) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.LOGIN);
+		auditLog.setMessage("Login billet modtaget i selvbetjening");
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.XML);
+		auditLog.getDetails().setDetailContent(assertion);
+
+		log(auditLog, person, null);
+	}
+	
 	public void login(Person person, String loginTo, String assertion) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.LOGIN);
@@ -138,6 +204,24 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
+	public void logout(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.LOGOUT);
+		auditLog.setMessage("Logud gennemført");
+
+		log(auditLog, person, null);
+	}
+
+	public void logoutCausedByIPChange(Person person) {
+		if (person != null) {
+			AuditLog auditLog = new AuditLog();
+			auditLog.setLogAction(LogAction.LOGOUT_IP_CHANGED);
+			auditLog.setMessage("Brugeren logget ud grundet ændret ip adresse");
+	
+			log(auditLog, person, null);
+		}
+	}
+
 	public void badPassword(Person person) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.WRONG_PASSWORD);
@@ -145,69 +229,241 @@ public class AuditLogger {
 
 		log(auditLog, person, null);
 	}
-
-	public void changePasswordByPerson(Person person) {
+	
+	public void tooManyBadPasswordAttempts(Person person) {
 		AuditLog auditLog = new AuditLog();
-		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
-		auditLog.setMessage("Kodeord skiftet");
+		auditLog.setLogAction(LogAction.TOO_MANY_ATTEMPTS);
+		auditLog.setMessage("Kontoen er spærret de næste 5 minutter grundet for mange forkerte kodeord i træk");
+		
+		log(auditLog, person, null);
+	}
+
+	public void goodPassword(Person person, boolean authenticatedWithADPassword) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.RIGHT_PASSWORD);
+		auditLog.setMessage("Kodeord anvendt");
+		
+		// Add details of what the password was validated against
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent("Kodeordet er valideret mod: " + (authenticatedWithADPassword ? "AD" : "bruger-databasen"));
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void acceptedMFA(Person person, MfaClient client) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ACCEPT_MFA);
+		auditLog.setMessage("2-faktor login godkendt");
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.JSON);
+		detail.setDetailContent("{ \"deviceId\": \"" + client.getDeviceId() + "\", \"type\": \"" + client.getType().toString() + "\" }");
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void rejectedMFA(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.REJECT_MFA);
+		auditLog.setMessage("2-faktor login afvist");
 
 		log(auditLog, person, null);
 	}
 
-	public void activatedByPerson(Person person, String nemIDPid) {
+	public void loginRejectedByConditions(Person person, RequirementCheckResult result) {
 		AuditLog auditLog = new AuditLog();
-		auditLog.setLogAction(LogAction.ACTIVATE);
-		auditLog.setMessage("Brugerkontoen er blevet aktiveret af brugeren selv");
-
-		// Add nemid pid to audit log
+		auditLog.setLogAction(LogAction.REJECTED_BY_CONDITIONS);
+		auditLog.setMessage("Login afvist da brugeren ikke opfylder kravene opsat på tjenesteudbyderen");
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailType(DetailType.TEXT);
-		detail.setDetailContent("NemIDPid: " + nemIDPid);
+
+		switch (result) {
+			case FAILED:
+				detail.setDetailContent("Generel fejl");
+				break;
+			case FAILED_DOMAIN:
+				detail.setDetailContent("Brugeren fejlede krav til domæne tilhørsforhold");
+				break;
+			case FAILED_GROUP:
+				detail.setDetailContent("Brugeren fejlede krav til gruppe medlemsskab");
+				break;
+			case OK:
+				break;
+		}
+
+		log(auditLog, person, null);
+	}
+
+	public void changePasswordFailed(Person person, String reason) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_PASSWORD_FAILED);
+		auditLog.setMessage("Kodeordsskifte afvist");
+
+		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent(reason);
 		auditLog.setDetails(detail);
 
 		log(auditLog, person, null);
 	}
 
-	public void manualActivation(Object activationDetails, Person person, Person performedBy, boolean userHasSeenCredentials) {
+	public void changePasswordByPerson(Person person, boolean nsisPasswordChanged, boolean replicateToAD) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
+		auditLog.setMessage("Kodeord skiftet af personen selv");
+
+		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent("NSIS Kodeord: " + (nsisPasswordChanged ? "Skiftet" : "Uændret") + "\nReplikering til AD: " + (replicateToAD ? "Ja" : "Nej"));
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void changePasswordByAdmin(Person admin, Person person, boolean replicateToAD) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
+		auditLog.setMessage("Kodeord skiftet af administrator");
+
+		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent("Replikering til AD: " + (replicateToAD ? "Ja" : "Nej"));
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, admin);
+	}
+	
+	public void unlockAccountByPerson(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.UNLOCK_ACCOUNT);
+		auditLog.setMessage("AD konto låst op af personen selv");
+
+		log(auditLog, person, null);
+	}
+
+	public void activatedByPerson(Person person, String nemIDPid, String mitIdNameId) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.ACTIVATE);
-		auditLog.setMessage("Erhvervsidentitet aktiveret af administrator");
+		auditLog.setMessage("Brugerkontoen er blevet aktiveret af brugeren selv");
+
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+
+		StringBuilder sb = new StringBuilder();
+		if (StringUtils.hasLength(mitIdNameId)) {
+			sb.append("MitID NameID: ").append(mitIdNameId);
+		}
+		else if (StringUtils.hasLength(nemIDPid)) {
+			sb.append("NemID PID: ").append(nemIDPid);
+		}
+
+		detail.setDetailContent(sb.toString());
+
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+
+	public void manualActivation(IdentificationDetails details, Person person, Person performedBy) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ACTIVATE);
+		auditLog.setMessage("Brugerkontoen er blevet aktiveret af administrator");
 
 		auditLog.setDetails(new AuditLogDetail());
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
-			JsonNode jsonNode = mapper.readTree(mapper.writeValueAsString(activationDetails));
-			((ObjectNode) jsonNode).put("adminSeenCredentials", userHasSeenCredentials);
-
-			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
 		catch (JsonProcessingException ex) {
-			log.error("Could not serialize ActivationDTO", ex);
+			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
 		log(auditLog, person, performedBy);
 	}
 	
-	public void manualMfaAssociation(Object activationDetails, Person person, Person performedBy) {
+	public void manualMfaAssociation(IdentificationDetails details, Person person, Person performedBy) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.ASSOCIATE_MFA);
-		auditLog.setMessage("MFA klient tilknyttet af administrator");
+		auditLog.setMessage("2-faktor enhed tilknyttet af administrator");
 
 		auditLog.setDetails(new AuditLogDetail());
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
-			JsonNode jsonNode = mapper.readTree(mapper.writeValueAsString(activationDetails));
-
-			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
 		catch (JsonProcessingException ex) {
-			log.error("Could not serialize ActivationDTO", ex);
+			log.error("Could not serialize IdentificationDetails", ex);
+		}
+
+		log(auditLog, person, performedBy);
+	}
+
+	public void manualMfaAssociation(IdentificationDetails details, Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ASSOCIATE_MFA);
+		auditLog.setMessage("2-faktor enhed tilknyttet af bruger selv");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
+			auditLog.getDetails().setDetailContent(json);
+		}
+		catch (JsonProcessingException ex) {
+			log.error("Could not serialize IdentificationDetails", ex);
+		}
+
+		log(auditLog, person, null);
+	}
+
+	public void manualPasswordChange(IdentificationDetails details, Person person, Person performedBy) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
+		auditLog.setMessage("Kodeord skiftet af administrator");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
+			auditLog.getDetails().setDetailContent(json);
+		}
+		catch (JsonProcessingException ex) {
+			log.error("Could not serialize IdentificationDetails", ex);
+		}
+
+		log(auditLog, person, performedBy);
+	}
+
+	public void manualYubiKeyInitalization(IdentificationDetails details, Person person, Person performedBy) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.MANUAL_YUBIKEY_REGISTRATION);
+		auditLog.setMessage("Yubikey tilknyttet af administrator");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.JSON);
+
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
+			auditLog.getDetails().setDetailContent(json);
+		}
+		catch (JsonProcessingException ex) {
+			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
 		log(auditLog, person, performedBy);
@@ -237,10 +493,15 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	public void deactivateByAdmin(Person person, Person admin) {
+	// TODO: bør nok flippe de begreber rundt, så suspend er midlertidig
+	public void deactivateByAdmin(Person person, Person admin, boolean suspend) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.DEACTIVATE_BY_ADMIN);
 		auditLog.setMessage("Brugeren er blevet spærret af en administrator");
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(suspend ? "Permanent spærring" : "Midlertidig spærring");
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
 
 		log(auditLog, person, admin);
 	}
@@ -264,7 +525,7 @@ public class AuditLogger {
 		try {
 			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(passwordSettings));
 		} catch (JsonProcessingException e) {
-			log.error("Could not serialize PasswordSettings");
+			log.error("Could not serialize PasswordSettings", e);
 		}
 
 		log(auditLog, admin, admin);
@@ -290,11 +551,23 @@ public class AuditLogger {
 	public void changeTerms(TermsAndConditions termsAndConditions, Person admin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGE_TERMS_AND_CONDITIONS);
-		auditLog.setMessage("Vilkår ændret");
+		auditLog.setMessage("Vilkår opdateret");
 
 		auditLog.setDetails(new AuditLogDetail());
 		auditLog.getDetails().setDetailType(DetailType.TEXT);
 		auditLog.getDetails().setDetailContent(termsAndConditions.getContent());
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changePrivacyPolicy(PrivacyPolicy privacyPolicy, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_PRIVACY_POLICY);
+		auditLog.setMessage("Privatlivspolitik opdateret");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(privacyPolicy.getContent());
 
 		log(auditLog, admin, admin);
 	}
@@ -323,29 +596,296 @@ public class AuditLogger {
 		log(auditLog, person, admin);
 	}
 
+	public void authnRequest(Person person, String authnRequest, String sentBy) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.AUTHN_REQUEST);
+		auditLog.setMessage("Login forespørgsel fra " + sentBy);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.XML);
+		auditLog.getDetails().setDetailContent(authnRequest);
+
+		log(auditLog, person, null);
+	}
+
+	public void logoutRequest(Person person, String logoutRequest, boolean outgoing, String sp) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.LOGOUT_REQUEST);
+		auditLog.setMessage(outgoing ? "Logud forespørgsel sendt til " + sp : "Logud forespørgsel modtaget fra " + sp);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.XML);
+		auditLog.getDetails().setDetailContent(logoutRequest);
+
+		log(auditLog, person, null);
+	}
+
+	public void logoutResponse(Person person, String logoutResponse, boolean outgoing, String sp) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.LOGOUT_RESPONSE);
+		auditLog.setMessage(outgoing ? "Svar på logud forespørgsel sendt til " + sp : "Svar på logud forespørgsel modtaget fra " + sp);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.XML);
+		auditLog.getDetails().setDetailContent(logoutResponse);
+
+		log(auditLog, person, null);
+	}
+
+
+	public void nsisAllowedChanged(Person person, boolean nsisAllowed) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGED_NSIS_ALLOWED);
+		auditLog.setMessage(nsisAllowed ? "Bruger tildelt en NSIS ervhervsidentitet" : "Bruger frataget deres NSIS erhvervsidentitet");
+
+		log(auditLog, person, null);
+	}
+	
+	public void radiusLoginRequestReceived(String username, String radiusClient) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.RADIUS_LOGIN_REQUEST_RECEIVED);
+		auditLog.setMessage("Login forespørgsel fra RADIUS klient: " + radiusClient);
+
+		log(auditLog, null, null);
+	}
+	
+	public void radiusLoginRequestAccepted(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.RADIUS_LOGIN_REQUEST_ACCEPTED);
+		auditLog.setMessage("Login forespørgsel godkendt");
+
+		log(auditLog, person, null);
+	}
+	
+	public void radiusLoginRequestRejected(Person person, String reasonText) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.RADIUS_LOGIN_REQUEST_REJECTED);
+		auditLog.setMessage("Login forespørgsel afvist");
+		
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(reasonText);
+
+		log(auditLog, person, null);
+	}
+	
+	public void cprLookupByAdmin(Person admin, String cpr) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CPR_LOOKUP);
+		auditLog.setMessage("CPR-opslag på " + cpr +  " foretaget af en administrator");
+
+		log(auditLog, null, admin);
+	}
+	
+	public void usedNemID(String PID, Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.USED_NEMID);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(PID);
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("NemID anvendt");
+
+		log(auditLog, person, null);
+	}
+	
+	public void rejectedUnknownPerson(String identifier) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.REJECTED_UNKNOWN_PERSON);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(identifier);
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("Login afvist, personens personnummer er ikke kendt af systemet");
+
+		log(auditLog, null, null);
+	}
+	
+	public void usedNemLogin(Person person, NSISLevel nsisLevel, String rawToken) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.USED_NEMLOGIN);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(rawToken);
+		detail.setDetailType(DetailType.XML);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("NemLog-in anvendt (sikringsniveau: " + nsisLevel.toClaimValue() + ")");
+		
+		log(auditLog, person, null);
+	}
+
+	public void personDead(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.DISABLED_DEAD);
+		auditLog.setMessage("Brugerkonto spærret da personen er angivet som død i CPR registeret");
+
+		log(auditLog, person, null);
+	}
+	
+	public void checkPersonIsDead(Person person, Boolean dead) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHECK_DEAD);
+		auditLog.setMessage("Kontrolopslag i CPR registeret for at afgøre om personen er død");
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent("Civilstand: " + ((dead != null) ? (dead == true ? "død" : "levende") :  "ukendt"));
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void deletedMFADevice(Person person, String name, String deviceId, String type) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.DELETED_MFA_DEVICE);
+		auditLog.setMessage("2-faktor enhed slettet af personen selv");
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent("Navn: " + name + "\nDeviceId: " + deviceId + "\nType: " + type);
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void updateFromCprJob() {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.UPDATE_FROM_CPR);
+		auditLog.setMessage("Ajourføring af alle personers data fra CPR registeret");
+
+		log(auditLog, null, null);
+	}
+
+	public void updateNameFromCpr(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.UPDATE_FROM_CPR);
+		auditLog.setMessage("Ajourføring af navn fra CPR registeret");
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent("Navn opdateret");
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+	
+	public void sessionExpired(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.SESSION_EXPIRED);
+		auditLog.setMessage("Session udløbet");
+
+		log(auditLog, person, null);
+	}
+
 	private void log(AuditLog auditLog, Person person, Person admin) {
 		auditLog.setCorrelationId(getCorrelationId());
 		auditLog.setIpAddress(getIpAddress());
-		auditLog.setPerson(person);
-		auditLog.setPersonName(person.getName());
-		auditLog.setPersonDomain(person.getDomain().getName());
-		auditLog.setCpr(person.getCpr());
+
+		if (person != null) {
+			auditLog.setPerson(person);
+			auditLog.setPersonName(person.getName());
+			auditLog.setPersonDomain(person.getDomain().getName());
+			auditLog.setCpr(person.getCpr());
+		}
 
 		if (admin != null) {
 			auditLog.setPerformerId(admin.getId());
 			auditLog.setPerformerName(admin.getName());
 		}
+		
+		byte[] hmac = processHmac(auditLog);
+		auditLog.setHmac(hmac);
 
 		auditLogDao.save(auditLog);
 	}
+	
+	public byte[] processHmac(AuditLog auditLog) {
+		try {
+			Mac mac = getMac();
+			
+			mac.update(auditLog.getIpAddress().getBytes(Charset.forName("UTF-8")));
+			mac.update(auditLog.getCorrelationId().getBytes(Charset.forName("UTF-8")));
+			mac.update(auditLog.getLogAction().toString().getBytes(Charset.forName("UTF-8")));
+	
+			if (auditLog.getPerformerId() != null) {
+				mac.update(longToByteArray(auditLog.getPerformerId()));
+			}
+	
+			if (auditLog.getPerformerName() != null) {
+				mac.update(auditLog.getPerformerName().getBytes(Charset.forName("UTF-8")));
+			}
+	
+			if (auditLog.getLogTargetId() != null) {
+				mac.update(auditLog.getLogTargetId().getBytes(Charset.forName("UTF-8")));
+			}
+	
+			if (auditLog.getLogTargetName() != null) {
+				mac.update(auditLog.getLogTargetName().getBytes(Charset.forName("UTF-8")));
+			}
+	
+			if (auditLog.getMessage() != null) {
+				mac.update(auditLog.getMessage().getBytes(Charset.forName("UTF-8")));
+			}
+			
+			if (auditLog.getPerson() != null) {
+				mac.update(auditLog.getPerson().getCpr().getBytes(Charset.forName("UTF-8")));
+				mac.update(auditLog.getPersonName().getBytes(Charset.forName("UTF-8")));
+				mac.update(auditLog.getPersonDomain().getBytes(Charset.forName("UTF-8")));
+				mac.update(auditLog.getCpr().getBytes(Charset.forName("UTF-8")));
+			}
+			
+			if (auditLog.getDetails() != null) {
+				if (auditLog.getDetails().getDetailContent() != null) {
+					mac.update(auditLog.getDetails().getDetailContent().getBytes(Charset.forName("UTF-8")));
+				}
 
+				if (auditLog.getDetails().getDetailSupplement() != null) {
+					mac.update(auditLog.getDetails().getDetailSupplement().getBytes(Charset.forName("UTF-8")));
+				}
+				mac.update(auditLog.getDetails().getDetailType().toString().getBytes(Charset.forName("UTF-8")));
+			}
+	
+			return mac.doFinal();
+		}
+		catch (Exception ex) {
+			log.error("Failed to generate HMAC for auditlog", ex);
+		}
+		
+		return null;
+	}
+	
+	private Mac getMac() throws Exception {
+		Mac mac = Mac.getInstance("HmacSHA256");
+		mac.init(deriveKey(commonConfiguration.getHmacKey(), "HmacSHA256"));
+
+		return mac;
+	}
+	
+	private SecretKeySpec deriveKey(String password, String algorithm) throws Exception {
+		if (this.secretKey != null) {
+			return this.secretKey;
+		}
+		
+		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+		KeySpec spec = new PBEKeySpec(password.toCharArray(), "salt".getBytes(), 65536, 256);
+		SecretKey key = factory.generateSecret(spec);
+
+		this.secretKey = new SecretKeySpec(key.getEncoded(), algorithm);
+		
+		return this.secretKey;
+	}
+	
+	private byte[] longToByteArray(long i) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        dos.writeLong(i);
+        dos.flush();
+
+        return bos.toByteArray();
+	}
+	
 	private String getCorrelationId() {
 		try {
 			return RequestContextHolder.currentRequestAttributes().getSessionId();
 		}
 		catch (IllegalStateException ex) {
-			// TODO: not super good
-			return "SYSTEM-" + Long.toString(Thread.currentThread().getId());
+			return "SYSTEM-" + UUID.randomUUID().toString();
 		}
 	}
 
@@ -374,21 +914,27 @@ public class AuditLogger {
 
 	@Transactional(rollbackFor = Exception.class)
 	public void cleanupLogs() {
-		List<AuditLog> all = auditLogDao.findAll();
-
-		for (AuditLog auditLog : all) {
-			long storageTime = auditLog.getLogAction().getStorageTime();
-
-			if (storageTime == -1) {
-				continue;
-			}
-
-			LocalDateTime tts = auditLog.getTts();
-
-			LocalDateTime now = LocalDateTime.now();
-			if (tts.plusDays(storageTime).isBefore(now)) {
-				auditLogDao.delete(auditLog);
-			}
-		}
+		LocalDateTime now = LocalDateTime.now();
+		LocalDateTime tts = now.plusMonths(-13);
+	
+		auditLogDao.deleteByTtsBefore(tts);
 	}
+	
+	@Transactional(rollbackFor = Exception.class)
+	public void cleanupHMAC() {
+		List<AuditLog> auditLogs = auditLogDao.findByHmacIsNull();
+		
+		if (auditLogs.size() == 0) {
+			return;
+		}
+
+		for (AuditLog auditLog : auditLogs) {
+			byte[] hmac = processHmac(auditLog);
+			auditLog.setHmac(hmac);
+		}
+
+		auditLogDao.saveAll(auditLogs);
+	}
+
+
 }

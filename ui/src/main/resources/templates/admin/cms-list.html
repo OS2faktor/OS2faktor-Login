@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = false)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-align-left"></em> &nbsp; CMS tekster</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle de steder, hvor du kan redigere CMS tekster.
+								</p>
+								
+								<div class="table-responsive">
+									<table style="padding-right:0px !important;" id="cmsTable" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th>Nøgle</th>
+												<th>Beskrivelse</th>
+												<th>Rediger</th>
+											</tr>
+										</thead>
+
+										<tbody>
+											<tr th:each="cms : ${cmsMessages}">
+												<td th:text="${cms.key}"></td>
+												<td th:text="${cms.description}"></td>
+												<td><a th:href="${'/admin/cms/edit?key=' + cms.key}"><em style="color: #212529" class="fa fa-pencil"></em></a></td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.cms')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = false)" />
+	
+	<script type="text/javascript">
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function(){
+			$('#cmsTable').DataTable({
+				"bSort": false,
+				"paging": false,
+				"responsive": true,
+				"dom": "<'row'<'col-sm-12'tr>>",
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ rækker)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+		});
+	</script>
+</body>
+</html>

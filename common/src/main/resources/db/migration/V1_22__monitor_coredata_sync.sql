@@ -1,0 +1,11 @@
+ALTER TABLE domains     ADD COLUMN monitored BOOLEAN NOT NULL DEFAULT 1;
+ALTER TABLE domains_aud ADD COLUMN monitored BOOLEAN NULL;
+
+CREATE TABLE core_data_log (
+	id 					BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+	domain_id		    BIGINT NOT NULL,
+	tts					DATETIME NOT NULL,
+	endpoint			VARCHAR(255) NOT NULL,
+
+	FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE
+);

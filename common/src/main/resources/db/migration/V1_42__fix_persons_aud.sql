@@ -1,0 +1,3 @@
+ALTER TABLE persons_aud
+ MODIFY COLUMN locked_dead TINYINT(1) NULL,
+ MODIFY COLUMN user_admin TINYINT(1) NULL;

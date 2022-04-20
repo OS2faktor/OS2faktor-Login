@@ -9,6 +9,7 @@ import java.security.cert.X509Certificate;
 import java.util.Map;
 import java.util.Optional;
 
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.apache.http.client.HttpClient;
 import org.bouncycastle.util.encoders.Base64;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -195,12 +196,14 @@ public abstract class ServiceProvider {
     public abstract EntityDescriptor getMetadata() throws RequesterException, ResponderException;
     public abstract String getNameId(Person person) throws ResponderException;
 	public abstract String getNameIdFormat();
-    public abstract Map<String, Object> getAttributes(Person person);
+    public abstract Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person);
     public abstract boolean mfaRequired(AuthnRequest authnRequest);
     public abstract NSISLevel nsisLevelRequired(AuthnRequest authnRequest);
 	public abstract boolean preferNemId();
-    public abstract String getEntityId() throws RequesterException, ResponderException;
-	public abstract String getName();
+    public abstract String getEntityId();
+	public abstract String getName(AuthnRequest authnRequest);
+    public abstract RequirementCheckResult personMeetsRequirements(Person person);
 	public abstract boolean encryptAssertions();
 	public abstract boolean enabled();
+	public abstract String getProtocol();
 }

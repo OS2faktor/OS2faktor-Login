@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.unlock-ad-account')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-user"></em> &nbsp; Lås AD konto op</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>Her kan du låse din AD konto op. Din konto kan være blevet låst, hvis du har tastet dit kodeord forkert for mange gange.</p>
+								<button id="unlockBtn" class="btn btn-primary block full-width m-b" onclick="unlockService.unlock();">Lås AD konto op</button>
+							</div>
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.unlock-ad-account')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+		var unlockService;
+		$(document).ready(function() {
+			unlockService = new UnlockService();
+		});
+		
+		function UnlockService() {
+			this.unlock = function() {
+				$("#unlockBtn").prop('disabled', true);
+				$.ajax({
+					method : "GET",
+					url: "/rest/selvbetjening/unlockADAccount",
+					headers: {
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					toastr.success("AD kontoen er nu låst op")
+					setTimeout(function() {
+						window.location.href = "/selvbetjening";
+					}, 5000);
+					
+				}).fail(function(jqXHR, textStatus, errorThrown) {
+					toastr.error("AD kontoen kunne ikke låses op.")
+					$("#unlockBtn").prop('disabled', false);
+				});
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

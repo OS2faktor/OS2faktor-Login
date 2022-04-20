@@ -16,4 +16,12 @@ public class CommonConfiguration {
 	private AdConfiguration ad = new AdConfiguration();
 	private MailConfiguration email = new MailConfiguration();
 	private CustomerConfiguration customer = new CustomerConfiguration();
+	private KombitConfiguration kombit = new KombitConfiguration();
+	private StilConfiguration stil = new StilConfiguration();
+	private SelfServiceConfiguration selfService = new SelfServiceConfiguration();
+	private RoleCatalogueConfiguration roleCatalogue = new RoleCatalogueConfiguration();
+	private RadiusConfiguration radiusConfiguration = new RadiusConfiguration();
+	private Cpr cpr = new Cpr();
+
+	private String hmacKey;
 }

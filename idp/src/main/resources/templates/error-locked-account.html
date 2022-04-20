@@ -10,16 +10,16 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p>Din konto er låst. Derfor kan du kun logge på selvbetjeningen og kun med NemID</p>
+                    <p>Din konto er låst. Derfor kan du kun logge på selvbetjeningen og kun med <span th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">NemLog-in</span><span th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">NemID</span></p>
 
-                    <a th:href="${@environment.getProperty('os2faktor.idp.selfService.baseUrl')}">
+                    <a th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}">
                         <label>Gå til selvbetjening</label>
                     </a>
                 </div>
             </div>
-    </div>
-        </div>
+		</div>
+	</div>
 
-	<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+	<div th:replace="fragments/footer :: scripts (checkbox = false)"></div>
 </body>
 </html>

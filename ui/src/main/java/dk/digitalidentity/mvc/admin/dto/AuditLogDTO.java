@@ -28,7 +28,7 @@ public class AuditLogDTO {
 	private String detailSupplement;
 
 	public AuditLogDTO(AuditLog auditLog) {
-		this.cpr = StringUtils.isEmpty(auditLog.getCpr()) ? "" : auditLog.getCpr().substring(0, 6) + "-XXXX";
+		this.cpr = !StringUtils.hasLength(auditLog.getCpr()) ? "" : auditLog.getCpr().substring(0, 6) + "-XXXX";
 		this.detailContent = auditLog.getDetails() != null ? auditLog.getDetails().getDetailContent() : null;
 		this.detailSupplement = auditLog.getDetails() != null ? auditLog.getDetails().getDetailSupplement() : null;
 		this.detailType = auditLog.getDetails() != null ? auditLog.getDetails().getDetailType() : DetailType.TEXT;

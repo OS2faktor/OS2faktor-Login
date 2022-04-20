@@ -56,6 +56,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
@@ -133,7 +134,7 @@ public class AssertionService {
 		// Create and sign Assertion
 		Assertion assertion = createAssertion(issueInstant, authnRequest, person, serviceProvider);
 		
-		auditLogger.login(person, serviceProvider.getName(), samlHelper.prettyPrint(assertion));
+		auditLogger.login(person, serviceProvider.getName(authnRequest), samlHelper.prettyPrint(assertion));
 		
 		signAssertion(assertion);
 
@@ -188,9 +189,14 @@ public class AssertionService {
 		// Create AuthnStatement
 		AuthnStatement authnStatement = samlHelper.buildSAMLObject(AuthnStatement.class);
 		assertion.getAuthnStatements().add(authnStatement);
-
-		authnStatement.setAuthnInstant(new DateTime());
 		authnStatement.setSessionIndex(id);
+
+		// Set AuthnInstant (The moment password/mfa/nemid was validated)
+		DateTime authnInstant = sessionHelper.getAuthnInstant();
+		if (authnInstant == null) {
+			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
+		}
+		authnStatement.setAuthnInstant(authnInstant);
 
 		Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
 		Map<String, String> map = spSessions.get(serviceProvider.getEntityId());
@@ -253,18 +259,22 @@ public class AssertionService {
 
 		audience.setAudienceURI(authnRequest.getIssuer().getValue());
 
-
 		// Generate and add attributes based on person and specific SP implementation
 		List<AttributeStatement> attributeStatements = assertion.getAttributeStatements();
 
 		AttributeStatement attributeStatement = samlHelper.buildSAMLObject(AttributeStatement.class);
 		attributeStatements.add(attributeStatement);
 
-		Map<String, Object> attributes = serviceProvider.getAttributes(person);
+		Map<String, Object> attributes = serviceProvider.getAttributes(authnRequest, person);
 		if (attributes != null) {
 			for (Map.Entry<String, Object> entry : attributes.entrySet()) {
 				attributeStatement.getAttributes().add(createSimpleAttribute(entry.getKey(), entry.getValue()));
 			}
+		}
+		
+		NSISLevel nsisLevel = sessionHelper.getLoginState();
+		if (nsisLevel != null && nsisLevel.toClaimValue() != null) {
+			attributeStatement.getAttributes().add(createSimpleAttribute(Constants.LEVEL_OF_ASSURANCE, nsisLevel.toClaimValue()));
 		}
 
 		return assertion;

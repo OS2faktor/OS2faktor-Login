@@ -19,18 +19,18 @@ namespace OS2faktorADSync
             set {
                 this._cpr = null;
                 
-                if (value != null && value.Length >= 10 && value.Length <= 11)
+                if (value != null && value.Length >= 10)
                 {
                     string tmp = value;
 
-                    if (tmp.Length == 11)
+                    if (tmp.Length > 10)
                     {
-                        tmp = tmp.Substring(0, 6) + tmp.Substring(6, 4);
+                        tmp = tmp.Replace("-", "");
                     }
 
-                    if (tmp.All(char.IsDigit))
+                    if (tmp.Length == 10)
                     {
-                        this._cpr = value;
+                        this._cpr = tmp;
                     }
                 }
             }

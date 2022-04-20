@@ -11,12 +11,31 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-user-plus"></em> &nbsp; Manuel aktivering</h5>
+								<h5><em class="fa fa-user-plus"></em> &nbsp; Aktivering af erhvervsidentitet</h5>
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Den interne proces for identifikation af medarbejderen skal gennemføres, og efterfølgende
+									skal de relevante oplysninger fra identifikationsprocessen dokumenteres nedenfor. Det er vigtigt
+									at der er et korrekt dokumentationsspor for den identifikation der er blevet foretaget.
+								</p>
+								
+								<p>
+									Når formularen er blevet udfyldt med den nødvendige dokumentation, skal der trykkes på knappen "Aktiver"
+									nederst på siden. Herefter bliver der sendt en pinkode til brugerens e-boks. Brugeren skal anvende denne
+									pinkode til at gennemføre det første login, hvorefter de kan vælge et nyt kodeord til løsningen.
+								</p>
+								
+								<p>
+									<b>Bemærk</b>. Hvis brugeren ikke er tilmeldt e-boks, vil der dukke en advarsel op om dette, og
+									det vil være muligt at vise pinkoden på skærmen og udlevere den personligt.
+								</p>
+								
+								<h4>Dokumentation for identifikation</h4>
+								
 								<form id="manualActivationForm" th:object="${activationForm}">
-									<input type="hidden" tH:field="*{personId}">
+									<input type="hidden" th:field="*{personId}">
 
 									<div class="form-group row">
 										<label class="col-sm-4 col-form-label">Medarbejder</label>
@@ -123,8 +142,9 @@
 		/*[+
 			var baseUrl = [[@{/}]];
 			var personId = [[${activationForm.personId}]];
-			var activatedMsg = [[#{page.registration.activation.alert.activated}]];
 		+]*/
+		
+		var activatedMsg = "Erhvervsidentiteten er blevet aktiveret";
 
 		var token = $("meta[name='_csrf']").attr("content");
 

@@ -6,19 +6,35 @@
         <div class="row">
             <div class="ibox offset-md-2 col-md-8">
                 <div class="ibox-title">
-                    <h5><em class="fa fa-key"></em> &nbsp; Ingen OS2faktor klienter registreret</h5>
+                    <h5><em class="fa fa-key"></em> &nbsp; Ingen 2-faktor enheder registreret</h5>
                 </div>
 
                 <div class="ibox-content">
-                    <p>For at kunne logge ind til denne service skal du have mindst én OS2faktor klient. Du kan se mulighederne nedenfor.</p>
+                    <p th:utext="${@cmsMessageBundle.getText('cms.login.mfa.noClients')}" />
 
-                    <ul>
-                        <li><strong>iPhone/iPad</strong>. Klienten kan hentes fra <a href="https://itunes.apple.com/us/app/os2faktor/id1437898542?ls=1&amp;mt=8">Apples App Store</a>, og installeres direkte fra din iPhone eller iPad.</li>
-                        <li><strong>Android</strong>. Klienten kan hentes fra <a href="https://play.google.com/store/apps/details?id=dk.digitalidentity.os2faktor">Google Play</a>, og installeres direkte fra din Android smartphone eller tablet.</li>
-                        <li><strong>Windows 7/10</strong>. Klienten installeres via din kommunes it-afdeling. Kontakt din it-afdeling for flere informationer.</li>
-                        <li><strong>Chrome</strong>. Klienten installeres via <a href="https://chrome.google.com/webstore/detail/inhmeclgpoppmammjaaebcpkcnokgelm">Chrome Web Store</a>.</li>
-                        <li><strong>YubiKey</strong>. Du skal først anskaffe en YubiKey (fx via egen it-afdeling, eller ved at købe en privat). Dernæst skal du logge på selvbetjeningen, og så registrere din YubiKey.</li>
-                    </ul>
+					<th:block th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
+	                    <h4>Login med NemLog-in</h4>
+	                    <p>
+	                    Du kan også vælge at bruge dit MitID eller NemID til at foretage et login
+	                    </p>
+	                    <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
+	                        <em class="fa fa-fw fa-key"></em>
+	                        &nbsp;
+	                        Log ind med NemLog-in
+	                    </a>
+                    </th:block>
+                    
+					<th:block th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">
+	                    <h4>Login med NemID</h4>
+	                    <p>
+	                    Du kan også vælge at bruge dit NemID til at foretage et login
+	                    </p>
+	                    <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
+	                        <em class="fa fa-fw fa-key"></em>
+	                        &nbsp;
+	                        Log ind med NemID
+	                    </a>
+                    </th:block>
                 </div>
             </div>
         </div>

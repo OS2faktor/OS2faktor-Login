@@ -90,4 +90,6 @@ public class AuditLog {
 	@JsonIgnore
 	private AuditLogDetail details;
 	
+	@Column
+	private byte[] hmac;	
 }

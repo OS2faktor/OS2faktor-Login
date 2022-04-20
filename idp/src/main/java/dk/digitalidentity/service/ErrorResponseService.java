@@ -5,6 +5,8 @@ import javax.servlet.http.HttpServletResponse;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.log.ErrorLogDto;
+import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
 import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
@@ -12,6 +14,7 @@ import org.opensaml.saml.common.messaging.context.SAMLEndpointContext;
 import org.opensaml.saml.common.messaging.context.SAMLPeerEntityContext;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
+import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.Status;
@@ -25,6 +28,8 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -41,6 +46,46 @@ public class ErrorResponseService {
 
 	@Autowired
 	private SessionHelper sessionHelper;
+
+	@Autowired
+	private AuthnRequestHelper authnRequestHelper;
+
+	public void sendResponderError(HttpServletResponse response, AuthnRequest authnRequest, ResponderException e) throws ResponderException {
+		try {
+			// Make sure AuthnRequest is not null
+			Objects.requireNonNull(authnRequest);
+
+			// Fetch information from AuthnRequest required to send error
+			String destination = authnRequestHelper.getConsumerEndpoint(authnRequest);
+			String inResponseTo = authnRequest.getID();
+
+			// Send error
+			sendError(response, destination, inResponseTo, StatusCode.RESPONDER, e, true, true);
+		}
+		catch (Exception ex) {
+			// If anything goes wrong during the process of sending an error to an SP, throw the error here instead.
+			log.warn("Failed sending error to SP (usually due to missing AuthnRequest on session). Throwing error here instead.");
+			throw e;
+		}
+	}
+
+	public void sendRequesterError(HttpServletResponse response, AuthnRequest authnRequest, RequesterException e) throws RequesterException {
+		try {
+			// Make sure AuthnRequest is not null
+			Objects.requireNonNull(authnRequest);
+
+			// Fetch information from AuthnRequest required to send error
+			String destination = authnRequestHelper.getConsumerEndpoint(authnRequest);
+			String inResponseTo = authnRequest.getID();
+
+			// Send error
+			sendError(response, destination, inResponseTo, StatusCode.REQUESTER, e, true, true);
+		} catch (Exception ex) {
+			// If anything goes wrong during the process of sending an error to an SP, throw the error here instead.
+			log.warn("Failed sending error to SP (usually due to missing AuthnRequest on session). Throwing error here instead.");
+			throw e;
+		}
+	}
 
 	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e) {
 		sendError(response, destination, inResponseTo, statusCode, e, true, false);
@@ -61,11 +106,20 @@ public class ErrorResponseService {
 		if (logoutOfSession) {
 			sessionHelper.invalidateSession();
 		}
-
+		
 		send(response, destination, inResponseTo, statusCode, e);
 	}
 
 	private void send(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e) {
+		// attempt to clear any residual incoming authnRequest, to avoid strange behaviour on
+		// any following actions that might not be related to an authnRequest
+		try {
+			sessionHelper.setAuthnRequest(null);
+		}
+		catch (Exception ex) {
+			; // ignore
+		}
+
 		try {
 			MessageContext<SAMLObject> errorMessageContext = createErrorMessageContext(destination, inResponseTo, statusCode, e);
 

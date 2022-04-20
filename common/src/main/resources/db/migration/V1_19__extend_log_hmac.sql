@@ -1,0 +1,1 @@
+ALTER TABLE auditlogs ADD COLUMN hmac BINARY(32);

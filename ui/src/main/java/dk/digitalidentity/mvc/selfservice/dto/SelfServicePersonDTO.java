@@ -8,11 +8,9 @@ import lombok.Setter;
 @Setter
 public class SelfServicePersonDTO {
 	private String userId;
-	private String samAccountName;
 	private SelfServiceStatus status;
 	private String statusMessage;
 	private NSISLevel nsisLevel;
 	private String email;
 	private String name;
-	private String alias;
 }

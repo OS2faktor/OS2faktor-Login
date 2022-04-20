@@ -1,10 +1,9 @@
 package dk.digitalidentity.service.serviceprovider;
 
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.service.SessionHelper;
 import java.util.HashMap;
 import java.util.Map;
 
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -13,10 +12,11 @@ import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.serviceprovider.SelfServiceServiceProviderConfig;
+import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -26,9 +26,9 @@ import net.shibboleth.utilities.java.support.resolver.ResolverException;
 @Component
 public final class SelfServiceServiceProvider extends ServiceProvider {
 	private HTTPMetadataResolver resolver;
-	
+
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private SelfServiceServiceProviderConfig config;
 
 	@Autowired
 	private SessionHelper sessionHelper;
@@ -36,7 +36,7 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
-			resolver = getMetadataResolver(configuration.getSelfService().getEntityId(), configuration.getSelfService().getMetadataUrl());
+			resolver = getMetadataResolver(config.getEntityId(), getMetadataUrl());
 		}
 
 		// If last scheduled refresh failed, Refresh now to give up to date metadata
@@ -51,7 +51,7 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 		// Extract EntityDescriptor by configured EntityID
 		CriteriaSet criteriaSet = new CriteriaSet();
-		criteriaSet.add(new EntityIdCriterion(configuration.getSelfService().getEntityId()));
+		criteriaSet.add(new EntityIdCriterion(config.getEntityId()));
 
 		try {
 			return resolver.resolveSingle(criteriaSet);
@@ -65,22 +65,51 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	public String getNameId(Person person) {
 		return Long.toString(person.getId());
 	}
-	
+
 	@Override
 	public String getNameIdFormat() {
-		return "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent";
+		return config.getNameIdFormat();
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(Person person) {
+	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
 		String nemIDPid = sessionHelper.getNemIDPid();
+		HashMap<String, Object> attributes = new HashMap<>();
+
 		if (nemIDPid != null) {
-			HashMap<String, Object> attributes = new HashMap<>();
 			attributes.put("NemIDPid", nemIDPid);
-			return attributes;
 		}
 
-		return null;
+		if (sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
+			NSISLevel authAssuranceLevel = sessionHelper.getMFALevel();
+
+			if (authAssuranceLevel != null) {
+				switch (authAssuranceLevel) {
+					case SUBSTANTIAL:
+					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local issue
+						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.SUBSTANTIAL.toString());
+						break;
+					default:
+						break;
+				}
+			}
+		}
+		else {
+			NSISLevel authAssuranceLevel = sessionHelper.getLoginState();
+
+			if (authAssuranceLevel != null) {
+				switch (authAssuranceLevel) {
+					case SUBSTANTIAL:
+					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local issue
+						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.SUBSTANTIAL.toString());
+						break;
+					default:
+						break;
+					}
+			}
+		}
+
+		return attributes;
 	}
 
 	@Override
@@ -109,30 +138,41 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean preferNemId() {
-		return false;
+		return config.preferNemId();
 	}
 
 	@Override
-	public String getEntityId() throws RequesterException, ResponderException {
-		return configuration.getSelfService().getEntityId();
+	public String getEntityId() {
+		return config.getEntityId();
 	}
 
 	@Override
-	public String getName() {
-		return "OS2faktor selvbetjening";
+	public String getName(AuthnRequest authnRequest) {
+		return config.getName();
+	}
+
+	@Override
+	public RequirementCheckResult personMeetsRequirements(Person person) {
+		return RequirementCheckResult.OK;
 	}
 
 	@Override
 	public boolean encryptAssertions() {
-		return configuration.getSelfService().isEncryptAssertion();
+		return config.encryptAssertions();
 	}
 
 	@Override
 	public boolean enabled() {
-		if (configuration.getSelfService() == null || StringUtils.isEmpty(configuration.getSelfService().getMetadataUrl())) {
-			return false;
-		}
-
-		return true;
+		return config.enabled();
 	}
+
+	@Override
+	public String getProtocol() {
+		return config.getProtocol();
+	}
+
+    public String getMetadataUrl() {
+        return config.getMetadataUrl();
+    }
+
 }

@@ -1,9 +1,10 @@
 package dk.digitalidentity.api.dto;
 
-import dk.digitalidentity.common.dao.model.Person;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import dk.digitalidentity.common.dao.model.Person;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,9 +16,10 @@ public class CoreDataEntry {
 	private String name;
 	private String email;
 	private String samAccountName;
-	private String domain;
+	private String subDomain;
 	private boolean nsisAllowed;
 	private Map<String, String> attributes;
+	private String domain;
 
 	public CoreDataEntry() {
 		this.attributes = new HashMap<>();
@@ -29,22 +31,28 @@ public class CoreDataEntry {
 		this.name = person.getName();
 		this.email = person.getEmail();
 		this.samAccountName = person.getSamaccountName();
-		this.domain = person.getDomain().getName();
 		this.attributes = person.getAttributes();
 		this.nsisAllowed = person.isNsisAllowed();
+
+		if (person.getDomain().getParent() != null) {
+			this.domain = person.getDomain().getParent().getName();
+			this.subDomain = person.getDomain().getName();
+		}
+		else {
+			this.domain = person.getDomain().getName();
+		}
 	}
 
-	// Compare method also exists on PersonDataDTO
 	public static boolean compare(Person person, CoreDataEntry entry) {
 		boolean cprEqual = Objects.equals(person.getCpr(), entry.getCpr());
-		boolean uuidEqual = Objects.equals(person.getUuid(), entry.getUuid());
-		boolean domainEqual = Objects.equals(person.getDomain().getName(), entry.getDomain());
-		boolean sAMAccountNameEqual = Objects.equals(person.getSamaccountName(), entry.getSamAccountName());
+		boolean uuidEqual = Objects.equals(person.getUuid().toLowerCase(), entry.getUuid().toLowerCase());
+		boolean domainEqual = Objects.equals(person.getTopLevelDomain().getName().toLowerCase(), entry.getDomain().toLowerCase());
+		boolean sAMAccountNameEqual = Objects.equals(person.getLowerSamAccountName(), ((entry.getSamAccountName() != null) ? entry.getSamAccountName().toLowerCase() : null));
 
 		return cprEqual && uuidEqual && domainEqual && sAMAccountNameEqual;
 	}
-	
+
 	public String getIdentifier() {
-		return domain + ":" + uuid + ":" + cpr + ":" + ((samAccountName != null) ? samAccountName : "<null>");
+		return domain.toLowerCase() + ":" + uuid.toLowerCase() + ":" + cpr + ":" + ((samAccountName != null) ? samAccountName.toLowerCase() : "<null>");
 	}
 }

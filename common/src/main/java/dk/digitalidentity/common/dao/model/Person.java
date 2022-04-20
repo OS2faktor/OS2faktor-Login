@@ -1,8 +1,8 @@
 package dk.digitalidentity.common.dao.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import javax.persistence.CascadeType;
 import javax.persistence.CollectionTable;
@@ -11,19 +11,25 @@ import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.MapKeyColumn;
+import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.envers.Audited;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -66,6 +72,12 @@ public class Person {
 	private boolean admin;
 
 	@Column
+	private boolean serviceProviderAdmin;
+	
+	@Column
+	private boolean userAdmin;
+
+	@Column
 	private boolean registrant;
 	
 	@Column
@@ -87,11 +99,17 @@ public class Person {
 	private boolean lockedPassword;
 
 	@Column
+	private boolean forceChangePassword;
+
+	@Column
+	private boolean lockedDead;
+
+	@Column
 	private LocalDateTime lockedPasswordUntil;
 
 	@Column
 	private long badPasswordCount;
-
+	
 	@Size(max = 255)
 	@Column
 	private String userId;
@@ -103,18 +121,14 @@ public class Person {
 	@Column
 	private LocalDateTime nsisPasswordTimestamp;
 
-	@Size(max = 255)
-	@Column
-	private String adPassword;
-
-	@Column
-	private LocalDateTime adPasswordTimestamp;
-
 	@Column
 	private String samaccountName;
 
 	@Column
 	private String nemIdPid;
+
+	@Column
+	private String mitIdNameId;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")
@@ -122,35 +136,39 @@ public class Person {
 
 	@OneToOne(mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
 	private Supporter supporter;
-	
+
 	@Column
 	private boolean nameProtected;
-	
+
 	@Size(max = 255)
 	@Column
 	private String nameAlias;
 
+	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
 	@ElementCollection
 	@CollectionTable(name = "persons_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")
 	@Column(name = "attribute_value")
 	private Map<String, String> attributes;
 
-	public boolean isLocked() {
-		return lockedAdmin || lockedPerson || lockedDataset || lockedPassword;
+	@BatchSize(size = 100)
+	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
+	private List<PersonGroupMapping> groups;
+
+	@BatchSize(size = 100)
+	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "person", orphanRemoval = true)
+	private List<KombitJfr> kombitJfrs;
+
+	public boolean isOnlyLockedByPerson() {
+		return lockedPerson && !lockedAdmin && !lockedDataset && !lockedPassword && !lockedDead;
 	}
 
-	public static boolean compare(Person person1, Person person2) {
-		boolean cprEqual = Objects.equals(person1.getCpr(), person2.getCpr());
-		boolean uuidEqual = Objects.equals(person1.getUuid(), person2.getUuid());
-		boolean domainEqual = Objects.equals(person1.getDomain(), person2.getDomain());
-		boolean sAMAccountNameEqual = Objects.equals(person1.getSamaccountName(), person2.getSamaccountName());
-
-		return cprEqual && uuidEqual && domainEqual && sAMAccountNameEqual;
+	public boolean isLocked() {
+		return lockedPerson || lockedAdmin || lockedDataset || lockedPassword || lockedDead;
 	}
 
 	public String getIdentifier() {
-		return domain.getName() + ":" + uuid + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName : "<null>");
+		return getTopLevelDomain().getName().toLowerCase() + ":" + uuid.toLowerCase() + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName.toLowerCase() : "<null>");
 	}
 
 	public boolean hasNSISUser() {
@@ -170,5 +188,32 @@ public class Person {
 
 		supporter.setPerson(this);
 		this.supporter = supporter;
+	}
+	
+	@JsonIgnore
+	public Domain getTopLevelDomain() {
+		if (domain.getParent() != null) {
+			return domain.getParent();
+		}
+		
+		return domain;
+	}
+	
+	@JsonIgnore
+	public String getLowerSamAccountName() {
+		if (samaccountName != null) {
+			return samaccountName.toLowerCase();
+		}
+		
+		return null;
+	}
+	
+	@JsonIgnore
+	public String getAzureId() {
+		if (attributes == null || attributes.size() == 0) {
+			return null;
+		}
+		
+		return attributes.get("azureId");
 	}
 }

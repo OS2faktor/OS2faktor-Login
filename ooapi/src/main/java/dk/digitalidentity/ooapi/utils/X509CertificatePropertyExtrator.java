@@ -33,8 +33,20 @@ import java.util.Collection;
 import java.util.Hashtable;
 import java.util.List;
 
-import org.bouncycastle.asn1.*;
-import org.bouncycastle.asn1.x509.*;
+import org.bouncycastle.asn1.ASN1InputStream;
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.ASN1Sequence;
+import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.x509.AccessDescription;
+import org.bouncycastle.asn1.x509.AuthorityInformationAccess;
+import org.bouncycastle.asn1.x509.Certificate;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.Extensions;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.PolicyInformation;
+import org.bouncycastle.asn1.x509.TBSCertificate;
+import org.bouncycastle.asn1.x509.X509Name;
 
 import dk.digitalidentity.ooapi.ObjectIdentifiers;
 import dk.digitalidentity.ooapi.exceptions.InvalidCaIssuerUrlException;
@@ -99,7 +111,7 @@ public class X509CertificatePropertyExtrator {
     @SuppressWarnings({ "rawtypes", "unchecked", "deprecation" })
 	private static Hashtable makeLookup() {
 		Hashtable ht = X509Name.DefaultLookUp;
-		DERObjectIdentifier SERIALNUMBER = new DERObjectIdentifier("2.5.4.5");
+		ASN1ObjectIdentifier SERIALNUMBER = new ASN1ObjectIdentifier("2.5.4.5");
 	    ht.put("serialnumber", SERIALNUMBER);
 	    return ht;
 	}

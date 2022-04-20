@@ -11,7 +11,9 @@ import lombok.Setter;
 public class PasswordConfigurationForm {
 	private long domainId;
 	private long minLength;
-	private boolean bothCapitalAndSmallLetters;
+	private boolean requireLowercaseLetters;
+	private boolean requireUppercaseLetters;
+	private boolean requireComplexPassword;
 	private boolean requireDigits;
 	private boolean requireSpecialCharacters;
 	private boolean forceChangePasswordEnabled;
@@ -20,13 +22,19 @@ public class PasswordConfigurationForm {
 	private Long forceChangePasswordInterval;
 	private boolean replicateToAdEnabled;
 	private boolean validateAgainstAdEnabled;
-	private Long cacheAdPasswordInterval;
 	private boolean monitoringEnabled;	
 	private String monitoringEmail;
+	private boolean disallowNameAndUsername;
+	private boolean changePasswordOnUsersEnabled;
+	private Long changePasswordOnUsersGroup;
+	private boolean showAdSettings;
+	private String alternativePasswordChangeLink;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
 		this.minLength = settings.getMinLength();
-		this.bothCapitalAndSmallLetters = settings.isBothCapitalAndSmallLetters();
+		this.requireLowercaseLetters = settings.isRequireLowercaseLetters();
+		this.requireUppercaseLetters = settings.isRequireUppercaseLetters();
+		this.requireComplexPassword = settings.isRequireComplexPassword();
 		this.requireDigits = settings.isRequireDigits();
 		this.requireSpecialCharacters = settings.isRequireSpecialCharacters();
 		this.forceChangePasswordEnabled = settings.isForceChangePasswordEnabled();
@@ -34,10 +42,14 @@ public class PasswordConfigurationForm {
 		this.disallowOldPasswords = settings.isDisallowOldPasswords();
 		this.replicateToAdEnabled = settings.isReplicateToAdEnabled();
 		this.validateAgainstAdEnabled = settings.isValidateAgainstAdEnabled();
-		this.cacheAdPasswordInterval = settings.getCacheAdPasswordInterval();
 		this.monitoringEnabled = settings.isMonitoringEnabled();
 		this.monitoringEmail = settings.getMonitoringEmail();
 		this.disallowDanishCharacters = settings.isDisallowDanishCharacters();
+		this.disallowNameAndUsername = settings.isDisallowNameAndUsername();
 		this.domainId = settings.getDomain().getId();
+		this.changePasswordOnUsersEnabled = settings.isChangePasswordOnUsersEnabled();
+		this.changePasswordOnUsersGroup = settings.getChangePasswordOnUsersGroup() != null ? settings.getChangePasswordOnUsersGroup().getId() : null;
+		this.showAdSettings = true;
+		this.alternativePasswordChangeLink = settings.getAlternativePasswordChangeLink();
 	}
 }

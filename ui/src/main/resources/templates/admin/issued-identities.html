@@ -18,23 +18,32 @@
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle de brugere som er oprettet i OS2faktor Login. Her kan man bl.a. se brugernes
+									status, tilgå yderligere detaljer om brugeren (klik på luppen) og spærre brugerens adgang (klik på hængelåsen).
+								</p>
+								
+								<p>
+									Man kan anvende søgefelter over hver kolonne for at filtrere listen af brugere, samt
+									klikke på den enkelte overskrift for at sortere efter den valgte kolonne.
+								</p>
+								
+								<h4>Brugere</h4>
 								<div class="table-responsive">
 									<table id="persons" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
-												<th style="width: 80px;">Konto</th>
-												<th style="width: 80px;">AD Konto</th>
-												<th style="width: 160px;">Person</th>
-												<th style="width: 100px;">Status</th>
-												<th style="width: 120px;">NSIS nivau</th>
-												<th style="width: 70px;">Domæne</th>
+												<th style="width: 120px;">Brugernavn</th>
+												<th style="width: 200px;">Person</th>
+												<th style="width: 70px;">Status</th>
+												<th style="width: 100px;">NSIS sikringsniveau</th>
+												<th style="width: 120px;">Domæne</th>
 												<th style="width: 70px;"></th>
 											</tr>
 										</thead>
 										
 										<tfoot style="display: table-row-group">
 											<tr>
-												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
@@ -175,6 +184,38 @@
 		</div>
 	</div>
 	<!-- End lock Modal -->
+	
+	<!-- unlock Modal -->
+	<div class="modal inmodal" id="modalUnlock" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<h4 class="modal-title" id="modalUnlockTitle">Fjern spærring</h4>
+				</div>
+				
+				<div class="modal-body">
+					<div class="form-group col-md-12">
+						<span>Er du sikker på du vil låse denne konto op?</span>
+					</div>
+
+					<div class="form-group col-md-12 suspendRow">
+						<input id="suspendUnlock" type="checkbox" class="i-checks col-sm-2 form-control">
+						<label class="col-sm-10 col-form-label">Suspender erhvervsidentiteten i forbindelse med at spærringen fjernes<span style="vertical-align: super; font-size: smaller;">*</span></label>
+					</div>
+					
+					<div class="form-group col-md-12 suspendRow">
+						<span style="vertical-align: super; font-size: smaller;">*</span>
+						<span>Hvis erhvervsidentiteten suspenderes, skal brugeren gennemføre en ny aktivering af erhvervsidentiten hvis spærringen af kontoen fjernes.</span>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" style="width: 80px;" onclick="$(modalUnlock).hide();">Nej</button>
+					<button type="button" class="btn btn-primary" style="width: 80px;" onclick="modalService.saveUnlockModal()">Ja</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End unlock Modal -->
 
 	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
 
@@ -183,15 +224,14 @@
 			
 		/*[+
 		var baseUrl = [[@{/}]];
-		var lockText = [[#{page.admin.issuedidentities.lockText}]];
-		var unlockText = [[#{page.admin.issuedidentities.unlockText}]];
-		var lockFail = [[#{page.admin.issuedidentities.lockErrorText}]];
-		var lockButtonConfirm = [[#{shared.button.yes}]];
-		var lockButtonCancel = [[#{shared.button.no}]];
 		var coreDataEditable = [[${coreDataEditable}]];
 		var configDomain = [[${configDomain}]]
 		+]*/
 
+		var lockText = "Er du sikker på at du vil spærre denne konto?";
+		var unlockText = "Er du sikker på at du vil låse denne konto op?";
+		var lockFail = "Der opstod en teknisk fejl, handlingen blev ikke udført!";
+		
 		var token = $("meta[name='_csrf']").attr("content");
 	
 		function disableDataTablesAlerts() {
@@ -232,10 +272,6 @@
 						"orderable": false
 					},
 					{
-						"data": "samaccountName",
-						"orderable": false
-					},
-					{
 						"data": "name",
 						"orderable": false
 					},
@@ -259,6 +295,9 @@
 								}
 								if (row.lockedPassword) {
 									content += "<li>For mange forkerte login forsøg</li>"
+								}
+								if (row.lockedDead) {
+									content += "<li>Spærret pga markering om dødsfald i CPR registeret</li>"
 								}
 
 								content += '</ul>"></em>';
@@ -343,54 +382,30 @@
 		});
 
 		function lock(id, isLocked) {
-			if (isLocked) {
-				swal({
-					title: '',
-					text: unlockText,
-					showCancelButton: true,
-					confirmButtonColor: "#3085d6",
-					confirmButtonText: lockButtonConfirm,
-					cancelButtonText: lockButtonCancel,
-					closeOnConfirm: true,
-					closeOnCancel: true
-				},
-				function(isConfirm) {
-					if (isConfirm) {
-						$.ajax({
-							method : "POST",
-							url: baseUrl + "rest/admin/lock/" + id + "?lock=" + !isLocked + "&suspend=false",
-							headers: {
-								"content-type": "application/json",
-								'X-CSRF-TOKEN': token
-							}
-						}).done(function (data) {
-							table.ajax.reload();
-						}).fail(function (jqXHR, textStatus, errorThrown) {
-							toastr.warning(lockFail);
-						});
-					}
-				});
-			}
-			else {
-				$.ajax({
-					method : "GET",
-					url: baseUrl + "rest/admin/lock/check/" + id,
-					headers: {
-						"content-type": "application/json",
-						'X-CSRF-TOKEN': token
-					}
-				}).done(function (data) {
-					if (data) {
-						$(".suspendRow").show();
-					}
-					else {
-						$(".suspendRow").hide();
-					}
-				}).fail(function (jqXHR, textStatus, errorThrown) {
+			$.ajax({
+				method : "GET",
+				url: baseUrl + "rest/admin/lock/check/" + id,
+				headers: {
+					"content-type": "application/json",
+					'X-CSRF-TOKEN': token
+				}
+			}).done(function (data) {
+				if (data) {
+					$(".suspendRow").show();
+					$("#suspend").iCheck('check');
+				}
+				else {
 					$(".suspendRow").hide();
-				});
-				
-				$("#suspend").iCheck('uncheck');
+					$("#suspend").iCheck('uncheck');
+				}
+			}).fail(function (jqXHR, textStatus, errorThrown) {
+				$(".suspendRow").hide();
+			});
+			
+			if (isLocked) {
+				$("#modalUnlock").show();
+				$("#modalUnlock").attr("personid", id);
+			} else {
 				$("#modalLock").show();
 				$("#modalLock").attr("personid", id);
 			}
@@ -592,6 +607,25 @@
 					}
 				}).done(function (data) {
 					$("#modalLock").hide();
+					table.ajax.reload();
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					toastr.warning(lockFail);
+				});
+			}
+			
+			this.saveUnlockModal = function() {
+				var personId = $("#modalUnlock").attr("personid");
+				var suspend = $("#suspendUnlock").is(":checked");
+				
+				$.ajax({
+					method : "POST",
+					url: baseUrl + "rest/admin/lock/" + personId + "?lock=" + false + "&suspend=" + suspend,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					$("#modalUnlock").hide();
 					table.ajax.reload();
 				}).fail(function (jqXHR, textStatus, errorThrown) {
 					toastr.warning(lockFail);

@@ -24,7 +24,7 @@ public class StringResource implements net.shibboleth.utilities.java.support.res
 
 	@Override
 	public boolean exists() {
-		return !StringUtils.isEmpty(content);
+		return StringUtils.hasLength(content);
 	}
 
 	@Override
@@ -70,7 +70,7 @@ public class StringResource implements net.shibboleth.utilities.java.support.res
 
 	@Override
 	public long contentLength() throws IOException {
-		return !StringUtils.isEmpty(content) ? content.length() : 0;
+		return StringUtils.hasLength(content) ? content.length() : 0;
 	}
 
 	@Override

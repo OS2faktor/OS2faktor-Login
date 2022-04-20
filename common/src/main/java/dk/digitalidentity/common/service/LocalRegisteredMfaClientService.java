@@ -25,4 +25,8 @@ public class LocalRegisteredMfaClientService {
 	public LocalRegisteredMfaClient getByDeviceId(String deviceId) {
 		return localRegisteredMfaClientDao.findByDeviceId(deviceId);
 	}
+	
+	public void delete(LocalRegisteredMfaClient localRegisteredMfaClient) {
+		localRegisteredMfaClientDao.delete(localRegisteredMfaClient);
+	}
 }

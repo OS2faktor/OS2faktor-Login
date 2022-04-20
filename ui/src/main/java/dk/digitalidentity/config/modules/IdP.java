@@ -9,7 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 public class IdP {
 	private String baseUrl;
-	
+	private String metadataUrl;
+
 	public String getBaseUrl() {
 		if (baseUrl == null) {
 			log.error("No baseUrl configured!");

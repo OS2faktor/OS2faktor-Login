@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-gear"></em> &nbsp; Tjenesteudbyder</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="reloadMetadata()" class="btn btn-primary">
+										<em class="fa fa-refresh"></em>
+										&nbsp;
+										Genopfrisk metadata
+									</button>
+									<a th:if="${serviceprovider.sqlServiceProvider}" th:href="@{/admin/konfiguration/tjenesteudbydere/} + ${serviceprovider.id} + '/edit'" class="btn btn-primary">
+										<em class="fa fa-pencil"></em>
+										&nbsp;
+										Rediger
+									</a>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<form>
+									<input type="text" class="form-control" th:field="${serviceprovider.id}" style="display:none;"/>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Navn</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:value="${serviceprovider.name}" disabled="disabled"/>
+										</div>
+									</div>
+									
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Entity ID</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:value="${serviceprovider.entityId}" disabled="disabled"/>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">NameID Format</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" disabled="disabled">
+												<option th:each="nameIdFormat : ${T(dk.digitalidentity.common.dao.model.enums.NameIdFormat).values()}" th:value="${nameIdFormat}" th:text="${nameIdFormat.value}" th:selected="${nameIdFormat} == ${serviceprovider.nameIdFormat}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div th:if="${serviceprovider.sqlServiceProvider}" class="form-group row">
+										<label class="col-sm-3 col-form-label">NameID Værdi</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" disabled="disabled">
+												<option th:selected="${serviceprovider.nameIdValue} == 'userId'" label="userId"></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'sAMAccountName'" label="sAMAccountName"></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'uuid'" label="uuid"></option>
+												<option th:selected="${serviceprovider.nameIdValue} == 'cpr'" label="cpr"></option>
+												<option th:selected="!${#lists.contains({'userId','sAMAccountName', 'uuid','cpr'}, serviceprovider.nameIdValue)}" th:label="${serviceprovider.nameIdValue}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed" th:if="${serviceprovider.sqlServiceProvider}"></div>
+
+									<div class="form-group row" th:if="${serviceprovider.sqlServiceProvider}">
+										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" disabled="disabled">
+												<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${serviceprovider.forceMfaRequired}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed" th:if="${serviceprovider.sqlServiceProvider}"></div>
+
+									<div class="form-group row" th:if="${serviceprovider.sqlServiceProvider}">
+										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" disabled="disabled">
+												<option th:each="nsisLevel : ${T(dk.digitalidentity.common.dao.model.enums.NSISLevel).values()}" th:value="${nsisLevel}" th:text="#{__${nsisLevel.message}__}" th:selected="${nsisLevel} == ${serviceprovider.nsisLevelRequired}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Aktiv</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+											</label>
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Metadata konfiguration</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row" th:if="${!#strings.isEmpty(serviceprovider.metadataUrl)}">
+									<label class="col-sm-3 col-form-label">Metadata hentet via den valgte URL</label>
+									<div class="col-sm-9">
+										<input type="text" class="form-control" th:value="${serviceprovider.metadataUrl}" disabled="disabled"/>
+									</div>
+								</div>
+								
+								<div class="form-group row" th:if="${!#strings.isEmpty(serviceprovider.metadataContent)}">
+									<label class="col-sm-3 col-form-label">Metadata uploadet via xml fil</label>
+								</div>
+
+								<div class="hr-line-dashed"></div>
+
+								<div class="form-group row" th:if="${#lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
+									<label class="offset-sm-3 col-sm-3 col-form-label"><em class="fa fa-exclamation-circle"></em> Kunne ikke hente Certificater eller Endpoints fra metadata, prøv evt. igen senere</label>
+								</div>
+									
+								<th:block th:unless="${#lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Certificater</label>
+										<div class="col-sm-9">
+											<div class="table-responsive">
+												<table id="certTable" class="table table-striped table-bordered table-hover">
+													<thead>
+														<tr>
+															<th style="width: 20%;">Type</th>
+															<th style="width: 70%;">Subjekt</th>
+															<th style="width: 10%;">Udløbsdato</th>
+														</tr>
+													</thead>
+													
+													<tbody>
+														<tr th:each="cert : ${serviceprovider.certificates}">
+										    				<td th:text="${cert.usageType}" />
+										   			 		<td th:text="${cert.subject}" />
+										   			 		<td th:text="${cert.expiryDate}" />
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										</div>
+									</div>
+
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Endpoints</label>
+										<div class="col-sm-9">
+											<div class="table-responsive">
+												<table id="endpointTable" class="table table-striped table-bordered table-hover">
+													<thead>
+														<tr>
+															<th style="width: 20%;">Type</th>
+															<th style="width: 40%;">URL</th>
+															<th style="width: 40%;">Binding</th>
+														</tr>
+													</thead>
+													
+													<tbody>
+														<tr th:each="endpoint : ${serviceprovider.endpoints}">
+										    				<td th:text="${endpoint.type}" />
+										    				<td th:text="${endpoint.url}" />
+										   			 		<td th:text="${endpoint.binding}" />
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										</div>
+									</div>
+								</th:block>
+							</div>
+						</div>
+
+						<div class="ibox" th:if="${serviceprovider.sqlServiceProvider and !#lists.isEmpty(serviceprovider.claims)}">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Claims</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="claimTable" class="table table-striped table-bordered table-hover">
+										<thead>
+											<tr>
+												<th style="width: 200px;">Type</th>
+												<th>Attribut</th>
+												<th style="width: 300px;">Værdi</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr th:each="claim : ${serviceprovider.claims}">
+							    				<td th:text="${claim.type.message}" />
+							   			 		<td th:text="${claim.attribute}" />
+							    				<td th:text="${claim.value}" />
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox" th:if="${serviceprovider.sqlServiceProvider and (!#lists.isEmpty(serviceprovider.conditionsGroups) || !#lists.isEmpty(serviceprovider.conditionsDomains))}">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsDomains)}">
+									<div class="table-responsive">
+										<table id="conditionDomainTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 100%;">Adgang begrænset til personer fra følgende domæner</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="domain : ${serviceprovider.conditionsDomains}">
+													<td th:text="${domain.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+
+								<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsGroups)}">
+									<div class="table-responsive">
+										<table id="conditionGroupTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 100%;">Adgang begrænset til personer i følgende grupper</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="group : ${serviceprovider.conditionsGroups}">
+													<td th:text="${group.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox" th:if="${serviceprovider.kombitServiceProvider}">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Kombit Brugervendte Systemer</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="table-responsive">
+									<table id="claimTable" class="table table-striped table-bordered table-hover">
+										<thead>
+											<tr>
+												<th style="width: 400px;">Navn</th>
+												<th>EntityId</th>
+												<th style="width: 150px;">Kræv altid 2-faktor</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr th:each="subsystem : ${kombitSubsystems}">
+							    				<td>
+							    					<em class="fa fa-fw fa-pencil namePencil" th:id="'namePencil-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
+							    					<em class="fa fa-fw fa-times nameCancel" style="display: none;" th:id="'nameCancel-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
+							    					<span style="margin-left: 10px;" th:id="'subsystem-name-' + ${subsystem.id}" th:text="${subsystem.name}"></span>
+							    				</td>
+							   			 		<td th:text="${subsystem.entityId}" />
+							    				<td>
+													<input th:checked="${subsystem.alwaysRequireMfa}" type="checkbox" class="i-checks mfaCheckbox" th:data-id="${subsystem.id}"></input>
+							    				</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var rootUrl = [[@{/}]];
+		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function(){
+			var suppressToggleHandler = false;
+
+			$('.nameCancel').on('click', function() {
+				var id = $(this).data('id');
+
+				$('#namePencil-' + id).removeClass('fa-save');
+				$('#namePencil-' + id).addClass('fa-pencil');
+				$('#nameCancel-' + id).hide();
+
+				var spanElem = $('#subsystem-name-' + id);
+				var inputElem = $('#subsystem-name-input-' + id);
+				inputElem.remove();
+				spanElem.show();
+			});
+			
+			$('.namePencil').on('click', function() {
+				var id = $(this).data('id');
+
+				if ($(this).hasClass('fa-pencil')) {
+					$(this).removeClass('fa-pencil');
+					$(this).addClass('fa-save');
+	
+					var spanElem = $('#subsystem-name-' + id);
+					$('<input type="text" id="subsystem-name-input-' + id + '" style="display: inline-block; width: 324px; margin-left: 10px;" class="form-control"></input>').insertAfter(spanElem);
+					spanElem.hide();
+					
+					$('#nameCancel-' + id).show();
+					
+					$('#subsystem-name-input-' + id).focus();
+					$('#subsystem-name-input-' + id).val(spanElem.text());
+				}
+				else {
+					$(this).removeClass('fa-save');
+					$(this).addClass('fa-pencil');
+					$('#nameCancel-' + id).hide();
+
+					var spanElem = $('#subsystem-name-' + id);
+					var inputElem = $('#subsystem-name-input-' + id);
+					var newValue = inputElem.val();
+					inputElem.remove();
+
+					$.ajax({
+						url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/name',
+						method: "POST",
+						headers: {
+	     			      'X-CSRF-TOKEN': token
+	     			   	},
+	     			   	contentType: 'application/json',
+	     			   	data: JSON.stringify({'name': newValue }),
+	     			   	success: function(data, textStatus, jQxhr) {
+							toastr.success('Opdateringen gennemført')
+
+							spanElem.text(newValue);
+							spanElem.show();
+	     			   	},
+	     			   	error: function(jQxhr, textStatus, errorThrown) {
+							toastr.error('Opdateringen fejlede');
+							
+							spanElem.show();
+	     			   	}
+					});
+				}
+			});
+			
+			$('.mfaCheckbox').on('ifChanged', function() {
+				if (suppressToggleHandler) {
+					return;
+				}
+
+				var id = $(this).data('id');
+				var checked = this.checked;
+
+				$.ajax({
+					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/mfa/' + (checked ? 'true' : 'false'),
+					method: "POST",
+					headers: {
+     			      'X-CSRF-TOKEN': token
+     			   	},
+     			   	success: function(data, textStatus, jQxhr) {
+						toastr.success('Opdateringen gennemført')
+     			   	},
+     			   	error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error('Opdateringen fejlede');
+
+						suppressToggleHandler = true;
+						$('.mfaCheckbox').iCheck('toggle');
+						setTimeout(function() {
+							suppressToggleHandler = false;
+						}, 250);
+     			   	}
+				});				
+			});
+		});
+		
+		this.reloadMetadata = function () {
+			var id = $('#id').val();
+			$.ajax({
+				url: spUrl + id + "/reload",
+				method: "POST",
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+				contentType: 'application/json',
+				success: function(data, textStatus, jQxhr) {
+					toastr.success("Indlæsning påbegyndt. Der kan gå op til 5 minutter før data er fuldt indlæst.");
+				},
+				error: function(jQxhr, textStatus, errorThrown) {
+					toastr.error("Fejl: " + jQxhr.responseText);
+				}
+			});
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

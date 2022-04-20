@@ -7,33 +7,61 @@
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="ibox offset-md-2 col-md-8">
-						<div class="ibox-title">
-							<h5><em class="fa fa-pencil"></em> &nbsp; Vilkår for anvendelse af erhvervsidentitet</h5>
-						</div>
 
+						<div class="ibox-title">
+							<h5><em class="fa fa-pencil"></em> &nbsp; Vilkår for anvendelse af brugerkonto</h5>
+						</div>
+						
 						<div class="ibox-content">
 							<p>
-							Før du kan tage din erhvervsidentitet i brug, skal du læse og acceptere nedenstående vilkår. Du forpligtiger dig til at anvende
-							din erhvervsidentitet i henhold til de nævnte vilkår, samt at følge de retningslinjer der er listet nedenfor.
+							Før du kan tage din brugerkonto i brug, skal du læse og acceptere nedenstående vilkår. Du forpligtiger dig til at anvende
+							din brugerkonto i henhold til de nævnte vilkår, samt at følge de retningslinjer der er listet nedenfor.
 							</p>
+							
+							<div class="tabs-container">
+								<ul class="nav nav-tabs" role="tablist">
+									<li><a class="nav-link active" data-toggle="tab" href="#tab-1">Anvendelsesvilkår</a></li>
+									<li><a class="nav-link" data-toggle="tab" href="#tab-2">Privatlivspolitik</a></li>
+								</ul>
 
-							<div class="wrapper wrapper-content article">
-								<div class="row justify-content-md-center">
-									<div class="col-lg-12">
-										<div class="ibox">
-											<div class="ibox-content" th:utext="${terms}" style="height: 400px; overflow: scroll;"></div>
+								<div class="tab-content">
+									<div role="tabpanel" id="tab-1" class="tab-pane active">
+										<div class="panel-body" style="padding: 0px;">
+											<div class="wrapper wrapper-content article">
+												<div class="row justify-content-md-center">
+													<div class="col-lg-12">
+														<div class="ibox">
+															<div class="ibox-content" th:utext="${terms}" style="height: 400px; overflow: scroll;"></div>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+
+									<div role="tabpanel" id="tab-2" class="tab-pane">
+										<div class="panel-body" style="padding: 0px;">
+											<div class="wrapper wrapper-content article">
+												<div class="row justify-content-md-center">
+													<div class="col-lg-12">
+														<div class="ibox">
+															<div class="ibox-content" th:utext="${privacy}" style="height: 400px; overflow: scroll;"></div>
+														</div>
+													</div>
+												</div>
+											</div>
 										</div>
 									</div>
 								</div>
-
-								<form>
-									<div class="form-group">
-										<div>
-											<label><input id="checkboxAccept" type="checkbox" class="i-checks"> &nbsp; Jeg har læst og accepteret vilkårene</label>
-										</div>
-									</div>
-								</form>
 							</div>
+
+							<form style="margin-top: 20px;">
+								<div class="form-group">
+									<div>
+										<label><input id="checkboxAccept" type="checkbox" class="i-checks"> &nbsp; Jeg har læst og accepteret vilkårene</label>
+									</div>
+								</div>
+							</form>
 
 							<div>
 								<form method="post" th:action="@{/vilkaar/godkendt}">

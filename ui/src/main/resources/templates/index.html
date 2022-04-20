@@ -11,31 +11,23 @@
 	                <div class="col-lg-12">
                         <div class="ibox">
                             <div class="ibox-title">
-                                <h5><em class="fa fa-info"></em> &nbsp; Selvbetjening for erhvervsidentiteter</h5>
+                                <h5><em class="fa fa-info"></em> &nbsp; Selvbetjening for brugerkonti</h5>
                             </div>
-
-                            <div class="ibox-content">
-                            	<p>
-                            	Du skal logge på selvbetjeningen med dit bruger-id og din adgangskode for at få adgang til selvbetjeningsfunktionerne. Her kan du
-                            	</p>
-                            	
-                            	<ul>
-                            		<li>Udstede din erhvervsidentitet</li>
-                            		<li>Adminstrere kodeord og status på din erhvervsidentitet</li>
-                            		<li>Se hvad din erhvervsidentitet er blevet brugt til</li>
-                            	</ul>
-
-								<p>
-								Læs også <a th:href="@{/privatlivspolitik}">privatlivspolitikken</a> der knytter sig til erhvervsidentiteten, samt de <a th:href="@{/vilkaar}">vilkår</a> erhvervsidentiteten må anvendes under.
-								</p>
-
+							
+                            <div class="ibox-content" >
+								<div th:utext="${@cmsMessageBundle.getText('cms.index.content')}"></div>
 								<br/>
 
-								<p class="full-width">
-		                        	<a sec:authorize="!isAuthenticated()" style="font-size: 1.5em; min-width: 150px; width: 45%; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="@{/saml/login}">Login til selvbetjening</a>
-	
-		                        	<a style="font-size: 1.5em; min-width: 150px; width: 45%; margin-bottom: 20px;" class="btn btn-primary" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Få et nyt kodeord</a></li>
-	                        	</span>
+								<!-- Hidden on mobile -->
+								<p class="d-none d-lg-block full-width" style="text-align: right">
+									<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="@{/saml/login}">Login</a>
+	                        	</p>
+
+	                        	<!-- Visible on mobile -->
+	                        	<div class="d-block d-lg-none">
+	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="@{/saml/login}">Login</a>
+	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift kodeord</a>
+	                        	</div>
 	                        </div>
 	                    </div>
 	                </div>

@@ -4,8 +4,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Service;
 
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.PersonService;
 
@@ -17,9 +20,13 @@ public class ReportService {
 
 	@Autowired
 	private PersonService personService;
+	
+	@Autowired
+	private ResourceBundleMessageSource resourceBundle;
 
 	public Map<String, Object> getAuditLogReportModel() {
 		Map<String, Object> model = new HashMap<>();
+		model.put("resourceBundle", resourceBundle);
 		model.put("auditLogs", auditLogService.findAllFromLastWeek());
 
 		return model;
@@ -27,6 +34,7 @@ public class ReportService {
 
 	public Map<String, Object> getAuditLogReportModelByDomain(String domain) {
 		Map<String, Object> model = new HashMap<>();
+		model.put("resourceBundle", resourceBundle);
 		model.put("auditLogs", auditLogService.findFromLastWeekAndDomain(domain));
 
 		return model;
@@ -39,9 +47,17 @@ public class ReportService {
 		return model;
 	}
 
-	public Map<String, Object> getPersonsReportModelByDomain(String domain) {
+	public Map<String, Object> getPersonsReportModelByDomain(Domain domain) {
 		Map<String, Object> model = new HashMap<>();
-		model.put("persons", personService.getByDomain(domain));
+		model.put("persons", personService.getByDomain(domain, true));
+
+		return model;
+	}
+
+	public Map<String, Object> getActivatedAccountsReport() {
+		Map<String, Object> model = new HashMap<>();
+		model.put("resourceBundle", resourceBundle);
+		model.put("auditLogs", auditLogService.findByLogActionsForLast13Months(LogAction.ACCEPTED_TERMS, LogAction.ACTIVATE));
 
 		return model;
 	}

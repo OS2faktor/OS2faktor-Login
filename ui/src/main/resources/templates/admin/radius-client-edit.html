@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.radius-client-edit')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-gear"></em> &nbsp; RADIUS klient</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="radiusClientService.save()" class="btn btn-primary">
+										<em class="fa fa-floppy-o"></em>
+										&nbsp;
+										Gem
+									</button>
+
+									<a th:href="@{/admin/konfiguration/radiusklienter}" class="btn btn-danger" style="color:#ffffff !important">
+										<em class="fa fa-ban"></em>
+										&nbsp;
+										Annuller
+									</a>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<form>
+									<input type="text" class="form-control" th:field="${radiusClient.id}" style="display:none;"/>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Navn</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="${radiusClient.name}"/>
+										</div>
+									</div>
+									
+									<div th:if="${edit}" class="form-group row">
+										<label class="col-sm-3 col-form-label">Kodeord</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="${radiusClient.password}" readonly/>
+										</div>
+									</div>
+									
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">IP-adresse</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="${radiusClient.ipAddress}" placeholder="Angiv IP adressen på xxx.xxx.xxx.xxx/yy   (yy kan være 16, 24 eller 32)" />
+										</div>
+									</div>
+								</form>
+							</div>
+						</div>
+						<div class="ibox" id="iboxConditionalAccess">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group">
+									<div class="form-group row" >
+										<div class="col-sm-12" style="padding-left: 30px; margin-top: 15px;">
+											<label><input id="conditionWithAttributeCheckbox" type="checkbox" class="i-checks" checked="checked"></label>
+											<label style="padding-left: 15px;">Begræns adgang til brugere med indlæst RADIUS attribut</label>
+										</div>
+									</div>
+								</div>
+								
+								<div class="hr-line-dashed"></div>
+
+								<div class="form-group">
+									<div class="form-group row" >
+										<div class="col-sm-12">
+											<h4>Begræns adgang til udvalgte domæner</h4>
+										</div>
+									</div>
+
+									<div class="table-responsive conditionDomainTable">
+										<table id="conditionDomainTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 60px;">Valgt</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="domain : ${@domainService.getAllParents()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${domain.id}" type="checkbox" class="i-checks conditionDomainCheckbox"></label>
+													</td>
+													<td th:text="${domain.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+								
+								<div class="form-group">
+									<div class="form-group row">
+										<div class="col-sm-12">
+											<h4>Begræns adgang til udvalgte grupper</h4>
+										</div>
+									</div>
+
+									<div class="table-responsive conditionGroupTable">
+										<table id="conditionGroupTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 60px;">Valgt</th>
+													<th style="width: 200px;">Domæne</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+
+											<tbody style="display: table-row-group">
+												<tr th:each="group : ${@groupService.getAll()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${group.id}" type="checkbox" class="i-checks conditionGroupCheckbox"></label>
+													</td>
+													<td th:text="${group.domain.name}"></td>
+													<td th:text="${group.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.radius-client-edit')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	
+</body>
+<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+			var rootUrl = [[@{/}]];
+			var buttonConfirm = [[#{shared.button.save}]];
+			var buttonCancel = [[#{shared.button.cancel}]];
+			var rCUrl = [[@{/admin/konfiguration/radiusklienter/}]];
+
+			var conditionsDomains = [[${radiusClient.conditionsDomains}]];
+			var conditionsGroups = [[${radiusClient.conditionsGroups}]];
+			var conditionWithAttribute = [[${radiusClient.conditionWithAttribute}]];
+		+]*/
+
+		// messages
+		var savetitle = "Vil du gemme ændringerne?";
+		var saveText = "";
+		
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var radiusClientService;
+		var conditionsService;
+		$(document).ready(function() {
+			radiusClientService = new RadiusClientService();
+			radiusClientService.init();
+
+			conditionsService = new ConditionsService();
+			conditionsService.init();
+
+			const queryString = window.location.search;
+			const urlParams = new URLSearchParams(queryString);
+			const saved = urlParams.get('saved')
+
+			if (saved == 'true') {
+				toastr.success("Gemt");				
+			}
+		});
+
+		function RadiusClientService() {
+			this.init = function() {
+			}
+
+			this.save = function() {
+				swal({
+						title: savetitle,
+						text: saveText,
+						showCancelButton: true,
+						confirmButtonColor: "#3085d6",
+						confirmButtonText: buttonConfirm,
+						cancelButtonText: buttonCancel,
+						closeOnConfirm: true,
+						closeOnCancel: true
+					},
+					function(isConfirm) {
+						if (isConfirm) {
+							var data = {};
+
+							var id = $('#id').val();
+
+							data.id = id;
+							data.name = $('#name').val();
+							data.ipAddress = $('#ipAddress').val();
+
+							// Handle conditions
+							var conditionsDomains = [];
+							$('.conditionDomainCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {	
+									conditionsDomains.push({id: $(element).data("id")});
+								}
+							})
+							
+							var conditionsGroups = [];
+							$('.conditionGroupCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {
+									conditionsGroups.push({id: $(element).data("id")});
+								}
+							})
+
+							if ($('#conditionWithAttributeCheckbox').prop("checked")) {
+								data.conditionWithAttribute = {id: 0};
+							}
+
+							data.conditionsDomains = conditionsDomains;
+							data.conditionsGroups = conditionsGroups;
+
+
+							$.ajax({
+								url: rCUrl + id + "/edit",
+								method: "POST",
+								headers: {
+			     			      'X-CSRF-TOKEN': token
+			     			   	},
+			     			   	contentType: 'application/json',
+			     			   	data: JSON.stringify(data),
+			     			   	success: function(data, textStatus, jQxhr) {
+									window.location.replace(rCUrl + data + "/edit?saved=true");
+			     			   	},
+			     			   	error: function(jQxhr, textStatus, errorThrown) {
+									toastr.error("Fejl: " + jQxhr.responseText);
+			     			   	}
+							});
+						}
+					}
+				);	
+			}
+		}
+
+		function ConditionsService() {
+			this.init = function() {
+				conditionsService.initCheckboxes();
+				conditionsService.initTables();
+			}
+
+			this.initTables = function() {
+				// Domain table
+				$('#conditionFilterOnDomain').iCheck(conditionsDomains.length > 0 ? 'check' : 'uncheck');
+				conditionsDomains.forEach(element => {
+					$('.conditionDomainCheckbox[data-id="'+ element.id +'"]').iCheck('check');
+				});
+				conditionsService.initDatatables("#conditionDomainTable");
+				
+				// Group table
+				$('#conditionFilterOnGroup').iCheck(conditionsGroups.length > 0 ? 'check' : 'uncheck');
+				conditionsGroups.forEach(element => {
+					$('.conditionGroupCheckbox[data-id="'+ element.id +'"]').iCheck('check');
+				});
+				conditionsService.initDatatables("#conditionGroupTable");
+
+				// WithAttribute
+				$('#conditionWithAttributeCheckbox').iCheck(conditionWithAttribute != null ? 'check' : 'uncheck');
+				
+				// Update checkboxes
+				$('#iboxConditionalAccess').iCheck('update'); // Update all ichecks with values set by jquery
+			}
+
+			this.initDatatables = function(id) {
+				var table = $(id).DataTable({
+	                "pageLength": 25,
+	                "bLengthChange": false,
+	                "bSort": true,
+	                "responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+			        "language": {
+			        	"search":	   "Søg",
+						"lengthMenu":   "_MENU_ hændelser per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ grupper",
+						"zeroRecords":  "Ingen grupper...",
+						"infoEmpty":	"Henter grupper...",
+						"infoFiltered": "(ud af _MAX_ hændelser)",
+			            "paginate": {
+			                "previous": "Forrige",
+			                "next": "Næste"
+			            }
+			        }
+	            });
+
+				// Configure searching
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+		
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.initCheckboxes = function() {
+				
+				// Init event handlers
+				$("#conditionFilterOnDomain").on("ifChanged", function() {
+					if ($("#conditionFilterOnDomain").is(":checked")) {
+						$(".conditionDomainTable").show();
+					}
+					else {
+						$(".conditionDomainTable").hide();
+					}
+				});
+				
+				$("#conditionFilterOnGroup").on("ifChanged", function() {
+					if ($("#conditionFilterOnGroup").is(":checked")) {
+						$(".conditionGroupTable").show();
+					}
+					else {
+						$(".conditionGroupTable").hide();
+					}
+				});
+			}
+		}
+
+		/*]]>*/
+	</script>
+</html>

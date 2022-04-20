@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (texteditor = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-pencil"></em> &nbsp; Rediger <span th:text="${cmsMessage.key}"></span></h5>
+							</div>
+
+							<div class="ibox-content">
+								<p th:text="${cmsMessage.description}">
+								</p>
+								<p>På grund af caching, vil der gå lidt tid (op til 5 minutter), inden ændringen træder i kraft</p>
+								
+								<form action="#" th:action="@{/admin/cms/edit}" th:object="${cmsMessage}" method="post">
+									<input th:field="*{key}" style="display: none">
+									<input th:field="*{description}" style="display: none">
+									<textarea id="content" class="form-control" th:field="*{value}" autocomplete="off"></textarea>
+									<p th:if="${showError}" style="color: red;">Den indtastede tekst er for lang. Der tillades max 65536 tegn (inkl formattering)</p>
+									<br/>
+
+									<button type="submit" class="btn btn-primary block full-width m-b">Gem tekst</button>
+									<a th:href="@{/admin/cms/list}" class="btn btn-danger block full-width m-b">Annuller</a>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.cms-edit')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (texteditor = true)" />
+	
+	<script>
+		$(document).ready(function() {
+			$('#content').summernote({
+				"height": 320,
+				"toolbar": [
+					[ "font", [ "bold", "italic", "underline" ]],
+					[ "para", [ "ul", "ol", "style" ]],
+					['insert', ['link']]
+				]
+			});
+		});
+	</script>
+</body>
+</html>

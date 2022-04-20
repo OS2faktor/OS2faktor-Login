@@ -1,6 +1,5 @@
 package dk.digitalidentity.common.dao.model;
 
-
 import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
 import java.time.LocalDateTime;
 import javax.persistence.Column;
@@ -50,9 +49,9 @@ public class PasswordChangeQueue {
 
     public PasswordChangeQueue(Person person, String newPassword) {
     	this.password = newPassword;
-    	this.domain = person.getDomain().getName();
     	this.samaccountName = person.getSamaccountName();
     	this.uuid = person.getUuid();
     	this.status = ReplicationStatus.WAITING_FOR_REPLICATION;
+        this.domain = person.getDomain().getName();
     }
 }

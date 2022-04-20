@@ -1,5 +1,6 @@
 package dk.digitalidentity.controller;
 
+import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Iterator;
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dk.digitalidentity.nemlogin.NemLoginUtil;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
@@ -25,9 +27,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LogoutRequestService;
 import dk.digitalidentity.service.LogoutResponseService;
+import dk.digitalidentity.service.OpenSAMLHelperService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
@@ -61,6 +65,15 @@ public class LogoutController {
     @Autowired
     private LogoutResponseService logoutResponseService;
 
+    @Autowired
+    private AuditLogger auditLogger;
+
+    @Autowired
+    private OpenSAMLHelperService samlHelper;
+
+    @Autowired
+    private NemLoginUtil nemLoginUtil;
+
     // user initiated logout from IdP UI
     @GetMapping("/sso/saml/logoutIdP")
     public String logoutIdp(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
@@ -68,6 +81,7 @@ public class LogoutController {
 
         try {
         	logout(httpServletResponse, null, spSessions);
+        	return null;
         }
         catch (Exception ex) {
         	log.warn("Failed to perform SLO", ex);
@@ -84,14 +98,17 @@ public class LogoutController {
         try {
             messageContext = logoutRequestService.getMessageContext(httpServletRequest);
             logoutRequest = logoutRequestService.getLogoutRequest(messageContext);
+
+            // Log to Console and AuditLog
             loggingUtil.logLogoutRequest(logoutRequest, Constants.INCOMING);
+            serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
+            auditLogger.logoutRequest(sessionHelper.getPerson(), samlHelper.prettyPrint(logoutRequest), false, serviceProvider.getName(null));
 
             // Save RelayState
             SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
             String relayState = subcontext != null ? subcontext.getRelayState() : null;
             sessionHelper.setRelayState(relayState);
 
-            serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
 		}
 		catch (RequesterException | ResponderException e) {
 			log.error("Error occurred, no destination to send error known", e);
@@ -115,13 +132,13 @@ public class LogoutController {
 		}
 		catch (RequesterException ex) {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-			String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 
 			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex);
 		}
 		catch (ResponderException ex) {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-			String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex);
 		}
 
@@ -136,9 +153,12 @@ public class LogoutController {
         try {
             messageContext = logoutResponseService.getMessageContext(httpServletRequest);
             logoutResponse = logoutResponseService.getLogoutResponse(messageContext);
-            loggingUtil.logLogoutResponse(logoutResponse, Constants.INCOMING);
 
+            // Log to Console and AuditLog
+            loggingUtil.logLogoutResponse(logoutResponse, Constants.INCOMING);
             serviceProvider = serviceProviderFactory.getServiceProvider(logoutResponse.getIssuer().getValue());
+            auditLogger.logoutResponse(sessionHelper.getPerson(), samlHelper.prettyPrint(logoutResponse), false, serviceProvider.getName(null));
+
         } catch (RequesterException | ResponderException e) {
             log.error("Error occurred, no destination to send error known", e);
         }
@@ -152,22 +172,40 @@ public class LogoutController {
             logout(httpServletResponse, logoutRequest, spSessions);
         } catch (ResponderException ex) {
             SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-            String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex);
+            String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.RESPONDER, ex);
         } catch (RequesterException ex) {
             SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
-            String destination = !StringUtils.isEmpty(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex);
+            String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
+            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.REQUESTER, ex);
         }
     }
 
     private void sendLogoutResponse(HttpServletResponse httpServletResponse, LogoutRequest logoutRequest) throws ResponderException, RequesterException {
+        // If there is no LogoutRequest on session, show IdP index.
+        // this happens when logout is IdP initiated
+        if (logoutRequest == null) {
+            try {
+                auditLogger.logout(sessionHelper.getPerson());
+                sessionHelper.invalidateSession();
+                httpServletResponse.sendRedirect("/");
+                return;
+            } catch (IOException e) {
+                throw new ResponderException("Kunne ikke vidrestille til forsiden efter logud");
+            }
+        }
+
         // Create LogoutResponse
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
         SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
 
-        String destination = !StringUtils.isEmpty(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
+        String destination = StringUtils.hasLength(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
         MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination);
+
+        // Log to Console and AuditLog
+        auditLogger.logoutResponse(sessionHelper.getPerson(), samlHelper.prettyPrint((LogoutResponse) messageContext.getMessage()), true, serviceProvider.getName(null));
+        auditLogger.logout(sessionHelper.getPerson());
+        loggingUtil.logLogoutResponse((LogoutResponse) messageContext.getMessage(), Constants.OUTGOING);
 
         // Set RelayState
         SAMLBindingSupport.setRelayState(messageContext, sessionHelper.getRelayState());
@@ -196,6 +234,10 @@ public class LogoutController {
             SingleLogoutService logoutEndpoint = serviceProvider.getLogoutEndpoint();
             MessageContext<SAMLObject> messageContext = logoutRequestService.createMessageContextWithLogoutRequest(logoutRequest, logoutEndpoint.getLocation(), serviceProvider);
 
+            // Log to Console and AuditLog
+            auditLogger.logoutRequest(sessionHelper.getPerson(), samlHelper.prettyPrint((LogoutRequest) messageContext.getMessage()), true, serviceProvider.getName(null));
+            loggingUtil.logLogoutRequest((LogoutRequest) messageContext.getMessage(), Constants.OUTGOING);
+
             // Send LogoutRequest
             try {
                 sendMessage(httpServletResponse, logoutEndpoint, messageContext);
@@ -203,8 +245,7 @@ public class LogoutController {
                 throw new ResponderException("Kunne ikke sende logout forespørgsel (LogoutRequest)", e);
             }
 
-            // Log LogoutRequest and remove ServiceProvider from session
-            loggingUtil.logLogoutRequest((LogoutRequest) messageContext.getMessage(), Constants.OUTGOING);
+            // Remove ServiceProvider from session
             spSessions.remove(next.getKey());
         }
         sessionHelper.setServiceProviderSessions(spSessions);
@@ -236,8 +277,21 @@ public class LogoutController {
         sessionHelper.logout(logoutRequest);
 
         // Either send Response or send new request to a remaining service provider
+        // Sends a LogoutRequest to the next remaining ServiceProvider
+        // When all ServiceProviders have been logged out, we check for our NemLog-in integration, and log it out if necessary
+        // When all ServiceProviders AND NemLog-in is logged out, send response to original requesting ServiceProvider
 		if (spSessions.keySet().size() > 0) {
 			sendLogoutRequest(response, logoutRequest);
+		}
+		else if (nemLoginUtil.isAuthenticated()) {
+			try {
+				response.sendRedirect("/nemlogin/saml/logout");
+			}
+			catch (IOException e) {
+				log.warn("Kunne ikke logge ud af NemLog-in: " + e.getMessage());
+
+				sendLogoutResponse(response, logoutRequest);
+			}
 		}
 		else {
 			sendLogoutResponse(response, logoutRequest);

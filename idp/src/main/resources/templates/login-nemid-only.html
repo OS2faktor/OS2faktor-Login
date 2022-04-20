@@ -2,46 +2,74 @@
 <html>
 <head th:replace="fragments/header :: header" />
 <body class="gray-bg">
-    <div class="loginColumns animated fadeInDown" style="max-width: 1500px;">
+	<div th:replace="fragments/topbar :: topbar"></div>
+
+    <div style="max-width: 1500px; margin: 0px auto; padding: 20px;">
         <div class="row">
-            <div th:if="${reason} != null" id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10" style="margin-bottom: 25px">
+			<div class="col-lg-12 d-none d-xl-block" style="margin-bottom: 100px;">&nbsp;</div>
+
+            <div th:if="${reason} != null" id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10">
                 <div class="panel panel-info" style="height: 100%;">
                     <div class="panel-heading">
-                        Yderligere verifikation krævet
+                        Yderligere identifikation krævet
                     </div>
+
                     <div class="panel-body">
                         <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).AD}">
-                            <h3>Dit AD Kodeord er blevet ændret</h3>
-                            <p>For at øge sikkerhedsniveauet skal du første gang efter ændret kodeord logge ind med NemID</p>
+                        	<span th:utext="${@cmsMessageBundle.getText('cms.activate.ad-password-change')}" />
                         </th:block>
                         <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).ACTIVATE_ACCOUNT}">
-                            <h3>Aktivering af erhvervsidentitet</h3>
-                            <p>For at aktivere din erhvervsidentitet, kræves verifikation med NemID</p>
+	                        <span th:utext="${@cmsMessageBundle.getText('cms.activate.during-login')}" />
                         </th:block>
                         <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).CHANGE_PASSWORD}">
-                            <h3>Skift kodeord</h3>
-                            <p>For at skifte kodeord skal du først logge ind med NemID.</p>
+                        	<span th:utext="${@cmsMessageBundle.getText('cms.changePassword.identification')}" />
+                        </th:block>
+                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).DEDICATED_ACTIVATE_ACCOUNT}">
+							<span th:utext="${@cmsMessageBundle.getText('cms.activate.dedicated')}" />
                         </th:block>
                     </div>
                 </div>
             </div>
-            <div class="ibox offset-lg-2 col-lg-8 offset-md-1 col-md-10 " th:classappend="${reason} != null ? 'offset-xl-0 col-xl-4' : 'offset-xl-2 col-xl-8'">
+
+			<div class="col-lg-12 d-block d-xl-none" style="margin-bottom: 10px;">&nbsp;</div>
+
+            <div class="offset-lg-2 col-lg-8 offset-md-1 col-md-10" th:classappend="${reason} != null ? 'offset-xl-0 col-xl-4' : 'offset-xl-2 col-xl-8'">
                 <div class="ibox-title">
-                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                    <h5>
+                    	<em class="fa fa-user"></em> &nbsp; 
+                    	<span th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">Login med NemID</span>
+                    	<span th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">Login med NemLog-in</span>
+                    </h5>
                 </div>
 
                 <div class="ibox-content">
-                    <div class="panel-body" style="padding: 20px 0px 20px 0px;">
-                        <div style="text-align:center; position:relative">
-                            <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
-                                <input type="hidden" name="response">
+                    <div th:if="${@OS2faktorConfiguration.nemIdEnabled} == true"> 
+                        <div class="panel-body" style="padding: 20px 0px 20px 0px;">
+                            <div style="text-align:center; position:relative">
+                                <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
+                                    <input type="hidden" name="response">
+    
+                                    <div th:utext="${jsElement}"></div>
+    
+                                    <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
+                                        <iframe id="nemid_iframe" name="target_iframe" title="NemID"
+                                                ontouchstart="" scrolling="no" frameborder="0"
+                                                style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
 
-                                <div th:utext="${jsElement}" />
-
-                                <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
-                                    <iframe id="nemid_iframe" name="target_iframe" title="NemID"
-                                            ontouchstart="" scrolling="no" frameborder="0"
-                                            style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
+                    <div th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
+                        <div class="panel-body">
+                            <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">
+                                <div class="form-group">
+                                    <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}"></span>
+                                </div>
+                                <br>
+                                <div class="form-group">
+                                    <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med NemLog-in</a>
                                 </div>
                             </form>
                         </div>
@@ -50,18 +78,18 @@
             </div>
         </div>
     </div>
-    
+
 	<div th:replace="fragments/footer :: scripts" />
 	
 	<script type="text/javascript" th:src="@{/js/nemid.js}"></script>
 
-</body>
-<script th:inline="javascript">
+	<script th:inline="javascript">
         /*<![CDATA[*/
 
 		/*[+
 			var iframeSrc = [[${iframeSrc}]];
 			var iframeOrigin = [[${serverUrlPrefix}]];
+			var errorMessage = [[${errorMessage}]];
 		+]*/
         
 		function onNemIDMessage(e) {
@@ -90,14 +118,15 @@
 
 		if (window.addEventListener) {
 			window.addEventListener("message", onNemIDMessage);
-		} else if (window.attachEvent) {
+		}
+		else if (window.attachEvent) {
 			window.attachEvent("onmessage", onNemIDMessage);
 		}
 
-        var loginService;
 		$(document).ready(function() {
-		    loginService = new LoginService();
-		    loginService.init();
+			if (typeof errorMessage != "undefined" && errorMessage != null) {
+				toastr.warning(errorMessage);
+			}
 
 			// delay loading the NemID applet for 1 second
 		    setTimeout(function() {
@@ -105,16 +134,8 @@
 		    }, 1000);
         });
 
-        function LoginService() {
-            this.init = function() {
-                $('#username,#password').on('keyup',function(){
-                    if($(this).val().length > 0){
-                        $('#username,#password').removeClass('is-invalid');
-                    }
-                });
-            }
-        }
-
 		/*]]>*/
 	</script>
+	
+</body>
 </html>
