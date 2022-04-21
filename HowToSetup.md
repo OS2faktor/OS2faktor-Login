@@ -43,8 +43,8 @@ of april, so worst case the current codebase is still running Java 8, which may 
 Note that the codebase for OS2faktor Login runs Java 11, so co-existance of the two Java versions is needed during development.
 This is pretty easy on Linux, as you can setup a Java VM path for each terminal window.
 
-### compile code
-go into the "backend" folder and compile the code with
+### run backend module
+This module runs the API's that both clients and connectors interact with. To compile, go into the "backend" folder and compile the code with
 
 $ mvn clean install
 
@@ -69,7 +69,24 @@ insert into login_service_provider (name, cvr, api_key) values ('Test', '1234567
 
 This will create a test-server that allows connections using the secret key "Test1234"
 
-### TODO: guide for client-frontend, etc
+### run client-frontend module
+This module runs the HTML pages that clients use during registration, as well as the online self-service website. To compile, go into the "client-frontend"
+folder, and update the configuration in config/application.properties
+
+* if needed, update the database url, username and password
+* the various AWS settings can probably be left empty, but push notifications will not work without them
+* the backend apiKey and URL should match the running backend setup in the previous setp
+* the IdP used to "simulate" the NemLog-in infrastructure... an actual connection to NemLog-in can be used, though it is usually easier to run a local IdP, with more control over the users and credentials
+
+Then run the code with
+
+$ mvn spring-boot:run
+
+This should start the frontend on port 9121, and it can be tested by accessing
+
+https://frontend-dev.os2faktor.dk:9121
+
+Note that accessing it might be easier once the OS2faktor Login has been setup - then change the SAML settings to point to that to handle login.
 
 ## setup OS2faktor Login
 The Login codebase requires Java 11, and consists of two mandatory components and some extra components that are not covered here. The mandatory
@@ -109,6 +126,14 @@ $ mvn spring-boot:run
 to run the frontend. It is now running at
 
 https://os2faktor-sp:8808/
+
+It should work with NemLog-in out of the box - and using "Test Login" under NemLog-in works with the user
+
+Ellie999 / Test1234
+
+After login, bootstrap the first MFA client by using the build-in "Tilknyt 2-faktor enhed" button on "Min identitet". Note that this works
+best with the hardware key clients, as you'll otherwise need to build a custom MFA client to interact with the application running on your
+machine.
 
 # Other components
 The above guide only covers the core components. There are codebases for all the various connectors, clients and integrations, which are also
