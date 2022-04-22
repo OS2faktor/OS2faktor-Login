@@ -141,6 +141,10 @@ public class ChangePasswordOnOthersController {
         if (!settings.isChangePasswordOnUsersEnabled()) {
             return false;
         }
+        
+        if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(personToBeEdited, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
+            return false;
+        }
 
         Group group = settings.getChangePasswordOnUsersGroup();
         if (group == null) {

@@ -207,7 +207,7 @@ public class ApproveConditionsController {
 
 			// if the user is allowed to activate their NSIS account and have not currently done so,
 			// we should prompt first since they will not set their NSIS password without activating first
-			if (person.isNsisAllowed() && !person.hasNSISUser()) {
+			if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 				return loginService.initiateActivateNSISAccount(model, true);
 			}
 
@@ -215,7 +215,7 @@ public class ApproveConditionsController {
 		}
 		
 		// Go to activate account
-		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 			return loginService.initiateActivateNSISAccount(model);
 		}
 

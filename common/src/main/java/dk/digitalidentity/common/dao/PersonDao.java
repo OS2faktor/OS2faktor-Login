@@ -3,6 +3,8 @@ package dk.digitalidentity.common.dao;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
@@ -26,4 +28,8 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	long countByapprovedConditionsTrue();
 	List<Person> findByLockedPasswordTrue();
 	List<Person> findByLockedDatasetTrue();
+	
+	@Modifying
+	@Query(nativeQuery = true, value = "UPDATE persons SET daily_password_change_counter = 0")
+	void resetDailyPasswordChangeCounter();
 }

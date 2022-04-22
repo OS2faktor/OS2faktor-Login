@@ -18,6 +18,7 @@ public interface AuditLogDao extends JpaRepository<AuditLog, Long> {
 	List<AuditLog> findAllByTtsAfter(LocalDateTime after);
 	List<AuditLog> findByPersonDomainAndTtsAfter(String personDomain, LocalDateTime after);
 	List<AuditLog> findByTtsAfterAndLogActionIn(LocalDateTime tts, LogAction... actions);
+	List<AuditLog> findByLogActionIn(LogAction... actions);
 	List<AuditLog> findByHmacIsNull();
 	
 	@Modifying

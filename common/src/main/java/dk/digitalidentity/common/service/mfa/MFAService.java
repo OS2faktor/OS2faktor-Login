@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
+import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
@@ -43,6 +45,9 @@ public class MFAService {
 	
 	@Autowired
 	private LocalRegisteredMfaClientService localRegisteredMfaClientService;
+	
+	@Autowired
+	private PersonService personService;
 
 	public MFAClientDetails getClientDetails(String deviceId) {
 		HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -92,6 +97,9 @@ public class MFAService {
 				}
 			}
 			
+			// update cached MFA clients
+			maintainCachedClients(cpr, mfaClients);
+			
 			return mfaClients;
 		}
 		catch (Exception ex) {
@@ -100,7 +108,7 @@ public class MFAService {
 
 		return new ArrayList<MfaClient>();
 	}
-	
+
 	public MfaClient getClient(String deviceId) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
@@ -237,5 +245,85 @@ public class MFAService {
 			log.error("Failed to get mfa auth status for person with uuid " + person.getUuid() + ": " + ex);
 			return null;
 		}
+	}
+	
+	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
+		List<Person> persons = personService.getByCpr(cpr);
+
+		for (Person person : persons) {
+			if (person.getMfaClients() == null) {
+				// this case should never happen - Hibernate will make sure we get an empty collection
+				List<CachedMfaClient> newCachedMFAClients = toCachedMFAClients(mfaClients, person);
+				person.setMfaClients(newCachedMFAClients);
+
+				personService.save(person);
+			}
+			else if (person.getMfaClients().size() == 0) {
+				person.getMfaClients().addAll(toCachedMFAClients(mfaClients, person));
+			}
+			else {
+				List<String> cachedMFAClientDeviceIds = person.getMfaClients().stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
+				List<String> mfaClientDeviceIds = mfaClients.stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
+				
+				List<MfaClient> toCreate = mfaClients.stream().filter(m -> !cachedMFAClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
+				List<CachedMfaClient> toDelete = person.getMfaClients().stream().filter(m -> !mfaClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
+				
+				boolean changes = false;
+				
+				for (MfaClient mfaClient : mfaClients) {
+					if (cachedMFAClientDeviceIds.contains(mfaClient.getDeviceId())) {
+						
+						// update case
+						CachedMfaClient cachedClientToUpdate = person.getMfaClients().stream().filter(c -> c.getDeviceId().equals(mfaClient.getDeviceId())).findAny().orElse(null);
+						if (cachedClientToUpdate == null) {
+							continue;
+						}
+						
+						// name cannot currently change in OS2faktor MFA, but let's support it here
+						if (!Objects.equals(mfaClient.getName(), cachedClientToUpdate.getName())) {
+							changes = true;
+							cachedClientToUpdate.setName(mfaClient.getName());
+						}
+
+						// NSISLevel cannot currently change in OS2faktor MFA, but let's support it here
+						if (!Objects.equals(mfaClient.getNsisLevel(), cachedClientToUpdate.getNsisLevel())) {
+							changes = true;
+							cachedClientToUpdate.setNsisLevel(mfaClient.getNsisLevel());
+						}
+					}
+				}
+				
+				if (!toCreate.isEmpty()) {
+					changes = true;
+					person.getMfaClients().addAll(toCachedMFAClients(toCreate, person));
+				}
+				
+				if (!toDelete.isEmpty()) {
+					changes = true;
+					person.getMfaClients().removeAll(toDelete);
+				}
+
+				if (changes) {
+					personService.save(person);
+				}
+			}
+		}
+	}
+
+	private List<CachedMfaClient> toCachedMFAClients(List<MfaClient> mfaClients, Person person) {
+		List<CachedMfaClient> newCachedMFAClients = new ArrayList<>();
+		
+		for (MfaClient client : mfaClients) {
+			CachedMfaClient cachedClient = new CachedMfaClient();
+			cachedClient.setDeviceId(client.getDeviceId());
+			cachedClient.setName(client.getName());
+			cachedClient.setType(client.getType());
+			cachedClient.setNsisLevel(client.getNsisLevel());
+			cachedClient.setPerson(person);
+
+			newCachedMFAClients.add(cachedClient);
+		}
+		
+		return newCachedMFAClients;
 	}
 }

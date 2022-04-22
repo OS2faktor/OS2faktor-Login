@@ -28,7 +28,7 @@ public class StateController {
 	@GetMapping("/selvbetjening/spaerre")
 	public String getLockAccount() {
 		Person person = personService.getById(securityUtils.getPersonId());
-		if (person == null || person.isLockedPerson() || !person.hasNSISUser()) {
+		if (person == null || person.isLockedPerson() || !person.hasActivatedNSISUser()) {
 			return "redirect:/selvbetjening";
 		}
 
@@ -43,7 +43,7 @@ public class StateController {
 			return "redirect:/selvbetjening";
 		}
 
-		if (!person.hasNSISUser()) {
+		if (!person.hasActivatedNSISUser()) {
 			log.warn("Person tried to lock account but person does not have an NSIS account. (" + person.getUuid() + ")");
 			return "redirect:/selvbetjening";
 		}
@@ -68,7 +68,7 @@ public class StateController {
 	@GetMapping("/selvbetjening/genaktiver")
 	public String getReactivateAccount() {
 		Person person = personService.getById(securityUtils.getPersonId());
-		if (person == null || !person.isLockedPerson() || !person.hasNSISUser()) {
+		if (person == null || !person.isLockedPerson() || !person.hasActivatedNSISUser()) {
 			return "redirect:/selvbetjening";
 		}
 
@@ -83,7 +83,7 @@ public class StateController {
 			return "redirect:/selvbetjening";
 		}
 
-		if (!person.hasNSISUser()) {
+		if (!person.hasActivatedNSISUser()) {
 			log.warn("Person tried to unlock account but person does not have an NSIS account. (" + person.getUuid() + ")");
 			return "redirect:/selvbetjening";
 		}

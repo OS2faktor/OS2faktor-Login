@@ -54,6 +54,9 @@ public class PasswordSetting {
 
 	@Column
 	private boolean disallowOldPasswords;
+	
+	@Column
+	private Long oldPasswordNumber;
 
 	@Column
 	private boolean disallowDanishCharacters;
@@ -67,13 +70,32 @@ public class PasswordSetting {
 	@Column
 	@Size(max = 255)
 	private String monitoringEmail;
-
+	
 	@Column
 	private boolean changePasswordOnUsersEnabled;
 
 	@OneToOne
 	@JoinColumn(name = "change_password_on_users_group_id")
 	private Group changePasswordOnUsersGroup;
+
+	@Column
+	private Long triesBeforeLockNumber;
+	
+	@Column
+	private Long lockedMinutes;
+	
+	@Column
+	private boolean maxPasswordChangesPrDayEnabled;
+	
+	@Column
+	private Long maxPasswordChangesPrDay;
+
+	@Column
+	private boolean canNotChangePasswordEnabled;
+	
+	@OneToOne
+	@JoinColumn(name = "can_not_change_password_group_id", referencedColumnName = "id")
+	private Group canNotChangePasswordGroup;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")

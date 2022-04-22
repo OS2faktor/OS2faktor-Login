@@ -1,8 +1,14 @@
 package dk.digitalidentity.common.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.TermsAndConditionsDao;
@@ -10,11 +16,15 @@ import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@EnableCaching
 @Service
 public class TermsAndConditionsService {
 
 	@Autowired
 	private TermsAndConditionsDao termsAndConditionsDao;
+	
+	@Autowired
+	private TermsAndConditionsService self;
 
 	public TermsAndConditions getTermsAndConditions() {
 		List<TermsAndConditions> all = termsAndConditionsDao.findAll();
@@ -36,5 +46,22 @@ public class TermsAndConditionsService {
 
 	public TermsAndConditions save(TermsAndConditions entity) {
 		return termsAndConditionsDao.save(entity);
+	}
+	
+	@Cacheable("LastRequiredApprovedTts")
+	public LocalDateTime getLastRequiredApprovedTts() {
+		return getTermsAndConditions().getMustApproveTts();
+	}
+	
+	@Caching(evict = {
+		@CacheEvict(value = "LastRequiredApprovedTts", allEntries = true)
+	})
+	public void cleanupCache() {
+
+	}
+	
+	@Scheduled(fixedRate = 30 * 60 * 1000)
+	public void cleanUpTaskRealtimeValues() {
+		self.cleanupCache();
 	}
 }

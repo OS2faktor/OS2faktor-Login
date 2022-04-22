@@ -1,0 +1,1 @@
+ALTER TABLE auditlogs DROP COLUMN hmac;

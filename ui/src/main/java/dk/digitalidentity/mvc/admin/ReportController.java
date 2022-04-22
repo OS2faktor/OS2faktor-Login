@@ -11,7 +11,6 @@ import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.mvc.admin.xlsview.ActivatedAccountsReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.PersonsReportXlsView;
 import dk.digitalidentity.security.RequireAdministrator;
@@ -68,19 +67,30 @@ public class ReportController {
 		}
 
 		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Erhvervsidentiteter.xlsx\"");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Brugerkonti.xlsx\"");
 
 		return new ModelAndView(new PersonsReportXlsView(), model);
 	}
 	
 	@RequireAdministrator
-	@GetMapping("/ui/report/download/activatedAccounts")
-	public ModelAndView downloadReportApprovedTerms(HttpServletResponse response) {
-		Map<String, Object> model = reportService.getActivatedAccountsReport();
+	@GetMapping("/ui/report/download/auditorReportLogins")
+	public ModelAndView downloadAuditorReportLogins(HttpServletResponse response) {
+		Map<String, Object> model = reportService.getAuditorReportLoginHistoryModel();
 
 		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Fortegnelse over ansøgere.xlsx\"");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport over logins.xlsx\"");
 
-		return new ModelAndView(new ActivatedAccountsReportXlsView(), model);
+		return new ModelAndView(new AuditLogReportXlsView(), model);
+	}
+	
+	@RequireAdministrator
+	@GetMapping("/ui/report/download/auditorReportGenerel")
+	public ModelAndView downloadAuditorReportGeneral(HttpServletResponse response) {
+		Map<String, Object> model = reportService.getAuditorReportGeneralHistoryModel();
+
+		response.setContentType("application/ms-excel");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport generelt.xlsx\"");
+
+		return new ModelAndView(new AuditLogReportXlsView(), model);
 	}
 }

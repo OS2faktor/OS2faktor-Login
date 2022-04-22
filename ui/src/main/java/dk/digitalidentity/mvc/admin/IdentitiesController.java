@@ -62,11 +62,11 @@ public class IdentitiesController {
 		AdminPersonDTO form = new AdminPersonDTO();
 		form.setPersonId(id);
 		form.setUserId(PersonService.getUsername(person));
-		form.setStatus(person.hasNSISUser() ? (person.isLocked() ? SelfServiceStatus.BLOCKED : SelfServiceStatus.ACTIVE) : SelfServiceStatus.NOT_ISSUED);
+		form.setStatus(person.hasActivatedNSISUser() ? (person.isLocked() ? SelfServiceStatus.BLOCKED : SelfServiceStatus.ACTIVE) : SelfServiceStatus.NOT_ISSUED);
 		form.setEmail(person.getEmail());
 		form.setAttributes(person.getAttributes());
 
-		if (person.hasNSISUser()) {
+		if (person.hasActivatedNSISUser()) {
 			if (person.isLockedDataset()) {
 				form.setStatusMessage("page.admin.issuedidentitites.status.lockedDataset");
 			}

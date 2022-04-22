@@ -186,7 +186,7 @@ public class SecurityUtil {
 	 */
 	public boolean hasNsisUser() {
 		Person person = getPerson();
-		return person != null && person.hasNSISUser();
+		return person != null && person.hasActivatedNSISUser();
 	}
 
 	/**
@@ -201,7 +201,7 @@ public class SecurityUtil {
 
 	// called during login, to grant access-roles to admin-portal
 	public void updateTokenUser(Person person, TokenUser tokenUser) {
-		Boolean hasActivatedNsisAccount = person.hasNSISUser();             // the has an active NSIS account
+		Boolean hasActivatedNsisAccount = person.hasActivatedNSISUser();             // the has an active NSIS account
 		Boolean isLocked = person.isLocked();                               // the is not locked
 		Boolean lockedByPersonOnly = person.isLockedDataset() == false &&   // not locked by municipality
 									 person.isLockedAdmin() == false &&     // not locked by admin

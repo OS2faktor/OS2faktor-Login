@@ -156,7 +156,7 @@ public class LoginService {
         }
 
         // Has the user approved conditions?
-        if (!person.isApprovedConditions()) {
+        if (requireApproveConditions(person)) {
             if (authnRequest.isPassive()) {
                 throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
             }
@@ -167,7 +167,7 @@ public class LoginService {
 
         // Has the user activated their NSIS User?
         boolean declineUserActivation = sessionHelper.isDeclineUserActivation();
-        if (!declineUserActivation && person.isNsisAllowed() && !person.hasNSISUser()) {
+        if (!declineUserActivation && person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
             if (!authnRequest.isPassive()) {
                 return initiateActivateNSISAccount(model);
             }
@@ -375,7 +375,7 @@ public class LoginService {
     	// If the person is in a dedicated activation flow,
         // the list of available people will be filtered to only match the people that CAN be activated
         if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-    		people = people.stream().filter(p -> !p.hasNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
+    		people = people.stream().filter(p -> !p.hasActivatedNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
 
     		if (people.isEmpty()) {
     			sessionHelper.clearSession();
@@ -446,7 +446,7 @@ public class LoginService {
 
     public ModelAndView initiatePasswordExpired(Person person, Model model) {
         PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
-        if (person.hasNSISUser() && settings.isForceChangePasswordEnabled()) {
+        if (person.hasActivatedNSISUser() && settings.isForceChangePasswordEnabled()) {
             if (person.getNsisPasswordTimestamp() == null) {
                 log.warn("Person: " + person.getUuid() + " has no NSIS Password timestamp");
                 
@@ -529,7 +529,7 @@ public class LoginService {
 
     public ModelAndView continueNemIDLogin(Model model, HttpServletResponse response, HttpServletRequest request) throws ResponderException, RequesterException {
         if (!(sessionHelper.isAuthenticatedWithNemIdOrMitId() && sessionHelper.getPerson() != null)) {
-            ResponderException ex = new ResponderException("Brugeren tilgik den alternative nemid login uden at have været igennem det normale authentification");
+            ResponderException ex = new ResponderException("Brugeren har gennemført NemID/MitID login uden at have valgt en tilhørende brugerkonto");
             errorResponseService.sendResponderError(response, sessionHelper.getAuthnRequest(), ex);
             return null;
         }
@@ -550,7 +550,7 @@ public class LoginService {
         // Dedicated Activate Account Flow: Go to "accept terms and conditions"-page
 		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
             // Any user who has gotten to this point correctly SHOULD not have this configuration
-			if (person.hasNSISUser() || !person.isNsisAllowed()) {
+			if (person.hasActivatedNSISUser() || !person.isNsisAllowed()) {
 				sessionHelper.clearSession();
 				return new ModelAndView("activateAccount/no-account-to-activate-error");
 			}
@@ -559,12 +559,12 @@ public class LoginService {
 		}
 
         // Has the user accepted the required conditions?
-        if (!person.isApprovedConditions()) {
+        if (requireApproveConditions(person)) {
             return initiateApproveConditions(model);
         }
 
         // Is the user allowed to get a NSIS User and do the already have one
-        if (person.isNsisAllowed() && !person.hasNSISUser()) {
+        if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
             return initiateActivateNSISAccount(model, !sessionHelper.isInActivateAccountFlow());
         }
 
@@ -575,7 +575,7 @@ public class LoginService {
 
         // Check if person has authenticated with their ad password Before MitID/NemID login.
         // If they have, replicate the AD password to the nsis password field
-        if (sessionHelper.isAuthenticatedWithADPassword() && person.hasNSISUser()) {
+        if (sessionHelper.isAuthenticatedWithADPassword() && person.hasActivatedNSISUser()) {
             Person adPerson = sessionHelper.getADPerson();
             if (adPerson != null && Objects.equals(adPerson.getId(), person.getId())) {
                 if (StringUtils.hasLength(sessionHelper.getPassword())) {
@@ -660,4 +660,25 @@ public class LoginService {
 
         return new ModelAndView("changePassword/change-password");
     }
+
+	public boolean requireApproveConditions(Person person) {
+		if (!person.isApprovedConditions()) {
+			return true;
+		}
+
+		if (person.getApprovedConditionsTts() == null) {
+			return true;
+		}
+
+		LocalDateTime tts = termsAndConditionsService.getLastRequiredApprovedTts();
+		if (tts == null) {
+			return false;
+		}
+
+		if (person.getApprovedConditionsTts().isBefore(tts)) {
+			return true;
+		}
+
+		return false;
+	}
 }

@@ -3,7 +3,6 @@ package dk.digitalidentity.mvc.admin.xlsview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -16,7 +15,10 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
+import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.service.PersonService;
 
 public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;
@@ -48,28 +50,17 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 
 		ArrayList<String> headers = new ArrayList<>();
 		headers.add("Navn");
-		headers.add("Bruger-ID");
-		headers.add("AD konto");
+		headers.add("Brugernavn");
 		headers.add("Personnummer");
 		headers.add("Domæne");
 		headers.add("Dato for godkendt vilkår");
 		headers.add("NSIS sikringsniveau");
+		headers.add("2-faktor enheder");
 
 		createHeaderRow(sheet, headers);
 
 		int row = 1;
 		for (Person entry : persons) {
-
-			String nsisNiveau = "";
-			if (Objects.equals(entry.getNsisLevel().toString(), "LOW")) {
-				nsisNiveau = "Lav";
-			}
-			else if (Objects.equals(entry.getNsisLevel().toString(), "SUBSTANTIAL")) {
-				nsisNiveau = "Betydelig";
-			}
-			else if (Objects.equals(entry.getNsisLevel().toString(), "HIGH")) {
-				nsisNiveau = "Høj";
-			}
 
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
@@ -77,16 +68,8 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			// Navn
 			createCell(dataRow, column++, entry.getName(), null);
 
-			// Bruger-ID
-			if (entry.getUserId() != null) {
-				createCell(dataRow, column++, entry.getUserId(), null);
-			}
-			else {
-				createCell(dataRow, column++, "", null);
-			}
-
-			// AD konto
-			createCell(dataRow, column++, entry.getSamaccountName(), null);
+			// Brugernavn
+			createCell(dataRow, column++, PersonService.getUsername(entry), null);
 
 			// Personnummer
 			createCell(dataRow, column++, entry.getCpr().substring(0, 6) + "-xxxx", null);
@@ -103,7 +86,32 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			}
 
 			// NSIS niveau
-			createCell(dataRow, column++, nsisNiveau, null);
+			createCell(dataRow, column++, nsisLevelToDanish(entry.getNsisLevel()), null);
+			
+			// MFA klienter
+			StringBuilder mfaClients = new StringBuilder();
+			for (CachedMfaClient mfaClient : entry.getMfaClients()) {
+				if (mfaClients.length() > 0) {
+					mfaClients.append("\n");
+				}
+
+				mfaClients.append(mfaClient.getDeviceId() + " / " + mfaClient.getType() + " / " + mfaClient.getName() + " / " + nsisLevelToDanish(mfaClient.getNsisLevel()));
+			}
+
+			createCell(dataRow, column++, mfaClients.toString(), null);
+		}
+	}
+
+	private String nsisLevelToDanish(NSISLevel nsisLevel) {
+		switch (nsisLevel) {
+			case HIGH:
+				return "Høj";
+			case LOW:
+				return "Lav";
+			case SUBSTANTIAL:
+				return "Betydelig";
+			default:
+				return "";
 		}
 	}
 

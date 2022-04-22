@@ -35,8 +35,8 @@
 						                    </tr>
 						                    
 						                    <tr>
-						                        <td>Erhvervsidentiteter</td>
-						                        <td>Hent en rapport over erhvervsidentiteter.</td>
+						                        <td>Brugerkonti</td>
+						                        <td>Hent en rapport over alle brugerkonti.</td>
 						                        <td class="text-center">
 						                        	<a th:href="@{/ui/report/download/persons}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
 						                        </td>
@@ -46,10 +46,18 @@
 						                    <!-- audit reports - only shown for admins -->
 						                     
 						                    <tr>
-						                        <td>Revisionsrapport</td>
-						                        <td>Hent en fortegnelse over alle ansøgere de sidste 13 måneder (godkendelse af vilkår og aktivering)</td>
+						                        <td>Revisionsrapport (generel)</td>
+						                        <td>Hent et udtræk fra hændelselsloggen for de sidste 13 måneder (ekskl logins).</td>
 						                        <td class="text-center">
-						                        	<a th:href="@{/ui/report/download/activatedAccounts}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        	<a th:href="@{/ui/report/download/auditorReportGenerel}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        </td>
+						                    </tr>
+						                    
+						                    <tr>
+						                        <td>Revisionsrapport (logins)</td>
+						                        <td>Hent et udtræk fra hændelselsloggen over logins for de sidste 3 måneder.</td>
+						                        <td class="text-center">
+						                        	<a th:href="@{/ui/report/download/auditorReportLogins}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
 						                        </td>
 						                    </tr>
 						                    

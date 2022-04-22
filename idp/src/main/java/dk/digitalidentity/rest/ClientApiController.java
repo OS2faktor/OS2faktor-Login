@@ -82,7 +82,7 @@ public class ClientApiController {
                 return ResponseEntity.badRequest().build();
             }
 
-            // Save the token in db for later verification
+            // Save the token in DB for later verification
             TemporaryClientSessionKey temporaryClientSessionKey = new TemporaryClientSessionKey(person, loginState);
             TemporaryClientSessionKey saved = tempSessionKeyService.save(temporaryClientSessionKey);
             auditLogger.sessionKeyIssued(saved);

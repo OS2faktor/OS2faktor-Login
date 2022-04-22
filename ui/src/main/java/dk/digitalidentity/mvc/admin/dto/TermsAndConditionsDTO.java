@@ -9,4 +9,5 @@ import lombok.Setter;
 @NoArgsConstructor
 public class TermsAndConditionsDTO {
 	private String content;
+	private boolean mustApprove;
 }

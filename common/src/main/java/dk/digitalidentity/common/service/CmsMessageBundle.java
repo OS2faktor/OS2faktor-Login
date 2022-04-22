@@ -72,6 +72,7 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.activate.dedicated", getDescription("cms.activate.dedicated")));
 		all.add(new CmsMessageListDTO("cms.login.nemlogin.description", getDescription("cms.login.nemlogin.description")));
 		all.add(new CmsMessageListDTO("cms.activate.personDead", getDescription("cms.activate.personDead")));
+		all.add(new CmsMessageListDTO("cms.changePassword.canNotChangePasswordGroup.content", getDescription("cms.changePassword.canNotChangePasswordGroup.content")));
 
 		return all;
 	}
@@ -101,6 +102,8 @@ public class CmsMessageBundle {
 				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med genskabelse af glemt kodeord";
 			case "cms.changePassword.content":
 				return "Den ledetekst der vises øverst i boksen på siden hvor man skifter kodeord";
+			case "cms.changePassword.canNotChangePasswordGroup.content":
+				return "Den fejlbesked der vises, når en person, der er i en gruppe, der ikke må skifte kodeord, forsøger at skifte kodeord";
 
 			case "cms.myidentity.mydata.help":
 				return "Den hjælpetekst der vises, når musen holdes over ?-tegnet der findes øverst i 'Brugerkonto' boksen på 'Min identitet'-siden";

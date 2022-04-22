@@ -149,7 +149,7 @@ public class LoginController {
 				}
 
 				// has the user approved conditions?
-				if (!person.isApprovedConditions()) {
+				if (loginService.requireApproveConditions(person)) {
 					if (authnRequest.isPassive()) {
 						throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
 					}
@@ -159,7 +159,7 @@ public class LoginController {
 				}
 
 				// has the user activated their NSIS User?
-				if (person.isNsisAllowed() && !person.hasNSISUser()) {
+				if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 					if (!authnRequest.isPassive()) {
 						return loginService.initiateActivateNSISAccount(model);
 					}
@@ -277,12 +277,12 @@ public class LoginController {
 			}
 
 			// Has the user approved conditions?
-			if (!person.isApprovedConditions()) {
+			if (loginService.requireApproveConditions(person)) {
 					return loginService.initiateApproveConditions(model);
 			}
 
 			// Has the user activated their NSIS User?
-			if (person.isNsisAllowed() && !person.hasNSISUser()) {
+			if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 				if (sessionHelper.isAuthenticatedWithADPassword()) {
 					sessionHelper.setPassword(body.get("password"));
 				}
@@ -337,20 +337,22 @@ public class LoginController {
 		}
 
 		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
-			return new ModelAndView("redirect:/");
-		}
 
 		if (person == null) {
+			if (authnRequest == null) {
+				log.warn("No person on session for login with multiple accounts with chosen ID = " + id);
+				return new ModelAndView("redirect:/");
+			}
+
 			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException("Person prøvede at logge ind med bruger som de ikke havde adgang til"));
 			return null;
 		}
 
 		sessionHelper.setPerson(person);
+
 		// Person has now been determined
 
-		// If the user started login by using nemid continue straight to nemid login
+		// if the user used NemID or MitID, drop them into that login flow, otherwise continue with the build-in flow
 		if (sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
 			return loginService.continueNemIDLogin(model, httpServletResponse, httpServletRequest);
 		}
@@ -359,24 +361,37 @@ public class LoginController {
 		if (sessionHelper.isInPasswordChangeFlow()) {
 			try {
 				// if the person has not approved the conditions then do that first
-				if (!person.isApprovedConditions()) {
+				if (loginService.requireApproveConditions(person)) {
 					sessionHelper.setInChangePasswordFlowAndHasNotApprovedConditions(true);
 					return loginService.initiateApproveConditions(model);
 				}
 
 				// if the user is allowed to activate their NSIS account an have not done so,
 				// we should prompt first since they will not set their NSIS password without activating first
-				if (person.isNsisAllowed() && !person.hasNSISUser()) {
+				if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 					return loginService.initiateActivateNSISAccount(model, true);
 				}
 
 				return loginService.continueChangePassword(model);
 			}
-			catch (RequesterException e) {
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
+			catch (RequesterException ex) {
+				if (authnRequest == null) {
+					log.error("Error occured during password change with multiple persons with chosen personId = " + id, ex);
+					
+					// TODO: do something better than redirect to front-page, they are attempting to change password, so what to tell them?
+					return new ModelAndView("redirect:/");
+				}
+
+				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
 			}
 			
 			return null;
+		}
+
+		// from here we need an AuthnRequest, as the user is in a login flow
+		if (authnRequest == null) {
+			log.warn("No person on session for login with multiple accounts with chosen ID = " + id);
+			return new ModelAndView("redirect:/");
 		}
 
 		// Get ServiceProvider
@@ -409,12 +424,12 @@ public class LoginController {
 			}
 
 			// Has the user approved conditions?
-			if (!person.isApprovedConditions()) {
+			if (loginService.requireApproveConditions(person)) {
 				return loginService.initiateApproveConditions(model);
 			}
 
 			// Has the user activated their NSIS User?
-			if (person.isNsisAllowed() && !person.hasNSISUser()) {
+			if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 				return loginService.initiateActivateNSISAccount(model);
 			}
 		}
@@ -480,12 +495,12 @@ public class LoginController {
 		}
 
 		// Has the user approved conditions?
-		if (!person.isApprovedConditions()) {
+		if (loginService.requireApproveConditions(person)) {
 			return loginService.initiateApproveConditions(model);
 		}
 
 		// Has the user activated their NSIS User?
-		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 			return loginService.initiateActivateNSISAccount(model);
 		}
 
@@ -519,12 +534,12 @@ public class LoginController {
 		}
 
 		// Has the user approved conditions?
-		if (!person.isApprovedConditions()) {
+		if (loginService.requireApproveConditions(person)) {
 			return loginService.initiateApproveConditions(model);
 		}
 
 		// Has the user activated their NSIS User?
-		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 			return loginService.initiateActivateNSISAccount(model);
 		}
 

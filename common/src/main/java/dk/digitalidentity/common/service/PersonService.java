@@ -205,11 +205,12 @@ public class PersonService {
 	public void badPasswordAttempt(Person person) {
 		auditLogger.badPassword(person);
 		person.setBadPasswordCount(person.getBadPasswordCount() + 1);
+		PasswordSetting setting = passwordSettingService.getSettings(person.getDomain());
 
-		if (person.getBadPasswordCount() >= 5) {
+		if (person.getBadPasswordCount() >= setting.getTriesBeforeLockNumber()) {
 			auditLogger.tooManyBadPasswordAttempts(person);
 			person.setLockedPassword(true);
-			person.setLockedPasswordUntil(LocalDateTime.now().plusMinutes(5L));
+			person.setLockedPasswordUntil(LocalDateTime.now().plusMinutes(setting.getLockedMinutes()));
 		}
 
 		save(person);
@@ -279,23 +280,28 @@ public class PersonService {
 			passwordChangeQueueService.save(change);
 		}
 
-		// set new password
+		// make sure we have an encoded password from here on
+		String encodedPassword = newPassword;
+		if (shouldEncodePassword) {
+			encodedPassword = encoder.encode(newPassword);
+		}
+
+		// update password counter for this person
+		person.setDailyPasswordChangeCounter(person.getDailyPasswordChangeCounter() + 1);
+
+		// store password history
+		PasswordHistory passwordHistory = new PasswordHistory();
+		passwordHistory.setPerson(person);
+		passwordHistory.setPassword(encodedPassword);
+		passwordHistoryService.save(passwordHistory);
+
+		// set new password locally if NSIS is enabled for this user
 		boolean nsisPasswordChanged = false;
 		if (person.isNsisAllowed()) {
-			String encodedPassword = newPassword;
-			if (shouldEncodePassword) {
-				encodedPassword = encoder.encode(newPassword);
-			}
-
 			person.setNsisPassword(encodedPassword);
 			person.setNsisPasswordTimestamp(LocalDateTime.now());
 			person.setForceChangePassword(false);
 
-			PasswordHistory passwordHistory = new PasswordHistory();
-			passwordHistory.setPerson(person);
-			passwordHistory.setPassword(encodedPassword);
-
-			passwordHistoryService.save(passwordHistory);
 			nsisPasswordChanged = true;
 
 			save(person);
@@ -374,6 +380,8 @@ public class PersonService {
 
 	@Transactional(rollbackFor = Exception.class)
 	public void cleanUp() {
+
+		@SuppressWarnings("deprecation")
 		List<Long> idsToBeDeleted = jdbcTemplate.query(SELECT_PERSON_IDS, new Object[] {}, (RowMapper<Long>) (rs, rownum) -> {
 			return rs.getLong("id");
 		});
@@ -389,5 +397,10 @@ public class PersonService {
 		personDao.deleteAll(personsToBeDeleted);
 		
 		log.info("Deleted " + personsToBeDeleted.size() + " persons because they where removed from dataset more than 13 months ago");
+	}
+	
+	@Transactional(rollbackFor = Exception.class)
+	public void resetDailyPasswordCounter() {
+		personDao.resetDailyPasswordChangeCounter();
 	}
 }

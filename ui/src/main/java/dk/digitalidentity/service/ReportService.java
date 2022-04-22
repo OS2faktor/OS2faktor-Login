@@ -8,7 +8,7 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.dao.model.enums.LogAction;
+import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.PersonService;
 
@@ -54,10 +54,18 @@ public class ReportService {
 		return model;
 	}
 
-	public Map<String, Object> getActivatedAccountsReport() {
+	public Map<String, Object> getAuditorReportLoginHistoryModel() {
 		Map<String, Object> model = new HashMap<>();
 		model.put("resourceBundle", resourceBundle);
-		model.put("auditLogs", auditLogService.findByLogActionsForLast13Months(LogAction.ACCEPTED_TERMS, LogAction.ACTIVATE));
+		model.put("auditLogs", auditLogService.findByReportType(ReportType.LOGIN_HISTORY));
+
+		return model;
+	}
+	
+	public Map<String, Object> getAuditorReportGeneralHistoryModel() {
+		Map<String, Object> model = new HashMap<>();
+		model.put("resourceBundle", resourceBundle);
+		model.put("auditLogs", auditLogService.findByReportType(ReportType.GENERAL_HISTORY));
 
 		return model;
 	}

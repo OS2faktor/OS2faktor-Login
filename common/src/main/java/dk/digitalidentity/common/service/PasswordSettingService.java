@@ -101,8 +101,8 @@ public class PasswordSettingService {
 		if (settings.isDisallowOldPasswords()) {
 			BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-			List<String> lastTenPasswords = passwordHistoryService.getLastTenPasswords(person);
-			for (String oldPassword : lastTenPasswords) {
+			List<String> lastXPasswords = passwordHistoryService.getLastXPasswords(person);
+			for (String oldPassword : lastXPasswords) {
 				if (encoder.matches(password, oldPassword)) {
 					return ChangePasswordResult.OLD_PASSWORD;
 				}
@@ -126,6 +126,11 @@ public class PasswordSettingService {
 			settings.setDisallowDanishCharacters(false);
 			settings.setDisallowNameAndUsername(false);
 			settings.setValidateAgainstAdEnabled(true);
+			settings.setOldPasswordNumber((long) 10);
+			settings.setTriesBeforeLockNumber((long) 5);
+			settings.setLockedMinutes((long) 5);
+			settings.setMaxPasswordChangesPrDayEnabled(false);
+			settings.setMaxPasswordChangesPrDay((long) 1);
 			settings.setDomain(domain);
 
 			return settings;

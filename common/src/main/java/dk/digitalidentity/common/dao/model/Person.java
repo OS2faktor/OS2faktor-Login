@@ -143,6 +143,9 @@ public class Person {
 	@Size(max = 255)
 	@Column
 	private String nameAlias;
+	
+	@Column
+	private long dailyPasswordChangeCounter;
 
 	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
 	@ElementCollection
@@ -158,6 +161,10 @@ public class Person {
 	@BatchSize(size = 100)
 	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "person", orphanRemoval = true)
 	private List<KombitJfr> kombitJfrs;
+	
+	@BatchSize(size = 100)
+	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<CachedMfaClient> mfaClients;
 
 	public boolean isOnlyLockedByPerson() {
 		return lockedPerson && !lockedAdmin && !lockedDataset && !lockedPassword && !lockedDead;
@@ -171,7 +178,7 @@ public class Person {
 		return getTopLevelDomain().getName().toLowerCase() + ":" + uuid.toLowerCase() + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName.toLowerCase() : "<null>");
 	}
 
-	public boolean hasNSISUser() {
+	public boolean hasActivatedNSISUser() {
 		// You have to have at least NSIS level LOW and you need to have approved conditions
 		return isNsisAllowed() && isApprovedConditions() && NSISLevel.LOW.equalOrLesser(getNsisLevel());
 	}

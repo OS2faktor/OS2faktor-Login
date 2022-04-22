@@ -313,7 +313,7 @@ public class RegistrationController {
 
 	private boolean canBeActivated(Person person) {
 		if (person.isNsisAllowed() == false ||
-			person.hasNSISUser() == true) {
+			person.hasActivatedNSISUser() == true) {
 			
 			return false;
 		}

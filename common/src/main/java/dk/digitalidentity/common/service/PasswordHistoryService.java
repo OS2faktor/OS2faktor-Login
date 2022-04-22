@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.PasswordHistoryDao;
 import dk.digitalidentity.common.dao.model.PasswordHistory;
+import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 
 @Service
@@ -16,6 +17,9 @@ public class PasswordHistoryService {
 
     @Autowired
     private PasswordHistoryDao passwordHistoryDao;
+    
+    @Autowired
+    private PasswordSettingService passwordSettingService;
 
     public void save(PasswordHistory passwordHistory) {
         passwordHistoryDao.save(passwordHistory);
@@ -33,15 +37,17 @@ public class PasswordHistoryService {
         return passwordHistoryDao.findByPerson(person);
     }
 
-    public List<String> getLastTenPasswords(Person person) {
+    public List<String> getLastXPasswords(Person person) {
         // Get and sort list
-        List<PasswordHistory> persons = getByPerson(person);
-        persons.sort(Comparator.comparing(PasswordHistory::getId));
+        List<PasswordHistory> records = getByPerson(person);
+        records.sort(Comparator.comparing(PasswordHistory::getId));
 
-        // Delete records if we have more than 10
-        int amountToBeDeleted = persons.size() - Math.min(persons.size(), 10);
+        PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+        
+        // Delete records if we have more than the number configured in settings
+        int amountToBeDeleted = records.size() - Math.min(records.size(), settings.getOldPasswordNumber().intValue());
         for (int i = 0; i < amountToBeDeleted; i++) {
-            passwordHistoryDao.delete(persons.get(i));
+            passwordHistoryDao.delete(records.get(i));
         }
 
         // Return list of passwords

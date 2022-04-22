@@ -19,6 +19,7 @@ public class PasswordConfigurationForm {
 	private boolean forceChangePasswordEnabled;
 	private boolean disallowDanishCharacters;
 	private boolean disallowOldPasswords;
+	private Long oldPasswordNumber;
 	private Long forceChangePasswordInterval;
 	private boolean replicateToAdEnabled;
 	private boolean validateAgainstAdEnabled;
@@ -29,6 +30,12 @@ public class PasswordConfigurationForm {
 	private Long changePasswordOnUsersGroup;
 	private boolean showAdSettings;
 	private String alternativePasswordChangeLink;
+	private Long triesBeforeLockNumber;
+	private Long lockedMinutes;
+	private boolean maxPasswordChangesPrDayEnabled;
+	private Long maxPasswordChangesPrDay;
+	private boolean canNotChangePasswordEnabled;
+	private Long canNotChangePasswordGroup;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
 		this.minLength = settings.getMinLength();
@@ -40,6 +47,7 @@ public class PasswordConfigurationForm {
 		this.forceChangePasswordEnabled = settings.isForceChangePasswordEnabled();
 		this.forceChangePasswordInterval = settings.getForceChangePasswordInterval();
 		this.disallowOldPasswords = settings.isDisallowOldPasswords();
+		this.oldPasswordNumber = settings.getOldPasswordNumber();
 		this.replicateToAdEnabled = settings.isReplicateToAdEnabled();
 		this.validateAgainstAdEnabled = settings.isValidateAgainstAdEnabled();
 		this.monitoringEnabled = settings.isMonitoringEnabled();
@@ -51,5 +59,11 @@ public class PasswordConfigurationForm {
 		this.changePasswordOnUsersGroup = settings.getChangePasswordOnUsersGroup() != null ? settings.getChangePasswordOnUsersGroup().getId() : null;
 		this.showAdSettings = true;
 		this.alternativePasswordChangeLink = settings.getAlternativePasswordChangeLink();
+		this.triesBeforeLockNumber = settings.getTriesBeforeLockNumber();
+		this.lockedMinutes = settings.getLockedMinutes();
+		this.maxPasswordChangesPrDayEnabled = settings.isMaxPasswordChangesPrDayEnabled();
+		this.maxPasswordChangesPrDay = settings.getMaxPasswordChangesPrDay();
+		this.canNotChangePasswordEnabled = settings.isCanNotChangePasswordEnabled();
+		this.canNotChangePasswordGroup = settings.getCanNotChangePasswordGroup() != null ? settings.getCanNotChangePasswordGroup().getId() : null;
 	}
 }

@@ -142,7 +142,7 @@ public class ActivateAccountController {
 		}
 
 		// if person has an NSIS user already and is in the
-		if (ex == null && person.hasNSISUser()) {
+		if (ex == null && person.hasActivatedNSISUser()) {
 			if (!StringUtils.hasLength(person.getNsisPassword())) {
 				// if password has not been set yet, go to pick password page
 				return new ModelAndView("redirect:/konto/vaelgkode");
@@ -300,7 +300,7 @@ public class ActivateAccountController {
 	@GetMapping("/konto/vaelgkode")
 	public String activateSelectPassword(Model model, HttpServletResponse httpServletResponse, @RequestParam(value="doNotUseCurrentADPassword", required = false, defaultValue = "false") boolean doNotUseCurrentADPassword) throws ResponderException, RequesterException {
 		Person person = sessionHelper.getPerson();
-		if (person == null || !person.hasNSISUser()) {
+		if (person == null || !person.hasActivatedNSISUser()) {
 			String message = (person == null) ? "Prøvede at tilgå vælgkode, men ingen person var associeret med sessionen" : ("Tilgik vælgkode, men havde ingen NSIS bruger: " + person.getUuid());
 
 			// if they end up here they likely bookmarked this page
@@ -351,7 +351,7 @@ public class ActivateAccountController {
 	public ModelAndView postChangePassword(Model model, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
 		RequesterException ex = null;
 		Person person = sessionHelper.getPerson();
-		if (person == null || !person.hasNSISUser()) {
+		if (person == null || !person.hasActivatedNSISUser()) {
 			ex = (person == null) ? new RequesterException("Prøvede at vælge kode, men ingen person var associeret med sessionen")
 								  : new RequesterException("Prøvede at vælge kode, men personen havde ikke en oprettet en NSIS Bruger");
 
@@ -394,7 +394,7 @@ public class ActivateAccountController {
 	public ModelAndView postValidateADPassword(Model model, @ModelAttribute("validateADPasswordForm") ValidateADPasswordForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
 		RequesterException ex = null;
 		Person person = sessionHelper.getPerson();
-		if (person == null || !person.hasNSISUser()) {
+		if (person == null || !person.hasActivatedNSISUser()) {
 			ex = (person == null) ? new RequesterException("Prøvede at validere AD kodeord, men ingen person var associeret med sessionen")
 								  : new RequesterException("Prøvede at validere AD kodeord, men personen havde ikke en oprettet en NSIS Bruger");
 

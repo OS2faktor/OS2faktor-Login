@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.dao.model;
 
+import java.time.LocalDateTime;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -23,4 +25,7 @@ public class TermsAndConditions {
 
 	@Column
 	private String content;
+
+	@Column
+	private LocalDateTime mustApproveTts;
 }

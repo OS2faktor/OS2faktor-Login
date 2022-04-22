@@ -1,20 +1,12 @@
 package dk.digitalidentity.common.log;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.nio.charset.Charset;
-import java.security.spec.KeySpec;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import javax.crypto.Mac;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +19,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.model.AuditLog;
@@ -48,14 +39,10 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 public class AuditLogger {
-	private SecretKeySpec secretKey;
 
 	@Autowired
 	private AuditLogDao auditLogDao;
-	
-	@Autowired
-	private CommonConfiguration commonConfiguration;
-	
+
 	public void errorSentToSP(Person person, ErrorLogDto errorDetail) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.ERROR_SENT_TO_SP);
@@ -142,9 +129,6 @@ public class AuditLogger {
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
 			
-			byte[] hmac = processHmac(auditLog);
-			auditLog.setHmac(hmac);
-
 			logs.add(auditLog);
 		}
 
@@ -172,9 +156,6 @@ public class AuditLogger {
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
-			
-			byte[] hmac = processHmac(auditLog);
-			auditLog.setHmac(hmac);
 
 			logs.add(auditLog);
 		}
@@ -789,104 +770,37 @@ public class AuditLogger {
 			auditLog.setPerformerName(admin.getName());
 		}
 		
-		byte[] hmac = processHmac(auditLog);
-		auditLog.setHmac(hmac);
-
 		auditLogDao.save(auditLog);
 	}
-	
-	public byte[] processHmac(AuditLog auditLog) {
-		try {
-			Mac mac = getMac();
-			
-			mac.update(auditLog.getIpAddress().getBytes(Charset.forName("UTF-8")));
-			mac.update(auditLog.getCorrelationId().getBytes(Charset.forName("UTF-8")));
-			mac.update(auditLog.getLogAction().toString().getBytes(Charset.forName("UTF-8")));
-	
-			if (auditLog.getPerformerId() != null) {
-				mac.update(longToByteArray(auditLog.getPerformerId()));
-			}
-	
-			if (auditLog.getPerformerName() != null) {
-				mac.update(auditLog.getPerformerName().getBytes(Charset.forName("UTF-8")));
-			}
-	
-			if (auditLog.getLogTargetId() != null) {
-				mac.update(auditLog.getLogTargetId().getBytes(Charset.forName("UTF-8")));
-			}
-	
-			if (auditLog.getLogTargetName() != null) {
-				mac.update(auditLog.getLogTargetName().getBytes(Charset.forName("UTF-8")));
-			}
-	
-			if (auditLog.getMessage() != null) {
-				mac.update(auditLog.getMessage().getBytes(Charset.forName("UTF-8")));
-			}
-			
-			if (auditLog.getPerson() != null) {
-				mac.update(auditLog.getPerson().getCpr().getBytes(Charset.forName("UTF-8")));
-				mac.update(auditLog.getPersonName().getBytes(Charset.forName("UTF-8")));
-				mac.update(auditLog.getPersonDomain().getBytes(Charset.forName("UTF-8")));
-				mac.update(auditLog.getCpr().getBytes(Charset.forName("UTF-8")));
-			}
-			
-			if (auditLog.getDetails() != null) {
-				if (auditLog.getDetails().getDetailContent() != null) {
-					mac.update(auditLog.getDetails().getDetailContent().getBytes(Charset.forName("UTF-8")));
-				}
 
-				if (auditLog.getDetails().getDetailSupplement() != null) {
-					mac.update(auditLog.getDetails().getDetailSupplement().getBytes(Charset.forName("UTF-8")));
-				}
-				mac.update(auditLog.getDetails().getDetailType().toString().getBytes(Charset.forName("UTF-8")));
-			}
-	
-			return mac.doFinal();
-		}
-		catch (Exception ex) {
-			log.error("Failed to generate HMAC for auditlog", ex);
-		}
-		
-		return null;
-	}
-	
-	private Mac getMac() throws Exception {
-		Mac mac = Mac.getInstance("HmacSHA256");
-		mac.init(deriveKey(commonConfiguration.getHmacKey(), "HmacSHA256"));
-
-		return mac;
-	}
-	
-	private SecretKeySpec deriveKey(String password, String algorithm) throws Exception {
-		if (this.secretKey != null) {
-			return this.secretKey;
-		}
-		
-		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-		KeySpec spec = new PBEKeySpec(password.toCharArray(), "salt".getBytes(), 65536, 256);
-		SecretKey key = factory.generateSecret(spec);
-
-		this.secretKey = new SecretKeySpec(key.getEncoded(), algorithm);
-		
-		return this.secretKey;
-	}
-	
-	private byte[] longToByteArray(long i) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        dos.writeLong(i);
-        dos.flush();
-
-        return bos.toByteArray();
-	}
-	
 	private String getCorrelationId() {
 		try {
-			return RequestContextHolder.currentRequestAttributes().getSessionId();
+			String sessionID = RequestContextHolder.currentRequestAttributes().getSessionId();
+			
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] encodedHash = digest.digest(sessionID.getBytes(Charset.forName("UTF-8")));
+
+			return bytesToHex(encodedHash);
 		}
-		catch (IllegalStateException ex) {
+		catch (Exception ex) {
 			return "SYSTEM-" + UUID.randomUUID().toString();
 		}
+	}
+
+	private static String bytesToHex(byte[] hash) {
+		StringBuilder hexString = new StringBuilder(2 * hash.length);
+
+		for (int i = 0; i < hash.length; i++) {
+			String hex = Integer.toHexString(0xff & hash[i]);
+
+			if (hex.length() == 1) {
+				hexString.append('0');
+			}
+
+			hexString.append(hex);
+		}
+
+		return hexString.toString();
 	}
 
 	private static String getIpAddress() {
@@ -919,22 +833,4 @@ public class AuditLogger {
 	
 		auditLogDao.deleteByTtsBefore(tts);
 	}
-	
-	@Transactional(rollbackFor = Exception.class)
-	public void cleanupHMAC() {
-		List<AuditLog> auditLogs = auditLogDao.findByHmacIsNull();
-		
-		if (auditLogs.size() == 0) {
-			return;
-		}
-
-		for (AuditLog auditLog : auditLogs) {
-			byte[] hmac = processHmac(auditLog);
-			auditLog.setHmac(hmac);
-		}
-
-		auditLogDao.saveAll(auditLogs);
-	}
-
-
 }

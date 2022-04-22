@@ -79,7 +79,7 @@ public class NemIdController {
 
 			// if activation go to terms and conditions
 			if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-				if (person.hasNSISUser() || !person.isNsisAllowed()) {
+				if (person.hasActivatedNSISUser() || !person.isNsisAllowed()) {
 					sessionHelper.clearSession();
 					return new ModelAndView("activateAccount/no-account-to-activate-error");
 				}
@@ -156,7 +156,7 @@ public class NemIdController {
 			}
 			else if (people.size() != 1) {
 				if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-					List<Person> peopleThatCanBeActivated = people.stream().filter(p -> !p.hasNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
+					List<Person> peopleThatCanBeActivated = people.stream().filter(p -> !p.hasActivatedNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
 					if (peopleThatCanBeActivated.size() == 1) {
 						person = peopleThatCanBeActivated.get(0);
 					} else {

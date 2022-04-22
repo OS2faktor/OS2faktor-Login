@@ -7,6 +7,7 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -14,6 +15,7 @@ import javax.persistence.JoinColumn;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
@@ -47,8 +49,9 @@ public class AuditLog {
 
 	// referenced person which data was used
 
+	@BatchSize(size = 100)
 	@NotFound(action = NotFoundAction.IGNORE)
-	@OneToOne
+	@OneToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")
 	@JsonIgnore
 	private Person person;
@@ -89,7 +92,4 @@ public class AuditLog {
 	@JoinColumn(name = "auditlogs_details_id")
 	@JsonIgnore
 	private AuditLogDetail details;
-	
-	@Column
-	private byte[] hmac;	
 }

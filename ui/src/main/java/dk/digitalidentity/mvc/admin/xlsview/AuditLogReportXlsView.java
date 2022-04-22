@@ -19,8 +19,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.PersonService;
 
 public class AuditLogReportXlsView extends AbstractXlsxStreamingView {
 	private List<AuditLog> auditLogs;
@@ -56,31 +54,28 @@ public class AuditLogReportXlsView extends AbstractXlsxStreamingView {
 		ArrayList<String> headers = new ArrayList<>();
 		headers.add("Tidspunkt");
 		headers.add("IP-adresse");
+		headers.add("Korrelations-ID");
 		headers.add("Handling");
 		headers.add("Besked");
 		headers.add("Personnummer");
-		headers.add("Navn");
-		headers.add("Bruger-ID");
-		headers.add("AD konto");
+		headers.add("Person");
+		headers.add("Administrator");
 
 		createHeaderRow(sheet, headers);
 
 		int row = 1;
 		for (AuditLog entry : auditLogs) {
-
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
 
-			Person person = entry.getPerson();
-
 			createCell(dataRow, column++, entry.getTts().toString(), null);
 			createCell(dataRow, column++, entry.getIpAddress(), null);
+			createCell(dataRow, column++, entry.getCorrelationId(), null);
 			createCell(dataRow, column++, resourceBundle.getMessage(entry.getLogAction().getMessage(), null, Locale.ENGLISH), null);
 			createCell(dataRow, column++, entry.getMessage(), null);
 			createCell(dataRow, column++, !StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX", null);
 			createCell(dataRow, column++, entry.getPersonName(), null);
-			createCell(dataRow, column++, (person != null ? PersonService.getUsername(person) : ""), null);
-			createCell(dataRow, column++, (person != null ? person.getSamaccountName() : ""), null);
+			createCell(dataRow, column++, entry.getPerformerName(), null);
 		}
 	}
 

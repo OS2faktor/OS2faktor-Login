@@ -1,5 +1,6 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -175,6 +176,15 @@ public class ConfigurationController {
 				return "error";
 			}
 		}
+		
+		Group canNotChangePasswordGroup = null;
+		if (form.isCanNotChangePasswordEnabled() && form.getCanNotChangePasswordGroup() != null) {
+			canNotChangePasswordGroup = groupService.getById(form.getCanNotChangePasswordGroup());
+			if (canNotChangePasswordGroup == null) {
+				log.error("Can not change password enabled but no group found from id: " + form.getCanNotChangePasswordGroup());
+				return "error";
+			}
+		}
 
 		PasswordSetting settings = passwordService.getSettings(domain);
 		settings.setMinLength(form.getMinLength());
@@ -189,13 +199,20 @@ public class ConfigurationController {
 		settings.setForceChangePasswordInterval(form.getForceChangePasswordInterval() != null ? form.getForceChangePasswordInterval() : 90);
 		settings.setAlternativePasswordChangeLink(form.getAlternativePasswordChangeLink());
 		settings.setDisallowOldPasswords(form.isDisallowOldPasswords());
+		settings.setOldPasswordNumber(form.getOldPasswordNumber());
 		settings.setReplicateToAdEnabled(form.isReplicateToAdEnabled());
 		settings.setValidateAgainstAdEnabled(form.isValidateAgainstAdEnabled());
 		settings.setMonitoringEnabled(form.isMonitoringEnabled());
 		settings.setMonitoringEmail(form.getMonitoringEmail());
 		settings.setChangePasswordOnUsersEnabled(group != null);
 		settings.setChangePasswordOnUsersGroup(group);
-
+		settings.setTriesBeforeLockNumber(form.getTriesBeforeLockNumber());
+		settings.setLockedMinutes(form.getLockedMinutes());
+		settings.setMaxPasswordChangesPrDayEnabled(form.isMaxPasswordChangesPrDayEnabled());
+		settings.setMaxPasswordChangesPrDay(form.getMaxPasswordChangesPrDay());
+		settings.setCanNotChangePasswordEnabled(canNotChangePasswordGroup != null);
+		settings.setCanNotChangePasswordGroup(canNotChangePasswordGroup);
+		
 		if (form.isRequireComplexPassword()) {
 			settings.setRequireLowercaseLetters(form.isRequireLowercaseLetters());
 			settings.setRequireUppercaseLetters(form.isRequireUppercaseLetters());
@@ -243,6 +260,11 @@ public class ConfigurationController {
 		}
 
 		terms.setContent(termsAndConditionsDTO.getContent());
+
+		if (termsAndConditionsDTO.isMustApprove()) {
+			terms.setMustApproveTts(LocalDateTime.now());
+		}
+
 		termsAndConditionsService.save(terms);
 		auditLogger.changeTerms(terms, admin);
 

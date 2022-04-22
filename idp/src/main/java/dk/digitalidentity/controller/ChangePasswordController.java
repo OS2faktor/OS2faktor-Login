@@ -4,6 +4,7 @@ import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Collections;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -29,6 +30,7 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
@@ -90,16 +92,26 @@ public class ChangePasswordController {
         }
         
         // if the person has not approved the conditions then do that first
-		if (!person.isApprovedConditions()) {
+		if (loginService.requireApproveConditions(person)) {
 			sessionHelper.setInChangePasswordFlowAndHasNotApprovedConditions(true);
 			return loginService.initiateApproveConditions(model);
 		}
 
 		// if the user is allowed to activate their NSIS account and have not done so yet,
 		// we should prompt first since they will not set their NSIS password without activating first
-		if (person.isNsisAllowed() && !person.hasNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
 			// TODO: infinite loop?
 			return loginService.initiateActivateNSISAccount(model, true);
+		}
+		
+		if (isInCanNotChangePasswordGroup(person)) {
+			model.addAttribute("redirectUrl", url);
+			return new ModelAndView("changePassword/can_not_change_password_group_error", model.asMap());
+		}
+		
+		if (changedPasswordTooManyTimes(person)) {
+			model.addAttribute("redirectUrl", url);
+			return new ModelAndView("changePassword/changed_password_too_many_times_error", model.asMap());
 		}
 
         // continue change password logic
@@ -135,7 +147,7 @@ public class ChangePasswordController {
 
         // Get Person object and check if they are allowed to change password
         Person person = sessionHelper.getPerson();
-        if (person == null || !isAllowedChangePassword(person)) {
+        if (person == null || !isAllowedChangePassword(person) || isInCanNotChangePasswordGroup(person) || changedPasswordTooManyTimes(person)) {
             sessionHelper.clearSession();
             log.warn("User entered changepassword with bad session, clearing");
 
@@ -226,5 +238,25 @@ public class ChangePasswordController {
         }
 
         return false;
+    }
+
+	// check if a group of people who can not change password is set and if the person is member of it
+    private boolean isInCanNotChangePasswordGroup(Person person) {
+    	PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+    	if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(person, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
+    		return true;
+        }
+
+        return false;
+    }
+    
+	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded    
+    private boolean changedPasswordTooManyTimes(Person person) {
+    	PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+    	if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
+    		return true;
+        }
+
+    	return false;
     }
 }

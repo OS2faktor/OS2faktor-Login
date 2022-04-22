@@ -40,7 +40,7 @@ public class ErrorLogDto {
         this.mfaTimestamp = mfaTimestamp != null ? mfaTimestamp.format(timestampFormatter) : null;
 
         // Person
-        this.hasNsisUser = person.hasNSISUser();
+        this.hasNsisUser = person.hasActivatedNSISUser();
         this.nsisAllowed = person.isNsisAllowed();
         this.lockedByBadPasswords = person.isLockedPassword();
         this.lockedByPerson = person.isLockedPerson();

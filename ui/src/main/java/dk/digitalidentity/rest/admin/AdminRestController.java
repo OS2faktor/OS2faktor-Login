@@ -389,7 +389,7 @@ public class AdminRestController {
 			return new ResponseEntity<>(false, HttpStatus.NOT_FOUND);
 		}
 
-		return new ResponseEntity<>(person.hasNSISUser(), HttpStatus.OK);
+		return new ResponseEntity<>(person.hasActivatedNSISUser(), HttpStatus.OK);
 	}
 
 	@RequireAdministratorOrUserAdministrator
