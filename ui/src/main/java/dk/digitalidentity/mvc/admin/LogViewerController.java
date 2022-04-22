@@ -1,7 +1,6 @@
 package dk.digitalidentity.mvc.admin;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -16,23 +15,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
-import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.AuditLogDTO;
 import dk.digitalidentity.security.RequireSupporter;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @RequireSupporter
 @Controller
 public class LogViewerController {
 
 	@Autowired
 	private AuditLogService auditLogService;
-	
-	@Autowired
-	private AuditLogger auditLogger;
 	
 	@Autowired
 	private ResourceBundleMessageSource resourceBundle;
@@ -48,14 +41,6 @@ public class LogViewerController {
 		AuditLog auditLog = auditLogService.findById(id);
 		if (auditLog == null) {
 			return "redirect:/admin/logs";
-		}
-
-		if (Arrays.equals(auditLog.getHmac(), auditLogger.processHmac(auditLog))) {
-			model.addAttribute("hmac", true);
-		}
-		else {
-			model.addAttribute("hmac", false);
-			log.error("The hmac value from the database and the calculated hmac value are not the same: " + auditLog.getId());			
 		}
 
 		model.addAttribute("auditlog", new AuditLogDTO(auditLog));
