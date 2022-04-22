@@ -19,7 +19,6 @@ public interface AuditLogDao extends JpaRepository<AuditLog, Long> {
 	List<AuditLog> findByPersonDomainAndTtsAfter(String personDomain, LocalDateTime after);
 	List<AuditLog> findByTtsAfterAndLogActionIn(LocalDateTime tts, LogAction... actions);
 	List<AuditLog> findByLogActionIn(LogAction... actions);
-	List<AuditLog> findByHmacIsNull();
 	
 	@Modifying
 	@Query(nativeQuery = true, value = "DELETE FROM auditlogs WHERE tts < ?1")
