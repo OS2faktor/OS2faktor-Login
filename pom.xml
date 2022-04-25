@@ -40,6 +40,5 @@
 		<module>TinyRadius</module>
 		<module>idp</module>
 		<module>websockets</module>
-		<module>testdriver</module>
         </modules>
 </project>

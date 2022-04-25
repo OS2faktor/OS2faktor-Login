@@ -1,7 +1,7 @@
 # How to setup a development environment for OS2faktor
 
 ## pre-requisites
-A running instance of MySQL or MariaDB is needed, and two pre-created database schemas with the names
+A running instance of a MariaDB 10.5.13 is needed, and two pre-created database schemas with the names
 
 * os2faktor
 * os2faktor_nsis
@@ -29,10 +29,12 @@ has not been tried, so this guide assumes Linux as the development machine opera
 
 It is recommended to add the following entries into /etc/hosts on the development machine
 
+```
 127.0.0.1 frontend-dev.os2faktor.dk
 127.0.0.1 admin-dev.os2faktor.dk
 127.0.0.1 os2faktor-idp
 127.0.0.1 os2faktor-sp
+```
 
 These are used in the various projects
 
@@ -131,9 +133,42 @@ It should work with NemLog-in out of the box - and using "Test Login" under NemL
 
 Ellie999 / Test1234
 
-After login, bootstrap the first MFA client by using the build-in "Tilknyt 2-faktor enhed" button on "Min identitet". Note that this works
-best with the hardware key clients, as you'll otherwise need to build a custom MFA client to interact with the application running on your
-machine.
+After login with NemLog-in, accept the terms and conditions, click "Vælg et nyt kodeord" instead of trying to validate against AD (unless you
+have an integration against AD runnning), and then pick a new password.
+
+You should arrive in the admin-console, where you go to "Tjenesteudbydere" and pick "Opret ny tjenesteudbyder". We need to create a link
+to the OS2faktor MFA frontend, so we can register clients. Fill out
+
+* Name (can be anything, but just call it "OS2faktor MFA")
+* Metadata Konfiguration - use the URL and fill in "https://frontend-dev.os2faktor.dk:9121/saml/metadata"
+* Claims - create a new claim, pick "Dynamisk" as type, enter "https://data.gov.dk/model/core/eid/cprNumber" as Attribut and enter "cpr" as Værdi and press "Gem"
+* Press "Gem" at the top of the page and your done
+
+It might take some minutes for the integration to work, but you can test it by going to
+
+https://frontend-dev.os2faktor.dk:9121/
+
+If you get an error along the lines of
+
+Status message: 'Kunne ikke finde en tjenesteudbyder der matcher: 'https://frontend-dev.os2faktor.dk:9121''
+
+then it has not sync'ed yet. You can force a sync by restarting the idp module, or just wait up to 5 minutes (it refreshes every 5 minutes
+on the minute, so :00, :05, :10, etc...
+
+If you manage to login, you should see a list of MFA clients (well, 0 clients as you have not registered any yet), and it is possible to register a client
+using the UI. The easiest might be to register a new authenticator using the Google Authenticator or Microsoft Authenticator app on your phone.
+
+A client needs a name, so give it one, scan the QR code, and complete the registration proces.
+
+Now go back to the OS2faktor Login selfservice (and logout if you are still logged in) here
+
+https://os2faktor-sp:8808/
+
+You can login with your username (it is 'Ellie999') and your chosen password from when you registered. After that it should just straight to login using
+the authenticator that you registered. If you register more clients at some point, you get to pick which one to use.
+
+That should leave you in the admin-module, having logged in with the username/password/2-faktor combo stored in the solution.
+
 
 # Other components
 The above guide only covers the core components. There are codebases for all the various connectors, clients and integrations, which are also
