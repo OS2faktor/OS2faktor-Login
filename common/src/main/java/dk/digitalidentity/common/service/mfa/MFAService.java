@@ -97,6 +97,10 @@ public class MFAService {
 				}
 			}
 			
+			if (!configuration.getMfa().isAllowTotp() && mfaClients != null) {
+				mfaClients = mfaClients.stream().filter(c -> !c.getType().equals(ClientType.TOTP)).collect(Collectors.toList());
+			}
+
 			// update cached MFA clients
 			maintainCachedClients(cpr, mfaClients);
 			

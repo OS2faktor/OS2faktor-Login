@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.CmsMessage;
 import dk.digitalidentity.common.dao.model.Domain;
@@ -73,7 +74,6 @@ import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
-import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.datatables.AuditLogDatatableDao;
 import dk.digitalidentity.datatables.PersonDatatableDao;
 import dk.digitalidentity.datatables.model.AdminPersonView;
@@ -134,7 +134,7 @@ public class AdminRestController {
 	private PasswordSettingService passwordSettingService;
 
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private CommonConfiguration commonConfiguration;
 
 	@Autowired
 	private LinkService linkService;
@@ -483,7 +483,7 @@ public class AdminRestController {
 		personDataDTO.setCpr(cpr);
 		personDataDTO.setNewPerson(true);
 
-		if (configuration.getCoreData().isCprLookup()) {
+		if (commonConfiguration.getCpr().isEnabled()) {
 			if (cpr.length() == 10) {
 				try {
 					Future<CprLookupDTO> cprFuture = cprService.getByCpr(cpr);

@@ -7,6 +7,5 @@ import lombok.Setter;
 @Setter
 public class CoreData {
 	private boolean enabled;
-	private boolean cprLookup;
 	private String apiKey;
 }

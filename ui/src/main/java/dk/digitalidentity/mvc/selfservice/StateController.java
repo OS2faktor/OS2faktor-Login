@@ -27,6 +27,10 @@ public class StateController {
 
 	@GetMapping("/selvbetjening/spaerre")
 	public String getLockAccount() {
+		if (!securityUtils.loggedInWithNsisSubstantial()) {
+			return "redirect:/selvbetjening";
+		}
+		
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null || person.isLockedPerson() || !person.hasActivatedNSISUser()) {
 			return "redirect:/selvbetjening";
@@ -37,6 +41,10 @@ public class StateController {
 
 	@PostMapping("/selvbetjening/spaerre")
 	public String postLockAccount(RedirectAttributes redirectAttributes) {
+		if (!securityUtils.loggedInWithNsisSubstantial()) {
+			return "redirect:/selvbetjening";
+		}
+
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null) {
 			log.error("Person did not exist: " + securityUtils.getPersonId());
@@ -67,6 +75,10 @@ public class StateController {
 
 	@GetMapping("/selvbetjening/genaktiver")
 	public String getReactivateAccount() {
+		if (!securityUtils.loggedInWithNsisSubstantial()) {
+			return "redirect:/selvbetjening";
+		}
+
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null || !person.isLockedPerson() || !person.hasActivatedNSISUser()) {
 			return "redirect:/selvbetjening";
@@ -77,6 +89,10 @@ public class StateController {
 
 	@PostMapping("/selvbetjening/genaktiver")
 	public String postReactivateAccount() {
+		if (!securityUtils.loggedInWithNsisSubstantial()) {
+			return "redirect:/selvbetjening";
+		}
+
 		Person person = personService.getById(securityUtils.getPersonId());
 		if (person == null) {
 			log.error("Person did not exists: " + securityUtils.getPersonId());

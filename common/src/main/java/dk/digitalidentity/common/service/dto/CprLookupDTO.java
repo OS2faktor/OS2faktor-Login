@@ -15,4 +15,6 @@ public class CprLookupDTO {
 	private String country;
 	private boolean addressProtected;
 	private boolean isDead;
+	
+	private boolean doesNotExist;
 }

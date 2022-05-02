@@ -30,9 +30,9 @@
                 	
                     <div class="tabs-container">
                         <ul class="nav nav-tabs" role="tablist">
-                            <li><a th:classappend="${preferNemid} ? '' : 'active'" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
+                            <li><a th:if="(${@OS2faktorConfiguration.nemIdEnabled} == true) OR (${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn})" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
                             <li><a th:if="${@OS2faktorConfiguration.nemIdEnabled} == true" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-2" href="#tab-2">NemID</a></li>
-                            <li><a th:if="${@OS2faktorConfiguration.mitIdEnabled} == true" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">NemLog-in</a></li>
+                            <li><a th:if="${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn}" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">NemLog-in</a></li>
                         </ul>
 
                         <div class="tab-content">
@@ -90,7 +90,7 @@
                                 </div>
                             </div>
 
-                            <div th:if="${@OS2faktorConfiguration.mitIdEnabled} == true" role="tabpanel" id="tab-3" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
+                            <div th:if="${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn}" role="tabpanel" id="tab-3" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
                                 <div class="panel-body">
 
                                     <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">

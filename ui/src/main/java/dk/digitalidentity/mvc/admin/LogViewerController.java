@@ -19,6 +19,8 @@ import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.AuditLogDTO;
 import dk.digitalidentity.security.RequireSupporter;
+import dk.digitalidentity.service.GeoLocateService;
+import dk.digitalidentity.service.geo.dto.GeoIP;
 
 @RequireSupporter
 @Controller
@@ -29,7 +31,10 @@ public class LogViewerController {
 	
 	@Autowired
 	private ResourceBundleMessageSource resourceBundle;
-	
+
+	@Autowired
+	private GeoLocateService geoLocateService;
+
 	@GetMapping("/admin/logs")
 	public String logs(Model model, Locale locale) {
 		model.addAttribute("logActions", LogAction.getSorted(resourceBundle, locale));
@@ -46,6 +51,16 @@ public class LogViewerController {
 		model.addAttribute("auditlog", new AuditLogDTO(auditLog));
 
 		return "admin/log-detail";
+	}
+	
+	@GetMapping("/admin/logs/ipLookup/{ip}")
+	public String logIPFragment(Model model, @PathVariable("ip") String ip) {
+		GeoIP geoIP = geoLocateService.lookupIp(ip);
+		if (geoIP != null) {
+			model.addAttribute("geoip", geoIP);
+		}
+
+		return "admin/logs/fragments/ip-fragment :: ipDetails";
 	}
 	
 	@GetMapping("/admin/relatedlogs/{id}")

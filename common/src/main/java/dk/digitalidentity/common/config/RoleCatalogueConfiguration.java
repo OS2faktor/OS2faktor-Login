@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.config;
 
+import javax.annotation.PostConstruct;
+
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -12,8 +14,12 @@ import lombok.Setter;
 public class RoleCatalogueConfiguration {
 	private String baseUrl;
 	private String apiKey;
-	
-	public boolean isEnabled() {
-		return (StringUtils.hasLength(baseUrl) && StringUtils.hasLength(apiKey));
+
+	@FeatureDocumentation(name = "OS2rollekatalog integration", description = "Integration til OS2rollekatalog til opslag på rettigheder")
+	private boolean enabled;
+
+	@PostConstruct
+	private void postConstruct() {
+		this.enabled = (StringUtils.hasLength(baseUrl) && StringUtils.hasLength(apiKey));
 	}
 }

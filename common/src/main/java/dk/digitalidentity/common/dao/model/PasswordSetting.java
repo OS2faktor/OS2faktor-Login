@@ -22,6 +22,9 @@ public class PasswordSetting {
 	@Column
 	private Long minLength;
 
+	@Column
+	private Long maxLength;
+
 	@Column(name = "complex_password")
 	private boolean requireComplexPassword;
 
@@ -92,6 +95,9 @@ public class PasswordSetting {
 
 	@Column
 	private boolean canNotChangePasswordEnabled;
+	
+	@Column
+	private boolean preventBadPasswords;
 	
 	@OneToOne
 	@JoinColumn(name = "can_not_change_password_group_id", referencedColumnName = "id")

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+	<th:block th:fragment="ipDetails">
+		<th:block th:if="${geoip != null}">
+			<th:block th:if="${geoip.city != null}" th:text="${geoip.city} + ', '"></th:block>
+			<th:block th:text="${geoip.country}"></th:block>
+		</th:block>
+		<th:block th:if="${geoip == null}">
+			ingen information tilgængelig på ip-adressen
+		</th:block>
+	</th:block>
+</body>
+</html>

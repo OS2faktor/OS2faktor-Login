@@ -8,6 +8,7 @@ import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.service.AuthnRequestHelper;
+import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
@@ -40,6 +41,9 @@ public class MultiFactorAuthenticationController {
 	private AuthnRequestHelper authnRequestHelper;
 
 	@Autowired
+	private ErrorHandlingService errorHandlingService;
+
+	@Autowired
 	private ErrorResponseService errorResponseService;
 
 	@Autowired
@@ -69,10 +73,10 @@ public class MultiFactorAuthenticationController {
 				return null;
 			}
 			else {
-				log.warn("probably bookmarked page: " + message);
+				// Probably a bookmarking error
+				String destination = errorHandlingService.error("/sso/saml/mfa/{deviceId}", httpServletRequest, "No MFA Clients on session", model);
 				sessionHelper.invalidateSession();
-
-				return "redirect:/";
+				return destination;
 			}
 		}
 
@@ -125,9 +129,9 @@ public class MultiFactorAuthenticationController {
 	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
 		Person person = sessionHelper.getPerson();
 		if (sessionHelper.getLoginState() == null || person == null) {
-			log.warn("Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login");
+			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login", model);
 			sessionHelper.invalidateSession();
-			return new ModelAndView("redirect:/");
+			return modelAndView;
 		}
 
 		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
@@ -136,13 +140,19 @@ public class MultiFactorAuthenticationController {
 			return new ModelAndView("redirect:/");
 		}
 
+		String subscriptionKey = sessionHelper.getSubscriptionKey();
 		MfaClient selectedMFAClient = sessionHelper.getSelectedMFAClient();
-		if (selectedMFAClient == null || !Objects.equals(selectedMFAClient.getDeviceId(), deviceId)) {
+
+		// clear session for next login attempt
+		sessionHelper.setSubscriptionKey(null);
+		sessionHelper.setSelectedMFAClient(null);
+		
+		if (subscriptionKey == null || selectedMFAClient == null || !Objects.equals(selectedMFAClient.getDeviceId(), deviceId)) {
 			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Fejl i 2-faktor login"));
 			return null;
 		}
 
-		if (!mfaService.isAuthenticated(sessionHelper.getSubscriptionKey(), person)) {
+		if (!mfaService.isAuthenticated(subscriptionKey, person)) {
 			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException("2-faktor login ikke gennemført. Person uuid: " + person.getUuid()));
 			auditlogger.rejectedMFA(person);
 			return null;
@@ -152,7 +162,6 @@ public class MultiFactorAuthenticationController {
 
 		sessionHelper.setMFALevel(selectedMFAClient.getNsisLevel());
 		sessionHelper.setAuthnInstant(new DateTime());
-		sessionHelper.setSelectedMFAClient(null);
 
 		return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
 	}

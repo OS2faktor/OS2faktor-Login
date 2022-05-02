@@ -3,6 +3,7 @@ package dk.digitalidentity.service.serviceprovider;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 
@@ -35,6 +36,9 @@ public class ServiceProviderFactory {
     
     @Autowired
     private RoleCatalogueService roleCatalogueService;
+    
+    @Autowired
+    private SessionHelper sessionHelper;
 
     @PostConstruct
     public void loadServiceProviderFactory() {
@@ -103,6 +107,9 @@ public class ServiceProviderFactory {
         if (authnRequest != null && authnRequest.getIssuer() != null) {
             return getServiceProvider(authnRequest.getIssuer().getValue());
         }
+        
+        // TODO: this is a common error, we need this to track down the issues and fix them - remove once we are error free :)
+		log.warn("session data dump: " + sessionHelper.serializeSessionAsString());
 
         throw new RequesterException("Ingen Issuer fundet i AuthnRequest (" + (authnRequest != null ? authnRequest.getID() : "null") + ") og kunne derfor ikke finde tjenesteudbyderens instillinger");
     }

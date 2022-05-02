@@ -9,6 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.service.ErrorHandlingService;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.messaging.context.SAMLBindingContext;
@@ -56,6 +57,9 @@ public class LoginController {
 	private AuthnRequestHelper authnRequestHelper;
 
 	@Autowired
+	private ErrorHandlingService errorHandlingService;
+
+	@Autowired
 	private ErrorResponseService errorResponseService;
 
 	@Autowired
@@ -101,10 +105,10 @@ public class LoginController {
 			messageContext = authnRequestService.getMessageContext(httpServletRequest);
 		}
 		catch (RequesterException ex) {
-			// In case we cannot decode the message we have received just log a warning and redirect to the index page
+			// In case we cannot decode the message we have received just log a warning
+			// and redirect to the error page with an explanation of why bookmarking does not work
 			// (likely due to no actual authnRequest being sent because of bookmarking)
-			log.warn("Could not Decode messageContext for /sso/saml/login", ex);
-			return new ModelAndView("redirect:/");
+			return errorHandlingService.modelAndViewError("/sso/saml/login", httpServletRequest, "Could not Decode messageContext", model);
 		}
 
 		AuthnRequest authnRequest = authnRequestService.getAuthnRequest(messageContext);
@@ -134,7 +138,14 @@ public class LoginController {
 				sessionHelper.setMFALevel(null);
 			}
 
+			// if forceAuthn is required,
+			// you're not logged in,
+			// or you're accessing the service from a new ip regardless of previous authentication
+			// you will be asked login
 			if (authnRequest.isForceAuthn() || loginState == null || !valid) {
+				if (authnRequest.isPassive()) {
+					throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
+				}
 				return loginService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
 			}
 
@@ -278,7 +289,7 @@ public class LoginController {
 
 			// Has the user approved conditions?
 			if (loginService.requireApproveConditions(person)) {
-					return loginService.initiateApproveConditions(model);
+				return loginService.initiateApproveConditions(model);
 			}
 
 			// Has the user activated their NSIS User?

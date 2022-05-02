@@ -179,8 +179,7 @@ public class Person {
 	}
 
 	public boolean hasActivatedNSISUser() {
-		// You have to have at least NSIS level LOW and you need to have approved conditions
-		return isNsisAllowed() && isApprovedConditions() && NSISLevel.LOW.equalOrLesser(getNsisLevel());
+		return isNsisAllowed() && NSISLevel.LOW.equalOrLesser(getNsisLevel());
 	}
 
 	public boolean isSupporter() {

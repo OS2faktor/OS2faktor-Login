@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import dk.digitalidentity.common.dao.BadPasswordDao;
 import dk.digitalidentity.common.dao.PasswordSettingDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
@@ -20,6 +21,9 @@ public class PasswordSettingService {
 
 	@Autowired
 	private PasswordSettingDao passwordSettingDao;
+
+	@Autowired
+	private BadPasswordDao badPasswordDao;
 
 	@Autowired
 	private PasswordHistoryService passwordHistoryService;
@@ -38,22 +42,30 @@ public class PasswordSettingService {
 			return ChangePasswordResult.TOO_SHORT;
 		}
 
+		if (password.length() > settings.getMaxLength()) {
+			return ChangePasswordResult.TOO_LONG;
+		}
+
+		if (settings.isPreventBadPasswords() && badPasswordDao.findByPassword(password) != null) {
+			return ChangePasswordResult.BAD_PASSWORD;
+		}
+
 		if (settings.isRequireComplexPassword()) {
 			int failures = 0;
 
-			if (settings.isRequireLowercaseLetters() && !Pattern.compile("[a-zæøå]").matcher(password).find()) {
+			if (!Pattern.compile("[a-zæøå]").matcher(password).find()) {
 				failures++;
 			}
 
-			if (settings.isRequireUppercaseLetters() && !Pattern.compile("[A-ZÆØÅ]").matcher(password).find()) {
+			if (!Pattern.compile("[A-ZÆØÅ]").matcher(password).find()) {
 				failures++;
 			}
 
-			if (settings.isRequireDigits() && !Pattern.compile("\\d").matcher(password).find()) {
+			if (!Pattern.compile("\\d").matcher(password).find()) {
 				failures++;
 			}
 
-			if (settings.isRequireSpecialCharacters() && !Pattern.compile("[^\\wæøå\\d]", Pattern.CASE_INSENSITIVE).matcher(password).find()) {
+			if (!Pattern.compile("[^\\wæøå\\d]", Pattern.CASE_INSENSITIVE).matcher(password).find()) {
 				failures++;
 			}
 
@@ -118,6 +130,7 @@ public class PasswordSettingService {
 		if (all.size() == 0) {
 			PasswordSetting settings = new PasswordSetting();
 			settings.setMinLength(10L);
+			settings.setMaxLength(64L);
 			settings.setRequireComplexPassword(false);
 			settings.setRequireLowercaseLetters(true);
 			settings.setRequireUppercaseLetters(false);
@@ -126,12 +139,13 @@ public class PasswordSettingService {
 			settings.setDisallowDanishCharacters(false);
 			settings.setDisallowNameAndUsername(false);
 			settings.setValidateAgainstAdEnabled(true);
-			settings.setOldPasswordNumber((long) 10);
+			settings.setOldPasswordNumber((long) 8);
 			settings.setTriesBeforeLockNumber((long) 5);
 			settings.setLockedMinutes((long) 5);
 			settings.setMaxPasswordChangesPrDayEnabled(false);
 			settings.setMaxPasswordChangesPrDay((long) 1);
 			settings.setDomain(domain);
+			settings.setPreventBadPasswords(true);
 
 			return settings;
 		}

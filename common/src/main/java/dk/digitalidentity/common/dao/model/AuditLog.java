@@ -17,8 +17,6 @@ import javax.persistence.Table;
 
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -50,7 +48,6 @@ public class AuditLog {
 	// referenced person which data was used
 
 	@BatchSize(size = 100)
-	@NotFound(action = NotFoundAction.IGNORE)
 	@OneToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")
 	@JsonIgnore

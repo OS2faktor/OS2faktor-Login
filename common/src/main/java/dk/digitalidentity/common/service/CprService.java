@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -17,7 +18,7 @@ import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -48,10 +49,15 @@ public class CprService {
 
 	@Transactional
 	public void syncNamesAndCivilstandFromCpr() throws Exception {
+		if (!configuration.getCpr().isEnabled()) {
+			log.warn("Called method syncNamesAndCivilstandFromCpr, but cpr is disabled");
+			return;
+		}
+
 		auditLogger.updateFromCprJob();
 
-		// change list of people to a map mapped by cpr
-		List<Person> all = personService.getAll();
+		// change list of people to a map mapped by cpr (TODO: make the filtered lookup in the DB instead)
+		List<Person> all = personService.getAll().stream().filter(p -> p.isNsisAllowed() && !p.isLockedDataset()).collect(Collectors.toList());
 		HashMap<String, List<Person>> personMap = new HashMap<>();
 		for (Person person : all) {
 			if (!personMap.containsKey(person.getCpr())) {
@@ -80,6 +86,10 @@ public class CprService {
 					if (dto == null) {
 						log.warn("Cpr response was empty");
 						failedAttempts++;
+						continue;
+					}
+					
+					if (dto.isDoesNotExist()) {
 						continue;
 					}
 					
@@ -134,7 +144,12 @@ public class CprService {
 		}
 	}
 	
-	public boolean checkIsDead(Person person){
+	public boolean checkIsDead(Person person) {
+		if (!configuration.getCpr().isEnabled()) {
+			log.warn("Called method checkIsDead, but cpr is disabled");
+			return false;
+		}
+		
 		Future<CprLookupDTO> cprFuture = self.getByCpr(person.getCpr());
 		CprLookupDTO dto = null;
 
@@ -153,6 +168,13 @@ public class CprService {
 			return false;
 		}
 		
+		// TODO: if the person does not exists in CPR, but has NSIS-allowed, we should probably auditlog
+		//       this as something the municipality should look into
+		if (dto.isDoesNotExist()) {
+			auditLogger.checkPersonIsDead(person, null);
+			return false;
+		}
+		
 		auditLogger.checkPersonIsDead(person, dto.isDead());
 		
 		return dto.isDead();
@@ -160,6 +182,11 @@ public class CprService {
 
 	@Async
 	public Future<CprLookupDTO> getByCpr(String cpr) {
+		if (!configuration.getCpr().isEnabled()) {
+			log.warn("Called method checkIsDead, but cpr is disabled");
+			return null;
+		}
+		
 		RestTemplate restTemplate = new RestTemplate();
 		// no reason to lookup invalid cpr numbers
 		if (!validCpr(cpr)) {
@@ -176,8 +203,24 @@ public class CprService {
 			ResponseEntity<CprLookupDTO> response = restTemplate.getForEntity(cprResourceUrl, CprLookupDTO.class);
 			return new AsyncResult<CprLookupDTO>(response.getBody());
 		}
-		catch (IllegalArgumentException | RestClientException ex) {
+		catch (IllegalArgumentException ex) {
 			log.warn("Failed to lookup: " + safeCprSubstring(cpr), ex);
+
+			return null;
+		}
+		catch (RestClientResponseException ex) {
+			String responseBody = ex.getResponseBodyAsString();
+
+			if (ex.getRawStatusCode() == 404 && responseBody != null && responseBody.contains("PNR not found")) {
+				log.warn("Person cpr does not exists in cpr-register: " + safeCprSubstring(cpr));
+				
+				CprLookupDTO dto = new CprLookupDTO();
+				dto.setDoesNotExist(true);
+				return new AsyncResult<CprLookupDTO>(dto);
+			}
+			else {
+				log.warn("Failed to lookup: " + safeCprSubstring(cpr), ex);
+			}
 
 			return null;
 		}

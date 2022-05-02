@@ -1,13 +1,13 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.validation.Valid;
 
-import dk.digitalidentity.common.dao.model.Group;
-import dk.digitalidentity.common.service.GroupService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -17,8 +17,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
+import dk.digitalidentity.common.config.FeatureDocumentation;
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
@@ -26,12 +29,15 @@ import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.DomainService;
+import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.mvc.admin.dto.AdministratorDTO;
+import dk.digitalidentity.mvc.admin.dto.FeatureDTO;
 import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.PrivacyPolicyDTO;
 import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
@@ -71,6 +77,12 @@ public class ConfigurationController {
 
 	@Autowired
 	private GroupService groupService;
+	
+	@Autowired
+	private OS2faktorConfiguration os2faktorConfiguration;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
 	@RequireAdministrator
 	@GetMapping("/admin/konfiguration/sessioner")
@@ -123,7 +135,7 @@ public class ConfigurationController {
 	public String getPasswordConfiguration(Model model) {
 		// Add dummy default form, frontend will load settings by domain.
 		PasswordConfigurationForm form = new PasswordConfigurationForm();
-		form.setMinLength(10L);
+		form.setMinLength(8L);
 		form.setRequireComplexPassword(false);
 		form.setRequireLowercaseLetters(true);
 		form.setRequireUppercaseLetters(false);
@@ -131,6 +143,7 @@ public class ConfigurationController {
 		form.setRequireSpecialCharacters(false);
 		form.setDisallowDanishCharacters(false);
 		form.setValidateAgainstAdEnabled(true);
+		form.setPreventBadPasswords(true);
 		form.setDomainId(0);
 		form.setChangePasswordOnUsersEnabled(false);
 		model.addAttribute("configForm", form);
@@ -188,6 +201,7 @@ public class ConfigurationController {
 
 		PasswordSetting settings = passwordService.getSettings(domain);
 		settings.setMinLength(form.getMinLength());
+		settings.setMaxLength(form.getMaxLength());
 		settings.setRequireLowercaseLetters(form.isRequireLowercaseLetters());
 		settings.setRequireUppercaseLetters(form.isRequireUppercaseLetters());
 		settings.setRequireComplexPassword(form.isRequireComplexPassword());
@@ -212,6 +226,7 @@ public class ConfigurationController {
 		settings.setMaxPasswordChangesPrDay(form.getMaxPasswordChangesPrDay());
 		settings.setCanNotChangePasswordEnabled(canNotChangePasswordGroup != null);
 		settings.setCanNotChangePasswordGroup(canNotChangePasswordGroup);
+		settings.setPreventBadPasswords(form.isPreventBadPasswords());
 		
 		if (form.isRequireComplexPassword()) {
 			settings.setRequireLowercaseLetters(form.isRequireLowercaseLetters());
@@ -343,5 +358,51 @@ public class ConfigurationController {
 		model.addAttribute("domains", domains);
 
 		return "admin/administrators-add";
+	}
+	
+	@RequireAdministrator
+	@GetMapping("/admin/konfiguration/features")
+	public String getFeatureList(Model model) {
+		List<FeatureDTO> features = new ArrayList<>();
+		getFields(os2faktorConfiguration.getClass().getDeclaredFields(), features, os2faktorConfiguration);
+		getFields(commonConfiguration.getClass().getDeclaredFields(), features, commonConfiguration);
+		
+		model.addAttribute("features", features);
+		
+		return "admin/configure-features";
+	}
+	
+	private void getFields(Field[] fields, List<FeatureDTO> features, Object object) {
+	    try {
+	        for (Field field : fields) {
+	            field.setAccessible(true);
+
+	            if (field.isAnnotationPresent(FeatureDocumentation.class) && field.getType().equals(boolean.class)) {
+	            	FeatureDocumentation annotation = field.getAnnotation(FeatureDocumentation.class);
+
+	            	FeatureDTO feature = new FeatureDTO();
+	            	feature.setDescription(annotation.description());
+	            	feature.setName(annotation.name());
+	            	feature.setEnabled(field.getBoolean(object));
+	            	features.add(feature);
+			    }
+	            else {
+	            	
+	            	// don't call getFields if field is enum - will cause endless loop
+			    	if (field.getType().getPackageName().startsWith("dk.") && !(field.getType() instanceof Class && ((Class<?>)field.getType()).isEnum())) {
+			    		getFields(field.getType().getDeclaredFields(), features, field.get(object));
+			    	}
+			    }
+	        }
+	    }
+	    catch (IllegalArgumentException e) {
+	        log.error("A method has been passed a wrong argument in the getFields method for feature documentation.");
+	    }
+	    catch (SecurityException e) {
+	    	log.error("Security violation in the getFields method for feature documentation");
+		}
+	    catch (IllegalAccessException e) {
+			log.error("tries to acces a field or method, that is not allowed from the getFields method for feature documentation");
+		}
 	}
 }

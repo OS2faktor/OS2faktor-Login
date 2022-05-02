@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -597,6 +598,7 @@ public class SessionHelper {
 	public void setDoNotUseCurrentADPassword(boolean b) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
+			log.warn("Unable to find servletRequest in setDoNotUseCurrentADPassword = " + b);
 			return;
 		}
 
@@ -1096,12 +1098,73 @@ public class SessionHelper {
 	}
 
 	private HttpServletRequest getServletRequest() {
-	    RequestAttributes attribs = RequestContextHolder.getRequestAttributes();
-	    
-	    if (attribs instanceof ServletRequestAttributes) {
-	        return ((ServletRequestAttributes) attribs).getRequest();
-	    }
+		RequestAttributes attribs = RequestContextHolder.getRequestAttributes();
 
-	    return null;
+		if (attribs instanceof ServletRequestAttributes) {
+			return ((ServletRequestAttributes) attribs).getRequest();
+		}
+
+		return null;
+	}
+
+	public String serializeSessionAsString() {
+		StringBuilder sb = new StringBuilder();
+
+		HttpServletRequest servletRequest = getServletRequest();
+		if (servletRequest == null) {
+			// Pretty sure this never happens, but im going to keep the null check
+			return "No HttpServletRequest found";
+		}
+
+		HttpSession session = servletRequest.getSession(false);
+		if (session == null) {
+			return "No Session associated with request";
+		}
+
+		for (Enumeration<String> attributeNames = session.getAttributeNames(); attributeNames.hasMoreElements(); ) {
+			String attributeName = attributeNames.nextElement();
+			Object attribute = session.getAttribute(attributeName);
+
+			// TODO: I really want a white-liste instead - and for all others we just dump non/not-null
+
+			// Specific cases
+			List<String> doNotPrint = List.of(
+					Constants.PASSWORD,
+					"org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository.CSRF_TOKEN",
+					"dk.os2faktor.nemid.challenge",
+					"SPRING_SECURITY_SAVED_REQUEST"
+			);
+
+			if (doNotPrint.contains(attributeName)) {
+				continue;
+			}
+
+			// Generic handling
+			sb.append(attributeName).append(": ");
+			if (attribute == null) {
+				sb.append("<null>");
+			}
+			else if (attribute instanceof String) {
+				sb.append((String) attribute);
+			}
+			else if (attribute instanceof Boolean) {
+				sb.append(((Boolean) attribute));
+			}
+			else if (attribute instanceof NSISLevel) {
+				sb.append(((NSISLevel) attribute));
+			}
+			else if (attribute instanceof DateTime) {
+				sb.append(((DateTime) attribute));
+			}
+			else if (attribute instanceof LocalDateTime) {
+				sb.append(((LocalDateTime) attribute));
+			}
+			else {
+				sb.append("<not-null>");
+			}
+			sb.append("\n");
+		}
+
+		return sb.toString();
 	}
 }

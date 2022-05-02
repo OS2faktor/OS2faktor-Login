@@ -1,5 +1,6 @@
 package dk.digitalidentity.service;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
@@ -117,6 +118,9 @@ public class LoginService {
 
     @Autowired
     private OS2faktorConfiguration configuration;
+
+    @Autowired
+    private CommonConfiguration commonConfiguration;
 
     public ModelAndView initiateFlowOrCreateAssertion(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
         ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
@@ -368,7 +372,34 @@ public class LoginService {
             model.addAttribute("preferNemid", preferNemid);
         }
 
+        // if "Using NemLog-in for other SPs feature" is not enabled, we will only show NemLog-in on SelfService
+        model.addAttribute("showNemLogIn", showNemLogIn());
+
         return new ModelAndView("login", model.asMap());
+    }
+
+    private boolean showNemLogIn() {
+        if (commonConfiguration.getNemlogin().isBrokerEnabled()) {
+            return true;
+        }
+        else {
+            // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
+            try {
+                AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+                if (authnRequest != null) {
+                    ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+                    if (serviceProvider != null && serviceProvider instanceof SelfServiceServiceProvider) {
+                        return true;
+                    }
+                }
+            }
+            catch (RequesterException | ResponderException ex) {
+                log.warn("Could not determine where user is trying to login to", ex);
+            }
+
+            // If broker is not enabled, default to deny access if we can't determine ServiceProvider OR it is not SelfService
+            return false;
+        }
     }
 
     public ModelAndView initiateUserSelect(Model model, List<Person> people, boolean nemIdOrMitIdAuthenticated) {

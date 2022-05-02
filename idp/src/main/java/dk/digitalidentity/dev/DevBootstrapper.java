@@ -46,20 +46,86 @@ public class DevBootstrapper {
 		if (configuration.getDev().isEnabled()) {
 			if (personDao.findAll().size() == 0) {
 				Domain domain = domainService.getInternalDomain();
-
+				
 				Person person = new Person();
-				person.setUuid("54dfff62-b5ff-49d8-a1bd-e1e256043f5b");
+				person.setUuid("14deef62-b5ff-49d8-a1bd-e1e256043f5c");
 				person.setAdmin(true);
 				person.setCpr("0806500178");
-				person.setEmail("test@testesen.dk");
-				person.setName("Test Testesen");
+				person.setEmail("ellie@digital-identity.dk");
+				person.setName("Ellie Ellisen");
 				person.setNsisLevel(NSISLevel.NONE);
 				person.setNsisAllowed(true);
-				person.setSamaccountName("Ellie999");
+				person.setSamaccountName("ellie999");
+				person.setDomain(domain);
+
+				person = personDao.save(person);
+				
+				person = new Person();
+				person.setUuid("54dfff62-b5ff-49d8-a1bd-e1e256043f5b");
+				person.setAdmin(true);
+				person.setCpr("2105791197");
+				person.setEmail("bsg@digital-identity.dk");
+				person.setName("Brian Storm Graversen");
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisAllowed(true);
+				person.setSamaccountName("bsg");
+				person.setDomain(domain);
+
+				person = personDao.save(person);
+				
+				// add another Person
+				person = new Person();
+				person.setUuid("46889ca3-e686-4e77-b548-290343f178d0");
+				person.setAdmin(true);
+				person.setCpr("0701913477");
+				person.setEmail("psu@digital-identity.dk");
+				person.setName("Piotr Suski");
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisAllowed(true);
+	
+				person.setDomain(domain);
+				person.setSamaccountName("psu");
+	
+				person = personDao.save(person);
+				
+				// add another Person
+				
+				person = new Person();
+				person.setUuid("69afa825-2127-46aa-8eb6-3693b1092d1a");
+				person.setAdmin(true);
+				person.setCpr("1809960621");
+				person.setName("Malthe Plenge Overgaard");
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisAllowed(true);
+				person.setSamaccountName("mpo");
 				person.setDomain(domain);
 
 				person = personDao.save(person);
 
+				person = new Person();
+				person.setUuid("fb35b7a0-0cd1-475c-9c50-071c3d21a8fd");
+				person.setAdmin(true);
+				person.setCpr("0310990868");
+				person.setName("Amalie Flensburg Bojsen");
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisAllowed(true);
+				person.setSamaccountName("abo");
+				person.setDomain(domain);
+
+				person = personDao.save(person);
+
+				person = new Person();
+				person.setUuid("8e989f34-fabd-463c-9a63-5936acb2c657");
+				person.setAdmin(true);
+				person.setCpr("2105791197");
+				person.setName("Ikke En Nsis Bruger");
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisAllowed(false);
+				person.setSamaccountName("nnu");
+				person.setDomain(domain);
+
+				person = personDao.save(person);
+				
 				List<Person> persons = new ArrayList<>();
 				for (int i = 0; i < 5000; i++) {
 					person = new Person();

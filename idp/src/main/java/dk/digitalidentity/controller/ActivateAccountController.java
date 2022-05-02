@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import dk.digitalidentity.service.ErrorHandlingService;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,6 +75,9 @@ public class ActivateAccountController {
 	private LoginService loginService;
 
 	@Autowired
+	private ErrorHandlingService errorHandlingService;
+
+	@Autowired
 	private ErrorResponseService errorResponseService;
 
 	@Autowired
@@ -102,26 +106,24 @@ public class ActivateAccountController {
 		binder.setValidator(passwordChangeFormValidator);
 	}
 
-	// TODO: der er flere der har bookmarket denne side, så vi bør håndtere fejlene på en bedre måde (med mindre der er et AuthnRequest på sessionen,
-	//       så sender vi dem bare tilbage til hvor de kom fra)
 	@GetMapping("/konto/aktiver")
 	public ModelAndView beginActivateAccount(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
 		// Sanity checks
-		RequesterException ex = null;
+		String error = null;
 		Person person = sessionHelper.getPerson();
 		if (person == null) {
-			ex = new RequesterException("Kunne ikke aktivere kontoen, ingen person var associeret til login sessionen");
+			error = "Kunne ikke aktivere kontoen, ingen person var associeret til login sessionen";
 		}
 
-		if (ex == null && !person.isNsisAllowed()) {
-			ex = new RequesterException("Kunne ikke aktivere kontoen, personen ikke har adgang til at få tildelt en erhvervsidentitet: " + person.getId());
+		if (error == null && !person.isNsisAllowed()) {
+			error = "Kunne ikke aktivere kontoen, personen ikke har adgang til at få tildelt en erhvervsidentitet";
 		}
 
 		// If not in activate account flow, check for stored authnRequest on session and proceed with login. Otherwise send error.
-		if (ex == null && !sessionHelper.isInActivateAccountFlow()) {
+		if (error == null && !sessionHelper.isInActivateAccountFlow()) {
 			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
 			if (authnRequest == null) {
-				ex = new RequesterException("Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow (Person ID: '" + person.getId() + "')");
+				error = "Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow";
 			}
 			else {
 				log.warn("Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow (Person ID: '" + person.getId() + "')");
@@ -142,27 +144,24 @@ public class ActivateAccountController {
 		}
 
 		// if person has an NSIS user already and is in the
-		if (ex == null && person.hasActivatedNSISUser()) {
+		if (error == null && person.hasActivatedNSISUser()) {
 			if (!StringUtils.hasLength(person.getNsisPassword())) {
 				// if password has not been set yet, go to pick password page
 				return new ModelAndView("redirect:/konto/vaelgkode");
 			}
 
-			// TODO: disse sker (mest i Greve pga deres tendends til at bookmarke sub-sider i et flow), så lad os håndtere dem
-			//       ved at sende dem til en fejlside specifikt til dette formål
-			ex = new RequesterException("Kunne ikke aktivere kontoen, personen allerede har en konto: " + person.getId());
+			error = "Kunne ikke aktivere kontoen, personen allerede har en konto";
 		}
 
 		// handle error in sanity checks
-		if (ex != null) {
+		if (error != null) {
 			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
 			if (authnRequest != null) {
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException(error));
 				return null;
 			}
 			else {
-				log.warn("No AuthnRequest on session error thrown since error destination unknown");
-				throw ex;
+				return errorHandlingService.modelAndViewError("/konto/aktiver", httpServletRequest, error, model);
 			}
 		}
 
@@ -258,12 +257,8 @@ public class ActivateAccountController {
 	
 			// Handle error in sanity checks
 			if (authnRequest == null) {
-				// probably some kind of bookmark - want to contact the end-user at some point and ask
-				String referer = (httpServletRequest.getHeader("referer"));
-				String personId = (person != null) ? Long.toString(person.getId()) : "<null>";
-				
-				log.warn("Attempted to access /konto/fortsaetlogin without an authnRequest present. Person = " + personId + ", Referer = " + referer);
-				return new ModelAndView("redirect:/");
+				// probably some kind of bookmark
+				return errorHandlingService.modelAndViewError("/konto/fortsaetlogin", httpServletRequest, "Attempted to access endpoint without an AuthnRequest present", model);
 			}
 	
 			if (ex != null) {
@@ -298,18 +293,15 @@ public class ActivateAccountController {
 	}
 
 	@GetMapping("/konto/vaelgkode")
-	public String activateSelectPassword(Model model, HttpServletResponse httpServletResponse, @RequestParam(value="doNotUseCurrentADPassword", required = false, defaultValue = "false") boolean doNotUseCurrentADPassword) throws ResponderException, RequesterException {
+	public String activateSelectPassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, @RequestParam(value="doNotUseCurrentADPassword", required = false, defaultValue = "false") boolean doNotUseCurrentADPassword) throws ResponderException, RequesterException {
 		Person person = sessionHelper.getPerson();
-		if (person == null || !person.hasActivatedNSISUser()) {
+
+		if (person == null || !person.hasActivatedNSISUser()) {		
 			String message = (person == null) ? "Prøvede at tilgå vælgkode, men ingen person var associeret med sessionen" : ("Tilgik vælgkode, men havde ingen NSIS bruger: " + person.getUuid());
+			String destination = errorHandlingService.error("/konto/vaelgkode", httpServletRequest, message, model);
 
-			// if they end up here they likely bookmarked this page
-			// we don't know why they ended on the select password page (either through activation or password change)
-			// but we can just log a warning and show it on the index page instead
-			log.warn(message);
 			sessionHelper.invalidateSession();
-
-			return "redirect:/";
+			return destination;
 		}
 
 		// sometimes people bookmark this page as a "change password" page, but it is intended to be used in-flow of the activation,

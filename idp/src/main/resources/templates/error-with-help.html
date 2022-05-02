@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+	    <div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+
+	        <div class="wrapper wrapper-content">
+	            <div class="row">
+	                <div class="col-lg-12">
+					    <div class="middle-box text-center animated fadeInDown" style="margin-top: 40px;">
+					        <h1 style="font-size: 40px;">Noget gik galt <em class="fa fa-frown-o"></em></h1>
+					
+					        <div class="error-desc">
+								<p>
+								Den side du forsøgte at tilgå findes ikke længere - din session kan evt være udløbet, eller
+								du har forsøgt at bruge et bogmærke til en midlertidig side. Nedenfor er en række links
+								du kan vælge at bruge i stedet.
+								</p>
+								
+								<p>
+								Hvis du oplever denne fejl i forbindelse med login, og det ikke hjælper at starte forfra,
+								skal du kontakte din it-afdeling og melde fejlen.
+								</p> 
+
+								<ul style="margin-bottom: 40px; margin-left: 30px;">
+									<li style="text-align: left;"><a th:href="${@commonConfiguration.selfService.baseUrl}">Selvbetjening</a></li>
+									<li style="text-align: left;"><a th:href="@{/sso/saml/changepassword}">Skift kodeord</a></li>
+								</ul>
+
+								<small th:if="${location != null && timestamp != null}">
+									<p style="margin-bottom: 2px;" th:text="'Tilgik side: ' +  ${location}"></p>
+									<p th:text="'Tidspunkt: ' + ${timestamp}"></p>
+								</small>
+							</div>
+					    </div>
+	                </div>
+	            </div>
+	        </div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+	    </div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

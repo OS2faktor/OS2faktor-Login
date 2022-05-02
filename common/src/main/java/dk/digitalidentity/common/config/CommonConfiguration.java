@@ -22,4 +22,5 @@ public class CommonConfiguration {
 	private RoleCatalogueConfiguration roleCatalogue = new RoleCatalogueConfiguration();
 	private RadiusConfiguration radiusConfiguration = new RadiusConfiguration();
 	private Cpr cpr = new Cpr();
+	private Nemlogin nemlogin = new Nemlogin();
 }

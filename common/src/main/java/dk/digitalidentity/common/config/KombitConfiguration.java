@@ -10,8 +10,10 @@ import lombok.Setter;
 @Getter
 public class KombitConfiguration {
 	public enum ROLE_SOURCE { OS2ROLLEKATALOG, JFR_GROUPS };
-
+	
+	@FeatureDocumentation(name = "KOMBIT integration", description = "Integration til KOMBITs Context Handler (produktion)")
 	private boolean enabled = false;
+
 	private String metadataUrl = "https://adgangsstyring.stoettesystemerne.dk/runtime/saml2auth/metadata.idp";
 	private String entityId = "https://saml.adgangsstyring.stoettesystemerne.dk";
 	private String assuranceLevel = "3";

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dk.digitalidentity.service.ErrorHandlingService;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,9 @@ public class ApproveConditionsController {
 
 	@Autowired
 	private SessionHelper sessionHelper;
+
+	@Autowired
+	private ErrorHandlingService errorHandlingService;
 
 	@Autowired
 	private ErrorResponseService errorResponseService;
@@ -100,8 +104,9 @@ public class ApproveConditionsController {
 		}
 		else {
 			// No AuthnRequest
+			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/vilkaar/godkendt", httpServletRequest, "No AuthnRequest on session", model);
 			sessionHelper.invalidateSession();
-			return new ModelAndView("redirect:/");
+			return modelAndView;
 		}
 	}
 

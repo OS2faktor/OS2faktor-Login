@@ -13,6 +13,7 @@ public enum ChangePasswordResult {
 	
 	// validation errors
 	TOO_SHORT("Det angivne kodeord er for kort"),
+	TOO_LONG("Det angivne kodeord er for langt"),
 	NOT_COMPLEX("Det angivne kodeord opfylder ikke reglerne for et komplekst kodeord"),
 	NO_LOWERCASE("Det angivne kodeord indeholder ikke mindst ét lille bogstaver"),
 	NO_UPPERCASE("Det angivne kodeord indeholder ikke mindst ét stort bogstaver"),
@@ -20,7 +21,8 @@ public enum ChangePasswordResult {
 	NO_SPECIAL_CHARACTERS("Det angivne kodeord indeholder ikke mindst ét specialtegn"),
 	DANISH_CHARACTERS_NOT_ALLOWED("Det angivne kodeord indeholder mindst ét dansk tegn"),
 	CONTAINS_NAME("Det angivne kodeord indeholder brugerens navn eller brugernavn"),
-	OLD_PASSWORD("Det angivne kodeord er det samme som et gammelt kodeord");
+	OLD_PASSWORD("Det angivne kodeord er det samme som et gammelt kodeord"),
+	BAD_PASSWORD("Det valgte kodeord er for simpelt. Vælg et mere komplekst kodeord");
 
 	private String message;
 

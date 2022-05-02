@@ -13,11 +13,29 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li th:if="${@securityUtil.isLockedByPersonOnly() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/genaktiver}">Re-aktiver brugerkonto</a></li>
-						<li th:if="${@securityUtil.isUnlocked() && @securityUtil.hasNsisUser()}"><a th:href="@{/selvbetjening/spaerre}">Spær brugerkonto</a></li>
-						<li><a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Få et nyt kodeord</a></li>
-						<li th:if="${page != 'selfservice.unlock-ad-account' and @securityUtil.hasSamAccountName()}"><a th:href="@{/selvbetjening/unlockADAccount}">Lås min AD konto op</a></li>
-						<li th:if="${page != 'selfservice.index'}"><a th:href="@{/selvbetjening}">Gå til min identitet</a></li>
+						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantial()}">
+							<li th:if="${@securityUtil.isLockedByPersonOnly()}">
+								<a th:href="@{/selvbetjening/genaktiver}">Genåbn brugerkonto</a>
+							</li>
+
+							<li th:if="${@securityUtil.isUnlocked()}">
+								<a th:href="@{/selvbetjening/spaerre}">Lås brugerkonto</a>
+							</li>
+							
+							<li>
+								<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift kodeord</a>
+							</li>
+						</th:block>
+						
+						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantial() == false}">
+							<li>
+								<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift AD kodeord</a>
+							</li>
+						</th:block>
+						
+						<li th:if="${page != 'selfservice.unlock-ad-account' and @securityUtil.hasSamAccountName()}">
+							<a th:href="@{/selvbetjening/unlockADAccount}">Lås AD konto op</a>
+						</li>
 					</ul>
 				</div>
 			</div>
@@ -107,6 +125,7 @@
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/privacypolicy}">Opsæt privatlivspolitik</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_USER_ADMIN')"><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/features}">Teknisk opsætning</a></li>
 					</ul>
 				</div>
 			</div>

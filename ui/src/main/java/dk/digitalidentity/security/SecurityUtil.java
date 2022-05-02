@@ -182,6 +182,14 @@ public class SecurityUtil {
 	}
 
 	/**
+	 * Returns true if the currently logged in person used NSIS credentials to login,
+	 * and that person has an activated NSIS account
+	 */
+	public boolean loggedInWithNsisSubstantial() {
+		return hasNsisUser() && NSISLevel.SUBSTANTIAL.equalOrLesser(getAuthenticationAssuranceLevel());		
+	}
+
+	/**
 	 * Returns true if the currently logged in person has an NSIS user
 	 */
 	public boolean hasNsisUser() {
@@ -201,7 +209,7 @@ public class SecurityUtil {
 
 	// called during login, to grant access-roles to admin-portal
 	public void updateTokenUser(Person person, TokenUser tokenUser) {
-		Boolean hasActivatedNsisAccount = person.hasActivatedNSISUser();             // the has an active NSIS account
+		Boolean hasActivatedNsisAccount = person.hasActivatedNSISUser();    // the has an active NSIS account
 		Boolean isLocked = person.isLocked();                               // the is not locked
 		Boolean lockedByPersonOnly = person.isLockedDataset() == false &&   // not locked by municipality
 									 person.isLockedAdmin() == false &&     // not locked by admin

@@ -11,6 +11,7 @@ import lombok.Setter;
 public class PasswordConfigurationForm {
 	private long domainId;
 	private long minLength;
+	private long maxLength;
 	private boolean requireLowercaseLetters;
 	private boolean requireUppercaseLetters;
 	private boolean requireComplexPassword;
@@ -36,9 +37,11 @@ public class PasswordConfigurationForm {
 	private Long maxPasswordChangesPrDay;
 	private boolean canNotChangePasswordEnabled;
 	private Long canNotChangePasswordGroup;
+	private boolean preventBadPasswords;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
 		this.minLength = settings.getMinLength();
+		this.maxLength = settings.getMaxLength();
 		this.requireLowercaseLetters = settings.isRequireLowercaseLetters();
 		this.requireUppercaseLetters = settings.isRequireUppercaseLetters();
 		this.requireComplexPassword = settings.isRequireComplexPassword();
@@ -65,5 +68,6 @@ public class PasswordConfigurationForm {
 		this.maxPasswordChangesPrDay = settings.getMaxPasswordChangesPrDay();
 		this.canNotChangePasswordEnabled = settings.isCanNotChangePasswordEnabled();
 		this.canNotChangePasswordGroup = settings.getCanNotChangePasswordGroup() != null ? settings.getCanNotChangePasswordGroup().getId() : null;
+		this.preventBadPasswords = settings.isPreventBadPasswords();
 	}
 }
