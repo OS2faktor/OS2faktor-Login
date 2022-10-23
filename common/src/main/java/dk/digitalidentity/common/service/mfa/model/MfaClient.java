@@ -4,10 +4,12 @@ import java.io.Serializable;
 
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
+@NoArgsConstructor
 public class MfaClient implements Serializable {
 	private static final long serialVersionUID = 4935443945438852845L;
 
@@ -22,4 +24,11 @@ public class MfaClient implements Serializable {
 	
 	// used for UI
 	private transient String typeMessage;
+	
+	public MfaClient(String name, String deviceId, String type, String nsisLevel) {
+		this.name = name;
+		this.deviceId = deviceId;
+		this.type = ClientType.valueOf(type);
+		this.nsisLevel = NSISLevel.valueOf(nsisLevel);
+	}
 }

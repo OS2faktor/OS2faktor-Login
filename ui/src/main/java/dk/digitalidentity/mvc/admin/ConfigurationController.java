@@ -3,7 +3,10 @@ package dk.digitalidentity.mvc.admin;
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.validation.Valid;
@@ -20,6 +23,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.config.FeatureDocumentation;
+import dk.digitalidentity.common.config.RoleSettingDTO;
+import dk.digitalidentity.common.config.RoleSettingType;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
@@ -27,21 +32,28 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
+import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
+import dk.digitalidentity.common.dao.model.enums.LogWatchSettingKey;
+import dk.digitalidentity.common.dao.model.enums.SchoolClassType;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
+import dk.digitalidentity.common.service.LogWatchSettingService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
+import dk.digitalidentity.common.service.WindowCredentialProviderClientService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.mvc.admin.dto.AdministratorDTO;
 import dk.digitalidentity.mvc.admin.dto.FeatureDTO;
+import dk.digitalidentity.mvc.admin.dto.LogWatchSettingsDto;
 import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.PrivacyPolicyDTO;
 import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.TermsAndConditionsDTO;
+import dk.digitalidentity.mvc.admin.dto.WindowCredentialProviderClientDTO;
 import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.RequireAdministratorOrUserAdministrator;
 import dk.digitalidentity.security.SecurityUtil;
@@ -83,6 +95,12 @@ public class ConfigurationController {
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private WindowCredentialProviderClientService clientService;
+	
+	@Autowired
+	private LogWatchSettingService logWatchSettingService;
 
 	@RequireAdministrator
 	@GetMapping("/admin/konfiguration/sessioner")
@@ -145,7 +163,6 @@ public class ConfigurationController {
 		form.setValidateAgainstAdEnabled(true);
 		form.setPreventBadPasswords(true);
 		form.setDomainId(0);
-		form.setChangePasswordOnUsersEnabled(false);
 		model.addAttribute("configForm", form);
 
 		List<Domain> domains = domainService.getAll();
@@ -180,15 +197,6 @@ public class ConfigurationController {
 			log.error("Could not find domain");
 			return "error";
 		}
-
-		Group group = null;
-		if (form.isChangePasswordOnUsersEnabled() && form.getChangePasswordOnUsersGroup() != null) {
-			group = groupService.getById(form.getChangePasswordOnUsersGroup());
-			if (group == null) {
-				log.error("Group Change password on users enabled but no group found from id: " + form.getChangePasswordOnUsersGroup());
-				return "error";
-			}
-		}
 		
 		Group canNotChangePasswordGroup = null;
 		if (form.isCanNotChangePasswordEnabled() && form.getCanNotChangePasswordGroup() != null) {
@@ -213,17 +221,15 @@ public class ConfigurationController {
 		settings.setForceChangePasswordInterval(form.getForceChangePasswordInterval() != null ? form.getForceChangePasswordInterval() : 90);
 		settings.setAlternativePasswordChangeLink(form.getAlternativePasswordChangeLink());
 		settings.setDisallowOldPasswords(form.isDisallowOldPasswords());
-		settings.setOldPasswordNumber(form.getOldPasswordNumber());
+		settings.setOldPasswordNumber(form.getOldPasswordNumber() != null ? form.getOldPasswordNumber() : 10);
 		settings.setReplicateToAdEnabled(form.isReplicateToAdEnabled());
 		settings.setValidateAgainstAdEnabled(form.isValidateAgainstAdEnabled());
 		settings.setMonitoringEnabled(form.isMonitoringEnabled());
 		settings.setMonitoringEmail(form.getMonitoringEmail());
-		settings.setChangePasswordOnUsersEnabled(group != null);
-		settings.setChangePasswordOnUsersGroup(group);
-		settings.setTriesBeforeLockNumber(form.getTriesBeforeLockNumber());
-		settings.setLockedMinutes(form.getLockedMinutes());
+		settings.setTriesBeforeLockNumber(form.getTriesBeforeLockNumber() != null ? form.getTriesBeforeLockNumber() : 5);
+		settings.setLockedMinutes(form.getLockedMinutes() != null ? form.getLockedMinutes() : 5);
 		settings.setMaxPasswordChangesPrDayEnabled(form.isMaxPasswordChangesPrDayEnabled());
-		settings.setMaxPasswordChangesPrDay(form.getMaxPasswordChangesPrDay());
+		settings.setMaxPasswordChangesPrDay(form.getMaxPasswordChangesPrDay() != null ? form.getMaxPasswordChangesPrDay() : 1);
 		settings.setCanNotChangePasswordEnabled(canNotChangePasswordGroup != null);
 		settings.setCanNotChangePasswordGroup(canNotChangePasswordGroup);
 		settings.setPreventBadPasswords(form.isPreventBadPasswords());
@@ -369,9 +375,42 @@ public class ConfigurationController {
 		
 		model.addAttribute("features", features);
 		
+		List<RoleSettingDTO> settings = commonConfiguration.getStilStudent().getRoleSettings();
+		model.addAttribute("roleSettings", transformFilterMessage(settings));
+		
 		return "admin/configure-features";
 	}
-	
+		
+	private List<RoleSettingDTO> transformFilterMessage(List<RoleSettingDTO> settings) {
+		List<RoleSettingDTO> newSettingList = new ArrayList<>();
+		
+		for (RoleSettingDTO dto : settings) {
+			RoleSettingDTO newSetting = new RoleSettingDTO();
+			newSetting.setRole(dto.getRole());
+			newSetting.setType(dto.getType());
+			
+			String filterString = dto.getFilter();
+			if (dto.getType().equals(RoleSettingType.CAN_CHANGE_PASSWORD_ON_GROUP_MATCH)) {
+				List<String> filterClassTypes = Arrays.asList(dto.getFilter().split(","));
+				filterString = "";
+				
+				for (String filter : filterClassTypes) {
+					SchoolClassType type = SchoolClassType.valueOf(filter);
+					if (type != null) {
+						filterString += type.getMessage() + ", ";
+					}
+				}
+				
+				filterString = filterString.substring(0, filterString.length()-2);
+			}
+			
+			newSetting.setFilter(filterString);
+			newSettingList.add(newSetting);
+		}
+		
+		return newSettingList;
+	}
+
 	private void getFields(Field[] fields, List<FeatureDTO> features, Object object) {
 	    try {
 	        for (Field field : fields) {
@@ -404,5 +443,79 @@ public class ConfigurationController {
 	    catch (IllegalAccessException e) {
 			log.error("tries to acces a field or method, that is not allowed from the getFields method for feature documentation");
 		}
+	}
+
+	@RequireAdministrator
+	@GetMapping("/admin/konfiguration/wcp")
+	public String getWindowsCreadentialProvicerClients(Model model) {
+		List<WindowCredentialProviderClient> clients = clientService.getAll();
+		List<WindowCredentialProviderClientDTO> clientsDTO = clients.stream().map(WindowCredentialProviderClientDTO::new).collect(Collectors.toList());
+
+		model.addAttribute("clients", clientsDTO);
+		
+		return "admin/configure-wcp";
+	}
+	
+	@RequireAdministrator
+	@GetMapping("/admin/konfiguration/logovervaagning")
+	public String getLogWatch(Model model) {
+		LogWatchSettingsDto settings = getLogWatchSettingsDto();
+		model.addAttribute("settings", settings);
+		
+		return "admin/configure-logwatch";
+	}
+	
+	@RequireAdministrator
+	@PostMapping("/admin/konfiguration/logovervaagning")
+	public String postLogWatch(Model model, LogWatchSettingsDto logWatchSettingsDto, RedirectAttributes redirectAttributes) {
+		Person admin = personService.getById(securityUtil.getPersonId());
+		if (admin == null) {
+			log.error("Could not find admin");
+			return "error";
+		}
+		
+		if (logWatchSettingsDto.isEnabled()) {
+			String regex = "^(.+)@(.+)$";
+			Pattern pattern = Pattern.compile(regex);
+			Matcher matcher = pattern.matcher(logWatchSettingsDto.getAlarmEmail());
+			
+			if (!matcher.matches()) {
+				model.addAttribute("settings", logWatchSettingsDto);
+				model.addAttribute("emailError", true);
+				
+				return "admin/configure-logwatch";
+			}
+		}
+		
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.LOG_WATCH_ENABLED, logWatchSettingsDto.isEnabled());
+		logWatchSettingService.setStringValue(LogWatchSettingKey.ALARM_EMAIL, logWatchSettingsDto.getAlarmEmail());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_ENABLED, logWatchSettingsDto.isTwoCountriesOneHourEnabled());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED, logWatchSettingsDto.isPersonDeadOrIncapacitatedEnabled());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_ENABLED, logWatchSettingsDto.isTooManyAccountsLockedByAdminTodayEnabled());
+		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_LIMIT, logWatchSettingsDto.getTooManyAccountsLockedByAdminTodayLimit());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_ENABLED, logWatchSettingsDto.isTooManyTimeLockedAccountsEnabled());
+		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, logWatchSettingsDto.getTooManyTimeLockedAccountsLimit());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_ENABLED, logWatchSettingsDto.isTooManyWrongPasswordsEnabled());
+		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, logWatchSettingsDto.getTooManyWrongPasswordsLimit());
+				
+		redirectAttributes.addFlashAttribute("flashMessage", "Indstillinger for overvågning af logs opdateret");
+		
+		return "redirect:/admin";
+	}
+
+	private LogWatchSettingsDto getLogWatchSettingsDto() {
+		LogWatchSettingsDto settings = new LogWatchSettingsDto();
+		settings.setEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED));
+		settings.setAlarmEmail(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL));
+		settings.setTwoCountriesOneHourEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_ENABLED));
+		settings.setTooManyWrongPasswordsEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_ENABLED));
+		settings.setTooManyWrongPasswordsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, 20));
+		settings.setTooManyTimeLockedAccountsEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_ENABLED));
+		settings.setTooManyTimeLockedAccountsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, 10));
+		settings.setTooManyAccountsLockedByAdminTodayEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_ENABLED));
+		settings.setTooManyAccountsLockedByAdminTodayLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_LIMIT, 10));
+		settings.setPersonDeadOrIncapacitatedEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED));
+	
+		return settings;
 	}
 }

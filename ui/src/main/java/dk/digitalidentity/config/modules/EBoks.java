@@ -11,7 +11,6 @@ public class EBoks {
 	@FeatureDocumentation(name = "Digital post", description = "Mulighed for at afsende digital post til medarbejdere for at understøtte manuelle registreringsflows")
 	private boolean enabled = false;
 
-	private String materialeId;
-	private String senderId;
-	private String url = "http://remoteprint.digital-identity.dk/";	
+	private String senderName;
+	private String url = "http://sf1601.digital-identity.dk/api/print";
 }

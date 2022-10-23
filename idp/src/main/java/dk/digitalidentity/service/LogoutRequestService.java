@@ -1,6 +1,7 @@
 package dk.digitalidentity.service;
 
 import java.security.PublicKey;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -79,13 +80,22 @@ public class LogoutRequestService {
 		}
 	}
 
-	public LogoutRequest getLogoutRequest(MessageContext<SAMLObject> messageContext) {
-		return (LogoutRequest) messageContext.getMessage();
+	public LogoutRequest getLogoutRequest(MessageContext<SAMLObject> messageContext) throws RequesterException {
+		// Sometimes we receive LogoutResponses on the LogoutRequest endpoint,
+		// this will show a nice error message if that happens
+		SAMLObject message = messageContext.getMessage();
+		if (!(message instanceof  LogoutRequest)) {
+			String errMsg = "Besked indhold burde være LogoutRequest";
+			if (message != null && message.getClass() != null ) {
+				errMsg += " men er af typen: " + message.getClass().getName();
+			}
+			throw new RequesterException(errMsg);
+		}
+		return (LogoutRequest) message;
 	}
 
-	public void validateLogoutRequest(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, PublicKey publicKey)
-			throws RequesterException, ResponderException {
-		validationService.validate(request, messageContext, metadata, publicKey);
+	public void validateLogoutRequest(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, List<PublicKey> publicKeys) throws RequesterException, ResponderException {
+		validationService.validate(request, messageContext, metadata, publicKeys);
 	}
 
 	public MessageContext<SAMLObject> createMessageContextWithLogoutRequest(LogoutRequest logoutRequest, String destination, ServiceProvider serviceProvider) throws ResponderException, RequesterException {

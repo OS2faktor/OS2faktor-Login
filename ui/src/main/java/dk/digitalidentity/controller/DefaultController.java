@@ -6,10 +6,12 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.opensaml.saml.common.SAMLException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
 import org.springframework.boot.web.servlet.error.ErrorAttributes;
 import org.springframework.boot.web.servlet.error.ErrorController;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.web.WebAttributes;
@@ -23,9 +25,11 @@ import org.springframework.web.context.request.WebRequest;
 
 import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.security.SecurityUtil;
 
 @Controller
+@PropertySource("classpath:git.properties")
 public class DefaultController implements ErrorController {
 	private ErrorAttributes errorAttributes = new DefaultErrorAttributes();
 
@@ -38,6 +42,15 @@ public class DefaultController implements ErrorController {
 	@Autowired
 	private PrivacyPolicyService privacyPolicyService;
 	
+	@Autowired
+	private OS2faktorConfiguration config;
+	
+	@Value(value = "${git.commit.id.abbrev}")
+	private String gitCommitId;
+
+	@Value(value = "${git.build.time}")
+	private String gitBuildTime;
+	
 	@GetMapping("/")
 	public String defaultPage() {
 		if (securityUtil.isAuthenticated()) {
@@ -48,8 +61,21 @@ public class DefaultController implements ErrorController {
 				return "redirect:/selvbetjening";
 			}
 		}
+		
+		if (config.isLandingPageEnabled()) {
+			return "landingpage/index";
+		}
 
 		return "index";
+	}
+	
+	@GetMapping("/info")
+	public String infoPage(Model model) {
+		model.addAttribute("gitBuildTime", gitBuildTime.substring(0, 10));
+		model.addAttribute("gitCommitId", gitCommitId);
+		model.addAttribute("releaseVersion", config.getVersion());
+
+		return "info";
 	}
 	
 	@GetMapping("/privatlivspolitik")
@@ -62,6 +88,11 @@ public class DefaultController implements ErrorController {
 	public String termAndConditionsPage(Model model) {
 		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions().getContent());
 		return "terms-and-conditions";
+	}
+
+	@GetMapping(value = { "/version" })
+	public String newVersion(Model model) {
+		return "version";
 	}
 
 	@RequestMapping(value = "/error", produces = "text/html")

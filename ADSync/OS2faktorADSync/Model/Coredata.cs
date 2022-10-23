@@ -7,6 +7,8 @@ namespace OS2faktorADSync
     {
         [JsonProperty(PropertyName = "domain")]
         public string Domain { get; set; }
+        [JsonProperty(PropertyName = "globalSubDomain")]
+        public string GlobalSubDomain { get; set; }
 
         [JsonProperty(PropertyName = "entryList")]
         public List<CoredataEntry> EntryList { get; set; }

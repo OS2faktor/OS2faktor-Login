@@ -13,29 +13,19 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantial()}">
-							<li th:if="${@securityUtil.isLockedByPersonOnly()}">
-								<a th:href="@{/selvbetjening/genaktiver}">Genåbn brugerkonto</a>
+						<li>
+							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Glemt kodeord eller låst ude?</a>
+						</li>
+
+						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantialCredentials()}">
+							<li th:if="${@securityUtil.isUnlocked() && @securityUtil.isLockedByPersonOnly() == false}">
+								<a th:href="@{/selvbetjening/spaerre}">Lås erhvervsidentitet</a>
 							</li>
 
-							<li th:if="${@securityUtil.isUnlocked()}">
-								<a th:href="@{/selvbetjening/spaerre}">Lås brugerkonto</a>
-							</li>
-							
-							<li>
-								<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift kodeord</a>
+							<li th:if="${@securityUtil.isLockedByPersonOnly() && @securityUtil.hasNsisAllowed()}">
+								<a th:href="@{/selvbetjening/fjernlaas}">Fjern lås på erhvervsidentitet</a>
 							</li>
 						</th:block>
-						
-						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantial() == false}">
-							<li>
-								<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift AD kodeord</a>
-							</li>
-						</th:block>
-						
-						<li th:if="${page != 'selfservice.unlock-ad-account' and @securityUtil.hasSamAccountName()}">
-							<a th:href="@{/selvbetjening/unlockADAccount}">Lås AD konto op</a>
-						</li>
 					</ul>
 				</div>
 			</div>
@@ -65,12 +55,16 @@
 				<div class="ibox-tools">
 					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.links.help')}"></em>
 				</div>
+           		<div th:if="${@cmsMessageBundle.getText('cms.links.description')} != ''" style="font-size: x-small; color: black;" th:utext="${@cmsMessageBundle.getText('cms.links.description')}"></div>
 			</div>
 
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li th:each="link : ${@linkService.getAllForMe()}"><a th:href="${link.link}" th:text="${link.linkText}" target="_blank"></a></li>
+						<li th:each="link : ${@linkService.getAllForMe()}">
+							<a th:href="${link.link}" th:text="${link.linkText}" target="_blank"></a>
+							<div th:if="${link.description != '' && link.description != null}" style="font-size: x-small; color: black;" th:text="${link.description}"></div>
+						</li>
 					</ul>
 				</div>
 			</div>
@@ -96,7 +90,7 @@
 			</div>
 		</div>
 		
-		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER')">
+		<div class="ibox" sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-info"></em> &nbsp; CMS</h5>
 			</div>
@@ -106,6 +100,7 @@
 					<ul>
 						<li><a th:href="@{/admin/cms/list}">Rediger tekster</a></li>
 						<li><a th:href="@{/admin/cms/logo}">Rediger logo</a></li>
+						<li><a th:href="@{/admin/emailtemplates}">Emailskabeloner</a></li>
 					</ul>
 				</div>
 			</div>
@@ -126,6 +121,8 @@
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_USER_ADMIN')"><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/features}">Teknisk opsætning</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/wcp}">Windows SSO</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/logovervaagning}">Overvågning af loggen</a></li>
 					</ul>
 				</div>
 			</div>
@@ -156,8 +153,12 @@
 					<ul>
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere/0/edit}">Opret ny tjenesteudbyder</a></li>
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere}">Se Tjenesteudbydere</a></li>
+						<li><a th:href="@{/admin/konfiguration/person/attributes}">Administrér bruger attributter</a></li>
+						
+						<th:block th:if="${@commonConfiguration.radiusConfiguration.enabled == true}">
 						<li><a th:href="@{/admin/konfiguration/radiusklienter/0/edit}">Opret ny RADIUS klient</a></li>
 						<li><a th:href="@{/admin/konfiguration/radiusklienter}">Se RADIUS klienter</a></li>
+						</th:block>
 					</ul>
 				</div>
 			</div>
@@ -179,7 +180,6 @@
 			</div>
 		</div>
 	</div>
-
 	
 	<div th:fragment="otherUsers" class="col-lg-3">
 		<div class="ibox" sec:authorize="hasRole('ROLE_CHANGE_PASSWORD_ON_OTHERS')">
@@ -190,13 +190,12 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/andre-brugere/kodeord/skift/list}">Skift kodeord på bruger</a></li>
+						<li><a th:href="@{/andre-brugere/kodeord/skift/list}">Skift kodeord på elev</a></li>
 					</ul>
 				</div>
 			</div>
 		</div>
 	</div>
-
 
 </body>
 </html>

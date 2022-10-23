@@ -14,6 +14,7 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -34,6 +35,11 @@ public class PasswordSettingService {
 			return ChangePasswordResult.TECHNICAL_MISSING_PERSON;
 		}
 
+		if (!StringUtils.hasLength(password)) {
+			log.warn("Password was null or empty");
+			return ChangePasswordResult.TOO_SHORT;
+		}
+
 		Domain domain = person.getDomain();
 		PasswordSetting settings = getSettings(domain);
 
@@ -46,7 +52,7 @@ public class PasswordSettingService {
 			return ChangePasswordResult.TOO_LONG;
 		}
 
-		if (settings.isPreventBadPasswords() && badPasswordDao.findByPassword(password) != null) {
+		if (settings.isPreventBadPasswords() && badPasswordDao.findByPassword(password).size() > 0) {
 			return ChangePasswordResult.BAD_PASSWORD;
 		}
 
@@ -65,6 +71,8 @@ public class PasswordSettingService {
 				failures++;
 			}
 
+			// check for existence of special characters, with the exception that the Danish letters ÆØÅ does not count
+			// as special characters. Other characters from other languages WILL count as special characters
 			if (!Pattern.compile("[^\\wæøå\\d]", Pattern.CASE_INSENSITIVE).matcher(password).find()) {
 				failures++;
 			}
@@ -87,6 +95,8 @@ public class PasswordSettingService {
 				return ChangePasswordResult.NO_DIGITS;
 			}
 
+			// check for existence of special characters, with the exception that the Danish letters ÆØÅ does not count
+			// as special characters. Other characters from other languages WILL count as special characters
 			if (settings.isRequireSpecialCharacters() && !Pattern.compile("[^\\wæøå\\d]", Pattern.CASE_INSENSITIVE).matcher(password).find()) {
 				return ChangePasswordResult.NO_SPECIAL_CHARACTERS;
 			}
@@ -159,10 +169,6 @@ public class PasswordSettingService {
 
 	public List<PasswordSetting> getAllSettings() {
 		return passwordSettingDao.findAll();
-	}
-
-	public List<PasswordSetting> getSettingsByChangePasswordOnUsersEnabled() {
-		return passwordSettingDao.findByChangePasswordOnUsersEnabledTrue();
 	}
 
 	public PasswordSetting save(PasswordSetting entity) {

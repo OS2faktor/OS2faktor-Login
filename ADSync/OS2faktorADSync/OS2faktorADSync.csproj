@@ -111,6 +111,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Job\KombitAttributesSyncJob.cs" />
+    <Compile Include="Job\TransferToNemloginSyncJob.cs" />
+    <Compile Include="Model\CoredataTransferToNemLogin.cs" />
+    <Compile Include="Model\Kombit\CoreDataKombitAttributeEntry.cs" />
+    <Compile Include="Model\Kombit\CoreDataKombitAttributes.cs" />
     <Compile Include="Model\Kombit\CoreDataFullJfr.cs" />
     <Compile Include="Model\Kombit\CoreDataFullJfrEntry.cs" />
     <Compile Include="Model\Kombit\Jfr.cs" />

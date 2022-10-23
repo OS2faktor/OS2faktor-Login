@@ -14,6 +14,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 
+// TODO: can be replaced with "server.servlet.session.cookie.same-site=None" when we upgrade to Spring Boot 2.6.x or later
 public class SameSiteFilter implements Filter {
 	private static final String SAMESITE_COOKIE_HEADER = "Set-Cookie";
 	private static final String SAMESITE_ATTRIBITE_NAME = "SameSite";

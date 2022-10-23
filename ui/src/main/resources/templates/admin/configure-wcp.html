@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.wincredentialproviderclients')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-floppy-o"></em> &nbsp; Windows SSO</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Her listes de opsatte WCP klienter, inkl de stamdata der skal bruges under opsætningen i Windows Registry når WCP softwaren
+									rulles ud til slutbrugerne. Besøg <a target="_BLANK" href="https://www.os2faktor.dk/download.html">OS2faktor websitet</a> for at hente den
+									software der skal rulles ud på slutbrugernes computere, og tilgå konfigurationsvejledningen.
+								</p>
+
+								<div class="table-responsive">
+									<table id="clientTable" class="table table-striped table-hover">
+										<thead>
+											<tr>
+												<th style="width: 200px;">Klientnavn</th>
+												<th>ApiKey</th>
+												<th style="width: 300px;">Domæne</th>
+											</tr>
+										</thead>
+							
+										<tbody>
+											<tr th:each="client : ${clients}">
+												<td th:text="${client.name}" />
+												<td th:text="${client.apiKey}" />
+												<td th:text="${client.domain}" />
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.wincredentialproviderclients')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+	
+		/*[+
+		+]*/
+		var token = $("meta[name='_csrf']").attr("content");
+		var clientService;
+		$(document).ready(function(){
+			clientService = new ClientService();
+			clientService.init();
+		});
+		
+		function ClientService() {
+			this.init = function() {
+				$('#clientTable').DataTable({
+					"bSort": false,
+					"paging": false,
+					"responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>>",
+					'ordering': true,
+			        'order': [
+			        	[ 0, 'asc' ]
+			        ],
+			        "columnDefs": [
+			            { "targets": [1], "orderable": false }
+			        ],
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ rækker)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+			}
+		}
+		
+		/*]]>*/
+	</script>
+</body>
+</html>

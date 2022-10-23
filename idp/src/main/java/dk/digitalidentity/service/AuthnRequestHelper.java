@@ -17,6 +17,9 @@ public class AuthnRequestHelper {
 	private ServiceProviderFactory serviceProviderFactory;
 
 	public String getConsumerEndpoint(AuthnRequest authnRequest) throws ResponderException, RequesterException  {
+		if (authnRequest == null) {
+			throw new ResponderException("Kunne ikke finde AssertionConsumerServiceURL fordi AuthnRequest var NULL");
+		}
 		String assertionConsumerServiceURL = authnRequest.getAssertionConsumerServiceURL();
 
 		if (!StringUtils.hasLength(assertionConsumerServiceURL)) {

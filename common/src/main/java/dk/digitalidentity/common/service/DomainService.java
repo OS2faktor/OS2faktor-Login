@@ -41,13 +41,14 @@ public class DomainService {
 		
 		domains.sort(Comparator.comparing(Domain::toString));
 		
-		//making sure the default domain OS2faktor is last in list
+		// making sure the default domain OS2faktor is last in list
 		Domain defaultDomain = domains.stream().filter(d -> d.getName().equals("OS2faktor")).findAny().orElse(null);
+
 		if (defaultDomain != null) {
-			domains.remove(defaultDomain);
+			domains.removeIf(d -> d.getName().equals("OS2faktor"));
 			domains.add(defaultDomain);
 		}
-
+		
 		return domains;
 	}
 

@@ -1,9 +1,11 @@
 package dk.digitalidentity.common.log;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +20,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
@@ -31,9 +34,13 @@ import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.dao.model.enums.DetailType;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
+import dk.digitalidentity.common.dao.model.enums.LogWatchSettingKey;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.service.EmailService;
+import dk.digitalidentity.common.service.LogWatchSettingService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.util.ZipUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
@@ -42,6 +49,12 @@ public class AuditLogger {
 
 	@Autowired
 	private AuditLogDao auditLogDao;
+	
+	@Autowired
+	private LogWatchSettingService logWatchSettingService;
+	
+	@Autowired
+	private EmailService emailService;
 
 	public void errorSentToSP(Person person, ErrorLogDto errorDetail) {
 		AuditLog auditLog = new AuditLog();
@@ -53,7 +66,10 @@ public class AuditLogger {
 
 		detail.setDetailType(DetailType.JSON);
 		try {
-			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(errorDetail));
+			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(errorDetail));
 		}
 		catch (JsonProcessingException e) {
 			log.error("Could not serialize ErrorDetail");
@@ -77,7 +93,7 @@ public class AuditLogger {
 			if (enabled && person.getSupporter() != null) {
 				AuditLogDetail detail = new AuditLogDetail();
 				detail.setDetailType(DetailType.TEXT);
-				detail.setDetailContent("domain: " + person.getSupporter().getDomain().getName());
+				detail.setDetailContent("domain: " + (person.getSupporter().getDomain() == null ? "Alle domæner" : person.getSupporter().getDomain().getName()));
 				auditLog.setDetails(detail);
 			}
 		}
@@ -211,15 +227,15 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 	
-	public void tooManyBadPasswordAttempts(Person person) {
+	public void tooManyBadPasswordAttempts(Person person, long minutesLocked) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.TOO_MANY_ATTEMPTS);
-		auditLog.setMessage("Kontoen er spærret de næste 5 minutter grundet for mange forkerte kodeord i træk");
+		auditLog.setMessage("Kontoen er spærret de næste " + minutesLocked + " minutter grundet for mange forkerte kodeord i træk");
 		
 		log(auditLog, person, null);
 	}
 
-	public void goodPassword(Person person, boolean authenticatedWithADPassword) {
+	public void goodPassword(Person person, boolean authenticatedWithADPassword, boolean expired) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.RIGHT_PASSWORD);
 		auditLog.setMessage("Kodeord anvendt");
@@ -227,7 +243,9 @@ public class AuditLogger {
 		// Add details of what the password was validated against
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailType(DetailType.TEXT);
-		detail.setDetailContent("Kodeordet er valideret mod: " + (authenticatedWithADPassword ? "AD" : "bruger-databasen"));
+		detail.setDetailContent(
+				"Kodeordet er valideret mod: " + (authenticatedWithADPassword ? "AD" : "bruger-databasen") +
+				"\nKodeordet er udløbet: " + (expired ? "Ja" : "Nej"));
 		auditLog.setDetails(detail);
 
 		log(auditLog, person, null);
@@ -360,6 +378,8 @@ public class AuditLogger {
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
@@ -380,6 +400,8 @@ public class AuditLogger {
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
@@ -400,6 +422,8 @@ public class AuditLogger {
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
@@ -420,6 +444,8 @@ public class AuditLogger {
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
@@ -440,6 +466,8 @@ public class AuditLogger {
 
 		try {
 			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
@@ -504,7 +532,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(passwordSettings));
+			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(passwordSettings));
 		} catch (JsonProcessingException e) {
 			log.error("Could not serialize PasswordSettings", e);
 		}
@@ -521,7 +552,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			auditLog.getDetails().setDetailContent(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(sessionSettings));
+			ObjectMapper mapper = new ObjectMapper();
+			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+
+			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(sessionSettings));
 		} catch (JsonProcessingException e) {
 			log.error("Could not serialize SessionSettings");
 		}
@@ -622,6 +656,14 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 	
+	public void transferToNemloginChanged(Person person, boolean transferToNemlogin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGED_TRANSFER_TO_NEMLOGIN);
+		auditLog.setMessage(transferToNemlogin ? "Bruger skal overføres til NemLog-in brugeradministration" : "Bruger skal ikke længere overføres til NemLog-in brugeradministration");
+
+		log(auditLog, person, null);
+	}
+	
 	public void radiusLoginRequestReceived(String username, String radiusClient) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.RADIUS_LOGIN_REQUEST_RECEIVED);
@@ -700,6 +742,28 @@ public class AuditLogger {
 		auditLog.setMessage("Brugerkonto spærret da personen er angivet som død i CPR registeret");
 
 		log(auditLog, person, null);
+		
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED)) {
+			log.warn("CPR says that person with uuid " + person.getUuid() + " is dead");
+			String subject = "Overvågning af logs: Person erklæret død eller bortkommet af cpr registeret";
+			String message = "Personen " + person.getName() + "(" + person.getUuid() + ") er erklæret død eller bortkommet af cpr registeret";
+			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message);
+		}
+	}
+
+	public void personDisenfranchised(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.DISABLED_DISENFRANCHISED);
+		auditLog.setMessage("Brugerkonto spærret da personen er angivet som umyndig i CPR registeret");
+
+		log(auditLog, person, null);
+		
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED)) {
+			log.warn("CPR says that person with uuid " + person.getUuid() + " is disenfranchised");
+			String subject = "Overvågning af logs: Person erklæret umyndiggjort af cpr registeret";
+			String message = "Personen " + person.getName() + "(" + person.getUuid() + ") er erklæret umyndiggjort af cpr registeret";
+			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message);
+		}
 	}
 	
 	public void checkPersonIsDead(Person person, Boolean dead) {
@@ -768,6 +832,17 @@ public class AuditLogger {
 		if (admin != null) {
 			auditLog.setPerformerId(admin.getId());
 			auditLog.setPerformerName(admin.getName());
+		}
+		
+		//compress xml
+		if (auditLog.getDetails() != null && auditLog.getDetails().getDetailContent() != null && auditLog.getDetails().getDetailType() == DetailType.XML) {
+			try {
+				byte[] compressedBytes = ZipUtil.compress(auditLog.getDetails().getDetailContent().getBytes(StandardCharsets.UTF_8));
+				auditLog.getDetails().setDetailContent(Base64.getEncoder().encodeToString(compressedBytes));
+				auditLog.getDetails().setDetailType(DetailType.XML_ZIP);
+			} catch (Exception e) {
+				log.warn("AudiLogger: Error occured while tying to compress xml log details.", e);
+			}
 		}
 		
 		auditLogDao.save(auditLog);

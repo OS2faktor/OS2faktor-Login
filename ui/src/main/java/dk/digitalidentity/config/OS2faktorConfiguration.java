@@ -1,8 +1,11 @@
 package dk.digitalidentity.config;
 
+import java.util.Objects;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.config.modules.AppManager;
 import dk.digitalidentity.config.modules.AuditLogModule;
 import dk.digitalidentity.config.modules.CoreData;
 import dk.digitalidentity.config.modules.EBoks;
@@ -18,6 +21,9 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.ui")
 public class OS2faktorConfiguration {
+	private String version = "2022 r2";
+	private String latestVersion = "2022 r2";
+
 	private Scheduled scheduled = new Scheduled();
 	private CoreData coreData = new CoreData();
 	private IdP idp = new IdP();
@@ -25,4 +31,11 @@ public class OS2faktorConfiguration {
 	private GeoLocate geo = new GeoLocate();
 	private AuditLogModule auditLog = new AuditLogModule();
 	private MfaPassthrough mfaPassthrough = new MfaPassthrough();
+	private AppManager appManager = new AppManager();
+	
+	private boolean landingPageEnabled = false;
+
+	public boolean checkVersion() {
+		return Objects.equals(version, latestVersion);
+	}
 }

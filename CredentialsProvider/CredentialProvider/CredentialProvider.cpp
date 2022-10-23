@@ -108,6 +108,7 @@ HRESULT CredentialProvider::SetUsageScenario(
 
 	// Decide which scenarios to support here. Returning E_NOTIMPL simply tells the caller
 	// that we're not designed for that scenario.
+
 	switch (cpus)
 	{
 	case CPUS_LOGON:
@@ -379,27 +380,27 @@ HRESULT CredentialProvider::_EnumerateCredentials(bool createAnonymousLogin)
 					pCredUser->Release();
 				}
 			}
+		}
 
-			if (createAnonymousLogin)
+		if (createAnonymousLogin)
+		{
+			// Create additional one for anonymous login
+			Credential* pCredential = new(std::nothrow) Credential();
+			if (pCredential != nullptr)
 			{
-				// Create additional one for anonymous login
-				Credential* pCredential = new(std::nothrow) Credential();
-				if (pCredential != nullptr)
+				hr = pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, nullptr);
+				if (FAILED(hr))
 				{
-					hr = pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, nullptr);
-					if (FAILED(hr))
-					{
-						pCredential->Release();
-						pCredential = nullptr;
-					}
-					else {
-						_credentials.push_back(pCredential);
-					}
+					pCredential->Release();
+					pCredential = nullptr;
 				}
-				else
-				{
-					hr = E_OUTOFMEMORY;
+				else {
+					_credentials.push_back(pCredential);
 				}
+			}
+			else
+			{
+				hr = E_OUTOFMEMORY;
 			}
 		}
 	}

@@ -29,6 +29,9 @@ public class Link {
 	@Column
 	private String link;
 	
+	@Column
+	private String description;
+	
 	@OneToOne
 	@JoinColumn(name = "domain_id")
 	private Domain domain;

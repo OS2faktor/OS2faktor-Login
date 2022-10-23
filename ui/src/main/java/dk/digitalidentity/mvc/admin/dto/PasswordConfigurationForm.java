@@ -27,8 +27,6 @@ public class PasswordConfigurationForm {
 	private boolean monitoringEnabled;	
 	private String monitoringEmail;
 	private boolean disallowNameAndUsername;
-	private boolean changePasswordOnUsersEnabled;
-	private Long changePasswordOnUsersGroup;
 	private boolean showAdSettings;
 	private String alternativePasswordChangeLink;
 	private Long triesBeforeLockNumber;
@@ -58,8 +56,6 @@ public class PasswordConfigurationForm {
 		this.disallowDanishCharacters = settings.isDisallowDanishCharacters();
 		this.disallowNameAndUsername = settings.isDisallowNameAndUsername();
 		this.domainId = settings.getDomain().getId();
-		this.changePasswordOnUsersEnabled = settings.isChangePasswordOnUsersEnabled();
-		this.changePasswordOnUsersGroup = settings.getChangePasswordOnUsersGroup() != null ? settings.getChangePasswordOnUsersGroup().getId() : null;
 		this.showAdSettings = true;
 		this.alternativePasswordChangeLink = settings.getAlternativePasswordChangeLink();
 		this.triesBeforeLockNumber = settings.getTriesBeforeLockNumber();

@@ -97,12 +97,24 @@ public class CprService {
 					List<Person> people = personMap.get(cpr);
 					for (Person person : people) {
 						boolean change = false;
-						
+
+						// Dødsfald og bortkomst (samme statusfelt i den service vi kalder)
 						if (!Objects.equals(person.isLockedDead(), dto.isDead())) {
 							person.setLockedDead(dto.isDead());
 
 							if (dto.isDead()) {
 								auditLogger.personDead(person);
+							}
+
+							change = true;
+						}
+
+						// Umyndiggørelse
+						if (!Objects.equals(person.isLockedDisenfranchised(), dto.isDisenfranchised())) {
+							person.setLockedDisenfranchised(dto.isDisenfranchised());
+
+							if (dto.isDisenfranchised()) {
+								auditLogger.personDisenfranchised(person);
 							}
 
 							change = true;
@@ -153,6 +165,10 @@ public class CprService {
 		Future<CprLookupDTO> cprFuture = self.getByCpr(person.getCpr());
 		CprLookupDTO dto = null;
 
+		// the 5 second timeout is introduced to deal with potentially extremly long response times
+		// from the Serviceplatform at times. We will skip lookup on that person this time around,
+		// and perform the lookup on the following day. The exception is just logged, and not dealt
+		// with in any other way, as timeouts on the Serviceplatform is quite common
 		try {
 			dto = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
 		}

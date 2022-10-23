@@ -11,12 +11,12 @@
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-user"></em> &nbsp; Lås AD konto op</h5>
+								<h5><em class="fa fa-user"></em> &nbsp; Lås windows konto op</h5>
 							</div>
 
 							<div class="ibox-content">
-								<p>Her kan du låse din AD konto op. Din konto kan være blevet låst, hvis du har tastet dit kodeord forkert for mange gange.</p>
-								<button id="unlockBtn" class="btn btn-primary block full-width m-b" onclick="unlockService.unlock();">Lås AD konto op</button>
+								<p>Her kan du låse din windows konto op. Din konto kan være blevet låst, hvis du har tastet dit kodeord forkert for mange gange.</p>
+								<button id="unlockBtn" class="btn btn-primary block full-width m-b" onclick="unlockService.unlock();">Lås windows konto op</button>
 							</div>
 						</div>
 					</div>
@@ -53,13 +53,13 @@
 						'X-CSRF-TOKEN': token
 					}
 				}).done(function (data) {
-					toastr.success("AD kontoen er nu låst op")
+					toastr.success("Windows kontoen er nu låst op")
 					setTimeout(function() {
 						window.location.href = "/selvbetjening";
 					}, 5000);
 					
 				}).fail(function(jqXHR, textStatus, errorThrown) {
-					toastr.error("AD kontoen kunne ikke låses op.")
+					toastr.error("Windows kontoen kunne ikke låses op.")
 					$("#unlockBtn").prop('disabled', false);
 				});
 			}

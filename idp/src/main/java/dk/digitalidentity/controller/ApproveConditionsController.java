@@ -5,7 +5,6 @@ import java.time.LocalDateTime;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import dk.digitalidentity.service.ErrorHandlingService;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,15 +23,12 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.controller.dto.ValidateADPasswordForm;
 import dk.digitalidentity.service.AuthnRequestHelper;
+import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
-import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
@@ -64,9 +60,6 @@ public class ApproveConditionsController {
 	private LoginService loginService;
 
 	@Autowired
-	private ServiceProviderFactory serviceProviderFactory;
-	
-	@Autowired
 	private PasswordSettingService passwordSettingService;
 	
 	@Autowired
@@ -85,13 +78,10 @@ public class ApproveConditionsController {
 		if (authnRequest != null) {
 			if (person != null) {
 				log.warn("Person ("+ person.getId() +") hit GET '/vilkaar/godkendt' likely due to hitting the backbutton. Session is ok. resuming login");
-				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
 
-				// If trying to login to anything else than selfservice check if person is locked
-				if (!(serviceProvider instanceof SelfServiceServiceProvider)) {
-					if (person.isLocked()) {
-						return new ModelAndView("error-locked-account");
-					}
+				// person-lock does not block login, only activation of NSIS account (and use of same)
+				if (person.isLockedByOtherThanPerson()) {
+					return new ModelAndView(PersonService.getCorrectLockedPage(person));
 				}
 
 				return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
@@ -149,16 +139,22 @@ public class ApproveConditionsController {
 
 		// if in dedicated activation flow
 		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-			// Check if the person has authorized with nemid, if so both PasswordLevel and MFALevel should be SUBSTANTIAL and nemidpid should be saved on session
 			String nemIDPid = sessionHelper.getNemIDPid();
 			String mitIDNameID = sessionHelper.getMitIDNameID();
 			NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
 			NSISLevel mfaLevel = sessionHelper.getMFALevel();
-			if ((!StringUtils.hasLength(nemIDPid) && !StringUtils.hasLength(mitIDNameID)) || !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
+
+			if ((!StringUtils.hasLength(nemIDPid) && !StringUtils.hasLength(mitIDNameID)) ||
+				 !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
 				sessionHelper.invalidateSession();
-				log.warn("Person (" + person.getId() + ") is activation initiated true but has not logged in with nemId. Bad session, clearing.");
+				log.warn("Person (" + person.getId() + ") is activation initiated true but has not logged in with NemID or MitID. Bad session, clearing.");
 
 				return new ModelAndView("activateAccount/activate-failed");
+			}
+			
+			if (cprService.checkIsDead(person)) {
+				log.error("Could not issue identity to " + person.getId() + " because cpr says the person is dead!");
+				return new ModelAndView("activateAccount/activate-failed-dead");
 			}
 
 			// Create User for person
@@ -173,37 +169,22 @@ public class ApproveConditionsController {
 			person.setNemIdPid(nemIDPid);
 			person.setMitIdNameId(mitIDNameID);
 			person.setNsisLevel(NSISLevel.SUBSTANTIAL);
-			
-			if (cprService.checkIsDead(person)) {
-				log.error("Could not issue identity to " + person.getId() + " because cpr says the person is dead!");
-				return new ModelAndView("activateAccount/activate-failed-dead");
-			}
-			
+
 			auditLogger.activatedByPerson(person, nemIDPid, mitIDNameID);
 			
 			sessionHelper.setInPasswordChangeFlow(true);
 			
-            PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
             if (doNotUseCurrentADPassword) {
     			sessionHelper.setDoNotUseCurrentADPassword(true);
     		}
-    		
+
+            PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
     		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && settings.isValidateAgainstAdEnabled()) {
     			model.addAttribute("validateADPasswordForm", new ValidateADPasswordForm());
     			return new ModelAndView("activateAccount/activate-validate-ad-password", model.asMap());
     		}
     		
-            String samaccountName = null;
-
-            if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
-            	samaccountName = person.getSamaccountName();
-            }
-
-            model.addAttribute("samaccountName", samaccountName);
-            model.addAttribute("settings", settings);			
-			model.addAttribute("passwordForm", new PasswordChangeForm());
-
-			return new ModelAndView("changePassword/change-password", model.asMap());
+    		return loginService.continueChangePassword(model);
 		}
 		
 		// goto Change Password flow
@@ -212,7 +193,7 @@ public class ApproveConditionsController {
 
 			// if the user is allowed to activate their NSIS account and have not currently done so,
 			// we should prompt first since they will not set their NSIS password without activating first
-			if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
+			if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
 				return loginService.initiateActivateNSISAccount(model, true);
 			}
 
@@ -220,8 +201,13 @@ public class ApproveConditionsController {
 		}
 		
 		// Go to activate account
-		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
 			return loginService.initiateActivateNSISAccount(model);
+		}
+		
+		// Go to choose password reset or unlock account page
+		if (sessionHelper.isInChoosePasswordResetOrUnlockAccountFlow()) {
+			return loginService.continueChoosePasswordResetOrUnlockAccount(model);
 		}
 
 		// Continue with the login

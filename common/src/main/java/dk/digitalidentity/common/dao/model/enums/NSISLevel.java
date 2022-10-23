@@ -41,7 +41,7 @@ public enum NSISLevel {
 			case SUBSTANTIAL:
 				return "Substantial";
 			case NONE:
-				return "Ingen";
+				return null;
 		}
 		
 		return null;

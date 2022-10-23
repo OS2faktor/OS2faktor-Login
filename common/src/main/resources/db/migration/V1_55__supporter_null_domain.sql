@@ -1,0 +1,1 @@
+ALTER TABLE supporters MODIFY domain_id BIGINT NULL;

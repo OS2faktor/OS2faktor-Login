@@ -8,5 +8,6 @@ import lombok.Setter;
 @Setter
 public class CoreData {
 	private String domain;
+	private String globalSubDomain;
 	private List<CoreDataEntry> entryList;
 }

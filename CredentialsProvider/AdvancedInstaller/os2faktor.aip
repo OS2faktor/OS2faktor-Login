@@ -13,12 +13,12 @@
     <ROW Property="ARPNOREPAIR" Value="1"/>
     <ROW Property="LIMITUI" Value="1"/>
     <ROW Property="Manufacturer" Value="Digital Identity"/>
-    <ROW Property="ProductCode" Value="1030:{04214ECC-7794-4CF3-B3EA-F30E5A170A7E} 1033:{04214ECC-7794-4CF3-B3EA-F30E5A170A7E} " Type="16"/>
+    <ROW Property="ProductCode" Value="1030:{9B7BA961-5143-4F6A-8E19-29E592F77F8E} 1033:{9B7BA961-5143-4F6A-8E19-29E592F77F8E} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1030"/>
     <ROW Property="ProductName" Value="OS2faktorLogin CredentialProvider"/>
-    <ROW Property="ProductVersion" Value="1.6" Type="32"/>
+    <ROW Property="ProductVersion" Value="1.6.6" Type="32"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND"/>
-    <ROW Property="UpgradeCode" Value="{556AC6D5-5D3E-4C14-A36C-440878722E08}"/>
+    <ROW Property="UpgradeCode" Value="{90CEC6F9-4C3D-4CA0-B13E-E18FDE712E2C}"/>
     <ROW Property="WindowsType9X" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>
     <ROW Property="WindowsType9XDisplay" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>
     <ROW Property="WindowsTypeNT" MultiBuildValue="DefaultBuild:Windows 9x/ME/NT/2000/XP/Vista/Windows 7/Windows 8 x86/Windows 8.1 x86/Windows 10 x86" ValueLocId="-"/>
@@ -405,7 +405,7 @@
     <ROW File="msedge_200_percent.pak" Component_="settings.dat" FileName="MSEDGE~2.PAK|msedge_200_percent.pak" Attributes="0" SourcePath="..\CredentialProviderFunctionality\ResetPasswordDialog\bin\Release\Microsoft.WebView2.FixedVersionRuntime.93.0.961.52.x64\msedge_200_percent.pak" SelfReg="false"/>
     <ROW File="vcruntime140_1.dll" Component_="vcruntime140_1.dll" FileName="VCRUNT~2.DLL|vcruntime140_1.dll" Attributes="0" SourcePath="..\CredentialProviderFunctionality\ResetPasswordDialog\bin\Release\Microsoft.WebView2.FixedVersionRuntime.93.0.961.52.x64\vcruntime140_1.dll" SelfReg="false"/>
     <ROW File="eventlog_provider.dll" Component_="eventlog_provider.dll" FileName="EVENTL~1.DLL|eventlog_provider.dll" Attributes="0" SourcePath="..\CredentialProviderFunctionality\ResetPasswordDialog\bin\Release\Microsoft.WebView2.FixedVersionRuntime.93.0.961.52.x64\eventlog_provider.dll" SelfReg="false"/>
-    <ROW File="changelog.txt" Component_="changelog.txt" FileName="CHANGE~1.TXT|changelog.txt" Attributes="0" SourcePath="changelog.txt" SelfReg="false"/>
+    <ROW File="changelog.txt" Component_="changelog.txt" FileName="CHANGE~1.TXT|changelog.txt" Attributes="0" SourcePath="..\changelog.txt" SelfReg="false"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.BootstrOptComponent">
     <ROW BootstrOptKey="GlobalOptions" DownloadFolder="[AppDataFolder][|Manufacturer]\[|ProductName]\prerequisites" Options="2"/>

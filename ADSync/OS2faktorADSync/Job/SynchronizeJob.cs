@@ -48,6 +48,8 @@ namespace OS2faktorADSync
                 {
                     try
                     {
+                        Logger.Debug("Performing delta sync");
+
                         var users = ActiveDirectoryService.GetDeltaSyncUsers(ref directorySynchronizationCookie);
                         BackendService.DeltaSync(users.CreateEntries);
                         BackendService.DeltaDeleteSync(users.DeleteEntries);

@@ -70,6 +70,10 @@ public class SqlServiceProviderConfiguration {
     private boolean preferNemid;
 
     @Column
+    @NotNull
+    private boolean nemLogInBrokerEnabled;
+
+    @Column
     @Enumerated(EnumType.STRING)
     private NSISLevel nsisLevelRequired;
 
@@ -100,6 +104,9 @@ public class SqlServiceProviderConfiguration {
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "configuration", fetch = FetchType.LAZY)
     private Set<SqlServiceProviderCondition> conditions;
+    
+    @Column(name = "prefer_nist")
+    private boolean preferNIST;
 
     public void loadFully() {
         this.requiredFields.size();
@@ -116,7 +123,9 @@ public class SqlServiceProviderConfiguration {
 
                 if (c.getDomain() != null) {
                     c.getDomain().getChildDomains().size();
-                    c.getDomain().getParent().getName();
+                    if (c.getDomain().getParent() != null) {
+                    	c.getDomain().getParent().getName();
+                    }
                 }
             });
         }

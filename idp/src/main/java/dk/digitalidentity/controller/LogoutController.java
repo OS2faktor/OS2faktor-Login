@@ -3,6 +3,7 @@ package dk.digitalidentity.controller;
 import java.io.IOException;
 import java.security.PublicKey;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
@@ -118,8 +119,8 @@ public class LogoutController {
         try {
             // Validate logout request
             EntityDescriptor spMetadata = serviceProvider.getMetadata();
-            PublicKey spKey = serviceProvider.getSigningKey();
-            logoutRequestService.validateLogoutRequest(httpServletRequest, messageContext, spMetadata, spKey);
+            List<PublicKey> spKeys = serviceProvider.getSigningKeys();
+            logoutRequestService.validateLogoutRequest(httpServletRequest, messageContext, spMetadata, spKeys);
 
             // Remove the EntityId of the SP sending the LogoutRequest since the user is no longer logged in there
             Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();

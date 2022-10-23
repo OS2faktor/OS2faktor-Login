@@ -96,12 +96,14 @@ public class MetadataService {
 
             ArrayList<EndpointDTO> endpoints = null;
             ArrayList<CertificateDTO> certificates = null;
+
             try {
                 EntityDescriptor metadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
 
                 // process existing spSSODescriptor for additional data on view pages
                 if (metadata != null) {
                     SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+
                     if (spssoDescriptor != null) {
                         // Process metadata
                         endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
@@ -109,20 +111,32 @@ public class MetadataService {
 
                         // Process certificates
                         certificates = getCertificateDTOs(spssoDescriptor);
+                        
+                        if (certificates.size() == 0) {
+                        	log.warn("Unable to find any certificates in metadata for SP config: " + config.getEntityId());                    	                        	
+                        }
+                    }
+                    else {
+                    	log.warn("Unable to find spssoDescriptor in metadata for SP config: " + config.getEntityId());                    	
                     }
                 }
-            } catch (Exception ex) {
-                log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex.getMessage());
-                log.debug(ex.getMessage(), ex);
+                else {
+                	log.warn("Unable to find metadata for SP config: " + config.getEntityId());
+                }
+            }
+            catch (Exception ex) {
+                log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex);
             }
 
             // Adding can fail in case of SPs using file based metadata since it can fail to find the file this is why we need an extra check.
             try {
                 result.add(new ServiceProviderDTO(config, certificates, endpoints));
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) {
                 log.error("Could not add ServiceProviderDTO for SP: " + config.getEntityId(), ex);
             }
         }
+
         return result;
     }
 
@@ -152,9 +166,11 @@ public class MetadataService {
 
                 try {
                     EntityDescriptor metadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
+
                     // Process existing spSSODescriptor for additional data on view pages
                     if (metadata != null) {
                         SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+
                         if (spssoDescriptor != null) {
                             // Process metadata
                             endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
@@ -164,10 +180,15 @@ public class MetadataService {
                             certificates = getCertificateDTOs(spssoDescriptor);
                         }
                     }
-                } catch (Exception ex) {
-                    log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex.getMessage());
-                    log.debug("Stacktrace", ex);
                 }
+                catch (Exception ex) {
+                    log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex.getMessage());
+
+                    if (log.isDebugEnabled()) {
+                    	log.debug("Stacktrace", ex);
+                    }
+                }
+                
                 return new ServiceProviderDTO(config, certificates, endpoints);
             }
         }
@@ -225,11 +246,13 @@ public class MetadataService {
     public ArrayList<CertificateDTO> getCertificateDTOs(SPSSODescriptor spssoDescriptor) throws Exception {
         ArrayList<CertificateDTO> certificates = new ArrayList<>();
         Map<UsageType, List<X509Certificate>> usageTypeListMap = convertKeyDescriptorsToCert(spssoDescriptor.getKeyDescriptors());
+
         for (Map.Entry<UsageType, List<X509Certificate>> entry : usageTypeListMap.entrySet()) {
             for (X509Certificate x509Certificate : entry.getValue()) {
                 certificates.add(new CertificateDTO(entry.getKey(), x509Certificate));
             }
         }
+        
         return certificates;
     }
 
@@ -250,7 +273,7 @@ public class MetadataService {
     }
 
     // TODO: really should move all these methods into a ServiceProviderService - they do not belong in MetadataService
-    public SqlServiceProviderConfiguration saveConfiguration(ServiceProviderDTO serviceProviderDTO) throws RuntimeException {
+    public SqlServiceProviderConfiguration saveConfiguration(ServiceProviderDTO serviceProviderDTO) throws Exception {
         // Get configuration if it exists
         SqlServiceProviderConfiguration config = configurationService.getById(Long.parseLong(serviceProviderDTO.getId()));
 
@@ -275,27 +298,29 @@ public class MetadataService {
         config.setNameIdValue(serviceProviderDTO.getNameIdValue());
         config.setForceMfaRequired(serviceProviderDTO.getForceMfaRequired());
         config.setPreferNemid(serviceProviderDTO.isPreferNemid());
+        config.setPreferNIST(serviceProviderDTO.isPreferNIST());
+        config.setNemLogInBrokerEnabled(serviceProviderDTO.isNemLogInBrokerEnabled());
         config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
         config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
         config.setEnabled(serviceProviderDTO.isEnabled());
         config.setProtocol("SAML20");
 
         Map<Long, SqlServiceProviderStaticClaim> staticClaimMap = (config.getStaticClaims() != null)
-        		? config.getStaticClaims()
-        				.stream()
-        				.collect(Collectors.toMap(SqlServiceProviderStaticClaim::getId, SqlServiceProviderStaticClaim -> SqlServiceProviderStaticClaim))
-        		: new HashMap<>();
+                ? config.getStaticClaims()
+                        .stream()
+                        .collect(Collectors.toMap(SqlServiceProviderStaticClaim::getId, SqlServiceProviderStaticClaim -> SqlServiceProviderStaticClaim))
+                : new HashMap<>();
 
         Map<Long, SqlServiceProviderRequiredField> requiredFieldMap = (config.getRequiredFields() != null)
-        		? config.getRequiredFields()
-        				.stream()
-        				.collect(Collectors.toMap(SqlServiceProviderRequiredField::getId, SqlServiceProviderRequiredField -> SqlServiceProviderRequiredField))
-        		: new HashMap<>();
+                ? config.getRequiredFields()
+                        .stream()
+                        .collect(Collectors.toMap(SqlServiceProviderRequiredField::getId, SqlServiceProviderRequiredField -> SqlServiceProviderRequiredField))
+                : new HashMap<>();
         
         Map<Long, SqlServiceProviderRoleCatalogueClaim> rcClaimMap = (config.getRcClaims() != null) 
-        		? config.getRcClaims()
-        				.stream()
-        				.collect(Collectors.toMap(SqlServiceProviderRoleCatalogueClaim::getId, SqlServiceProviderRoleCatalogueClaim -> SqlServiceProviderRoleCatalogueClaim))
+                ? config.getRcClaims()
+                        .stream()
+                        .collect(Collectors.toMap(SqlServiceProviderRoleCatalogueClaim::getId, SqlServiceProviderRoleCatalogueClaim -> SqlServiceProviderRoleCatalogueClaim))
                 : new HashMap<>();
 
         // Separate set of claims from DTO
@@ -324,13 +349,14 @@ public class MetadataService {
 
                     requiredField.setAttributeName(claimDTO.getAttribute());
                     requiredField.setPersonField(claimDTO.getValue());
+                    requiredField.setSingleValueOnly(claimDTO.isSingleValueOnly());
                     dynamicResult.add(requiredField);
                     break;
                 case ROLE_CATALOGUE:
-                	SqlServiceProviderRoleCatalogueClaim rcClaim = rcClaimMap.get(claimDTO.getId());
+                    SqlServiceProviderRoleCatalogueClaim rcClaim = rcClaimMap.get(claimDTO.getId());
                     if (rcClaim == null) {
-                    	rcClaim = new SqlServiceProviderRoleCatalogueClaim();
-                    	rcClaim.setConfiguration(config);
+                        rcClaim = new SqlServiceProviderRoleCatalogueClaim();
+                        rcClaim.setConfiguration(config);
                     }
 
                     rcClaim.setClaimName(claimDTO.getAttribute());
@@ -338,7 +364,7 @@ public class MetadataService {
                     rcClaim.setExternalOperation(RoleCatalogueOperation.valueOf(claimDTO.getExternalOperation()));
                     rcClaim.setExternalOperationArgument(claimDTO.getExternalOperationArgument());
                     rcResult.add(rcClaim);
-                	break;
+                    break;
             }
         }
 
@@ -391,27 +417,35 @@ public class MetadataService {
         // Validate that we can fetch metadata with the current config
         EntityDescriptor metadata = null;
 
-        if (config.isEnabled()) {
-            try {
-                // If create, fetch entityId from metadata before validating
-                List<String> registeredEntityIDs = getRegisteredEntityIDs();
-
-                if (createScenario) {
-                    EntityDescriptor rawMetadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
-                    config.setEntityId(rawMetadata.getEntityID());
-
-                    if (registeredEntityIDs.contains(config.getEntityId())) {
-                        throw new RuntimeException("Tjenesteudbyder med entityId: '" + config.getEntityId() + "' findes allerede.");
+        try {
+            if (config.isEnabled()) {
+                try {
+                    // If create, fetch entityId from metadata before validating
+                    List<String> registeredEntityIDs = getRegisteredEntityIDs();
+    
+                    if (createScenario) {
+                        EntityDescriptor rawMetadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
+                        config.setEntityId(rawMetadata.getEntityID());
+    
+                        if (registeredEntityIDs.contains(config.getEntityId())) {
+                            throw new Exception("Tjenesteudbyder med entityId: '" + config.getEntityId() + "' findes allerede.");
+                        }
                     }
+    
+                    metadata = getMetadata(config);
+                } catch (Exception ex) {
+                    throw new Exception(ex.getMessage(), ex);
                 }
-
-                metadata = getMetadata(config);
-            } catch (Exception ex) {
-                throw new RuntimeException(ex.getMessage(), ex);
+    
+                if (!Objects.equals(metadata.getEntityID(), config.getEntityId())) {
+                    throw new Exception("EntityId fra metadata matchede ikke den konfigurede EntityID");
+                }
             }
-
-            if (!Objects.equals(metadata.getEntityID(), config.getEntityId())) {
-                throw new RuntimeException("EntityId fra metadata matchede ikke den konfigurede EntityID");
+        } catch (Exception e) {
+            if (createScenario) {
+                throw e;
+            } else {
+                log.warn("Failed to update metadata for serviceProvider: " + config.getId(), e);
             }
         }
 
@@ -625,16 +659,28 @@ public class MetadataService {
         return certificates;
     }
 
-	public boolean setManualReload(long serviceProviderId) {
-		SqlServiceProviderConfiguration config = configurationService.getById(serviceProviderId);
+	public boolean setManualReload(String serviceProviderId) throws Exception {
+		try {
+			SqlServiceProviderConfiguration spConfig = configurationService.getById(Long.parseLong(serviceProviderId));
+			if (spConfig == null) {
+				return false;
+			}
+			
+			spConfig.setManualReloadTimestamp(LocalDateTime.now());
 
-		if (config != null) {
-			config.setManualReloadTimestamp(LocalDateTime.now());
-
-			configurationService.save(config);
+			configurationService.save(spConfig);
 			return true;
 		}
+		catch (Exception ex) {
+			ServiceProviderDTO staticServiceProvider = getStaticServiceProviderDTOByName(serviceProviderId);
 
-		return false;
+			if (staticServiceProvider == null) {
+				return false;
+			}
+
+			// TODO: we are not actually forcing a metadata reload - we need to add a similar feature to our static SPs
+
+			return true;
+		}
 	}
 }

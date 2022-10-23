@@ -2,8 +2,10 @@ package dk.digitalidentity.mvc.admin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,7 +24,7 @@ import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.mvc.admin.dto.AdminPersonDTO;
-import dk.digitalidentity.mvc.selfservice.dto.SelfServiceStatus;
+import dk.digitalidentity.mvc.selfservice.NSISStatus;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
 
@@ -44,9 +46,13 @@ public class IdentitiesController {
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private ResourceBundleMessageSource resourceBundle;
 
 	@GetMapping("/admin/identiteter")
-	public String identities(Model model) {
+	public String identities(Model model, Locale locale) {
+		model.addAttribute("statuses", NSISStatus.getSorted(resourceBundle, locale));
 		model.addAttribute("coreDataEditable", securityUtil.hasRole(Constants.ROLE_COREDATA_EDITOR));
 		model.addAttribute("configDomain", domainService.getInternalDomain().getName());
 		return "admin/issued-identities";
@@ -62,32 +68,39 @@ public class IdentitiesController {
 		AdminPersonDTO form = new AdminPersonDTO();
 		form.setPersonId(id);
 		form.setUserId(PersonService.getUsername(person));
-		form.setStatus(person.hasActivatedNSISUser() ? (person.isLocked() ? SelfServiceStatus.BLOCKED : SelfServiceStatus.ACTIVE) : SelfServiceStatus.NOT_ISSUED);
 		form.setEmail(person.getEmail());
 		form.setAttributes(person.getAttributes());
-
-		if (person.hasActivatedNSISUser()) {
-			if (person.isLockedDataset()) {
-				form.setStatusMessage("page.admin.issuedidentitites.status.lockedDataset");
+		
+		if (person.isLocked()) {
+			if (person.isLockedAdmin() || person.isLockedDataset()) {
+				form.setNsisStatus(NSISStatus.LOCKED_BY_MUNICIPALITY);
 			}
-			else if (person.isLockedAdmin()) {
-				form.setStatusMessage("page.admin.issuedidentitites.status.lockedAdmin");
+			else if (person.isLockedPerson() || person.isLockedPassword()) {
+				form.setNsisStatus(NSISStatus.LOCKED_BY_SELF);
 			}
-			else if (person.isLockedPerson()) {
-				form.setStatusMessage("page.admin.issuedidentitites.status.lockedPerson");
+			else if (person.isLockedExpired()) {
+				form.setNsisStatus(NSISStatus.LOCKED_BY_EXPIRE);
 			}
-			else if (person.isLockedPassword()) {
-				form.setStatusMessage("page.admin.issuedidentitites.status.lockedPassword");
-			}
-			else if (person.isLockedDead()) {
-				form.setStatusMessage("page.admin.issuedidentitites.status.lockedDead");
+			else {
+				form.setNsisStatus(NSISStatus.LOCKED_BY_STATUS);
 			}
 		}
+		else if (person.isNsisAllowed()) {
+			if (!person.hasActivatedNSISUser()) {
+				form.setNsisStatus(NSISStatus.NOT_ACTIVATED);
+			}
+			else {
+				form.setNsisStatus(NSISStatus.ACTIVE);
+			}
+		}
+		else {
+			form.setNsisStatus(NSISStatus.NOT_ISSUED);
+		}
 		
-		form.setNsisLevel(person.getNsisLevel());
 		form.setName((person.isNameProtected() == true && StringUtils.hasLength(person.getNameAlias())) ? person.getNameAlias() : person.getName());
 		form.setNameProtected(person.isNameProtected());
-
+		form.setSchoolRoles(person.getSchoolRoles());
+		
 		model.addAttribute("form", form);
 
 		return "admin/identity";
@@ -115,8 +128,8 @@ public class IdentitiesController {
 	@GetMapping("/admin/fragment/modal/mfa/{deviceId}/details")
 	public ModelAndView getMFADeviceRegistrationDetails(Model model, @PathVariable("deviceId") String deviceId) {
 		// Check if device is a locally registered device
-		LocalRegisteredMfaClient byDeviceId = localRegisteredMfaClientService.getByDeviceId(deviceId);
-		model.addAttribute("localClient", byDeviceId != null);
+		LocalRegisteredMfaClient localRegisteredMfaClient = localRegisteredMfaClientService.getByDeviceId(deviceId);
+		model.addAttribute("localClient", localRegisteredMfaClient != null);
 
 		// Get details from os2faktor MFA backend
 		MFAClientDetails body = mfaService.getClientDetails(deviceId);
@@ -125,6 +138,12 @@ public class IdentitiesController {
 			modelAndView.setStatus(HttpStatus.BAD_REQUEST);
 
 			return modelAndView;
+		}
+
+		// if we have a local client with a AssociatedUserTimestamp,
+		// show it in details page if MFA Service did not return any AssociatedUserTimestamp value
+		if (localRegisteredMfaClient != null && localRegisteredMfaClient.getAssociatedUserTimestamp() != null && body.getAssociatedUserTimestamp() == null) {
+			body.setAssociatedUserTimestamp(localRegisteredMfaClient.getAssociatedUserTimestamp());
 		}
 
 		model.addAttribute("client", body);

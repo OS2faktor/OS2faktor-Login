@@ -16,6 +16,7 @@
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/style.css}" />
     <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/sweetalert/sweetalert.css}" />
     <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/toastr/toastr.min.css}" />
+    <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/steps/jquery.steps.css}" />
 	<style>
 		.toastr-buffer {
 			margin-top:60px;
@@ -60,6 +61,11 @@
 
 	<th:block th:if="${codemirror == true}">
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/codemirror/codemirror.css}" />
+	</th:block>
+	
+	<th:block th:if="${select2 == true}">
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/select2/select2.min.css}" />
+	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/select2/select2-bootstrap4.min.css}" />
 	</th:block>
 </head>
 <body>

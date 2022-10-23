@@ -1,7 +1,11 @@
 package dk.digitalidentity.api;
 
 import dk.digitalidentity.api.dto.CoreDataGroupLoad;
+import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
+import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
+import dk.digitalidentity.api.dto.CoreDataStatus;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -104,6 +108,23 @@ public class CoreDataApi {
 
 	// TODO: members skal være samAccountNames, og så skal der opdateres kode i AD + AD Azure og sendes opdateringer ud (måske understøtte UUID'er i en kort overgangsperiode,
     //	         som en slags backup kode)
+	@PostMapping("/api/coredata/kombitAttributes/load/full")
+	public ResponseEntity<?> loadKombitAttributesFully(@RequestBody CoreDataKombitAttributesLoad kombitAttributes) {
+		try {
+			coreDataService.loadKombitAttributesFull(kombitAttributes);
+
+			coreDataLogService.addLog("/api/coredata/kombitAttributes/load/full", kombitAttributes.getDomain());
+
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for KombitAttributes load", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+	
+	// TODO: members skal være samAccountNames, og så skal der opdateres kode i AD + AD Azure og sendes opdateringer ud (måske understøtte UUID'er i en kort overgangsperiode,
+    //	         som en slags backup kode)
 	@PostMapping("/api/coredata/nsisallowed/load")
 	public ResponseEntity<?> loadNSISAllowed(@RequestBody CoreDataNsisAllowed nsisAllowed) {
 		try {
@@ -118,15 +139,43 @@ public class CoreDataApi {
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
+	
+	@PostMapping("/api/coredata/transfertonemlogin/load")
+	public ResponseEntity<?> loadTransferToNemlogin(@RequestBody CoreDataNemLoginAllowed transferToNemlogin) {
+		try {
+			coreDataService.loadTransferToNemlogin(transferToNemlogin);
+
+			coreDataLogService.addLog("/api/coredata/transfertonemlogin/load", transferToNemlogin.getDomain());
+
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for transfer to Nemlogin load", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
 
 	@GetMapping("/api/coredata")
-	public ResponseEntity<?> getByDomain(@RequestParam String domain) {
+	public ResponseEntity<?> getByDomain(@RequestParam String domain, @RequestParam(name = "onlyNsisAllowed", defaultValue = "false") boolean onlyNsisAllowed) {
 		try {
-			CoreData byDomain = coreDataService.getByDomain(domain);
-			return ResponseEntity.ok(byDomain);
+			CoreData coreData = coreDataService.getByDomain(domain, onlyNsisAllowed);
+
+			return ResponseEntity.ok(coreData);
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for getByDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+	
+	@GetMapping("/api/coredata/status")
+	public ResponseEntity<?> getStatusByDomain(@RequestParam String domain, @RequestParam(name = "onlyNsisAllowed", defaultValue = "false") boolean onlyNsisAllowed) {
+		try {
+			CoreDataStatus byDomain = coreDataService.getStatusByDomain(domain, onlyNsisAllowed);
+			return ResponseEntity.ok(byDomain);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getStatusByDomain", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

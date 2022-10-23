@@ -29,6 +29,8 @@ public class ServiceProviderDTO {
 	private String protocol;
 	private boolean enabled;
 	private boolean preferNemid;
+	private boolean preferNIST;
+	private boolean nemLogInBrokerEnabled;
 	private boolean encryptAssertions;
 	private String metadataUrl;
 	private String metadataContent;
@@ -47,6 +49,8 @@ public class ServiceProviderDTO {
 		this.protocol = "SAML20";
 		this.enabled = true;
 		this.encryptAssertions = true;
+		this.conditionsDomains = new ArrayList<>();
+		this.conditionsGroups = new ArrayList<>();
 	}
 
 	public ServiceProviderDTO(SqlServiceProviderConfiguration config, List<CertificateDTO> certificates, List<EndpointDTO> endpoints) {
@@ -56,6 +60,8 @@ public class ServiceProviderDTO {
 		this.entityId = config.getEntityId();
 		this.enabled = config.isEnabled();
 		this.preferNemid = config.isPreferNemid();
+		this.preferNIST = config.isPreferNIST();
+		this.nemLogInBrokerEnabled = config.isNemLogInBrokerEnabled();
 		this.encryptAssertions = config.isEncryptAssertions();
 		this.metadataUrl = config.getMetadataUrl();
 		this.metadataContent = config.getMetadataContent();
@@ -87,6 +93,7 @@ public class ServiceProviderDTO {
 				.filter(condition -> SqlServiceProviderConditionType.DOMAIN.equals(condition.getType()))
 				.map(ConditionDTO::new)
 				.collect(Collectors.toList());
+
 		this.conditionsGroups = config.getConditions()
 				.stream()
 				.filter(condition -> SqlServiceProviderConditionType.GROUP.equals(condition.getType()))
@@ -101,6 +108,7 @@ public class ServiceProviderDTO {
 		this.entityId = config.getEntityId();
 		this.enabled = config.enabled();
 		this.preferNemid = config.preferNemId();
+		this.nemLogInBrokerEnabled = config.nemLogInBrokerEnabled();
 		this.encryptAssertions = config.encryptAssertions();
 		this.metadataUrl = config.getMetadataUrl();
 		this.metadataContent = config.getMetadataContent();

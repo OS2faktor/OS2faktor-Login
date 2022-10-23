@@ -46,12 +46,15 @@ public class PasswordChangeQueue {
 
     @Column
     private String message;
+    
+    @Column
+    private boolean externallyReplicated;
 
     public PasswordChangeQueue(Person person, String newPassword) {
     	this.password = newPassword;
     	this.samaccountName = person.getSamaccountName();
     	this.uuid = person.getUuid();
     	this.status = ReplicationStatus.WAITING_FOR_REPLICATION;
-        this.domain = person.getDomain().getName();
+        this.domain = person.getTopLevelDomain().getName();
     }
 }

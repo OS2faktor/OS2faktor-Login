@@ -21,6 +21,8 @@ public class AzureAd {
 	private String upn;
 	private String nsisAllowedGroupId;
 	private Map<String, String> attributes;
+	private String ridField;
+	private String transferToNemloginGroupId;
 
 	// For KOMBIT roles
 	private String entityIdAndCvrField;

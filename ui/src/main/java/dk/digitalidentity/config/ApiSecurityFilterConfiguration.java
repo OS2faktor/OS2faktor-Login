@@ -5,15 +5,20 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.security.AuditlogApiSecurityFilter;
 import dk.digitalidentity.security.CoreDataApiSecurityFilter;
 import dk.digitalidentity.security.MfaApiSecurityFilter;
+import dk.digitalidentity.security.StilApiSecurityFilter;
 
 @Configuration
 public class ApiSecurityFilterConfiguration {
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
 	@Bean
 	public FilterRegistrationBean<CoreDataApiSecurityFilter> coreDataApiSecurityFilter() {
@@ -44,6 +49,17 @@ public class ApiSecurityFilterConfiguration {
 
 		FilterRegistrationBean<MfaApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.addUrlPatterns("/api/mfa", "/api/mfa/*");
+
+		return filterRegistrationBean;
+	}
+	
+	@Bean
+	public FilterRegistrationBean<StilApiSecurityFilter> stilApiSecurityFilter() {
+		StilApiSecurityFilter filter = new StilApiSecurityFilter();
+		filter.setConfiguration(commonConfiguration);
+
+		FilterRegistrationBean<StilApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
+		filterRegistrationBean.addUrlPatterns("/api/stil", "/api/stil/*");
 
 		return filterRegistrationBean;
 	}

@@ -1,5 +1,9 @@
 package dk.digitalidentity.service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,12 +30,18 @@ import dk.digitalidentity.api.dto.CoreDataFullJfr;
 import dk.digitalidentity.api.dto.CoreDataFullJfrEntry;
 import dk.digitalidentity.api.dto.CoreDataGroup;
 import dk.digitalidentity.api.dto.CoreDataGroupLoad;
+import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
+import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
+import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
+import dk.digitalidentity.api.dto.CoreDataStatus;
+import dk.digitalidentity.api.dto.CoreDataStatusEntry;
 import dk.digitalidentity.api.dto.Jfr;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.log.AuditLogger;
@@ -55,6 +65,17 @@ public class CoreDataService {
 
 	@Autowired
 	private AuditLogger auditLogger;
+	
+	@Autowired
+	private EmailTemplateSenderService emailTemplateSenderService;
+	
+	// thread-safe formatter
+	private DateTimeFormatter formatter = new DateTimeFormatterBuilder()
+	        .appendPattern("yyyy-MM-dd[ HH:mm:ss]")
+	        .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+	        .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+	        .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+	        .toFormatter();
 
 	@Transactional(rollbackFor = Exception.class)
 	public void load(CoreData coreData, boolean fullLoad) throws IllegalArgumentException {
@@ -66,15 +87,34 @@ public class CoreDataService {
 			throw new IllegalArgumentException("Ukendt domæne: " + coreData.getDomain());
 		}
 
-		List<Domain> subDomains = domain.getChildDomains() != null ? domain.getChildDomains() : new ArrayList<>();
-		HashMap<String, Domain> subDomainMap = new HashMap<>(subDomains.stream().collect(Collectors.toMap(Domain::getName, Function.identity())));
+		// this will ensure "cleanup" is only done within this subdomain - note that if someone calls the api with a globalSubDomain
+		// and any of the sub-entries has a different subDomain, this consists of an error and the payload will be rejected
+		Domain globalSubDomain = null;
+		if (StringUtils.hasLength(coreData.getGlobalSubDomain())) {
+			Domain gsd = domainService.getByName(coreData.getGlobalSubDomain());
+			if (gsd != null && gsd.getParent() != null) {
+				globalSubDomain = gsd;				
+			}
+			else {
+				throw new IllegalArgumentException("Invalid globalSubDomain: " + coreData.getGlobalSubDomain());
+			}
+		}
 
-		// Get people from the database
-		List<Person> personList = personService.getByDomain(coreData.getDomain(), true);
+		List<Domain> subDomains = domain.getChildDomains() != null ? domain.getChildDomains() : new ArrayList<>();
+		if (globalSubDomain != null) {
+			// retrict to globalSubdomain
+			subDomains.clear();
+			subDomains.add(globalSubDomain);
+		}
+
+		HashMap<String, Domain> subDomainMap = new HashMap<>(subDomains.stream().collect(Collectors.toMap(Domain::getName, Function.identity())));
+		
+		// Get people from the database (restrict to globalSubDomain if supplied, to ensure cleanup(delete only happens on these users)
+		List<Person> personList = (globalSubDomain == null) ? personService.getByDomain(domain, true) : personService.getByDomain(globalSubDomain, false);
 		Map<String, Person> personMap = personList.stream().collect(Collectors.toMap(Person::getIdentifier, Function.identity()));
 
 		// Validate input
-		String result = validateInput(coreData, personList, subDomains);
+		String result = validateInput(coreData, personList, subDomains, globalSubDomain);
 		if (result != null) {
 			throw new IllegalArgumentException(result);
 		}
@@ -112,6 +152,8 @@ public class CoreDataService {
 					person.getKombitJfrs().clear();
 					person.getGroups().clear();
 					removedFromDataset.add(person);
+					
+					emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA, person);
 				}
 			}
 
@@ -134,7 +176,35 @@ public class CoreDataService {
 		}
 	}
 
-	public CoreData getByDomain(String domainName) throws IllegalArgumentException {
+	public CoreDataStatus getStatusByDomain(String domainName, boolean onlyNsisAllowed) {
+		if (!StringUtils.hasLength(domainName)) {
+			throw new IllegalArgumentException("Domain cannot be empty");
+		}
+
+		// Get domain and validate it
+		Domain domain = domainService.getByName(domainName);
+		if (domain == null || domain.getParent() != null) {
+			throw new IllegalArgumentException("Domain was either null or not a master domain");
+		}
+
+		// Create response object
+		CoreDataStatus coreData = new CoreDataStatus();
+		coreData.setDomain(domainName);
+
+		// Add people from domain or any sub-domains
+		List<Person> persons = personService.getByDomain(domainName, true, onlyNsisAllowed);
+		if (persons.isEmpty()) {
+			return coreData;
+		}
+
+		// Convert Person objects to CoreData entries
+		List<CoreDataStatusEntry> matches = persons.stream().map(CoreDataStatusEntry::new).collect(Collectors.toList());
+		coreData.setEntryList(matches);
+
+		return coreData;
+	}
+	
+	public CoreData getByDomain(String domainName, boolean onlyNsisAllowed) throws IllegalArgumentException {
 		if (!StringUtils.hasLength(domainName)) {
 			throw new IllegalArgumentException("Domain cannot be empty");
 		}
@@ -150,7 +220,7 @@ public class CoreDataService {
 		coreData.setDomain(domainName);
 
 		// Add people from domain or any sub-domains
-		List<Person> byDomainAndCpr = personService.getByDomain(domainName, true);
+		List<Person> byDomainAndCpr = personService.getByDomain(domainName, true, onlyNsisAllowed);
 		if (byDomainAndCpr.isEmpty()) {
 			return coreData;
 		}
@@ -214,11 +284,15 @@ public class CoreDataService {
 			if (matches != null) {
 				for (Person match : matches) {
 					if (Objects.equals(match.getSamaccountName(), entry.getSamAccountName()) && Objects.equals(match.getUuid(), entry.getUuid())) {
-						match.setLockedDataset(true);
-						match.getAttributes().clear();
-						match.getKombitJfrs().clear();
-						match.getGroups().clear();
-						toSave.add(match);
+						if (!match.isLockedDataset()) {
+							match.setLockedDataset(true);
+							match.getAttributes().clear();
+							match.getKombitJfrs().clear();
+							match.getGroups().clear();
+							toSave.add(match);
+							
+							emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA, match);
+						}
 					}
 				}
 			}
@@ -281,8 +355,54 @@ public class CoreDataService {
 			}
 		}
 	}
+	
+	private String validateInput(CoreDataKombitAttributesLoad kombitAttributes, List<Person> databasePeople) {
+		List<CoreDataKombitAttributeEntry> entries = kombitAttributes.getEntryList();
 
-	private String validateInput(CoreData coreData, List<Person> databasePeople, List<Domain> subDomains) {
+		if (entries == null || entries.size() == 0) {
+			return "Tom entryList for domæne " + kombitAttributes.getDomain();
+		}
+
+		Domain parentDomain = domainService.findByName(kombitAttributes.getDomain());
+		if (parentDomain == null) {
+			return "Angivne domæne (" + kombitAttributes.getDomain() + ") findes ikke i OS2faktor login";
+		}
+
+		if (parentDomain.getParent() != null) {
+			return "Angivne domæne (" + kombitAttributes.getDomain() + ") er et sub-domæne";
+		}
+
+		// convert "" to null for more correct handling
+		entries.forEach(e -> {
+			if (!StringUtils.hasLength(e.getSamAccountName())) {
+				e.setSamAccountName(null);
+			}
+		});
+
+		// check for missing sAMAccountNames
+		for (CoreDataKombitAttributeEntry entry : entries) {
+			if (!StringUtils.hasLength(entry.getSamAccountName())) {
+				return "Person mangler sAMAccountName for domæne " + kombitAttributes.getDomain();
+			}
+		}
+		
+		// Check for duplicate SAMAccountNames
+		Set<String> existingSAMAccountNames = new HashSet<>();
+		for (CoreDataKombitAttributeEntry entry : entries) {
+			if (StringUtils.hasLength(entry.getSamAccountName())) {
+				if (!existingSAMAccountNames.contains(entry.getSamAccountName().toLowerCase())) {
+					existingSAMAccountNames.add(entry.getSamAccountName().toLowerCase());
+				}
+				else {
+					return "Flere personer med tilknyttet AD konto (" + entry.getSamAccountName() + ") for domæne " + kombitAttributes.getDomain();
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private String validateInput(CoreData coreData, List<Person> databasePeople, List<Domain> subDomains, Domain globalSubDomain) {
 		List<CoreDataEntry> entries = coreData.getEntryList();
 
 		if (entries == null || entries.size() == 0) {
@@ -294,7 +414,7 @@ public class CoreDataService {
 			return "Angivne domæne (" + coreData.getDomain() + ") findes ikke i os2faktor login";
 		}
 
-		if (parentDomain.getParent() != null) {
+		if (globalSubDomain == null && parentDomain.getParent() != null) {
 			return "Angivne domæne (" + coreData.getDomain() + ") er et sub-domæne";
 		}
 
@@ -308,7 +428,12 @@ public class CoreDataService {
 		// Check for duplicate SAMAccountNames and unknown subDomain
 		Set<String> existingSAMAccountNames = new HashSet<>();
 		for (CoreDataEntry entry : entries) {
-			if (StringUtils.hasLength(entry.getSubDomain()) && !subDomains.stream().anyMatch(d -> Objects.equals(d.getName(), entry.getSubDomain()))) {
+			if (globalSubDomain != null) {
+				if (!Objects.equals(globalSubDomain.getName(), entry.getSubDomain())) {
+					return "Underdomæne mismatch: " + globalSubDomain.getName() + " != " + entry.getSubDomain();
+				}
+			}
+			else if (StringUtils.hasLength(entry.getSubDomain()) && !subDomains.stream().anyMatch(d -> Objects.equals(d.getName(), entry.getSubDomain()))) {
 				return "Ukendt underdomæne: " + entry.getSubDomain();
 			}
 
@@ -359,13 +484,20 @@ public class CoreDataService {
 		person.setNsisAllowed(coreDataEntry.isNsisAllowed());
 		person.setUuid(coreDataEntry.getUuid());
 		person.setAttributes(coreDataEntry.getAttributes());
-
+		person.setExpireTimestamp(coreDataEntry.getExpireTimestamp() != null ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
+		person.setRid(coreDataEntry.getRid());
+		person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
+		
+		if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
+			person.setLockedExpired(true);
+		}
+		
 		// set subDomain if specified, otherwise use normal domain
 		if (StringUtils.hasLength(coreDataEntry.getSubDomain())) {
 			Domain coreDataEntryDomain = subDomainMap.get(coreDataEntry.getSubDomain());
 			if (coreDataEntryDomain == null) {
 				// will not actually happen, as we validate for this before we reach this point... this would be a coding error if this happens
-				throw new RuntimeException("unknown domain: " + coreDataEntry.getSubDomain());
+				throw new RuntimeException("unknown subdomain: " + coreDataEntry.getSubDomain());
 			}
 
 			person.setDomain(coreDataEntryDomain);
@@ -373,7 +505,7 @@ public class CoreDataService {
 		else {
 			person.setDomain(domain);
 		}
-
+		
 		return person;
 	}
 
@@ -402,6 +534,20 @@ public class CoreDataService {
 			modified = true;
 		}
 
+		String dateToCompare = (person.getExpireTimestamp() == null) ? null : person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		if (!Objects.equals(dateToCompare, coreDataEntry.getExpireTimestamp())) {
+			person.setExpireTimestamp((coreDataEntry.getExpireTimestamp() != null) ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
+			
+			if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
+				person.setLockedExpired(true);
+			}
+			else {
+				person.setLockedExpired(false);
+			}
+
+			modified = true;
+		}
+
 		if (person.isLockedDataset()) {
 			person.setLockedDataset(false);
 			person.setApprovedConditions(false);
@@ -418,6 +564,7 @@ public class CoreDataService {
 				person.setNsisAllowed(true);
 				person.setNsisPassword(null);
 				auditLogger.nsisAllowedChanged(person, true);
+				emailTemplateSenderService.send(EmailTemplateType.NSIS_ALLOWED, person);
 			}
 			else {
 				person.setNsisAllowed(false);
@@ -434,6 +581,16 @@ public class CoreDataService {
 			person.setAttributes(coreDataEntry.getAttributes());
 			modified = true;
 		}
+		
+		if (coreDataEntry.isTransferToNemlogin() != person.isTransferToNemlogin()) {
+			person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
+			modified = true;
+		}
+		
+		if (!Objects.equals(person.getRid(), coreDataEntry.getRid()) && StringUtils.hasLength(coreDataEntry.getRid())) {
+			person.setRid(coreDataEntry.getRid());
+			modified = true;
+		}
 
 		return modified;
 	}
@@ -444,7 +601,7 @@ public class CoreDataService {
 
 		Map<String, Person> personMapSAMAccountName = persons.stream().filter(p -> StringUtils.hasLength(p.getSamaccountName())).collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
 		Map<String, Person> personMapAzureId = persons.stream().filter(p -> p.getAzureId() != null).collect(Collectors.toMap(Person::getAzureId, Function.identity()));
-		Map<String, Person> personMap = persons.stream().filter(p -> p.getUuid() != null).collect(Collectors.toMap(Person::getUuid, Function.identity()));
+		Map<String, Person> personMap = persons.stream().filter(p -> p.getUuid() != null).collect(Collectors.toMap(person -> person.getUuid() + (person.getSamaccountName() != null ? person.getSamaccountName() : "<null>"), Function.identity()));
 
 		// add/update case
 		for (CoreDataFullJfrEntry entry : coreData.getEntryList()) {
@@ -456,7 +613,7 @@ public class CoreDataService {
 				}
 				else {
 					// otherwise use the ordinary UUID (for most other muni's
-					person = personMap.get(entry.getUuid());
+					person = personMap.get(entry.getUuid() + (entry.getSamAccountName() != null ? entry.getSamAccountName() : "<null>"));
 				}
 			}
 			else {
@@ -627,8 +784,39 @@ public class CoreDataService {
 
 				if (shouldNsisBeAllowed != currentNsisAllowed) {
 					domainPerson.setNsisAllowed(shouldNsisBeAllowed);
+					if (!shouldNsisBeAllowed) {
+						domainPerson.setNsisLevel(NSISLevel.NONE);
+					} else {
+						emailTemplateSenderService.send(EmailTemplateType.NSIS_ALLOWED, domainPerson);
+					}
 					toBeSaved.add(domainPerson);
 					auditLogger.nsisAllowedChanged(domainPerson, shouldNsisBeAllowed);
+				}
+			}
+
+			personService.saveAll(toBeSaved);
+		}
+	}
+	
+	@Transactional(rollbackFor = Exception.class)
+	public void loadTransferToNemlogin(CoreDataNemLoginAllowed transferToNemlogin) {
+		if (transferToNemlogin.getNemLoginUserUuids() != null) {
+			Domain domain = domainService.getByName(transferToNemlogin.getDomain());
+			if (domain == null) {
+				throw new IllegalAccessError("Unknown domain: " + transferToNemlogin.getDomain());
+			}
+
+			List<Person> domainPeople = personService.getByDomainNotLockedByDataset(domain, true);
+
+			List<Person> toBeSaved = new ArrayList<>();
+			for (Person domainPerson : domainPeople) {
+				boolean shouldTransferToNemlogin = transferToNemlogin.getNemLoginUserUuids().contains(domainPerson.getUuid());
+				boolean currentTransferToNemlogin = domainPerson.isTransferToNemlogin();
+
+				if (shouldTransferToNemlogin != currentTransferToNemlogin) {
+					domainPerson.setTransferToNemlogin(shouldTransferToNemlogin);
+					toBeSaved.add(domainPerson);
+					auditLogger.transferToNemloginChanged(domainPerson, shouldTransferToNemlogin);
 				}
 			}
 
@@ -778,6 +966,45 @@ public class CoreDataService {
 					groupService.delete(group);
 				}
 			}
+		}
+	}
+	
+	public void loadKombitAttributesFull(CoreDataKombitAttributesLoad kombitAttributes) {
+		List<Person> updatedPersons = new ArrayList<>();
+
+		Domain domain = domainService.getByName(kombitAttributes.getDomain());
+		if (domain == null) {
+			throw new IllegalArgumentException("Ukendt domæne: " + kombitAttributes.getDomain());
+		}
+		
+		// Get people from the database, active only (not locked by dataset)
+		List<Person> personList = personService.getByDomainNotLockedByDataset(kombitAttributes.getDomain(), true);
+		Map<String, Person> personMap = personList.stream().collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
+
+		// Validate input
+		String result = validateInput(kombitAttributes, personList);
+		if (result != null) {
+			throw new IllegalArgumentException(result);
+		}
+		
+		// Go through the received list of entries, check if there's a matching person object, then update/create
+		for (CoreDataKombitAttributeEntry attributeEntry : kombitAttributes.getEntryList()) {
+			Person person = personMap.get(attributeEntry.getSamAccountName().toLowerCase());
+
+			if (person != null) {
+
+				// map equality works on element equality (which works because they are Strings), and the order is not relevant (equality still works)
+				if (!Objects.equals(person.getKombitAttributes(), attributeEntry.getKombitAttributes())) {
+					person.setKombitAttributes(attributeEntry.getKombitAttributes());
+					updatedPersons.add(person);
+				}
+			}
+		}
+		
+		// Save all the updated people
+		if (updatedPersons.size() > 0) {
+			personService.saveAll(updatedPersons);
+			log.info(updatedPersons.size() + " persons were updated with new KOMBIT attributes");
 		}
 	}
 }

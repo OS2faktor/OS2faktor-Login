@@ -1,0 +1,4 @@
+ALTER TABLE persons ADD COLUMN transfer_to_nemlogin BOOLEAN NOT NULL DEFAULT 0;
+ALTER TABLE persons_aud ADD COLUMN transfer_to_nemlogin BOOLEAN NULL;
+ALTER TABLE persons ADD COLUMN rid VARCHAR(64) NULL;
+ALTER TABLE persons_aud ADD COLUMN rid VARCHAR(64) NULL;

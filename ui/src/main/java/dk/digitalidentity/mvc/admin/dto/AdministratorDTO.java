@@ -29,7 +29,9 @@ public class AdministratorDTO {
 		this.supporter = person.isSupporter();
 
 		if (this.supporter) {
-			this.domainId = person.getSupporter().getDomain().getId();
+
+			// if the supporter domain is null, it means that all domains are selected = -1
+			this.domainId = person.getSupporter().getDomain() != null ? person.getSupporter().getDomain().getId() : -1;
 		}
 
 		this.registrant = person.isRegistrant();

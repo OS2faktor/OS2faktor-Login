@@ -12,7 +12,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
-import dk.digitalidentity.mvc.otherUsers.dto.PasswordChangeForm;
+import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
 
 @Component
 public class PasswordChangeValidator implements Validator {

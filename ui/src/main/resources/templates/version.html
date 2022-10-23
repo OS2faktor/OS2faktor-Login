@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-12">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Ny version af OS2faktor</h5>
+							</div>
+							
+							<div class="ibox-content" >
+								<p th:if="${@OS2faktorConfiguration.checkVersion()}">
+									I anvender allerede den nyeste udgave af OS2faktor Login.
+								</p>
+
+								<p th:unless="${@OS2faktorConfiguration.checkVersion()}">
+									I anvender version <b th:text="${@OS2faktorConfiguration.version}" /> af OS2faktor Login, og den nyeste udgave af OS2faktor Login er <b th:text="${@OS2faktorConfiguration.latestVersion}" />. I kan med fordel få opdateret til den nyeste udgave, ved
+                                                                        at kontakte <a href="mailto:kontakt@digital-identity.dk">Digital Identity</a> og bede dem opdatere jer til nyeste udgave.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

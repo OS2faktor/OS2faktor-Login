@@ -18,6 +18,8 @@ public class CoreDataEntry {
 	private String samAccountName;
 	private boolean nsisAllowed;
 	private Map<String, String> attributes;
+	private boolean transferToNemlogin;
+	private String rid;
 
 	@JsonIgnore
 	private transient String azureInternalId;

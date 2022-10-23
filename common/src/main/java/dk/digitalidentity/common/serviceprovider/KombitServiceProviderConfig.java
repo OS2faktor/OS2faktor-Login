@@ -57,7 +57,17 @@ public class KombitServiceProviderConfig implements ServiceProviderConfig {
     }
 
     @Override
+    public boolean nemLogInBrokerEnabled() {
+        return false;
+    }
+
+    @Override
     public boolean encryptAssertions() {
         return config.getKombit().isEncryptAssertion();
+    }
+    
+    @Override
+    public boolean preferNIST() {
+        return false;
     }
 }

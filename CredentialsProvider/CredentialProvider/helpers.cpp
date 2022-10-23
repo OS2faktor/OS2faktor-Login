@@ -36,6 +36,29 @@ LONG GetStringRegKey(HKEY hKey, const std::wstring& strValueName, std::wstring& 
     return nError;
 }
 
+
+LONG GetBoolRegKey(HKEY hKey, const std::wstring& strValueName, bool& boolValue, const bool& boolDefaultValue)
+{
+    boolValue = boolDefaultValue;
+
+    DWORD dwValue = 0;
+    DWORD dwDataSize = sizeof(DWORD);
+
+    ULONG nError;
+    nError = RegQueryValueExW(hKey, strValueName.c_str(), 0, NULL, (LPBYTE)&dwValue, &dwDataSize);
+    if (ERROR_SUCCESS == nError)
+    {
+        if (dwValue == 1)
+        {
+            boolValue = true;
+        }
+        else if (dwValue == 0) {
+            boolValue = false;
+        }
+    }
+    return nError;
+}
+
 //
 // Copies the field descriptor pointed to by rcpfd into a buffer allocated
 // using CoTaskMemAlloc. Returns that buffer in ppcpfd.

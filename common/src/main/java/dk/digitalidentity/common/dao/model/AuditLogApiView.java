@@ -51,13 +51,7 @@ public class AuditLogApiView {
 	@Column
 	@Enumerated(EnumType.STRING)
 	private LogAction logAction;
-	
-	@Column
-	private String logTargetId;
-	
-	@Column
-	private String logTargetName;
-	
+
 	@Column
 	private String message;
 

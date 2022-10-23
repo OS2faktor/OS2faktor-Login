@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using OS2faktorADSync.Model;
 using Serilog;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +11,7 @@ namespace OS2faktorADSync
 {
     public class BackendService
     {
-        private const string version = "1.5.1";
+        private const string version = "2.0.2";
 
         private readonly string baseUrl = Settings.GetStringValue("Backend.URL.Base");
         public ILogger Logger { get; set; }
@@ -22,6 +23,13 @@ namespace OS2faktorADSync
                 Domain = Settings.GetStringValue("Backend.Domain"),
                 EntryList = users.ToList()
             };
+
+            // Fill out SubDomain if configured
+            string subDomain = Settings.GetStringValue("Backend.SubDomain");
+            if (!string.IsNullOrEmpty(subDomain))
+            {
+                coredata.GlobalSubDomain = subDomain;
+            }
 
             string json = JsonConvert.SerializeObject(coredata);
             Logger.Verbose("Invoking backend full sync: {0}", json);
@@ -39,8 +47,7 @@ namespace OS2faktorADSync
                 }
                 catch (WebException ex)
                 {
-                    WebExceptionStatus status = ex.Status;
-                    Logger.Error(ex, "Failed to call fullsync backend: " + status);
+                    LogException(ex, "Failed to call fullsync backend");
 
                     throw ex;
                 }
@@ -72,8 +79,39 @@ namespace OS2faktorADSync
                 }
                 catch (WebException ex)
                 {
-                    WebExceptionStatus status = ex.Status;
-                    Logger.Error(ex, "Failed to call groups backend: " + status);
+                    LogException(ex, "Failed to call groups backend");
+
+                    throw ex;
+                }
+            }
+        }
+
+        public void NSISTransferToNemLoginSync(CoredataTransferToNemLogin nsisData)
+        {
+            if (nsisData == null || !(nsisData.TransferToNemLogin.Count() > 0))
+            {
+                Logger.Warning("No NemLog-in Users found");
+                return;
+            }
+            nsisData.Domain = Settings.GetStringValue("Backend.Domain");
+
+            var json = JsonConvert.SerializeObject(nsisData);
+            Logger.Verbose("Invoking backend groups sync: {0}", json);
+
+            using (WebClient webClient = new WebClient())
+            {
+                webClient.Headers["Content-Type"] = "application/json";
+                webClient.Headers["ApiKey"] = Settings.GetStringValue("Backend.Password");
+                webClient.Headers["ClientVersion"] = version;
+                webClient.Encoding = System.Text.Encoding.UTF8;
+
+                try
+                {
+                    webClient.UploadString(baseUrl + "transfertonemlogin/load", json);
+                }
+                catch (WebException ex)
+                {
+                    LogException(ex, "Failed to call groups backend");
 
                     throw ex;
                 }
@@ -98,8 +136,32 @@ namespace OS2faktorADSync
                 }
                 catch (WebException ex)
                 {
-                    WebExceptionStatus status = ex.Status;
-                    Logger.Error(ex, "Failed to call Kombit JFR fullsync backend: " + status);
+                    LogException(ex, "Failed to call Kombit JFR fullsync backend");
+
+                    throw ex;
+                }
+            }
+        }
+
+        public void FullLoadKombitAttributes(CoreDataKombitAttributes body)
+        {
+            string json = JsonConvert.SerializeObject(body);
+            Logger.Verbose("Invoking backend kombit attributes fullsync: {0}", json);
+
+            using (WebClient webClient = new WebClient())
+            {
+                webClient.Headers["Content-Type"] = "application/json";
+                webClient.Headers["ApiKey"] = Settings.GetStringValue("Backend.Password");
+                webClient.Headers["ClientVersion"] = version;
+                webClient.Encoding = System.Text.Encoding.UTF8;
+
+                try
+                {
+                    webClient.UploadString(baseUrl + "kombitAttributes/load/full", json);
+                }
+                catch (WebException ex)
+                {
+                    LogException(ex, "Failed to call Kombit attributes fullsync backend");
 
                     throw ex;
                 }
@@ -134,8 +196,7 @@ namespace OS2faktorADSync
                     }
                     catch (WebException ex)
                     {
-                        WebExceptionStatus status = ex.Status;
-                        Logger.Error(ex, "Failed to call delete delta backend: " + status);
+                        LogException(ex, "Failed to call delete delta backend");
 
                         throw ex;
                     }
@@ -169,8 +230,7 @@ namespace OS2faktorADSync
                     }
                     catch (WebException ex)
                     {
-                        WebExceptionStatus status = ex.Status;
-                        Logger.Error(ex, "Failed to call delta backend: " + status);
+                        LogException(ex, "Failed to call delta backend");
 
                         throw ex;
                     }
@@ -205,12 +265,28 @@ namespace OS2faktorADSync
                 }
                 catch (WebException ex)
                 {
-                    WebExceptionStatus status = ex.Status;
-                    Logger.Error(ex, "Failed to call groups backend: " + status);
+                    LogException(ex, "Failed to call groups backend");
 
                     throw ex;
                 }
             }
+        }
+
+        private void LogException(WebException ex, string msg)
+        {
+            string body = "<null>";
+            try
+            {
+                body = new StreamReader(ex.Response.GetResponseStream()).ReadToEnd();
+            }
+            catch (Exception)
+            {
+                ; // ignore
+            }
+
+            WebExceptionStatus status = ex.Status;
+
+            Logger.Error(ex, msg + " : " + status + " : " + body);
         }
     }
 }

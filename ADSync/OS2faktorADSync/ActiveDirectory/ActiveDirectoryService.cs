@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.DirectoryServices;
 using System.DirectoryServices.ActiveDirectory;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security;
 
 namespace OS2faktorADSync
 {
@@ -16,22 +18,24 @@ namespace OS2faktorADSync
         public ILogger Logger { get; set; }
         private readonly PropertyResolver propertyResolver = new PropertyResolver();
         private readonly string nsisAllowedGroup;
+        private readonly string transferToNemloginGroup;
         private readonly string rolesRoot;
         private readonly string rootMembershipGroup;
-        private readonly Boolean loadAllUsers;
         private readonly Boolean groupsInGroups;
         private readonly string defaultCvr;
         private readonly string defaultDomain;
+        private readonly string roleNamePrefix;
 
         public ActiveDirectoryService()
         {
             nsisAllowedGroup = Settings.GetStringValue("ActiveDirectory.NSISAllowed.Group");
+            transferToNemloginGroup = Settings.GetStringValue("ActiveDirectory.TransferToNemlogin.Group");
             rootMembershipGroup = Settings.GetStringValue("ActiveDirectory.Group.Root");
             rolesRoot = Settings.GetStringValue("Kombit.RoleOU");
             defaultDomain = Settings.GetStringValue("Kombit.RoleDomainDefault");
             defaultCvr = Settings.GetStringValue("Kombit.RoleCvrDefault");
-            loadAllUsers = Settings.GetBooleanValue("ActiveDirectory.loadAllUsers");
             groupsInGroups = Settings.GetBooleanValue("Kombit.GroupsInGroups");
+            roleNamePrefix = Settings.GetStringValue("Kombit.RoleNameAttributePrefix");
         }
 
         public IEnumerable<CoredataEntry> GetFullSyncUsers(out byte[] directorySynchronizationCookie)
@@ -39,42 +43,49 @@ namespace OS2faktorADSync
             using (var directoryEntry = GenerateDirectoryEntry())
             {
                 Dictionary<string, CoredataEntry> result = new Dictionary<string, CoredataEntry>();
-                string filter;
+                string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
 
-                if (loadAllUsers)
+                Logger.Debug("Performing search with filter: " + filter);
+
+                using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                 {
-                    // Full load
-                    filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
-                    using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+                    directorySearcher.DirectorySynchronization = new DirectorySynchronization(DirectorySynchronizationOptions.None);
+                    using (var searchResultCollection = directorySearcher.FindAll())
                     {
-                        directorySearcher.DirectorySynchronization = new DirectorySynchronization(DirectorySynchronizationOptions.None);
-                        using (var searchResultCollection = directorySearcher.FindAll())
+                        Logger.Information("Found {0} users in Active Directory", searchResultCollection.Count);
+
+                        foreach (SearchResult searchResult in searchResultCollection)
                         {
-                            Logger.Information("Found {0} users in Active Directory", searchResultCollection.Count);
-
-                            foreach (SearchResult searchResult in searchResultCollection)
+                            CoredataEntry user = CreateCoredataEntryFromAD(searchResult.Properties);
+                            if (user.IsActive() && user.IsValid())
                             {
-                                CoredataEntry user = CreateCoredataEntryFromAD(searchResult.Properties);
-                                if (user.IsActive() && user.IsValid())
-                                {
-                                    result.Add(user.Uuid, user);
-                                }
+                                result.Add(user.Uuid, user);
                             }
-
-                            Logger.Information("{0} users where active and valid", result.Count);
                         }
 
-                        directorySynchronizationCookie = directorySearcher.DirectorySynchronization.GetDirectorySynchronizationCookie();
+                        Logger.Information("{0} users where active and valid", result.Count);
                     }
+
+                    directorySynchronizationCookie = directorySearcher.DirectorySynchronization.GetDirectorySynchronizationCookie();
+                }
+
+                if (!string.IsNullOrEmpty(nsisAllowedGroup))
+                {
+                    Logger.Debug("Performing lookup of membership in NSIS group");
 
                     // Additional search for members of a specific group (Recursive / transative)
                     filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
+
+                    Logger.Debug("Performing search with filter: " + filter);
+
                     using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                     {
                         directorySearcher.PageSize = 1000;
 
                         using (var searchResultCollection = directorySearcher.FindAll())
                         {
+                            Logger.Debug("Found {0} users in NSIS group", searchResultCollection.Count);
+
                             foreach (SearchResult searchResult in searchResultCollection)
                             {
                                 string Guid = new Guid(searchResult.Properties.GetValue<System.Byte[]>(propertyResolver.ObjectGuidProperty, null)).ToString();
@@ -82,36 +93,42 @@ namespace OS2faktorADSync
                                 {
                                     result[Guid].NSISAllowed = true;
                                 }
+                                else
+                                {
+                                    Logger.Debug("Could not match user with ObjectGuid " + Guid + " to any user previously found");
+                                }
                             }
                         }
                     }
                 }
-                else
+
+                if (!string.IsNullOrEmpty(transferToNemloginGroup))
                 {
-                    // Only load nsis
-                    filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
+                    filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + transferToNemloginGroup);
+
+                    Logger.Debug("Performing search with filter: " + filter);
+
                     using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                     {
-                        directorySearcher.DirectorySynchronization = new DirectorySynchronization(DirectorySynchronizationOptions.None);
+                        directorySearcher.PageSize = 1000;
+
                         using (var searchResultCollection = directorySearcher.FindAll())
                         {
-                            Logger.Information("Found {0} users in Active Directory", searchResultCollection.Count);
+                            Logger.Debug("Found {0} users in transfer to nemlogin group", searchResultCollection.Count);
 
                             foreach (SearchResult searchResult in searchResultCollection)
                             {
-                                Logger.Verbose("Full sync searchResult: {@searchResult}", searchResult);
-
-                                CoredataEntry user = CreateCoredataEntryFromAD(searchResult.Properties);
-                                user.NSISAllowed = true;
-
-                                if (user.IsActive() && user.IsValid())
+                                string Guid = new Guid(searchResult.Properties.GetValue<System.Byte[]>(propertyResolver.ObjectGuidProperty, null)).ToString();
+                                if (result.ContainsKey(Guid))
                                 {
-                                    result.Add(user.Uuid, user);
+                                    result[Guid].TransferToNemlogin = true;
+                                }
+                                else
+                                {
+                                    Logger.Debug("Could not match user with ObjectGuid " + Guid + " to any user previously found");
                                 }
                             }
                         }
-
-                        directorySynchronizationCookie = directorySearcher.DirectorySynchronization.GetDirectorySynchronizationCookie();
                     }
                 }
 
@@ -128,6 +145,8 @@ namespace OS2faktorADSync
             using (var directoryEntry = GenerateDirectoryEntry())
             {
                 string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
+
+                Logger.Debug("Performing search with filter: " + filter);
 
                 using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                 {
@@ -180,7 +199,32 @@ namespace OS2faktorADSync
                         {
                             if (searchResultCollection.Count == 1)
                             {
+                                Logger.Debug("{0} is in NSIS allowed group", entry.SamAccountName);
                                 entry.NSISAllowed = true;
+                            }
+                            else
+                            {
+                                Logger.Debug("{0} is NOT in NSIS allowed group", entry.SamAccountName);
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(transferToNemloginGroup))
+                    {
+                        filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", propertyResolver.SAMAccountNameProperty + "=" + entry.SamAccountName, "memberOf:1.2.840.113556.1.4.1941:=" + transferToNemloginGroup);
+                        using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+                        {
+                            using (var searchResultCollection = directorySearcher.FindAll())
+                            {
+                                if (searchResultCollection.Count == 1)
+                                {
+                                    Logger.Debug("{0} is in transfer to nemlogin group", entry.SamAccountName);
+                                    entry.TransferToNemlogin = true;
+                                }
+                                else
+                                {
+                                    Logger.Debug("{0} is NOT in transfer to nemlogin group", entry.SamAccountName);
+                                }
                             }
                         }
                     }
@@ -217,6 +261,35 @@ namespace OS2faktorADSync
             Logger.Information("Found {0} nsis users in NSISAllowedGroup", coredataNSISAllowed.NSISAllowed.Count());
             
             return coredataNSISAllowed;
+        }
+
+        // TODO: burde være muligt at lave en dirSyncCookie på dette
+        public CoredataTransferToNemLogin TransferToNemloginSync()
+        {
+            CoredataTransferToNemLogin coredataTransferToNemlogin = new CoredataTransferToNemLogin();
+
+            using (var directoryEntry = GenerateDirectoryEntry())
+            {
+                // Additional search for members of a specific group (Recursive / transative)
+                string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + transferToNemloginGroup);
+                using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+                {
+                    directorySearcher.PageSize = 1000;
+
+                    using (var searchResultCollection = directorySearcher.FindAll())
+                    {
+                        foreach (SearchResult searchResult in searchResultCollection)
+                        {
+                            string Guid = new Guid(searchResult.Properties.GetValue<System.Byte[]>(propertyResolver.ObjectGuidProperty, null)).ToString();
+                            coredataTransferToNemlogin.TransferToNemLogin.Add(Guid);
+                        }
+                    }
+                }
+            }
+
+            Logger.Information("Found {0} nsis users in transfer to nemlogin Group", coredataTransferToNemlogin.TransferToNemLogin.Count());
+
+            return coredataTransferToNemlogin;
         }
 
         // TODO: også en DirSyncCookie her
@@ -260,14 +333,7 @@ namespace OS2faktorADSync
                         entry.Name = group.Name;
                         entry.Description = group.Description;
 
-                        if (loadAllUsers)
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + group.DistinguishedName);
-                        }
-                        else
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + group.DistinguishedName, "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
-                        }
+                        filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + group.DistinguishedName);
 
                         using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                         {
@@ -296,11 +362,14 @@ namespace OS2faktorADSync
 
         public Dictionary<User, List<JobFunctionsRole>> KombitRolesSync()
         {
-            if (rolesRoot == null)
+            if (string.IsNullOrEmpty(rolesRoot))
             {
                 Logger.Warning("Kombit.RoleOU configuration setting is empty");
                 return null;
             }
+
+            // read out optional ouFilter
+            string ouFilter = Settings.GetStringValue("Kombit.RoleOU.Filter");
 
             Dictionary<User, List<JobFunctionsRole>> result = new Dictionary<User, List<JobFunctionsRole>>();
             List<JobFunctionsRole> groups = new List<JobFunctionsRole>();
@@ -309,7 +378,7 @@ namespace OS2faktorADSync
             {
                 directoryEntry.Path += "/" + rolesRoot;
 
-                string filter = CreateGroupFilter("!(isDeleted=TRUE)");
+                string filter = string.IsNullOrEmpty(ouFilter) ? CreateGroupFilter("!(isDeleted=TRUE)") : CreateGroupFilter("!(isDeleted=TRUE)", ouFilter);
 
                 using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.KombitProperties, SearchScope.Subtree))
                 {
@@ -322,16 +391,109 @@ namespace OS2faktorADSync
                         {
                             string dn = searchResult.Properties.GetValue<string>(propertyResolver.DistinguishedNameProperty, null);
                             string roleName = searchResult.Properties.GetValue<string>(propertyResolver.RoleNameProperty, null);
-                            string roleDomain = searchResult.Properties.GetValue<string>(propertyResolver.RoleDomainProperty, defaultDomain);
-                            string cvr = searchResult.Properties.GetValue<string>(propertyResolver.RoleCvrProperty, defaultCvr);
+                            string roleDomain = (string.IsNullOrEmpty(propertyResolver.RoleDomainProperty)) ? null : searchResult.Properties.GetValue<string>(propertyResolver.RoleDomainProperty, null);
+                            string cvr = (string.IsNullOrEmpty(propertyResolver.RoleCvrProperty)) ? null : searchResult.Properties.GetValue<string>(propertyResolver.RoleCvrProperty, null);
 
                             if (roleName == null)
                             {
-                                Logger.Error($"Group {dn} does not have value for property {propertyResolver.RoleNameProperty}");
+                                Logger.Debug($"Group {dn} does not have value for property {propertyResolver.RoleNameProperty}");
                                 continue;
                             }
 
+                            // if a prefix is configured, and this role starts with this prefix, remove it
+                            if (!string.IsNullOrEmpty(roleNamePrefix) && roleName.StartsWith(roleNamePrefix))
+                            {
+                                roleName = roleName.Substring(roleNamePrefix.Length);
+
+                                if (roleName.Contains("#"))
+                                {
+                                    string fullName = roleName;
+
+                                    int idx = fullName.IndexOf("#");
+                                    roleName = fullName.Substring(0, idx);
+                                    fullName = fullName.Substring(idx + 1);
+                                    if (fullName.Contains("_"))
+                                    {
+                                        idx = fullName.IndexOf("_");
+                                        cvr = fullName.Substring(0, idx);
+                                        roleDomain = fullName.Substring(idx + 1);
+                                    }
+                                }
+                            }
+
+                            // special corner-case for SGs mapping solution
+                            if (roleName.Contains("<KOMBIT><JFR>"))
+                            {
+                                try
+                                {
+                                    string txt = roleName.Substring("<KOMBIT><JFR>".Length);
+
+                                    // delegated?
+                                    if (txt.Contains("<CVR>") && txt.Contains("<ISSUER>"))
+                                    {
+                                        // expected formats
+                                        // <KOMBIT><JFR>roleName<CVR>cvr<ISSUER>roleDomain
+                                        // <KOMBIT><JFR>roleName<CVR>cvr<ISSUER>roleDomain</JFR></KOMBIT>
+
+                                        int cvrIdx = txt.IndexOf("<CVR>");
+                                        int issuerIdx = txt.IndexOf("<ISSUER>");
+
+                                        // pull out roleName
+                                        roleName = txt.Substring(0, cvrIdx);
+
+                                        // pull out cvr
+                                        cvr = txt.Substring(cvrIdx + 5, (issuerIdx - cvrIdx - 5));
+
+                                        // pull out roleDomain
+                                        roleDomain = txt.Substring(issuerIdx + 8);
+
+                                        if (roleDomain.Contains("</JFR></KOMBIT>"))
+                                        {
+                                            int idx = roleDomain.IndexOf("</JFR></KOMBIT>");
+                                            roleDomain = roleDomain.Substring(0, idx);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // expected formats
+                                        // <KOMBIT><JFR>roleName</JFR></KOMBIT>
+                                        // <KOMBIT><JFR>roleName
+
+                                        roleName = txt;
+                                        if (roleName.Contains("</JFR></KOMBIT>"))
+                                        {
+                                            int idx = roleName.IndexOf("</JFR></KOMBIT>");
+                                            roleName = roleName.Substring(0, idx);
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Warning(ex, "Failed to parse content of roleName attribute: " + roleName);
+                                }
+                            }
+
+                            if (string.IsNullOrEmpty(roleDomain))
+                            {
+                                roleDomain = defaultDomain;
+                            }
+
+                            if (string.IsNullOrEmpty(cvr))
+                            {
+                                cvr = defaultCvr;
+                            }
+
+                            // for some roles, the name or domain actually already contains the full identifier, so respect that.
+                            // this is used by a bunch of municipalies in their existing setup, so might as well allow it
                             string roleIdentifier = $"http://{roleDomain}/roles/jobrole/{roleName}/1";
+                            if (roleName.StartsWith("http://"))
+                            {
+                                roleIdentifier = roleName;
+                            }
+                            else if (roleDomain.StartsWith("http://"))
+                            {
+                                roleIdentifier = roleName;
+                            }
 
                             // convert AD group to role object
                             groups.Add(new JobFunctionsRole(dn, roleIdentifier, cvr));
@@ -348,28 +510,16 @@ namespace OS2faktorADSync
                 {
                     string filter;
 
-                    if (loadAllUsers)
+                    if (groupsInGroups)
                     {
-                        if (groupsInGroups)
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf=:1.2.840.113556.1.4.1941:" + group.DistinguishedName);
-                        }
-                        else
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf=" + group.DistinguishedName);
-                        }
+                        filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + group.DistinguishedName);
                     }
                     else
                     {
-                        if (groupsInGroups)
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf=:1.2.840.113556.1.4.1941:" + group.DistinguishedName, "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
-                        }
-                        else
-                        {
-                            filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf=" + group.DistinguishedName, "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
-                        }
+                        filter = CreateMembeshipFilter(propertyResolver.CprProperty + "=*", "memberOf=" + group.DistinguishedName);
                     }
+
+                    Logger.Debug("Searching for members using filter: " + filter);
 
                     using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                     {
@@ -438,6 +588,25 @@ namespace OS2faktorADSync
             return directoryEntry;
         }
 
+
+        [ComImport, Guid("9068270b-0939-11d1-8be1-00c04fd8d503"), InterfaceType(ComInterfaceType.InterfaceIsDual)]
+        internal interface IAdsLargeInteger
+        {
+            long HighPart
+            {
+                [SuppressUnmanagedCodeSecurity]
+                get; [SuppressUnmanagedCodeSecurity]
+                set;
+            }
+
+            long LowPart
+            {
+                [SuppressUnmanagedCodeSecurity]
+                get; [SuppressUnmanagedCodeSecurity]
+                set;
+            }
+        }
+
         private CoredataEntry CreateCoredataEntryFromAD(IDictionary properties)
         {
             string Guid = new Guid(properties.GetValue<System.Byte[]>(propertyResolver.ObjectGuidProperty, null)).ToString();
@@ -451,6 +620,43 @@ namespace OS2faktorADSync
             // Disabled logic
             var accountControlValue = properties.GetValue<Int32>(propertyResolver.UserAccountControlProperty, 0);
 
+            // AccountExpireProperty
+            string accountExpireDate = null;
+            try
+            {
+                if (properties is ResultPropertyCollection)
+                {
+                    ResultPropertyCollection rpc = (ResultPropertyCollection)properties;
+
+                    long largeInt = (long)rpc[propertyResolver.AccountExpireProperty][0];
+                    if (largeInt > 0 && largeInt < long.MaxValue)
+                    {
+                        var dateTime = DateTime.FromFileTimeUtc(largeInt);
+
+                        accountExpireDate = dateTime.ToString("yyyy-MM-dd");
+                    }
+                }
+                else if (properties is PropertyCollection)
+                {
+                    PropertyCollection pc = (PropertyCollection)properties;
+
+                    // expire
+                    var largeInt = (IAdsLargeInteger)pc[propertyResolver.AccountExpireProperty].Value;
+                    var datelong = (largeInt.HighPart << 32) + largeInt.LowPart;
+
+                    if (datelong > 0 && datelong < long.MaxValue)
+                    {
+                        var dateTime = DateTime.FromFileTimeUtc(datelong);
+
+                        accountExpireDate = dateTime.ToString("yyyy-MM-dd");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning("Unable to read accountExpire on: " + Name, ex);
+            }
+
             // Create entry
             var user = new CoredataEntry()
             {
@@ -462,8 +668,18 @@ namespace OS2faktorADSync
                 Attributes = new Dictionary<string, string>(),
                 Deleted = properties.GetValue<bool>(propertyResolver.DeletedProperty, false),
                 Disabled = ((accountControlValue & AccountDisable) == AccountDisable),
-                NSISAllowed = false
+                NSISAllowed = false,
+                ExpireTimestamp = accountExpireDate,
+                TransferToNemlogin = false,
+                Rid = properties.GetValue<string>(propertyResolver.RidProperty, null)
             };
+
+            // Fill out SubDomain if configured (not really needed for full load, but needed for delta)
+            string subDomain = Settings.GetStringValue("Backend.SubDomain");
+            if (!string.IsNullOrEmpty(subDomain))
+            {
+                user.SubDomain = subDomain;
+            }
 
             // Fill out attributes Map with fetched values from AD
             Dictionary<string, string> attributes = Settings.GetStringValues("ActiveDirectory.Attributes.");

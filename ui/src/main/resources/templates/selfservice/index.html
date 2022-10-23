@@ -34,35 +34,7 @@
 											<input type="text" class="form-control" disabled="disabled" th:value="${form.userId}"/>
 										</div>
 									</div>
-
-									<div class="hr-line-dashed"></div>
 									
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">
-											Status
-											<th:block th:if="${form.status == T(dk.digitalidentity.mvc.selfservice.dto.SelfServiceStatus).BLOCKED}">
-												<em class="fa fa-lg fa-exclamation-circle pull-right text-danger" data-html="true" data-toggle="popover" data-trigger="hover" data-placement="top" th:data-content="#{__${form.statusMessage}__}" aria-hidden="true"></em>
-											</th:block>
-										</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.status.message}__}"/>
-										</div>
-									</div>
-
-									<div class="hr-line-dashed"></div>
-
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">
-											Sikringsniveau
-											<th:block th:if="${@securityUtil.loggedInWithNsisSubstantial() == false}">
-												<em class="fa fa-lg fa-exclamation-triangle pull-right text-danger" data-html="true" data-toggle="popover" data-trigger="hover" data-placement="top" th:data-content="'Login til selvbetjening er gennemført med loginmidler der ikke er identitetssikrede, så selvbetjening kan alene foretages på den tilknyttede AD konto'" aria-hidden="true"></em>
-											</th:block>
-										</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.nsisLevel.message}__}"/>
-										</div>
-									</div>
-
 									<div class="hr-line-dashed"></div>
 
 									<div class="form-group row">
@@ -72,6 +44,16 @@
 										</div>
 									</div>
 
+									<div class="hr-line-dashed"></div>
+									
+									<div class="form-group row">
+										<label class="col-sm-2 col-form-label">
+											Status
+										</label>
+										<div class="col-sm-10">
+											<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.nsisStatus.message}__}"/>
+										</div>
+									</div>
 								</form>
 							</div>
 						</div>
@@ -103,8 +85,11 @@
 									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
 										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
 									</a>
-									<a href="/selvbetjening/yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
+									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
 										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+									</a>
+									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
+										<em class="fa fa-mobile"></em> &nbsp; Tilføj authenticator
 									</a>
 								</div>
 								
@@ -116,8 +101,11 @@
 									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg btn-block">
 										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
 									</a>
-									<a href="/selvbetjening/yubikey" class="btn btn-primary btn-lg btn-block">
+									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg btn-block">
 										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+									</a>
+									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg btn-block">
+										<em class="fa fa-mobile"></em> &nbsp; Tilføj authenticator
 									</a>
 								</div>
 							</div>
@@ -152,6 +140,9 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <div th:replace="fragments/school-data :: schoolData (schoolRoles = ${form.schoolRoles})" />
+                    
 	            </div>
 	        </div>
 
@@ -326,6 +317,28 @@
             });
             
 			loadMfaDevicesDataTable();
+			
+			$('#schoolDataTable').DataTable({
+				"bSort": false,
+				"paging": true,
+				"responsive": true,
+				'ordering': true,
+		        'order': [
+		        	[ 0, 'asc' ]
+		        ],
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ rækker)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
 
 			if (flashMessage != undefined) {
 				toastr.success(flashMessage);

@@ -76,7 +76,7 @@ namespace CreateSession
                         }
 
                         // Make configurable or remove (this is for self signed certificates)
-                        // ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
+                        //ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
                         // Create HttpClient and set RequestHeaders
                         Log.Verbose("Setting clientID to: " + clientID);
@@ -127,7 +127,27 @@ namespace CreateSession
                                             return;
                                         }
 
+                                        string[] vs = Registry.Users.GetSubKeyNames();
+                                        bool foundUserSubkey = false;
+                                        foreach (var Subkey in vs)
+                                        {
+                                            if (user.Sid.Value.Equals(Subkey))
+                                            {
+                                                foundUserSubkey = true;
+                                            }
+                                        }
+
+                                        if (!foundUserSubkey)
+                                        {
+                                            // User subkey not created yet.
+                                            // Sleep before running rest of program to give windows time to generate Subkey
+                                            Log.Warning("Sleeping. Waiting for User SubKey to be avaliable");
+                                            System.Threading.Thread.Sleep(30 * 1000);
+
+                                        }
+
                                         // Set Edge token
+                                        string edgeKeyPath = "";
                                         try
                                         {
                                             if (string.IsNullOrEmpty(EdgeBrowserExtensionId))
@@ -135,7 +155,7 @@ namespace CreateSession
                                                 throw new Exception("EdgeBrowserExtensionId was null or empty");
                                             }
 
-                                            string edgeKeyPath = user.Sid.Value + @"\Software\Policies\Microsoft\Edge\3rdparty\extensions\" + EdgeBrowserExtensionId + @"\policy";
+                                            edgeKeyPath = user.Sid.Value + @"\Software\Policies\Microsoft\Edge\3rdparty\extensions\" + EdgeBrowserExtensionId + @"\policy";
                                             RegistryKey edgeKey = Registry.Users.CreateSubKey(edgeKeyPath);
                                             edgeKey.SetValue("token", establishSessionUrl, RegistryValueKind.String);
                                             edgeKey.SetValue("timestamp", DateTime.Now, RegistryValueKind.String);
@@ -143,18 +163,19 @@ namespace CreateSession
                                         }
                                         catch (Exception ex)
                                         {
-                                            Log.Error(ex, "Could not set Token and Timestamp for EdgeExtension in registry");
+                                            Log.Error(ex, "Could not set Token and Timestamp for EdgeExtension in registry. KeyPath: " + edgeKeyPath);
                                         }
 
                                         // Set Chrome token
+                                        string chromeKeyPath = "";
                                         try
                                         {
                                             if (string.IsNullOrEmpty(ChromeBrowserExtensionId))
                                             {
-                                                throw new Exception("EdgeBrowserExtensionId was null or empty");
+                                                throw new Exception("ChromeBrowserExtensionId was null or empty");
                                             }
 
-                                            string chromeKeyPath = user.Sid.Value + @"\Software\Policies\Google\Chrome\3rdparty\extensions\" + ChromeBrowserExtensionId + @"\policy";
+                                            chromeKeyPath = user.Sid.Value + @"\Software\Policies\Google\Chrome\3rdparty\extensions\" + ChromeBrowserExtensionId + @"\policy";
                                             RegistryKey chromeKey = Registry.Users.CreateSubKey(chromeKeyPath);
                                             chromeKey.SetValue("token", establishSessionUrl, RegistryValueKind.String);
                                             chromeKey.SetValue("timestamp", DateTime.Now, RegistryValueKind.String);
@@ -162,7 +183,7 @@ namespace CreateSession
                                         }
                                         catch (Exception ex)
                                         {
-                                            Log.Error(ex, "Could not set Token and Timestamp for ChromeExtension in registry");
+                                            Log.Error(ex, "Could not set Token and Timestamp for ChromeExtension in registry. KeyPath: " + chromeKeyPath);
                                         }
                                     }
                                 }

@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>os2faktor-nsis-ui</artifactId>
 	<name>OS2faktor NSIS UI</name>
@@ -24,9 +23,9 @@
 				<configuration>
 					<layout>ZIP</layout>
 					<addResources>true</addResources>
-                                        <directories>
-                                                <directory>${basedir}/config</directory>
-                                        </directories>
+					<directories>
+						<directory>${basedir}/config</directory>
+					</directories>
 				</configuration>
 			</plugin>
 
@@ -38,6 +37,12 @@
 					<downloadSources>true</downloadSources>
 					<downloadJavadocs>true</downloadJavadocs>
 				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>pl.project13.maven</groupId>
+				<artifactId>git-commit-id-plugin</artifactId>
+				<version>2.2.1</version>
 			</plugin>
 		</plugins>
 
@@ -59,12 +64,13 @@
 	</profiles>
 
 	<dependencies>
+
 		<!-- on top to force correct versions for OpenSAML etc -->
-                <dependency>
-                        <groupId>dk.digitalidentity</groupId>
-                        <artifactId>saml-module</artifactId>
-                        <version>2.2.0</version>
-                </dependency>
+		<dependency>
+			<groupId>dk.digitalidentity</groupId>
+			<artifactId>saml-module</artifactId>
+			<version>2.3.12</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -87,39 +93,28 @@
 			<version>1.0.0</version>
 		</dependency>
 
-<!-- Waiting for version 2.5.0 to be released, so this bug can be fixed
-     https://github.com/spring-projects/spring-session/issues/1213
-		<dependency>
-			<groupId>org.springframework.session</groupId>
-			<artifactId>spring-session-jdbc</artifactId>
-		</dependency>
--->
+		<!-- Waiting for version 2.5.0 to be released, so this bug can be fixed 
+			https://github.com/spring-projects/spring-session/issues/1213 <dependency> 
+			<groupId>org.springframework.session</groupId> <artifactId>spring-session-jdbc</artifactId> 
+			</dependency> -->
 
 		<dependency>
 			<groupId>com.github.darrachequesne</groupId>
 			<artifactId>spring-data-jpa-datatables</artifactId>
-			<version>5.0.0</version>
+			<version>5.2.0</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi</artifactId>
 			<version>5.2.2</version>
 		</dependency>
 
-                <dependency>
-                        <groupId>org.apache.poi</groupId>
-                        <artifactId>poi-ooxml</artifactId>
-                        <version>5.2.2</version>
-<!--
-                        <exclusions>
-                                <exclusion>
-                                        <groupId>stax</groupId>
-                                        <artifactId>stax-api</artifactId>
-                                </exclusion>
-                        </exclusions>
--->
-                </dependency>
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>5.2.2</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -132,11 +127,24 @@
 			<artifactId>flying-saucer-core</artifactId>
 			<version>9.1.22</version>
 		</dependency>
-	
+
 		<dependency>
 			<groupId>org.xhtmlrenderer</groupId>
 			<artifactId>flying-saucer-pdf-itext5</artifactId>
 			<version>9.1.22</version>
+		</dependency>
+
+		<!-- cleanup bad HTML for email/pdf templates -->
+		<dependency>
+			<groupId>net.sourceforge.htmlcleaner</groupId>
+			<artifactId>htmlcleaner</artifactId>
+			<version>2.24</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>1.14.2</version>
 		</dependency>
 
 		<!-- Java 11 XML stuff -->
@@ -156,6 +164,12 @@
 			<groupId>com.sun.xml.bind</groupId>
 			<artifactId>jaxb-core</artifactId>
 			<version>2.3.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+			<artifactId>owasp-java-html-sanitizer</artifactId>
+			<version>20220608.1</version>
 		</dependency>
 	</dependencies>
 

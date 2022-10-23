@@ -2,6 +2,7 @@ package dk.digitalidentity.rest.admin;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,10 +21,13 @@ import java.util.stream.Collectors;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.criteria.ListJoin;
+import javax.persistence.criteria.Predicate;
 import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.Metamodel;
 import javax.validation.Valid;
 
+import dk.digitalidentity.common.dao.model.PersonAttribute;
+import dk.digitalidentity.common.service.PersonAttributeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
@@ -56,6 +60,7 @@ import dk.digitalidentity.common.dao.model.RadiusClientCondition;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.Supporter;
+import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RadiusClientConditionType;
@@ -83,6 +88,7 @@ import dk.digitalidentity.mvc.admin.dto.RadiusClientDTO;
 import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
+import dk.digitalidentity.mvc.selfservice.NSISStatus;
 import dk.digitalidentity.rest.admin.dto.AuditLogViewDTO;
 import dk.digitalidentity.rest.admin.dto.GroupDTO;
 import dk.digitalidentity.rest.admin.dto.LinkDTO;
@@ -97,6 +103,7 @@ import dk.digitalidentity.security.RequireRegistrant;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
+import dk.digitalidentity.service.EmailTemplateSenderService;
 import dk.digitalidentity.service.LinkService;
 import dk.digitalidentity.service.MetadataService;
 import lombok.extern.slf4j.Slf4j;
@@ -162,6 +169,12 @@ public class AdminRestController {
 
 	@Autowired
 	private GroupService groupService;
+
+	@Autowired
+	private PersonAttributeService personAttributeSetService;
+	
+	@Autowired
+	private EmailTemplateSenderService emailTemplateSenderService;
 	
 	@PersistenceContext
 	private EntityManager entityManager;
@@ -180,10 +193,10 @@ public class AdminRestController {
 
 			return error;
 		}
-		
+
+		Person loggedInPerson = personService.getById(securityUtil.getPersonId());
 		Specification<AuditLogView> auditLogSpec = null;
-		if (!securityUtil.isAdmin()) {
-			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
+		if (!securityUtil.isAdmin() && !(loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
 
 			// If we are filtering on domains (supporter role) we should show subdomains too.
 			ArrayList<Domain> domains = new ArrayList<>();
@@ -220,14 +233,15 @@ public class AdminRestController {
 		if (input != null && input.getColumns() != null && input.getColumns().get(3) != null && input.getColumns().get(3).getSearch() != null && input.getColumns().get(3).getSearch().getValue() != null && !input.getColumns().get(3).getSearch().getValue().equals("")) {
 			String searchTerm = input.getColumns().get(3).getSearch().getValue();
 
-			// show either full output or filter by domain if not admin
-			if (securityUtil.isAdmin()) {
+			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
+
+			// show either full output or filter by domain if not admin or supporter for all domains
+			if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
 				Specification<AuditLogView> auditLogByLogAction = getAuditLogByLogAction(searchTerm);
 				DataTablesOutput<AuditLogView> x = auditLogDatatableDao.findAll(input, null, auditLogByLogAction);
 				return convertAuditLogDataTablesModelToDTO(x, locale);
 			}
 			else {
-				Person loggedInPerson = personService.getById(securityUtil.getPersonId());
 
 				// if we are filtering on domains (supporter role) we should show subdomains too.
 				ArrayList<Domain> domains = new ArrayList<>();
@@ -245,12 +259,13 @@ public class AdminRestController {
 			}
 		}
 
-		// Show either full output or filter by domain if not admin
-		if (securityUtil.isAdmin()) {
+		Person loggedInPerson = personService.getById(securityUtil.getPersonId());
+
+		// Show either full output or filter by domain if not admin or supporter for all domains
+		if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
 			return convertAuditLogDataTablesModelToDTO(auditLogDatatableDao.findAll(input), locale);
 		}
 		else {
-			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
 
 			// If we are filtering on domains (supporter role) we should show subdomains too.
 			ArrayList<Domain> domains = new ArrayList<>();
@@ -297,45 +312,35 @@ public class AdminRestController {
 			return error;
 		}
 
-		// custom hack for searching for rendered danish text
-		if (input.getColumn("nsisLevel") != null && input.getColumn("nsisLevel").getSearch() != null) {
-			String nsisSearchValue = input.getColumn("nsisLevel").getSearch().getValue();
-			if (nsisSearchValue != null) {
-				nsisSearchValue = nsisSearchValue.toLowerCase();
-
-				if (nsisSearchValue.startsWith("b")) {
-					input.getColumn("nsisLevel").getSearch().setValue("SUBSTANTIAL");
+		Person loggedInPerson = personService.getById(securityUtil.getPersonId());
+		
+		// nsisStatus - lot of null checks and a check if we are searching on nsisStatus
+		if (input != null && input.getColumns() != null && input.getColumn("nsisAllowed") != null && input.getColumn("nsisAllowed").getSearch() != null && input.getColumn("nsisAllowed").getSearch().getValue() != null && !input.getColumn("nsisAllowed").getSearch().getValue().equals("")) {
+			String searchTerm = input.getColumn("nsisAllowed").getSearch().getValue();
+			List<NSISStatus> searchList = Arrays.asList(searchTerm.split(",")).stream().map(s -> NSISStatus.valueOf(s)).collect(Collectors.toList());
+			
+			// Show either full output or filter by domain if not admin or supporter for all domains
+			if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
+				Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, null);
+				return personDatatableDao.findAll(input, null, byNsisStatus);
+			}
+			else {
+				if (loggedInPerson.isSupporter()) {
+					Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, loggedInPerson.getSupporter().getDomain().getName());
+					return personDatatableDao.findAll(input, byNsisStatus);
 				}
-				else if (nsisSearchValue.startsWith("l")) {
-					input.getColumn("nsisLevel").getSearch().setValue("LOW");
-				}
-				else if (nsisSearchValue.startsWith("i")) {
-					input.getColumn("nsisLevel").getSearch().setValue("NONE");
+				else {
+					Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, loggedInPerson.getTopLevelDomain().getName());
+					return personDatatableDao.findAll(input, byNsisStatus);
 				}
 			}
 		}
 
-		// custom hack for searching for rendered danish text
-		if (input.getColumn("locked") != null && input.getColumn("locked").getSearch() != null) {
-			String lockedSearchValue = input.getColumn("locked").getSearch().getValue();
-			if (lockedSearchValue != null) {
-				lockedSearchValue = lockedSearchValue.toLowerCase();
-
-				if (lockedSearchValue.startsWith("s")) {
-					input.getColumn("locked").getSearch().setValue("1");
-				}
-				else if (lockedSearchValue.startsWith("a")) {
-					input.getColumn("locked").getSearch().setValue("0");
-				}
-			}
-		}
-
-		// Show either full output or filter by domain if not admin
-		if (securityUtil.isAdmin()) {
+		// Show either full output or filter by domain if not admin or supporter for all domains
+		if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
 			return personDatatableDao.findAll(input);
 		}
 		else {
-			Person loggedInPerson = personService.getById(securityUtil.getPersonId());
 			if (loggedInPerson.isSupporter()) {
 				return personDatatableDao.findAll(input, getPersonByDomain(loggedInPerson.getSupporter().getDomain().getName()));
 			}
@@ -343,6 +348,95 @@ public class AdminRestController {
 				return personDatatableDao.findAll(input, getPersonByDomain(loggedInPerson.getTopLevelDomain().getName()));
 			}
 		}
+	}
+	
+	private Specification<AdminPersonView> getByNsisStatusAndDomain (List<NSISStatus> statuses, String domain) {
+		Specification<AdminPersonView> specification = (root, query, criteriaBuilder) -> {
+			
+			Predicate finalPredicate = null;
+			if (statuses.contains(NSISStatus.LOCKED_BY_EXPIRE)) {
+				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
+				Predicate currentPredicate = criteriaBuilder.equal(root.get("lockedExpired"), true);
+				finalPredicate = criteriaBuilder.and(lockedPredicate, currentPredicate);
+			}
+			if (statuses.contains(NSISStatus.LOCKED_BY_MUNICIPALITY)) {
+				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
+				Predicate lockedAdminPredicate = criteriaBuilder.equal(root.get("lockedAdmin"), true);
+				Predicate lockedDatasetPredicate = criteriaBuilder.equal(root.get("lockedDataset"), true);
+				Predicate orPredicate = criteriaBuilder.or(lockedAdminPredicate, lockedDatasetPredicate);
+				Predicate andPredicate = criteriaBuilder.and(lockedPredicate, orPredicate);
+				
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			if (statuses.contains(NSISStatus.LOCKED_BY_SELF)) {
+				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
+				Predicate lockedPersonPredicate = criteriaBuilder.equal(root.get("lockedPerson"), true);
+				Predicate lockedPasswordPredicate = criteriaBuilder.equal(root.get("lockedPassword"), true);
+				Predicate orPredicate = criteriaBuilder.or(lockedPersonPredicate, lockedPasswordPredicate);
+				Predicate andPredicate = criteriaBuilder.and(lockedPredicate, orPredicate);
+				
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			if (statuses.contains(NSISStatus.LOCKED_BY_STATUS)) {
+				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
+				Predicate currentPredicate = criteriaBuilder.equal(root.get("lockedCivilState"), true);
+				Predicate andPredicate = criteriaBuilder.and(lockedPredicate, currentPredicate);
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			if (statuses.contains(NSISStatus.NOT_ACTIVATED)) {
+				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
+				Predicate nsisAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), true);
+				Predicate nsisLevelPredicate = criteriaBuilder.equal(root.get("nsisLevel"), NSISLevel.NONE);
+				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisAllowedPredicate, nsisLevelPredicate);
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			if (statuses.contains(NSISStatus.ACTIVE)) {
+				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
+				Predicate nsisAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), true);
+				Predicate nsisLevelPredicate = criteriaBuilder.notEqual(root.get("nsisLevel"), NSISLevel.NONE);
+				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisAllowedPredicate, nsisLevelPredicate);
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			if (statuses.contains(NSISStatus.NOT_ISSUED)) {
+				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
+				Predicate nsisNotAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), false);
+				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisNotAllowedPredicate);
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				} else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			
+			if (domain != null && finalPredicate != null) {
+				Predicate domainPredicate = criteriaBuilder.equal(root.get("domain"), domain);
+				finalPredicate = criteriaBuilder.and(finalPredicate, domainPredicate);
+			}
+
+			return finalPredicate;
+	    };
+
+	    return specification;
 	}
 
 	private Specification<AdminPersonView> getPersonByDomain(String domain) {
@@ -364,10 +458,12 @@ public class AdminRestController {
 		}
 
 		person.setLockedAdmin(lock);
-
+		
 		if (suspend) {
 			personService.suspend(person);
 		}
+		
+		sendEmails(lock, suspend, person);
 
 		personService.save(person);
 
@@ -379,6 +475,21 @@ public class AdminRestController {
 		}
 
 		return new ResponseEntity<>(HttpStatus.OK);
+	}
+
+	private void sendEmails(boolean lock, boolean suspend, Person person) {
+		if (lock) {
+			if (suspend) {
+				emailTemplateSenderService.send(EmailTemplateType.PERSON_SUSPENDED, person);
+			}
+			else {
+				emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED, person);
+			}
+		}
+
+		if (!lock && person.isNsisAllowed()) {
+			emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATION_REPEALED, person);
+		}
 	}
 
 	@RequireSupporter
@@ -418,14 +529,17 @@ public class AdminRestController {
 				break;
 			case Constants.ROLE_SUPPORTER:
 				if (body.isState()) {
-					Domain domain = domainService.getById(body.getDomainId());
-					if (domain == null) {
-						return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-					}
+					Domain domain = null;
+					if (body.getDomainId() != -1) {
+						domain = domainService.getById(body.getDomainId());
+						if (domain == null) {
+							return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+						}
 
-					// Check if domain is a sub-domain since you can only be supporter of an entire domain not just subdomains
-					if (domain.getParent() != null) {
-						return new ResponseEntity<>(HttpStatus.NOT_ACCEPTABLE);
+						// Check if domain is a sub-domain since you can only be supporter of an entire domain not just subdomains
+						if (domain.getParent() != null) {
+							return new ResponseEntity<>(HttpStatus.NOT_ACCEPTABLE);
+						}
 					}
 
 					person.setSupporter(new Supporter(domain));
@@ -438,6 +552,10 @@ public class AdminRestController {
 				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_SUPPORTER, body.isState());
 				break;
 			case Constants.ROLE_REGISTRANT:
+				// simple extra check to ensure this role cannot be assigned (should not actually be shown in UI ;))
+				if (!commonConfiguration.getCustomer().isEnableRegistrant()) {
+					break;
+				}
 				person.setRegistrant(body.isState());
 				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_REGISTRANT, body.isState());
 				personService.save(person);
@@ -693,13 +811,18 @@ public class AdminRestController {
 	public ResponseEntity<String> newLink(@RequestBody LinkDTO linkDTO) {
 		Domain domain = domainService.getById(linkDTO.getDomainId());
 		if (domain == null || !StringUtils.hasLength(linkDTO.getText()) || !StringUtils.hasLength(linkDTO.getLink())) {
-			return new ResponseEntity<>("Alle felter skal være udfyldt", HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<>("Link tekst, link adresse og domæne skal være udfyldt", HttpStatus.BAD_REQUEST);
 		}
-		
+
+		if (linkDTO.getDescription() != null && linkDTO.getDescription().length() > 254) {
+			linkDTO.setDescription(linkDTO.getDescription().substring(0, 250) + "...");
+		}
+
 		Link link = new Link();
 		link.setLink(linkDTO.getLink());
 		link.setLinkText(linkDTO.getText());
 		link.setDomain(domain);
+		link.setDescription(linkDTO.getDescription());
 
 		linkService.save(link);
 
@@ -764,7 +887,7 @@ public class AdminRestController {
 	@RequireServiceProviderAdmin
 	@PostMapping("/admin/konfiguration/tjenesteudbydere/{id}/reload")
 	@ResponseBody
-	public ResponseEntity<?> reloadMetadata(@PathVariable("id") long serviceProviderId) {
+	public ResponseEntity<?> reloadMetadata(@PathVariable("id") String serviceProviderId) {
 		try {
 			boolean result = metadataService.setManualReload(serviceProviderId);
 
@@ -810,6 +933,7 @@ public class AdminRestController {
 		
 		radiusClient.setName(radiusClientDTO.getName());
 		radiusClient.setIpAddress(radiusClientDTO.getIpAddress());
+		radiusClient.setNsisLevelRequired(radiusClientDTO.getNsisLevelRequired());
 
 		// Handle conditions
 		Set<RadiusClientCondition> conditions = radiusClient.getConditions();
@@ -995,7 +1119,27 @@ public class AdminRestController {
 		// Don't filter by domain because admin
 		return personDatatableDao.findAll(input, getPersonByGroup(id));
 	}
-	
+
+	@RequireServiceProviderAdmin
+	@PostMapping("admin/konfiguration/person/attributes/{id}/setDisplayName")
+	public ResponseEntity<?> setPersonAttributeDisplayName(@PathVariable long id, @RequestBody NameDTO name) {
+		PersonAttribute personAttribute = personAttributeSetService.getById(id);
+		if (personAttribute == null) {
+			return ResponseEntity.badRequest().body("Kunne ikke finde attribut");
+		}
+
+		if (StringUtils.hasLength(name.getName())) {
+			personAttribute.setDisplayName(name.getName());
+		}
+		else {
+			personAttribute.setDisplayName(null);
+		}
+		
+		personAttributeSetService.save(personAttribute);
+
+		return ResponseEntity.ok().build();
+	}
+
 	private Specification<AdminPersonView> getPersonByGroup(long groupId) {
 		//SELECT p.* FROM view_person_admin_identities p JOIN view_persons_groups pg ON pg.person_id = p.id WHERE pg.group_id = ?;
 		Specification<AdminPersonView> specification = null;

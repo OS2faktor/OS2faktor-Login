@@ -69,12 +69,13 @@ public class ErrorHandlingService {
 					referer = refererHeader;
 				}
 			}
-	
+
 			StringBuilder sb = new StringBuilder();
 			sb.append("Person: '").append(personId).append("'\n");
 			sb.append("Location: '").append(location).append("'\n");
 			sb.append("Referer: '").append(referer).append("'\n");
 			sb.append("Message: '").append(message).append("'\n");
+			sb.append("IP: '").append(getIpAddress(request)).append("'\n");
 			sb.append("Session: \n").append(sessionHelper.serializeSessionAsString());
 			
 			log.warn(sb.toString());
@@ -82,5 +83,18 @@ public class ErrorHandlingService {
 		catch (Exception ex) {
 			log.error("Failed to log a warning for location = " + location + ", message = " + message, ex);
 		}
+	}
+	
+	private static String getIpAddress(HttpServletRequest request) {
+		String remoteAddr = "";
+
+		if (request != null) {
+			remoteAddr = request.getHeader("X-FORWARDED-FOR");
+			if (remoteAddr == null || "".equals(remoteAddr)) {
+				remoteAddr = request.getRemoteAddr();
+			}
+		}
+
+		return remoteAddr;
 	}
 }

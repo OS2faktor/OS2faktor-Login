@@ -1,7 +1,7 @@
 package dk.digitalidentity.service;
 
-import dk.digitalidentity.util.ResponderException;
 import java.util.List;
+
 import javax.servlet.http.HttpServletRequest;
 
 import org.opensaml.messaging.context.MessageContext;
@@ -14,9 +14,12 @@ import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
+@Slf4j
 @Service
 public class AuthnRequestService {
 
@@ -37,13 +40,43 @@ public class AuthnRequestService {
 
 			return msgContext;
 		}
-		catch (ComponentInitializationException e) {
-			throw new ResponderException("Kunne ikke initialisere afkoder", e);
+		catch (ComponentInitializationException ex) {
+			throw new ResponderException("Kunne ikke initialisere afkoder", ex);
 		}
-		catch (MessageDecodingException e) {
+		catch (MessageDecodingException ex) {
 			String referer = request.getHeader("referer");
 			String method = request.getMethod();
-			throw new RequesterException("Kunne ikke afkode " + method + " forespørgsel fra: " + referer, e);
+			throw new RequesterException("Kunne ikke afkode " + method + " forespørgsel fra: " + referer, ex);
+		}
+
+		// TODO: remove this once we know why the XMLParserException gets here
+		catch (Exception ex) {
+
+			try {
+				String authnRequest = "";
+				String queryString = request.getQueryString();
+
+				if (queryString != null) {
+					String[] encodedParameters = queryString.split("&");
+
+					for (String param : encodedParameters) {
+						String[] keyValuePair = param.split("=");
+
+						// Find RedirectUrl if present, otherwise set empty string
+						if ("SAMLRequest".equalsIgnoreCase(keyValuePair[0])) {
+							authnRequest = keyValuePair[1];
+						}
+					}
+				}
+				
+				log.error("authnRequest was '" + authnRequest + "'");
+			}
+			catch (Exception ex2) {
+				log.error("Hmmm...", ex2);
+				;
+			}
+
+			throw new RequesterException("Kunne ikke deserializere authnRequestet - formatet var ugyldigt", ex);
 		}
 	}
 

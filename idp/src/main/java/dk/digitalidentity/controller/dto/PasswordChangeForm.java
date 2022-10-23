@@ -12,6 +12,7 @@ import lombok.Setter;
 public class PasswordChangeForm implements Serializable {
 	private static final long serialVersionUID = -286544720952319815L;
 
+	private String oldPassword;
 	private String password;
 	private String confirmPassword;
 }

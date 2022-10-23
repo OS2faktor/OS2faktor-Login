@@ -42,6 +42,8 @@ LONG GetStringRegKey(
     _In_ const std::wstring& strDefaultValue
     );
 
+LONG GetBoolRegKey(_In_ HKEY hKey, _In_ const std::wstring& strValueName, _Out_ bool& boolValue, _In_ const bool& boolDefaultValue);
+
 //makes a copy of a field descriptor using CoTaskMemAlloc
 HRESULT FieldDescriptorCoAllocCopy(
     _In_ const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR &rcpfd,

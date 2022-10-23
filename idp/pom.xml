@@ -62,7 +62,7 @@
 		<dependency>
 			<groupId>dk.digitalidentity</groupId>
 			<artifactId>saml-module</artifactId>
-			<version>2.2.0</version>
+			<version>2.3.12</version>
 		</dependency>
 
 		<dependency>
@@ -85,14 +85,10 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-<!-- Waiting for version 2.5.0 to be released, so this bug can be fixed
-     https://github.com/spring-projects/spring-session/issues/1213
-
 		<dependency>
 			<groupId>org.springframework.session</groupId>
 			<artifactId>spring-session-jdbc</artifactId>
 		</dependency>
--->
 
 		<dependency>
 			<groupId>org.flywaydb</groupId>

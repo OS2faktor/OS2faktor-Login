@@ -8,6 +8,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.thymeleaf.TemplateEngine;
@@ -43,26 +44,24 @@ public class EboksService {
 
 		log.info("Sending e-boks message: '" + subject + "' to " + PersonService.maskCpr(cpr));
 
-		String resourceUrl = configuration.getEboks().getUrl();
-		if (!resourceUrl.endsWith("/")) {
-			resourceUrl += "/";
+		if (!StringUtils.hasLength(configuration.getEboks().getSenderName())) {
+			log.error("Bad configuration: missing senderName");
+			return false;
 		}
-		resourceUrl += "api/remotePrint/SendLetterToCpr";
 
 		try {
 			EboksMessage eBoks = new EboksMessage();
-			eBoks.setContentTypeId(configuration.getEboks().getMaterialeId());
 			eBoks.setCpr(cpr);
 			eBoks.setCvr(common.getCustomer().getCvr());
-			eBoks.setSenderId(configuration.getEboks().getSenderId());
 			eBoks.setSubject(subject);
-			eBoks.setPdfFileBase64(Base64.getEncoder().encodeToString(generatePDF(subject, message)));
+			eBoks.setContent(Base64.getEncoder().encodeToString(generatePDF(subject, message)));
+			eBoks.setMunicipalityName(configuration.getEboks().getSenderName());
 
 			HttpHeaders headers = new HttpHeaders();
 			headers.add("Content-Type", "application/json");
 			HttpEntity<EboksMessage> request = new HttpEntity<EboksMessage>(eBoks, headers);
 
-			ResponseEntity<String> response = restTemplate.postForEntity(resourceUrl, request, String.class);
+			ResponseEntity<String> response = restTemplate.postForEntity(configuration.getEboks().getUrl(), request, String.class);
 			
 			if (response.getStatusCodeValue() != 200) {
 				log.error("Failed to send e-boks message to: " + PersonService.maskCpr(cpr) + ". HTTP: " + response.getStatusCodeValue());

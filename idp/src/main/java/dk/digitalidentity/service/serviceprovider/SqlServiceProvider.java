@@ -29,6 +29,7 @@ import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
+import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
@@ -80,37 +81,9 @@ public class SqlServiceProvider extends ServiceProvider {
 
     @Override
     public String getNameId(Person person) throws ResponderException {
-        String requiredField = config.getNameIdValue();
-
-        String result = null;
-        switch (requiredField) {
-            case "userId":
-                result = person.getUserId();
-                break;
-            case "sAMAccountName":
-                result = person.getSamaccountName();
-                break;
-            case "uuid":
-                result = person.getUuid();
-                break;
-            case "cpr":
-                result = person.getCpr();
-                break;
-            case "name":
-            	result = person.getName();
-            	break;
-            case "alias":
-            	result = person.getNameAlias();
-            	break;
-            default:
-                if (person.getAttributes() != null) {
-                    result = person.getAttributes().get(requiredField);
-                }
-                break;
-        }
-
+        String result = lookupField(person, config.getNameIdValue());
         if (result == null) {
-            throw new ResponderException("Brugeren har ikke det krævede 'Name ID' felt (" + requiredField + ") i databasen");
+            throw new ResponderException("Brugeren har ikke det krævede 'Name ID' felt (" + config.getNameIdValue() + ") i databasen");
         }
 
         return result;
@@ -193,56 +166,7 @@ public class SqlServiceProvider extends ServiceProvider {
         // Person specific fields
         Set<SqlServiceProviderRequiredField> requiredFields = config.getRequiredFields();
         for (SqlServiceProviderRequiredField requiredField : requiredFields) {
-            Object attribute = null;
-
-            // TODO: denne del kan vi fjerne, det er erstattet af ovenstående (men check evt lige Rebilds installation...)
-            if (requiredField.getPersonField().startsWith("os2rollekatalog")) {
-            	String[] tokens = requiredField.getPersonField().split("\\|");
-
-            	if (tokens.length != 3) {
-            		log.error("Invalid configuration: " + requiredField.getPersonField());
-            		continue;
-            	}
-            	else {
-            		switch (tokens[1]) {
-            			case "systemroles":
-            				List<String> systemRoles = roleCatalogueService.getSystemRoles(person, tokens[2]);
-            				if (systemRoles != null && systemRoles.size() > 0) {
-            					attribute = systemRoles;
-            				}
-            				break;
-        				default:
-        					log.error("invalid lookup parameter: " + tokens[1]);
-        					continue;
-            		}
-            	}
-            }
-            else {
-	            switch (requiredField.getPersonField()) {
-	                case "userId":
-	                    attribute = person.getUserId();
-	                    break;
-	                case "sAMAccountName":
-	                    attribute = person.getSamaccountName();
-	                    break;
-	                case "uuid":
-	                    attribute = person.getUuid();
-	                    break;
-	                case "cpr":
-	                    attribute = person.getCpr();
-	                    break;
-	                case "name":
-	                	attribute = person.getName();
-	                	break;
-	                case "alias":
-	                	attribute = person.getNameAlias();
-	                	break;
-	                default:
-	                    if (person.getAttributes() != null) {
-	                        attribute = person.getAttributes().get(requiredField.getPersonField());
-	                    }
-	            }
-            }
+            String attribute = lookupField(person, requiredField.getPersonField());
 
             if (attribute != null) {
                 attributes.put(requiredField.getAttributeName(), attribute);
@@ -252,6 +176,74 @@ public class SqlServiceProvider extends ServiceProvider {
         return attributes;
     }
 
+	private String lookupField(Person person, String personField) {
+		String attribute = null;
+		
+        switch (personField) {
+            case "userId":
+            case "sAMAccountName": // TODO: this is deprecated, but we are keeping it to support existing SPs setup with this value until they are migrated
+                attribute = PersonService.getUsername(person);
+                break;
+            case "uuid":
+                attribute = person.getUuid();
+                break;
+            case "cpr":
+                attribute = person.getCpr();
+                break;
+            case "name":
+            	attribute = person.getName();
+            	break;
+            case "alias":
+            	attribute = person.getNameAlias();
+            	break;
+            case "email":
+            	attribute = person.getEmail();
+            	break;
+            case "firstname":
+            	try {
+            		int idx = person.getName().lastIndexOf(' ');
+            		
+            		if (idx > 0) {
+            			attribute = person.getName().substring(0, idx);
+            		}
+            		else {
+            			attribute = person.getName();
+            		}
+            	}
+            	catch (Exception ex) {
+            		log.error("Failed to parse name on " + person.getId(), ex);
+            		attribute = person.getName();
+            	}
+            	break;
+            case "lastname":
+            	try {
+            		int idx = person.getName().lastIndexOf(' ');
+            		
+            		if (idx > 0) {
+            			attribute = person.getName().substring(idx + 1);
+            		}
+            		else {
+            			attribute = person.getName();
+            		}
+            	}
+            	catch (Exception ex) {
+            		log.error("Failed to parse name on " + person.getId(), ex);
+            		attribute = person.getName();
+            	}
+            	break;
+            default:
+                if (person.getAttributes() != null) {
+                    attribute = person.getAttributes().get(personField);
+                }
+        }
+        
+        return attribute;
+	}
+
+	public Set<SqlServiceProviderRequiredField> getRequiredFields() {
+		return this.config.getRequiredFields();
+	}
+
     @Override
     public boolean mfaRequired(AuthnRequest authnRequest) {
         switch (config.getForceMfaRequired()) {
@@ -260,18 +252,13 @@ public class SqlServiceProvider extends ServiceProvider {
             case NEVER:
                 return false;
             case DEPENDS:
-                RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
-                if (requestedAuthnContext != null) {
-                    for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
-                        if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                            return true;
-                        }
-
-                        if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                            return false;
-                        }
-                    }
-                }
+            	switch (nsisLevelRequired(authnRequest)) {
+            		case HIGH:
+	            	case SUBSTANTIAL:
+	            		return true;
+            		default:
+            			return false;
+            	}
         }
 
         return false;
@@ -279,7 +266,7 @@ public class SqlServiceProvider extends ServiceProvider {
 
     @Override
     public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
-    	// Get AuthnRequest supplied level
+    	// get AuthnRequest supplied level
         NSISLevel requestedLevel = NSISLevel.NONE;
         RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
@@ -296,19 +283,18 @@ public class SqlServiceProvider extends ServiceProvider {
             }
         }
 
-        // Get configured nsis level
+        // get configured level
         NSISLevel configuredLevel = NSISLevel.NONE;
         if (config.getNsisLevelRequired() != null) {
             configuredLevel = config.getNsisLevelRequired();
         }
 
-        // Return the max of configuredLevel and requestedLevel
+        // return the max of configuredLevel and requestedLevel
         ArrayList<NSISLevel> levels = new ArrayList<>();
         levels.add(requestedLevel);
         levels.add(configuredLevel);
 
-        NSISLevel requiredNsisLevel = Collections.max(levels, Comparator.comparingInt(NSISLevel::getLevel));
-        return requiredNsisLevel;
+        return Collections.max(levels, Comparator.comparingInt(NSISLevel::getLevel));
     }
 
     @Override
@@ -316,7 +302,12 @@ public class SqlServiceProvider extends ServiceProvider {
         return config.isPreferNemid();
     }
 
-    @Override
+	@Override
+	public boolean nemLogInBrokerEnabled() {
+		return config.isNemLogInBrokerEnabled();
+	}
+
+	@Override
     public String getEntityId() {
         return config.getEntityId();
     }
@@ -405,5 +396,16 @@ public class SqlServiceProvider extends ServiceProvider {
 	public void reloadMetadata() {
 		// this will cause the metadata to be refreshed on the next request
 		this.resolver = null;
+	}
+
+	@Override
+	public boolean supportsNsisLoaClaim() {
+		// TODO: extract into configuration
+		return true;
+	}
+	
+	@Override
+	public boolean preferNIST() {
+		return config.isPreferNIST();
 	}
 }

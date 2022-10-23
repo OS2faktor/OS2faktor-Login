@@ -1,0 +1,1 @@
+ALTER TABLE password_change_queue ADD COLUMN externally_replicated BOOLEAN NOT NULL DEFAULT FALSE;

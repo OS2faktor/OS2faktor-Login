@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = true)"></head>
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown" style="max-width: 1500px;">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-check-square-o"></em> &nbsp; Vælg information</h5>
+                </div>
+
+                <div class="ibox-content">
+                    <form id="loginForm" method="POST" th:action="@{/sso/saml/claims/completed}">
+                        <div>
+                            <p th:utext="${@cmsMessageBundle.getText('cms.login.selectClaims.content.top')}">
+                            </p>
+                            <hr>
+                        </div>
+
+                        <div class="radioButtonSet" th:each="claim : ${selectableClaims.entrySet()}">
+                            <div>
+                                <h4 th:text="${claim.value.displayName}"></h4>
+                            </div>
+                            <div th:each="claimValue : ${claim.value.acceptedValues}">
+                                <label class="col-sm-12 col-form-label">
+                                    <input class="i-checks" type="radio" th:value="${claimValue}" th:name="${claim.key}" required>
+                                    &nbsp;
+                                    <th:block th:text="${claimValue}"></th:block>
+                                </label>
+                               
+                            </div>
+                            <div class="hr-line-dashed"></div>
+                        </div>
+
+                        <div>
+                            <button class="btn btn-block btn-primary">
+                                Fortsæt login
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts (checkbox = true)"></div>
+</body>
+
+<script th:inline="javascript">
+	/*<![CDATA[*/
+
+		/*[+
+		+]*/
+		var token = $("meta[name='_csrf']").attr("content");
+
+        var claimService;
+		$(document).ready(function() {
+            claimService = new ClaimService();
+            claimService.init();
+		});
+
+        function ClaimService() {
+            this.init = function() {
+                // Select the first element of each radiobutton group by default
+                var radioGroups = $(".radioButtonSet");
+                for (let i = 0; i < radioGroups.length; i++) {
+                    $(radioGroups[i]).find("input:radio:first").iCheck('check');
+                }
+            }
+        }
+
+		/*]]>*/
+	</script>
+</html>

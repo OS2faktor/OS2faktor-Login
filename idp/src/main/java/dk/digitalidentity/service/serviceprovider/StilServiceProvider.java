@@ -147,6 +147,11 @@ public class StilServiceProvider extends ServiceProvider {
 	}
 
 	@Override
+	public boolean nemLogInBrokerEnabled() {
+		return false;
+	}
+
+	@Override
 	public String getEntityId() {
 		return stilConfig.getEntityId();
 	}
@@ -183,5 +188,15 @@ public class StilServiceProvider extends ServiceProvider {
 	@Override
 	public String getProtocol() {
 		return stilConfig.getProtocol();
+	}
+
+	@Override
+	public boolean supportsNsisLoaClaim() {
+		return false;
+	}
+	
+	@Override
+	public boolean preferNIST() {
+		return stilConfig.preferNIST();
 	}
 }

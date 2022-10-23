@@ -2,6 +2,8 @@ package dk.digitalidentity.mvc.admin;
 
 import java.time.LocalDateTime;
 
+import org.owasp.html.HtmlPolicyBuilder;
+import org.owasp.html.PolicyFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,9 +15,9 @@ import dk.digitalidentity.common.dao.model.CmsMessage;
 import dk.digitalidentity.common.service.CmsMessageBundle;
 import dk.digitalidentity.common.service.CmsMessageService;
 import dk.digitalidentity.mvc.admin.dto.CmsMessageDTO;
-import dk.digitalidentity.security.RequireAnyAdminRole;
+import dk.digitalidentity.security.RequireAdministrator;
 
-@RequireAnyAdminRole
+@RequireAdministrator
 @Controller
 public class CmsMessageController {
 	
@@ -56,13 +58,23 @@ public class CmsMessageController {
 			return "admin/cms-edit";
 		}
 		
+		PolicyFactory policy = new HtmlPolicyBuilder()
+				.allowCommonBlockElements()
+				.allowCommonInlineFormattingElements()
+				.allowElements("a")
+				.allowUrlProtocols("https")
+				.allowAttributes("href", "target").onElements("a")
+				.allowAttributes("class", "style", "id", "name").globally()
+				.toFactory();
+		String safeHTML = policy.sanitize(cmsMessageDTO.getValue());
+		
 		CmsMessage cms = cmsMessageService.getByCmsKey(cmsMessageDTO.getKey());
 		if (cms == null) {
 			cms = new CmsMessage();
 			cms.setCmsKey(cmsMessageDTO.getKey());
 		}
 
-		cms.setCmsValue(cmsMessageDTO.getValue());
+		cms.setCmsValue(safeHTML);
 		cms.setLastUpdated(LocalDateTime.now());
 		cmsMessageService.save(cms);
 

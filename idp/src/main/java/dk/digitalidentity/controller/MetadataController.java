@@ -107,7 +107,7 @@ public class MetadataController {
 	private EntityDescriptor createEntityDescriptor() {
 		EntityDescriptor entityDescriptor = samlHelper.buildSAMLObject(EntityDescriptor.class);
 		entityDescriptor.setEntityID(configuration.getEntityId());
-		entityDescriptor.setID(UUID.nameUUIDFromBytes(configuration.getEntityId().getBytes()).toString());
+		entityDescriptor.setID("_" + UUID.nameUUIDFromBytes(configuration.getEntityId().getBytes()).toString());
 
 		return entityDescriptor;
 	}

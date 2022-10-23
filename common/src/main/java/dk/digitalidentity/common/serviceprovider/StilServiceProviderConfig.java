@@ -59,6 +59,11 @@ public class StilServiceProviderConfig implements ServiceProviderConfig {
     }
 
     @Override
+    public boolean nemLogInBrokerEnabled() {
+        return false;
+    }
+
+    @Override
     public boolean encryptAssertions() {
         return config.getStil().isEncryptAssertion();
     }
@@ -79,5 +84,10 @@ public class StilServiceProviderConfig implements ServiceProviderConfig {
 
             return builder.toString();
         }
+    }
+    
+    @Override
+    public boolean preferNIST() {
+        return false;
     }
 }

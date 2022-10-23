@@ -6,7 +6,7 @@
 
     <div style="max-width: 1500px; margin: 0px auto; padding: 20px;">
         <div class="row">
-			<div class="col-lg-12 d-none d-xl-block" style="margin-bottom: 100px;">&nbsp;</div>
+			<div class="col-lg-12 d-none d-xl-block" style="margin-bottom: 40px;">&nbsp;</div>
 
             <div th:if="${reason} != null" id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10">
                 <div class="panel panel-info" style="height: 100%;">
@@ -26,6 +26,19 @@
                         </th:block>
                         <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).DEDICATED_ACTIVATE_ACCOUNT}">
 							<span th:utext="${@cmsMessageBundle.getText('cms.activate.dedicated')}" />
+                        </th:block>
+                        
+                        <th:block th:if="${errCode != null && errCode != '' && errCode != 'PERSON'}">
+                        	<div class="panel panel-danger mb-0 mt-5">
+	                        	<div class="panel-heading">Fejlbesked</div>
+	                        	<th:block th:switch="${errCode}">
+	                        		<div class="panel-body" th:case="'SUBSTANTIAL'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID eller evt et NemID hvor pas-scanningen er gennemført.</div>
+	                        		<div class="panel-body" th:case="'MFA'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend NemID eller MitID for at opnå det nødvendige sikringsniveau.</div>
+	                        		<div class="panel-body" th:case="'GROUP'">Adgangen til den ønskede funktion er blokeret for den valgte brugerkonto. Forsøg med en anden brugerkonto, eller kontakt din it-afdeling for at få adgangen til funktionen.</div>
+	                        		<div class="panel-body" th:case="'LIMIT'">Adgangen til den ønskede funktion er begrænset til et bestemt antal forsøg per dag. Forsøg igen i morgen, eller kontakt din it-afdeling for at få adgang til funktionen.</div>
+	                        		<div class="panel-body" th:case="'*'">Adgangen til den ønskede funktion blev blokeret. Forsøg igen med en anden loginmetode eller en anden brugerkonto.</div>
+	                        	</th:block>
+                        	</div>
                         </th:block>
                     </div>
                 </div>

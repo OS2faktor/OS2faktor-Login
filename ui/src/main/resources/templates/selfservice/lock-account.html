@@ -1,46 +1,48 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header" />
+<head th:replace="fragments/header :: header"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.lock-account')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.lock-account')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-user"></em> &nbsp; Spær brugerkonto</h5>
+								<h5><em class="fa fa-user"></em> &nbsp; Lås erhvervsidentitet</h5>
 							</div>
 
 							<div class="ibox-content">
 								<form id="deactivateForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/spaerre}">
-									<p>
-									Hvis du ønsker at spærre din brugerkonto, skal du trykke på "Spær brugerkonto" nedenfor.
-									Når brugerkontoen er spærret, er det ikke muligt at anvende den til at gennemføre logins.
-									</p>
-									
-									<p class="mb-5">
-									Hvis du på et senere tidspunkt ønsker at reaktivere din brugerkonto, skal du logge ind med dit
-									NemID eller MitID, og re-aktivere brugerkontoen.
-									</p>
+									<div th:if="${@cmsMessageBundle.getText('cms.lockAccount.content')} != ''" class="mb-5">
+				                		<span th:utext="${@cmsMessageBundle.getText('cms.lockAccount.content')}"></span>
+				                	</div>
 
-									<button id="deactivateBtn" type="button" class="btn btn-danger block full-width m-b">Spær brugerkonto</button>
+				                	<p>
+				                		<strong>Når din erhvervsidentitet er låst, kan den ikke længere bruges til følgende tjenester</strong>
+				                	</p>
+				                	
+				                	<ul>
+				                		<li th:each="provider : ${serviceProviders}" th:text="${provider.name}"></li>
+				                	</ul>
+
+									<button id="deactivateBtn" type="button" class="btn btn-danger block full-width m-b">Lås erhvervsidentitet</button>
 								</form>
 							</div>
 						</div>
 					</div>
 
-					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.lock-account')" />
+					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.lock-account')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="fragments/footer :: scripts"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -50,7 +52,7 @@
 		var lockButtonCancel = [[#{shared.button.no}]];
 		+]*/
 
-		var lockText = "Er du sikker på at du vil spærre din brugerkonto?";
+		var lockText = "Er du sikker på at du vil låse din erhvervsidentitet?";
 		
 		$(document).ready(function() {
 			$("#deactivateBtn").click(function(){

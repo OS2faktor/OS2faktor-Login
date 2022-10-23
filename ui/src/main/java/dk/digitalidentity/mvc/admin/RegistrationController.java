@@ -37,6 +37,8 @@ import dk.digitalidentity.service.MFAManagementService;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Date;
+
 @Slf4j
 @RequireRegistrant
 @Controller
@@ -260,6 +262,7 @@ public class RegistrationController {
 		client.setType(mfaClient.getType());
 		client.setNsisLevel(NSISLevel.SUBSTANTIAL);
 		client.setCpr(person.getCpr());
+		client.setAssociatedUserTimestamp(new Date());
 		
 		localRegisteredMfaClientService.save(client);
 		
@@ -274,7 +277,7 @@ public class RegistrationController {
 	}
 
 	private ResponseEntity<?> handleYubikeyRegistration(ActivationDTO activationDTO, Person person, Person admin) {
-		String result = mfaManagementService.authenticateUser(person.getCpr(), NSISLevel.SUBSTANTIAL);
+		String result = mfaManagementService.authenticateUser(person.getCpr(), NSISLevel.SUBSTANTIAL, "yubikey");
 		if (result == null) {
 			log.warn("Unable to authenitcate user in OS2faktor MFA backend.");
 			return ResponseEntity.notFound().build();
@@ -300,7 +303,7 @@ public class RegistrationController {
 		try {
 			// change password, bypassing validation and AD replication
 			// we can ignore the return value because we bypass replication
-			personService.changePassword(person, password, true, true, admin);
+			personService.changePassword(person, password, true, admin);
 		}
 		catch (Exception ex) {
 			// this can only fail if there are programming errors, e.g. bad algorithms
@@ -390,7 +393,7 @@ public class RegistrationController {
 		try {
 			// note that we are not replicating to AD because this password will be send through e-boks,
 			// but once they change it in the UI, it should replicate to AD if needed
-			personService.changePassword(person, password, true, true, admin);
+			personService.changePassword(person, password, true, admin);
 
 			person.setForceChangePassword(true);
 			if ("step2".equals(step)) {

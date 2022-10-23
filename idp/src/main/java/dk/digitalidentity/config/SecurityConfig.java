@@ -10,14 +10,12 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-		http.headers().contentSecurityPolicy("script-src 'self' 'unsafe-inline'");
-
         http
             .csrf()
                 .ignoringAntMatchers("/sso/saml/login")
                 .ignoringAntMatchers("/api/client/login")
                 .ignoringAntMatchers("/api/client/changePassword")
-		.ignoringAntMatchers("/nemlogin/saml/**")
+                .ignoringAntMatchers("/nemlogin/saml/**")
             .and() // Disable CSRF protection for the SAML login flow and windows clients (but keep it everywhere else)
             .authorizeRequests()
                 .mvcMatchers("/").permitAll()

@@ -44,9 +44,9 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed"></div>
+									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" class="hr-line-dashed"></div>
 
-									<div class="form-group row">
+									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" class="form-group row">
 										<label class="col-sm-3 col-form-label">NameID Format</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
@@ -55,22 +55,29 @@
 										</div>
 									</div>
 
-									<div th:if="${serviceprovider.sqlServiceProvider}" class="form-group row">
+									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}" class="form-group row">
 										<label class="col-sm-3 col-form-label">NameID Værdi</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
-												<option th:selected="${serviceprovider.nameIdValue} == 'userId'" label="userId"></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'sAMAccountName'" label="sAMAccountName"></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'uuid'" label="uuid"></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'cpr'" label="cpr"></option>
-												<option th:selected="!${#lists.contains({'userId','sAMAccountName', 'uuid','cpr'}, serviceprovider.nameIdValue)}" th:label="${serviceprovider.nameIdValue}"></option>
+												<option value="userId" th:selected="'userId' == ${serviceprovider.nameIdValue} or 'sAMAccountName' == ${serviceprovider.nameIdValue}">Brugernavn</option>
+												<option value="email" th:selected="email == ${serviceprovider.nameIdValue}">E-mail</option>
+												<option value="uuid" th:selected="uuid == ${serviceprovider.nameIdValue}">UUID</option>
+												<option value="cpr" th:selected="cpr == ${serviceprovider.nameIdValue}">Personnummer</option>
+												<option value="name" th:selected="name == ${serviceprovider.nameIdValue}">Navn</option>
+												<option value="alias" th:selected="alias == ${serviceprovider.nameIdValue}">Kaldenavn</option>
+												<option value="firstname" th:selected="firstname == ${serviceprovider.nameIdValue}">Fornavn</option>
+												<option value="lastname" th:selected="lastname == ${serviceprovider.nameIdValue}">Efternavn</option>
+												<option th:each="personAttribute : ${@personAttributeService.getAll()}" th:value="${personAttribute.name}" th:selected="${personAttribute.name} == ${serviceprovider.nameIdValue}">
+													<th:block th:unless="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.displayName + ' (' + personAttribute.name + ')'}"></th:block>
+													<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>
+												</option>
 											</select>
 										</div>
 									</div>
 
-									<div class="hr-line-dashed" th:if="${serviceprovider.sqlServiceProvider}"></div>
+									<div class="hr-line-dashed" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}"></div>
 
-									<div class="form-group row" th:if="${serviceprovider.sqlServiceProvider}">
+									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}">
 										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
@@ -79,9 +86,9 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed" th:if="${serviceprovider.sqlServiceProvider}"></div>
+									<div class="hr-line-dashed" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}"></div>
 
-									<div class="form-group row" th:if="${serviceprovider.sqlServiceProvider}">
+									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}">
 										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
@@ -92,11 +99,21 @@
 
 									<div class="hr-line-dashed"></div>
 
-									<div class="form-group row">
+
+									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+										<label class="col-sm-3 col-form-label">Gennemstil logins til NemLog-In</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.nemLogInBrokerEnabled}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}">
 										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks" disabled="disabled">
 											</label>
 										</div>
 									</div>
@@ -105,7 +122,7 @@
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks" disabled="disabled">
 											</label>
 										</div>
 									</div>
@@ -114,7 +131,16 @@
 										<label class="col-sm-3 col-form-label">Aktiv</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks passwordField" disabled="disabled">
+												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
+									
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Anvend NIST sikringsniveauer</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.preferNIST}" type="checkbox" class="i-checks" disabled="disabled">
 											</label>
 										</div>
 									</div>
@@ -214,6 +240,7 @@
 												<th style="width: 200px;">Type</th>
 												<th>Attribut</th>
 												<th style="width: 300px;">Værdi</th>
+												<th style="width: 200px;">Send én værdi</th>
 											</tr>
 										</thead>
 										
@@ -221,7 +248,8 @@
 											<tr th:each="claim : ${serviceprovider.claims}">
 							    				<td th:text="${claim.type.message}" />
 							   			 		<td th:text="${claim.attribute}" />
-							    				<td th:text="${claim.value}" />
+							    				<td data-type="value" th:data-val="${claim.value}" th:text="${claim.value}" />
+							    				<td><em th:if="${claim.singleValueOnly}" class="fa fa-fw fa-check"></em></td>
 											</tr>
 										</tbody>
 									</table>
@@ -229,49 +257,51 @@
 							</div>
 						</div>
 
-						<div class="ibox" th:if="${serviceprovider.sqlServiceProvider and (!#lists.isEmpty(serviceprovider.conditionsGroups) || !#lists.isEmpty(serviceprovider.conditionsDomains))}">
-							<div class="ibox-title">
-								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
-							</div>
-
-							<div class="ibox-content">
-								<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsDomains)}">
-									<div class="table-responsive">
-										<table id="conditionDomainTable" class="table table-striped table-bordered table-hover" >
-											<thead>
-												<tr>
-													<th style="width: 100%;">Adgang begrænset til personer fra følgende domæner</th>
-												</tr>
-											</thead>
-											
-											<tbody style="display: table-row-group">
-												<tr th:each="domain : ${serviceprovider.conditionsDomains}">
-													<td th:text="${domain.name}"></td>
-												</tr>
-											</tbody>
-										</table>
+						<th:block th:unless="${serviceprovider.nemLogInBrokerEnabled}">
+							<div class="ibox" th:if="${serviceprovider.sqlServiceProvider and (!#lists.isEmpty(serviceprovider.conditionsGroups) || !#lists.isEmpty(serviceprovider.conditionsDomains))}">
+								<div class="ibox-title">
+									<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
+								</div>
+	
+								<div class="ibox-content">
+									<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsDomains)}">
+										<div class="table-responsive">
+											<table id="conditionDomainTable" class="table table-striped table-bordered table-hover" >
+												<thead>
+													<tr>
+														<th style="width: 100%;">Adgang begrænset til personer fra følgende domæner</th>
+													</tr>
+												</thead>
+												
+												<tbody style="display: table-row-group">
+													<tr th:each="domain : ${serviceprovider.conditionsDomains}">
+														<td th:text="${domain.name}"></td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
+									</div>
+	
+									<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsGroups)}">
+										<div class="table-responsive">
+											<table id="conditionGroupTable" class="table table-striped table-bordered table-hover" >
+												<thead>
+													<tr>
+														<th style="width: 100%;">Adgang begrænset til personer i følgende grupper</th>
+													</tr>
+												</thead>
+												
+												<tbody style="display: table-row-group">
+													<tr th:each="group : ${serviceprovider.conditionsGroups}">
+														<td th:text="${group.name}"></td>
+													</tr>
+												</tbody>
+											</table>
+										</div>
 									</div>
 								</div>
-
-								<div class="form-group" th:unless="${#lists.isEmpty(serviceprovider.conditionsGroups)}">
-									<div class="table-responsive">
-										<table id="conditionGroupTable" class="table table-striped table-bordered table-hover" >
-											<thead>
-												<tr>
-													<th style="width: 100%;">Adgang begrænset til personer i følgende grupper</th>
-												</tr>
-											</thead>
-											
-											<tbody style="display: table-row-group">
-												<tr th:each="group : ${serviceprovider.conditionsGroups}">
-													<td th:text="${group.name}"></td>
-												</tr>
-											</tbody>
-										</table>
-									</div>
-								</div>
 							</div>
-						</div>
+						</th:block>
 
 						<div class="ibox" th:if="${serviceprovider.kombitServiceProvider}">
 							<div class="ibox-title">
@@ -308,15 +338,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -324,6 +354,7 @@
 		/*[+
 		var rootUrl = [[@{/}]];
 		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
+		var attributeValueMap = [[${attributeValueMap}]];
 		+]*/
 
 		var token = $("meta[name='_csrf']").attr("content");
@@ -343,6 +374,18 @@
 				inputElem.remove();
 				spanElem.show();
 			});
+
+				// Set displaynames for claims based on data-val attribute
+				var dataValueObj = $('#claimTable tbody tr td[data-type="value"]');
+				for (var i = 0; i < dataValueObj.length; i++) {
+					var obj = $(dataValueObj[i]);
+					var actualValue = obj.data('val');
+					var displayValue = attributeValueMap[actualValue];
+
+					if (displayValue) {
+						obj.text(displayValue);
+					}
+				}
 			
 			$('.namePencil').on('click', function() {
 				var id = $(this).data('id');

@@ -4,6 +4,7 @@ import dk.digitalidentity.util.ResponderException;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -30,7 +31,7 @@ import net.shibboleth.utilities.java.support.component.ComponentInitializationEx
 @Service
 public class LogoutRequestValidationService {
 
-	public void validate(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, PublicKey publicKey) throws RequesterException, ResponderException {
+	public void validate(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, List<PublicKey> publicKeys) throws RequesterException, ResponderException {
 		log.debug("Started validation of LogoutRequest");
 
 		LogoutRequest logoutRequest = (LogoutRequest) messageContext.getMessage();
@@ -41,7 +42,7 @@ public class LogoutRequestValidationService {
 		validateDestination(request, messageContext);
 		validateLifeTime(messageContext);
 		validateIssuer(logoutRequest, metadata.getEntityID());
-		validateSignature(request, publicKey);
+		validateSignature(request, publicKeys);
 		validateSessionIndex(logoutRequest);
 
 		log.debug("Completed validation of LogoutRequest");
@@ -119,13 +120,22 @@ public class LogoutRequestValidationService {
 		}
 	}
 
-	private void validateSignature(HttpServletRequest request, PublicKey publicKey) throws RequesterException {
+	private void validateSignature(HttpServletRequest request, List<PublicKey> publicKeys) throws RequesterException {
 		log.debug("Validating Signature");
+
 		String queryString = request.getQueryString();
 		String signature = request.getParameter("Signature");
 		String sigAlg = request.getParameter("SigAlg");
 
-		if (!validateSignature(queryString, Constants.SAML_REQUEST, publicKey, signature, sigAlg)) {
+		boolean validSignature = false;
+		for (PublicKey publicKey : publicKeys) {
+			if (validateSignature(queryString, Constants.SAML_REQUEST, publicKey, signature, sigAlg)) {
+				validSignature = true;
+				break;
+			}
+		}
+		
+		if (!validSignature) {
 			throw new RequesterException("Logout forespørgsel (LogoutRequest) Signatur forkert");
 		}
 	}
@@ -142,8 +152,9 @@ public class LogoutRequestValidationService {
 		try {
 			return SigningUtil.verify(publicKey, jcaAlgorithmID, decodedSignature, data);
 		}
-		catch (SecurityException e) {
-			throw new RequesterException("Signatur forkert på logout forespørgsel (LogoutRequest)", e);
+		catch (SecurityException ex) {
+			log.error("Signatur forkert på logout forespørgsel (LogoutRequest)", ex);
+			return false;
 		}
 	}
 

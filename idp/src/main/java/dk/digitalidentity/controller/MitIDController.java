@@ -5,6 +5,7 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.nemlogin.NemLoginUtil;
 import dk.digitalidentity.samlmodule.model.TokenUser;
+import dk.digitalidentity.service.AssertionService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.LogoutResponseService;
@@ -19,6 +20,8 @@ import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+import org.opensaml.core.xml.XMLObject;
+import org.opensaml.core.xml.io.UnmarshallingException;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
@@ -26,9 +29,11 @@ import org.opensaml.saml.common.binding.SAMLBindingSupport;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPRedirectDeflateEncoder;
+import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
+import org.opensaml.saml.saml2.core.impl.AssertionUnmarshaller;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -36,9 +41,17 @@ import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.servlet.ModelAndView;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.xml.sax.SAXException;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -74,6 +87,9 @@ public class MitIDController {
 	@Autowired
 	private LoggingUtil loggingUtil;
 
+	@Autowired
+	private AssertionService assertionService;
+
 	@GetMapping("/sso/saml/nemlogin/complete")
 	public ModelAndView nemLogInComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
 		TokenUser tokenUser = nemLoginUtil.getTokenUser();
@@ -85,10 +101,11 @@ public class MitIDController {
 		NSISLevel nsisLevel = NSISLevel.NONE;
 		Map<String, Object> attributes = tokenUser.getAttributes();
 		if (!attributes.containsKey(Constants.LEVEL_OF_ASSURANCE)) {
-			log.warn("token from NemLog-in does not contain an NSIS level - setting it to NONE on session");
+			log.warn("Token from NemLog-in does not contain an NSIS level - setting it to NONE on session");
 		}
 		else {
 			String loa = (String) attributes.get(Constants.LEVEL_OF_ASSURANCE);
+
 			try {
 				nsisLevel = NSISLevel.valueOf(loa.toUpperCase());
 			}
@@ -96,7 +113,13 @@ public class MitIDController {
 				return handleMitIdErrors(httpServletResponse, "NSIS sikringsniveau fra login token er ukendt: " + loa);
 			}
 		}
-		
+
+		// if the originating AuthnRequest (from the upstream ServiceProvider) was a forced NemLog-in flow, then
+		// we handle the request in a separate method, and ignore the rest of the logic
+		if (sessionHelper.isInNemLogInBrokerFlow()) {
+			return handleNemLogInAsBroker(httpServletResponse, tokenUser);
+		}
+
 		// set nameID as an identifier on the session associated with the MitID login.
 		String username = tokenUser.getUsername();
 		String mitIdName = username;
@@ -104,7 +127,12 @@ public class MitIDController {
 			mitIdName = mitIdName.substring("https://data.gov.dk/model/core/eid/person/uuid/".length());
 		}
 
+		// in case we end up in a sub-flow, we need to know that we are in the middle of a NemID/MitID login flow
+		sessionHelper.setInNemIdOrMitIDAuthenticationFlow(true);
+
+		// store for later use
 		sessionHelper.setMitIDNameID(mitIdName);
+		sessionHelper.setNemIDMitIDNSISLevel(nsisLevel);
 
 		auditLogger.usedNemLogin(sessionHelper.getPerson(), nsisLevel, tokenUser.getAndClearRawToken());
 
@@ -132,7 +160,7 @@ public class MitIDController {
 
 			// Handle multiple user accounts
 			if (availablePeople.size() != 1) {
-				return loginService.initiateUserSelect(model, availablePeople, true);
+				return loginService.initiateUserSelect(model, availablePeople);
 			}
 			else {
 				// If we only have one person use that one
@@ -153,6 +181,60 @@ public class MitIDController {
 
 		// The specific person has now been determined.
 		return loginService.continueLoginWithMitIdOrNemId(person, nsisLevel, sessionHelper.getAuthnRequest(), httpServletRequest, httpServletResponse, model);
+	}
+
+	private ModelAndView handleNemLogInAsBroker(HttpServletResponse httpServletResponse, TokenUser tokenUser) throws ResponderException, RequesterException {
+		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+		if (authnRequest == null) {
+			return handleMitIdErrors(httpServletResponse, "Ingen login forespørgsel på sessionen");
+		}
+
+		String rawToken = tokenUser.getRawToken();
+		if (rawToken == null) {
+			return handleMitIdErrors(httpServletResponse, "Intet login svar fra NemLog-In");
+		}
+
+		try {
+			// Parse raw Assertion String
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			dbf.setNamespaceAware(true);
+			dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			DocumentBuilder db = dbf.newDocumentBuilder();
+			Document doc = db.parse(new ByteArrayInputStream(rawToken.getBytes("UTF-8")));
+
+			// Get Assertion Element
+			Element documentElement = doc.getDocumentElement();
+
+			// Unmarshall Assertion
+			AssertionUnmarshaller unmarshaller = new AssertionUnmarshaller();
+			XMLObject xmlObject = unmarshaller.unmarshall(documentElement);
+			Assertion assertion = (Assertion) xmlObject;
+
+			MessageContext<SAMLObject> brokerAssertionMessage = assertionService.createBrokerAssertionMessage(assertion, authnRequest);
+
+			// Send assertion
+			HTTPPostEncoder encoder = new HTTPPostEncoder();
+			encoder.setHttpServletResponse(httpServletResponse);
+			encoder.setMessageContext(brokerAssertionMessage);
+			encoder.setVelocityEngine(VelocityEngine.newVelocityEngine());
+
+			try {
+				encoder.initialize();
+				encoder.encode();
+			}
+			catch (ComponentInitializationException | MessageEncodingException e) {
+				throw new ResponderException("Encoding error", e);
+			}
+
+			return null;
+		}
+		catch (ParserConfigurationException | IOException | SAXException e) {
+			return handleMitIdErrors(httpServletResponse, "Kunne ikke læse NemLogIn login svar");
+		}
+		catch (UnmarshallingException e) {
+			return handleMitIdErrors(httpServletResponse, "Kunne ikke afkode NemLogIn login svar");
+		}
 	}
 
 	@GetMapping("/sso/saml/nemlogin/logout/complete")

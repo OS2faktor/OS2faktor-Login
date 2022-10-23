@@ -55,6 +55,7 @@ import dk.digitalidentity.ooapi.exceptions.NonOcesCertificateException;
 /**
  * Implements a property extractor for X509 certificates.
  */
+@SuppressWarnings("deprecation")
 public class X509CertificatePropertyExtrator {
 
 	public static String getEmailAddress(X509Certificate certificate) {
@@ -87,13 +88,11 @@ public class X509CertificatePropertyExtrator {
 		return ((String) getElementInX509Name(certificate, ObjectIdentifiers.SERIAL_NUMBER));
 	}
 
-	@SuppressWarnings("deprecation")
 	public static Object getElementInX509Name(X509Certificate certificate,String element) {
 		X509Name name = getParsedSubjectDN(certificate);
         return getElementInX509Name(name, element);
 	}
     
-    @SuppressWarnings("deprecation")
 	public static Object getElementInX509Name(X509Name name, String element) {
         List<?> oids = name.getOIDs();
         for (int i = 0; i < oids.size(); i++) {
@@ -108,7 +107,7 @@ public class X509CertificatePropertyExtrator {
 	@SuppressWarnings("rawtypes")
     private final static Hashtable defaultLookupWithSerialNumber = makeLookup();
 	
-    @SuppressWarnings({ "rawtypes", "unchecked", "deprecation" })
+    @SuppressWarnings({ "rawtypes", "unchecked" })
 	private static Hashtable makeLookup() {
 		Hashtable ht = X509Name.DefaultLookUp;
 		ASN1ObjectIdentifier SERIALNUMBER = new ASN1ObjectIdentifier("2.5.4.5");
@@ -116,12 +115,10 @@ public class X509CertificatePropertyExtrator {
 	    return ht;
 	}
 	
-	@SuppressWarnings("deprecation")
-	public static X509Name getParsedSubjectDN(X509Certificate certificate) {
+    public static X509Name getParsedSubjectDN(X509Certificate certificate) {
 	    return new X509Name(false, defaultLookupWithSerialNumber, certificate.getSubjectDN().getName());
 	}
 
-    @SuppressWarnings("deprecation")
 	public static X509Name getParsedIssuerDN(X509Certificate certificate) {
         return new X509Name(false, defaultLookupWithSerialNumber, certificate.getIssuerDN().getName());
     }

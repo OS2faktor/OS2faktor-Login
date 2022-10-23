@@ -1,7 +1,6 @@
 package dk.digitalidentity.filter;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -12,13 +11,16 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.springframework.util.StringUtils;
+
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
 import dk.digitalidentity.common.service.WindowCredentialProviderClientService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 
 @Slf4j
 public class ClientApiSecurityFilter implements Filter {
+	public static ThreadLocal<Domain> domainHolder = new ThreadLocal<>();
     private WindowCredentialProviderClientService clientService;
 
     public void setWindowsClientService(WindowCredentialProviderClientService clientService) {
@@ -30,34 +32,29 @@ public class ClientApiSecurityFilter implements Filter {
         HttpServletRequest request = (HttpServletRequest) servletRequest;
         HttpServletResponse response = (HttpServletResponse) servletResponse;
 
-        String clientID = request.getHeader("clientID");
-        if (clientID == null) {
-            unauthorized(response, "Missing clientID header", clientID);
-            return;
-        }
-
-        WindowCredentialProviderClient client = clientService.getByNameAndDisabledFalse(clientID);
-        if (client == null) {
-            unauthorized(response, "Invalid ClientID header", clientID);
-            return;
-        }
-
         String apiKey = request.getHeader("apiKey");
-        if (apiKey == null) {
-            unauthorized(response, "Missing apiKey header", apiKey);
+        if (!StringUtils.hasLength(apiKey)) {
+            unauthorized(request, response, "Missing apiKey header");
             return;
         }
 
-        if (!StringUtils.hasLength(apiKey) || !Objects.equals(client.getApiKey(), apiKey)) {
-            unauthorized(response, "Invalid ApiKey", apiKey);
+        WindowCredentialProviderClient client = clientService.getByApiKeyAndDisabledFalse(apiKey);
+        if (client == null) {
+            unauthorized(request, response, "Invalid apiKey header: " + apiKey);
             return;
         }
 
-        filterChain.doFilter(servletRequest, servletResponse);
+        try {
+        	domainHolder.set(client.getDomain());
+        	filterChain.doFilter(servletRequest, servletResponse);
+        }
+        finally {
+        	domainHolder.remove();
+        }
     }
 
-    private static void unauthorized(HttpServletResponse response, String message, String value) throws IOException {
-        log.warn(message + " (value = " + value + ")");
+    private static void unauthorized(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {
+    	log.error(message + ", path = " + request.getServletPath());
         response.sendError(401, message);
     }
 

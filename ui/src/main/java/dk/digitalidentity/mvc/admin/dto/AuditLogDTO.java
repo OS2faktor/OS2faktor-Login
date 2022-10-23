@@ -21,7 +21,6 @@ public class AuditLogDTO {
 	private String cpr;
 	private String performerName;
 	private LogAction logAction;
-	private String logTargetName;
 	private String message;
 	private DetailType detailType;
 	private String detailContent;
@@ -35,7 +34,6 @@ public class AuditLogDTO {
 		this.ipAddress = auditLog.getIpAddress();
 		this.correlationId = auditLog.getCorrelationId();
 		this.logAction = auditLog.getLogAction();
-		this.logTargetName = auditLog.getLogTargetName();
 		this.message = auditLog.getMessage();
 		this.performerName = auditLog.getPerformerName();
 		this.personName = auditLog.getPersonName();

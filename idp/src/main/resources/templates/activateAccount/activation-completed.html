@@ -1,31 +1,38 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (checkbox = false)" />
-<body class="gray-bg">
-<div class="loginColumns animated fadeInDown">
-	<div class="row">
-		<div class="ibox col-md-12">
-			<div class="ibox-title">
-				<h5><em class="fa fa-birthday-cake"></em> &nbsp; Aktiveringen af brugerkonto gennemført</h5>
-			</div>
-
-			<div class="ibox-content">
-				<p>
-				Din brugerkonto er nu aktiveret. Når du skal logge ind med din brugerkonto skal du anvende nedenstående brugernavn og det kodeord du valgte tideligere.
-				</p>
-
-				<ul>
-					<li><b th:text="${username}"/></li>
-				</ul>
-				
-				<p>
-					<a type="button" th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>
-				</p>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+			
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="ibox offset-md-2 col-md-8">
+						<div class="ibox-title">
+							<h5><em class="fa fa-birthday-cake"></em> &nbsp; Aktiveringen af brugerkonto gennemført</h5>
+						</div>
+			
+						<div class="ibox-content">
+							<p>
+							Din brugerkonto er nu aktiveret. Når du skal logge ind med din brugerkonto skal du anvende nedenstående brugernavn og det kodeord du valgte tideligere.
+							</p>
+			
+							<ul>
+								<li><b th:text="${username}"/></li>
+							</ul>
+							
+							<p>
+								<a type="button" th:if="${@sessionHelper.getAuthnRequest() == null}" th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>
+								<a type="button" th:if="${@sessionHelper.getAuthnRequest() != null}" th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b mt-lg">Fortsæt login</a>
+							</p>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
-</div>
 
-<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+	<div th:replace="fragments/footer :: scripts"></div>
 </body>
 </html>

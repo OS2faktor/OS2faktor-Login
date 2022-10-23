@@ -107,11 +107,13 @@ public class AzureAdService {
             }
         }
 
-        // Iterate all objects and set NSISAllowed on users with the configured group
+        // Iterate all objects and set NSISAllowed and transferToNemlogin on users with the configured group
         if (!coreDataEntries.isEmpty()) {
             List<String> nsisAllowedIds = fetchAllNsisAllowedUsers(token);
+            List<String> transferToNemloginIds = fetchAllTransferToNemloginUsers(token);
             for (CoreDataEntry coreDataEntry : coreDataEntries) {
                 coreDataEntry.setNsisAllowed(nsisAllowedIds.contains(coreDataEntry.getAzureInternalId()));
+                coreDataEntry.setTransferToNemlogin(transferToNemloginIds.contains(coreDataEntry.getAzureInternalId()));
             }
 
             CoreData coreData = new CoreData();
@@ -147,6 +149,54 @@ public class AzureAdService {
         if (!responseBody.containsKey("value")) {
             LinkedHashMap<String, String> error = (LinkedHashMap<String, String>) responseBody.get("error");
             String message = "An error occurred trying to fetch all NSISAllowedUsers";
+            if (error != null && error.containsKey("message")) {
+                message = error.get("message");
+            }
+
+            throw new Exception(message);
+        }
+
+        // Get userPrincipalName for validating password
+        ArrayList<LinkedHashMap<String, String>> value = (ArrayList<LinkedHashMap<String, String>>) responseBody.get("value");
+        if (value == null) {
+            throw new Exception("UserQuery response value was null");
+        }
+
+        // Ignore any member other than users, and map to a list of Ids
+        List<String> result = value
+                .stream()
+                .filter(map -> "#microsoft.graph.user".equals(map.get("@odata.type")))
+                .map(map -> map.get("id"))
+                .collect(Collectors.toList());
+
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> fetchAllTransferToNemloginUsers(BearerToken token) throws Exception {
+        AzureAd adConfig = configuration.getAzureAd();
+        if (!StringUtils.hasLength(adConfig.getTransferToNemloginGroupId())) {
+        	return new ArrayList<>();
+        }
+        
+        String url = adConfig.getBaseUrl() + adConfig.getApiVersion() + "/groups/" + adConfig.getTransferToNemloginGroupId() + "/transitiveMembers?$select=odata.type,id";
+
+        // Build request
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(Constants.Authorization, "Bearer " + token.getAccessToken());
+
+        HttpEntity<Map<String, String>> request = new HttpEntity<>(headers);
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.GET, request, new ParameterizedTypeReference<>() { });
+
+        // Handle error and extract message if present
+        Map<String, Object> responseBody = response.getBody();
+        if (responseBody == null) {
+            throw new Exception("Response body from AzureAD was null");
+        }
+
+        if (!responseBody.containsKey("value")) {
+            LinkedHashMap<String, String> error = (LinkedHashMap<String, String>) responseBody.get("error");
+            String message = "An error occurred trying to fetch all transferToNemloginUsers";
             if (error != null && error.containsKey("message")) {
                 message = error.get("message");
             }
@@ -239,6 +289,8 @@ public class AzureAdService {
             entry.setEmail(userMap.getOrDefault("mail", ""));
             entry.setSamAccountName(sAMAccountName);
             entry.setNsisAllowed(false);
+            entry.setTransferToNemlogin(false);
+            entry.setRid(userMap.getOrDefault(adConfig.getRidField(), null));
 
             // Compute name
             String displayName = userMap.get("displayName");

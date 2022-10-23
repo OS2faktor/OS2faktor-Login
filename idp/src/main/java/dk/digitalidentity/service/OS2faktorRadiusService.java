@@ -3,15 +3,19 @@ package dk.digitalidentity.service;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.transaction.Transactional;
 
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.tinyradius.attribute.RadiusAttribute;
@@ -75,7 +79,15 @@ public class OS2faktorRadiusService {
 		auditLogger.radiusLoginRequestReceived(username, (radiusClient != null ? radiusClient.getName() : "<ukendt klient>"));
 		
 		if (radiusClient != null) {
-			List<Person> persons = personService.getBySamaccountNameFullyLoaded(username);
+			// if the radius client have Domain conditions we only fetch persons that are within those domains
+			// this allows radius to work in multi-domain setups where SAMAccountName clashes might happen
+			// the SAMAccountName will still have to be unique within all the domains chosen as conditions
+			List<Domain> domains = Stream.ofNullable(radiusClient.getConditions()).flatMap(Collection::stream)
+					.filter(condition -> RadiusClientConditionType.DOMAIN.equals(condition.getType()) && condition.getDomain() != null)
+					.map(RadiusClientCondition::getDomain)
+					.collect(Collectors.toList());
+
+			List<Person> persons = domains.isEmpty() ? personService.getBySamaccountNameFullyLoaded(username) : personService.getBySamaccountNameAndDomainsFullyLoaded(username, domains);
 
 			if (persons == null || persons.size() == 0) {
 				log.warn("Supplied username does not exist '" + username + "'");
@@ -136,73 +148,83 @@ public class OS2faktorRadiusService {
 				}
 
 				if (canBeUsed) {
-					if (loginService.validPassword(password, person)) {
-
-						if (!person.isLocked()) {
-
-							if (requireMfa) {
-								List<MfaAuthenticationResponse> challenges = mfaService.authenticateWithCpr(person.getCpr());
-
-								if (challenges == null || challenges.size() == 0) {
-									log.warn("No suitable MFA clients found for " + username);
-									reasonText = "Brugeren har ikke nogen 2-faktor enheder: " + username;
-								}
-								else {
-									log.info("Challenges send to " + challenges.size() + " MFA clients for " + username);
-			
-									// wait up to 60 seconds for one of them to respond
-									int counter = 0;
-									
-									while (counter < 60) {
-										counter++;
+					if (radiusClient.getNsisLevelRequired().equalOrLesser(person.getNsisLevel())) {
+						if (PasswordValidationResult.VALID.equals(loginService.validatePassword(password, person))) {
+	
+							if (!person.isLockedByOtherThanPerson()) {
+	
+								if (requireMfa) {
+									List<MfaAuthenticationResponse> challenges = mfaService.authenticateWithCpr(person.getCpr());
+	
+									if (challenges == null || challenges.size() == 0) {
+										log.warn("No suitable MFA clients found for " + username);
+										reasonText = "Brugeren har ikke nogen 2-faktor enheder: " + username;
+									}
+									else {
+										log.info("Challenges send to " + challenges.size() + " MFA clients for " + username);
 				
-										boolean responseReceived = false;
-										for (MfaAuthenticationResponse challenge : challenges) {
-											MfaAuthenticationResponse result = mfaService.getMfaAuthenticationResponse(challenge.getSubscriptionKey(), person);
-				
-											if (result.isClientRejected()) {
-												responseReceived = true;
-												reasonText = "2-faktor enhed afviste login forespørgsel";
+										// wait up to 60 seconds for one of them to respond
+										int counter = 0;
+										
+										while (counter < 60) {
+											counter++;
+					
+											boolean responseReceived = false;
+											for (MfaAuthenticationResponse challenge : challenges) {
+												MfaAuthenticationResponse result = mfaService.getMfaAuthenticationResponse(challenge.getSubscriptionKey(), person);
+	
+												if (result == null) {
+													; // skip this round and try again
+												}
+												else if (result.isClientRejected()) {
+													responseReceived = true;
+													reasonText = "2-faktor enhed afviste login forespørgsel";
+												}
+												else if (result.isClientAuthenticated()) {
+													type = RadiusPacket.ACCESS_ACCEPT;
+													responseReceived = true;
+												}
+												
+												if (responseReceived) {
+													break;
+												}
 											}
-											else if (result.isClientAuthenticated()) {
-												type = RadiusPacket.ACCESS_ACCEPT;
-												responseReceived = true;
-											}
-											
+					
 											if (responseReceived) {
 												break;
 											}
+					
+											// wait 1 second, and try again
+											try {
+												Thread.sleep(1000);
+											}
+											catch (InterruptedException ex) {
+												; // ignore
+											}
 										}
-				
-										if (responseReceived) {
-											break;
-										}
-				
-										// wait 1 second, and try again
-										try {
-											Thread.sleep(1000);
-										}
-										catch (InterruptedException ex) {
-											; // ignore
+										
+										if (counter == 60) {
+											log.warn("No response within 60 seconds from " + username);
+											reasonText = "Timeout (60 sekunder) for " + username;
 										}
 									}
-									
-									if (counter == 60) {
-										log.warn("No response within 60 seconds from " + username);
-										reasonText = "Timeout (60 sekunder) for " + username;
-									}
+								}
+								else {
+									type = RadiusPacket.ACCESS_ACCEPT;
 								}
 							}
 							else {
-								type = RadiusPacket.ACCESS_ACCEPT;
+								log.info("Person with id '" + person.getId() + "' is locked");
+								reasonText = "Brugerkontoen er låst for " + username;
 							}
-						} else {
-							log.info("Person with id '" + person.getId() + "' is locked");
-							reasonText = "Brugerkontoen er låst for " + username;
+						}
+						else {
+							log.info("Incorrect password.");
+							reasonText = "Forkert kodeord for " + username;
 						}
 					} else {
-						log.info("Incorrect password.");
-						reasonText = "Forkert kodeord for " + username;
+						log.info("Insufficient NSIS Level: " + person.getNsisLevel() +  " required " + radiusClient.getNsisLevelRequired() + " for user: " + username);
+						reasonText = "Utilstrækkeligt NSIS-niveau";
 					}
 				}
 				else {

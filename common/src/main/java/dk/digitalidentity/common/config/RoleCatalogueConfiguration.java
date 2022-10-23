@@ -21,5 +21,9 @@ public class RoleCatalogueConfiguration {
 	@PostConstruct
 	private void postConstruct() {
 		this.enabled = (StringUtils.hasLength(baseUrl) && StringUtils.hasLength(apiKey));
+		
+		if (StringUtils.hasLength(baseUrl) && !baseUrl.endsWith("/")) {
+			baseUrl = baseUrl + "/";
+		}
 	}
 }

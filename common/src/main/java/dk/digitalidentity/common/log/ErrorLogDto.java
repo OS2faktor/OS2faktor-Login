@@ -25,6 +25,8 @@ public class ErrorLogDto {
     private final boolean lockedByPerson;
     private final boolean lockedByAdmin;
     private final boolean lockedByDataset;
+    private final boolean lockedByCivilState;
+    private final boolean lockedByExpire;
     private final String sendTo;
 
     public ErrorLogDto(Exception exception, String sendTo, Person person, NSISLevel passwordNSISLevel, LocalDateTime passwordTimestamp, NSISLevel mfaNSISlevel, LocalDateTime mfaTimestamp) {
@@ -46,6 +48,8 @@ public class ErrorLogDto {
         this.lockedByPerson = person.isLockedPerson();
         this.lockedByAdmin = person.isLockedAdmin();
         this.lockedByDataset = person.isLockedDataset();
+        this.lockedByCivilState = person.isLockedCivilState();
+        this.lockedByExpire = person.isLockedExpired();
         this.personNsisLevel = person.getNsisLevel();
         this.hasApprovedConditions = person.isApprovedConditions();
         

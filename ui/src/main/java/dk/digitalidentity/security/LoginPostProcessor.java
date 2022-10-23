@@ -33,7 +33,7 @@ public class LoginPostProcessor implements SamlLoginPostProcessor {
 
 		String username = tokenUser.getUsername();
 		Long personId = username != null ? Long.parseLong(username) : null;
-
+				
 		if (personId != null) {
 			person = personService.getById(personId);
 		}

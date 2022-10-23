@@ -12,7 +12,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
-import dk.digitalidentity.service.ErrorHandlingService;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,13 +42,11 @@ import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.controller.dto.ValidateADPasswordForm;
 import dk.digitalidentity.controller.validator.PasswordChangeValidator;
 import dk.digitalidentity.service.AuthnRequestHelper;
+import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
-import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
@@ -84,9 +81,6 @@ public class ActivateAccountController {
 	private AuthnRequestHelper authnRequestHelper;
 
 	@Autowired
-	private ServiceProviderFactory serviceProviderFactory;
-
-	@Autowired
 	private PasswordChangeValidator passwordChangeFormValidator;
 	
 	@Autowired
@@ -118,6 +112,11 @@ public class ActivateAccountController {
 		if (error == null && !person.isNsisAllowed()) {
 			error = "Kunne ikke aktivere kontoen, personen ikke har adgang til at få tildelt en erhvervsidentitet";
 		}
+		
+		// this also catches persons that has locked themselves, so all types of locks
+		if (error == null && person.isLocked()) {
+			error = "Kunne ikke aktivere kontoen, da personen er låst";
+		}
 
 		// If not in activate account flow, check for stored authnRequest on session and proceed with login. Otherwise send error.
 		if (error == null && !sessionHelper.isInActivateAccountFlow()) {
@@ -128,15 +127,8 @@ public class ActivateAccountController {
 			else {
 				log.warn("Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow (Person ID: '" + person.getId() + "')");
 
-				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
-
-				// Different places in the code need to handle a locked person differently,
-				// so this has to be checked BEFORE the initiateFlowOrCreateAssertion method, with the logic fitting the situation.
-				// If trying to login to anything else than selfservice check if person is locked
-				if (!(serviceProvider instanceof SelfServiceServiceProvider)) {
-					if (person.isLocked()) {
-						return new ModelAndView("error-locked-account");
-					}
+				if (person.isLockedByOtherThanPerson()) {
+					return new ModelAndView(PersonService.getCorrectLockedPage(person));
 				}
 
 				return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
@@ -223,12 +215,17 @@ public class ActivateAccountController {
 
 		// if password has already been set, just continue login
 		if (person.getNsisPassword() != null) {
-			ModelAndView mav = new ModelAndView("activateAccount/activate-complete");
-			mav.addObject("userId", PersonService.getUsername(person));
+			ModelAndView mav = new ModelAndView("activateAccount/activation-completed");
+			mav.addObject("username", PersonService.getUsername(person));
 			
 			return mav;
 		}
-
+		
+		// Go to choose password reset or unlock account page
+		if (sessionHelper.isInChoosePasswordResetOrUnlockAccountFlow()) {
+			return loginService.continueChoosePasswordResetOrUnlockAccount(model);
+		}
+		
 		// if password has not been set yet, go to pick password page
 		return new ModelAndView("redirect:/konto/vaelgkode");
 	}
@@ -249,7 +246,7 @@ public class ActivateAccountController {
 				ex = new RequesterException("Prøvede at tilgå forsæt login, men ingen person var associeret med sessionen");
 			}
 	
-			// if you were prompted to activate your NSIS acocunt during your change password request and rejected the prompt
+			// if you were prompted to activate your NSIS account during your change password request and rejected the prompt
 			// you will end up in this controller and we should just finish the change password flow which will NOT set the NSIS password
 			if (sessionHelper.isInPasswordChangeFlow()) {
 				return loginService.continueChangePassword(model);
@@ -267,26 +264,28 @@ public class ActivateAccountController {
 			}
 	
 			sessionHelper.setInActivateAccountFlow(false);
-			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
 	
-			// Different places in the code need to handle a locked person differently,
-			// so this has to be checked BEFORE the initiateFlowOrCreateAssertion method, with the logic fitting the situation.
-			// If trying to login to anything else than selfservice check if person is locked
-			if (!(serviceProvider instanceof SelfServiceServiceProvider)) {
-				if (person.isLocked()) {
-					return new ModelAndView("error-locked-account");
-				}
+			if (person.isLockedByOtherThanPerson()) {
+				return new ModelAndView(PersonService.getCorrectLockedPage(person));
 			}
-	
+
 			sessionHelper.setDeclineUserActivation(true);
 
 			return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
 		}
-		catch (RequesterException ex) {
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
-		}
-		catch (ResponderException ex) {
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, ex);
+		catch (RequesterException | ResponderException ex) {
+			if (authnRequest == null) {
+				// TODO: remove this error log once we know why this happens (BSG)
+				log.error("Got an exception while authnRequest = null", ex);
+
+				return errorHandlingService.modelAndViewError("/konto/fortsaetlogin", httpServletRequest, ex.getMessage(), model);
+			}
+			else if (ex instanceof RequesterException) {
+				errorResponseService.sendRequesterError(httpServletResponse, authnRequest, (RequesterException) ex);
+			}
+			else {
+				errorResponseService.sendResponderError(httpServletResponse, authnRequest, (ResponderException) ex);				
+			}
 		}
 
 		return null;
@@ -316,17 +315,7 @@ public class ActivateAccountController {
 		
 		PasswordSetting settings = passwordService.getSettings(person.getDomain());
 		if (sessionHelper.isInDedicatedActivateAccountFlow() && sessionHelper.isDoNotUseCurrentADPassword()) {
-			String samaccountName = null;
-
-            if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
-            	samaccountName = person.getSamaccountName();
-            }
-
-            model.addAttribute("samaccountName", samaccountName);
-            model.addAttribute("settings", settings);			
-			model.addAttribute("passwordForm", new PasswordChangeForm());
-
-			return "changePassword/change-password";
+			return loginService.continueChangePassword(model).getViewName();
 		}
 		
 		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && settings.isValidateAgainstAdEnabled()) {
@@ -336,11 +325,17 @@ public class ActivateAccountController {
 
 		model.addAttribute("settings", settings);
 		model.addAttribute("passwordForm", new PasswordChangeForm());
+
 		return "activateAccount/activate-select-password";
 	}
 
 	@PostMapping("/konto/vaelgkode")
 	public ModelAndView postChangePassword(Model model, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
+		if (!sessionHelper.isInActivateAccountFlow()) {
+			// User his postChangePassword in activate account controller without being in the activate account flow
+			return new ModelAndView("redirect:/sso/saml/changepassword");
+		}
+
 		RequesterException ex = null;
 		Person person = sessionHelper.getPerson();
 		if (person == null || !person.hasActivatedNSISUser()) {

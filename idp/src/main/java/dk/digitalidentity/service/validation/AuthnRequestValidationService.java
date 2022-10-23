@@ -171,13 +171,25 @@ public class AuthnRequestValidationService {
 	private void validateSignature(HttpServletRequest request, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		log.debug("Validating Signature");
 
-		PublicKey signingKey = serviceProvider.getSigningKey();
-
 		String queryString = request.getQueryString();
 		String signature = request.getParameter("Signature");
 		String sigAlg = request.getParameter("SigAlg");
 
-		if (!validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
+		if (!StringUtils.hasLength(signature)) {
+			throw new RequesterException("Login forespørgsel (AuthnRequest) har ingen signatur");
+		}
+
+		List<PublicKey> signingKeys = serviceProvider.getSigningKeys();
+		boolean validSignature = false;
+
+		for (PublicKey signingKey : signingKeys) {
+			if (validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
+				validSignature = true;
+				break;
+			}
+		}
+		
+		if (!validSignature) {
 			throw new RequesterException("Login forespørgsel (AuthnRequest) Signatur forkert");
 		}
 	}
@@ -194,8 +206,9 @@ public class AuthnRequestValidationService {
 		try {
 			return SigningUtil.verify(publicKey, jcaAlgorithmID, decodedSignature, data);
 		}
-		catch (SecurityException e) {
-			throw new RequesterException("Signatur forkert på login forespørgsel (AuthnRequest) ", e);
+		catch (SecurityException ex) {
+			log.error("Signatur forkert på login forespørgsel (AuthnRequest) ", ex);
+			return false;
 		}
 	}
 

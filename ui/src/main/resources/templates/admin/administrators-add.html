@@ -19,6 +19,7 @@
 									<label class="col-sm-2 col-form-label" style="margin-left: 15px;">Supporterens domæne: </label>
 									<select id="domainSelect" class="form-control col-lg-3">
 										<option value="0">---</option>
+										<option value="-1">Alle domæner</option>
 										<option th:each="domain : ${domains}" th:text="${domain.name}" th:value="${domain.id}"></option>
 									</select>
 								</div>

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true, select2 = true)" />
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
@@ -33,11 +33,12 @@
 									<table id="persons" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
-												<th style="width: 120px;">Brugernavn</th>
-												<th style="width: 200px;">Person</th>
-												<th style="width: 70px;">Status</th>
-												<th style="width: 100px;">NSIS sikringsniveau</th>
-												<th style="width: 120px;">Domæne</th>
+												<th style="width: 100px;">Brugernavn</th>
+												<th style="min-width: 150px;">Person</th>
+												<th style="width: 80px;">2-faktor enhed</th>
+												<th style="width: 80px;">Vilkår godkendt</th>
+												<th style="width: 125px;">Domæne</th>
+												<th style="width: 160px;">Status</th>
 												<th style="width: 70px;"></th>
 											</tr>
 										</thead>
@@ -49,6 +50,14 @@
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter">
+													<select class="form-control" id="statusSelect" style="width: 100%;" multiple>
+														<option th:each="status : ${statuses}"
+												            th:value="${status.nsisStatus}"
+												            th:text="${status.message}">
+												    	</option>
+													</select>
+												</td>
 												<td></td>
 											</tr>
 										</tfoot>
@@ -217,7 +226,7 @@
 	</div>
 	<!-- End unlock Modal -->
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)" />
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -226,6 +235,7 @@
 		var baseUrl = [[@{/}]];
 		var coreDataEditable = [[${coreDataEditable}]];
 		var configDomain = [[${configDomain}]]
+		var personAttributes = [[${@personAttributeService.getAll()}]]
 		+]*/
 
 		var lockText = "Er du sikker på at du vil spærre denne konto?";
@@ -247,8 +257,10 @@
 
 		var table;
 		var modalService;
+		var defaultAttributeSelect;
 		$(document).ready(function(){
 			modalService = new ModalService();
+			modalService.init();
 
 			disableDataTablesAlerts();
 			
@@ -276,57 +288,52 @@
 						"orderable": false
 					},
 					{
-						"data": "locked",
-						"orderable": false,
-						"render": function (data, type, row, meta) {
-
-							if (data) {
-								var content =
-									'<label>Spærret</label>&nbsp;<em class="fa fa-lg fa-question-circle-o" data-html="true" data-container="body" data-boundary="viewport" data-toggle="popover" data-trigger="hover" data-placement="auto" data-content="<p>Denne konto er spærret af følgende årsager:</p><ul>';
-
-								if (row.lockedAdmin) {
-									content += "<li>Spærret af Administrator</li>"
-								}
-								if (row.lockedPerson) {
-									content += "<li>Spærret af brugeren</li>"
-								}
-								if (row.lockedDataset) {
-									content += "<li>Brugeren ikke længere i datasæt</li>"
-								}
-								if (row.lockedPassword) {
-									content += "<li>For mange forkerte login forsøg</li>"
-								}
-								if (row.lockedDead) {
-									content += "<li>Spærret pga markering om dødsfald i CPR registeret</li>"
-								}
-
-								content += '</ul>"></em>';
-
-								return content;
-							}
-							return 'Aktiv';
-						}
+						"data": "mfaClients",
+						"orderable": false
 					},
 					{
-						"data": "nsisLevel",
-						"orderable": false,
-						"render": function (data, type, row, meta) {
-							if (data == 'LOW') {
-								return "Lav";
-							}
-							else if (data == 'SUBSTANTIAL') {
-								return "Betydelig";
-							}
-							else if (data == 'HIGH') {
-								return "Høj"
-							}
-
-							return "Ingen";
-						}
+						"data": "approvedConditions",
+						"orderable": false
 					},
 					{
 						"data": "domain",
 						"orderable": false
+					},
+					{
+						"data": "nsisAllowed",
+						"orderable": false,
+						"searchable": false,
+						"render": function (data, type, row, meta) {
+							var res = "Ukendt";
+
+							if (row.locked) {
+								if (row.lockedAdmin || row.lockedDataset) {
+									res = "Spærret (af kommunen)";
+								}
+								else if (row.lockedPerson || row.lockedPassword) {
+									res = "Spærret (af brugeren selv)";
+								}
+								else if (row.lockedExpired) {
+									res = "Spærret (udløbet)";
+								}
+								else {
+									res = "Spærret (civilstatus)";
+								}
+							}
+							else if (row.nsisAllowed) {
+								if (row.nsisLevel == 'NONE') {
+									res = "Erhvervsidentitet ikke aktiveret";
+								}
+								else {
+									res = "Erhvervsidentitet aktiveret";
+								}
+							}
+							else {
+								res = "Erhvervsidentitet ikke tildelt";
+							}
+
+							return res;
+						}
 					},
 					{
 						"data": "id",
@@ -354,6 +361,9 @@
 				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
 				"responsive": true,
 				"drawCallback": function (settings) {
+					$("#statusSelect").select2({
+						  placeholder: 'Alle'
+					});
 					$('[data-toggle="popover"]').popover();
 				},
 				"language": {
@@ -373,12 +383,15 @@
 			$.each($('.input-filter', table.table().footer()), function() {
 				var column = table.column($(this).index());
 	
-				$('input', this).on('keyup change', function () {
-					if (column.search() !== this.value) {
-						column.search(this.value).draw();
+				$('input, select', this).on('keyup change', function () {
+					if (column.search() !== $(this).val()) {
+						column.search($(this).val()).draw();
 					}
 				});
 			});
+
+
+			
 		});
 
 		function lock(id, isLocked) {
@@ -412,6 +425,10 @@
 		}
 
 		function ModalService() {
+
+			this.init = function() {
+				modalService.generateAttributeKeyDropdown();
+			}
 
 			this.openCreateModal = function() {
 				$('#modalCprInput').val('');
@@ -459,16 +476,17 @@
 				}
 
 				var entries = Object.entries(attributes);
-				for (let i = 0; i < entries.length; i += 1) {
+				for (var i = 0; i < entries.length; i += 1) {
 					// Add rows to table here
-					var row = '<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][0] + '"></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][1] + '"></td></tr>';
-
+					var row = '<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][1] + '"></td></tr>';
 					$('#attributeTable > tbody:last-child').append(row);
+					$('#attributeTable > tbody tr:last').find('td select.attributeTableKey').val(entries[i][0])
 				}
 
 				// Add additional blank row here
-
-				$('#attributeTable > tbody:last-child').append('<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
+				$('#attributeTable > tbody:last-child').append('<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
+				
+				modalService.onChangeAttributeTable();
 			}
 
 			this.onChangeAttributeTable = function() {
@@ -477,10 +495,13 @@
 				for (let i = 0; i < (rows.length -1); i += 1) {
 					var inputs = $(rows[i]).children().children();
 					var empty = true;
-					for (let i = 0; i < inputs.length; i += 1) {
-						if ($(inputs[i]).val().length > 0) {
-							empty = false;
-						}
+
+					if ($(inputs[0]).find('option:selected').val()) {
+						empty = false;
+					}
+					
+					if ($(inputs[1]).val().length > 0) {
+						empty = false;
 					}
 
 					if (empty) {
@@ -492,15 +513,58 @@
 				var lastRow = $('#attributeTable tbody tr:last');
 				var lastInputs = lastRow.children().children();
 				var lastEmpty = true;
-				for (let i = 0; i < lastInputs.length; i += 1) {
-					if ($(lastInputs[i]).val().length > 0) {
-						lastEmpty = false;
-					}
+
+				if ($(lastInputs[0]).find('option:selected').val()) {
+					lastEmpty = false;
+				}
+					
+				if ($(lastInputs[1]).val().length > 0) {
+					lastEmpty = false;
 				}
 
 				if (!lastEmpty) {
-					$('#attributeTable > tbody:last-child').append('<tr><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
+					$('#attributeTable > tbody:last-child').append('<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
 				}
+
+				// Disable already used values
+				modalService.disableUsedAttributeKeyInDropdowns();
+
+			}
+
+			this.generateAttributeKeyDropdown = function() {
+				defaultAttributeSelect = '<select class="col-sm-12 form-control m-b attributeTableKey" onChange="modalService.onChangeAttributeTable()"><option value="">Vælg attribut</option>'
+				personAttributes.forEach(attribute => {
+					defaultAttributeSelect += '<option value="' + attribute.name + '">';
+					
+					if (!attribute.displayName) {
+						defaultAttributeSelect += attribute.name;
+					}
+					else {
+						defaultAttributeSelect += attribute.displayName + " (" + attribute.name + ")";
+					}
+					defaultAttributeSelect += '</option>';
+				});
+				defaultAttributeSelect += '</select>';
+			}
+
+			this.disableUsedAttributeKeyInDropdowns = function() {
+				// Find all used values
+				var usedValues = [];
+				$(".attributeTableKey option:selected").each(function(index, value) {
+					if ($(value).val()) {
+						usedValues.push($(value).val());
+					}
+				})
+
+				// Remove disabled flags from all values
+				$(".attributeTableKey option").removeAttr('disabled');
+
+				// Add disabled flags to all options that are in usedValues list
+				usedValues.forEach(val => {
+					$(".attributeTableKey option[value='" + val + "']").each(function(index, value) {
+						$(value).attr('disabled','disabled');
+					})
+				});
 			}
 
 			this.editModalAjax = function(endpoint, data) {
@@ -527,18 +591,22 @@
 			this.saveEditModal = function() {
 				var endpoint = "rest/admin/coredata/edit/save/" + $('#modalEditUuid').val();
 
+				// Extract attribute key/value pairs
 				var rows = $('#attributeTable tbody tr');
 				var dict = {};
 				for (let i = 0; i < rows.length; i += 1) {
 					var inputs = $(rows[i]).children().children();
 					var filled = true;
-					for (let j = 0; j < inputs.length; j += 1) {
-						if (!$(inputs[j]).val().length > 0) {
-							filled = false;
-						}
+					if (!$(inputs[0]).find('option:selected').val()) {
+						filled = false;
 					}
+						
+					if (!$(inputs[1]).val().length > 0) {
+						filled = false;
+					}
+
 					if (filled) {
-						dict[$(inputs[0]).val()] = $(inputs[1]).val();
+						dict[$(inputs[0]).find('option:selected').val()] = $(inputs[1]).val();
 					}
 				}
 

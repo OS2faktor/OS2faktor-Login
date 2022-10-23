@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import dk.digitalidentity.common.dao.model.RadiusClient;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RadiusClientConditionType;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import lombok.Getter;
@@ -20,6 +21,7 @@ public class RadiusClientDTO {
 	private List<ConditionDTO> conditionsDomains;
 	private List<ConditionDTO> conditionsGroups;
 	private ConditionDTO conditionWithAttribute;
+	private NSISLevel nsisLevelRequired;
 
 	public RadiusClientDTO() {
 		this.conditionsDomains = new ArrayList<>();
@@ -32,6 +34,7 @@ public class RadiusClientDTO {
 		this.password = radiusClient.getPassword();
 		this.ipAddress = radiusClient.getIpAddress();
 
+		this.nsisLevelRequired = radiusClient.getNsisLevelRequired();
 
 		this.conditionsDomains = radiusClient.getConditions()
 				.stream()

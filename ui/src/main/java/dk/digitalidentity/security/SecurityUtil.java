@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
@@ -18,12 +17,10 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.service.GroupService;
-import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.config.OS2faktorConfiguration;
@@ -35,7 +32,15 @@ public class SecurityUtil {
 	private static final String LOCKED_BY_PERSON_ONLY = "LOCKED_BY_PERSON_ONLY";
 	private static final String IS_WITHOUT_USER = "IS_WITHOUT_USER";
 	private static final String IS_UNLOCKED = "IS_UNLOCKED";
+	
+	// we have two different values in-coming. We should only use the first (AAL) for enrolling MFA devices,
+	// whereas the other value is needed to verify if the user has access to his or her "erhvervsidentitet" and
+	// the functionality contained within
+	
+	// this value contains the NSIS level of the login-mechanism used to login
 	private static final String AUTHENTICATION_ASSURANCE_LEVEL = "https://data.gov.dk/concept/core/nsis/aal";
+	// this value contains the actual NSIS level that is given from the login flow (which can be lower than the value above)
+	private static final String LEVEL_OF_ASSURANCE = "https://data.gov.dk/concept/core/nsis/loa";
 
 	@Autowired
 	private HttpServletRequest request;
@@ -47,7 +52,7 @@ public class SecurityUtil {
 	private PersonService personService;
 
 	@Autowired
-	private PasswordSettingService passwordSettingService;
+	private CommonConfiguration commonConfiguration;
 	
 	/**
 	 * returns true if a person is currently logged in
@@ -182,11 +187,33 @@ public class SecurityUtil {
 	}
 
 	/**
-	 * Returns true if the currently logged in person used NSIS credentials to login,
-	 * and that person has an activated NSIS account
+	 * Returns true if the current person is allowed to have an NSIS account, is not locked,
+	 * and they have used credentials with at least Substantial to login (so an actual NSIS Level in the LOA field is not needed,
+	 * just that they have used a credential that is issued on level Substantial or better)
 	 */
-	public boolean loggedInWithNsisSubstantial() {
-		return hasNsisUser() && NSISLevel.SUBSTANTIAL.equalOrLesser(getAuthenticationAssuranceLevel());		
+	public boolean loggedInWithNsisSubstantialCredentials() {
+		Person person = getPerson();
+		if (person == null) {
+			return false;
+		}
+		
+		if (person.isNsisAllowed() == false) {
+			return false;
+		}
+		
+		// a person can lock themselves, which does NOT count as locked in this case
+		if (person.isLockedByOtherThanPerson()) {
+			return false;
+		}
+		
+		// a person can use NemID/MitID as credentials to login, so we check against the
+		// AuthenticationAssuranceLevel (aal) instead of the computed loa level. This allows
+		// users with a self-locked account to still login and reopen themselves
+		if (!NSISLevel.SUBSTANTIAL.equalOrLesser(getAuthenticationAssuranceLevel())) {
+			return false;
+		}
+		
+		return true;
 	}
 
 	/**
@@ -211,19 +238,15 @@ public class SecurityUtil {
 	public void updateTokenUser(Person person, TokenUser tokenUser) {
 		Boolean hasActivatedNsisAccount = person.hasActivatedNSISUser();    // the has an active NSIS account
 		Boolean isLocked = person.isLocked();                               // the is not locked
-		Boolean lockedByPersonOnly = person.isLockedDataset() == false &&   // not locked by municipality
-									 person.isLockedAdmin() == false &&     // not locked by admin
-									 person.isLockedPassword() == false &&  // not time-locked due to too many wrong password attempts
-									 person.isLockedDead() == false &&      // not locked because they are registered as dead in CPR
-									 person.isLockedPerson() == true;       // but IS locked by a self-service action
-		NSISLevel nsisLevel = getAuthenticationAssuranceLevel(tokenUser);   // currently logged-in NSIS authentication level
+		Boolean lockedByPersonOnly = person.isOnlyLockedByPerson();         // the person has locked themselves
+		NSISLevel nsisLevel = getLevelOfAssurance(tokenUser);				// currently logged-in NSIS authentication level
 
 		tokenUser.getAttributes().put(LOCKED_BY_PERSON_ONLY, lockedByPersonOnly);
 		tokenUser.getAttributes().put(IS_WITHOUT_USER, (hasActivatedNsisAccount == false));
 		tokenUser.getAttributes().put(IS_UNLOCKED, (isLocked == false));
 
 		List<SamlGrantedAuthority> authorities = new ArrayList<>();
-		
+
 		// if the user it not locked, and the user has an activated NSIS account, and login occurred at Substantial or better, allow admin access
 		if (hasActivatedNsisAccount && isLocked == false && NSISLevel.SUBSTANTIAL.equalOrLesser(nsisLevel)) {
 			if (person.isAdmin()) {
@@ -240,7 +263,7 @@ public class SecurityUtil {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
 			}
 
-			if (person.isRegistrant()) {
+			if (commonConfiguration.getCustomer().isEnableRegistrant() && person.isRegistrant()) {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_REGISTRANT));
 			}
 
@@ -251,11 +274,11 @@ public class SecurityUtil {
 			if (person.isUserAdmin()) {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_USER_ADMIN));
 			}
-
-			List<Group> passwordGroups = passwordSettingService.getSettingsByChangePasswordOnUsersEnabled().stream().map(s -> s.getChangePasswordOnUsersGroup()).collect(Collectors.toList());
-			if (GroupService.memberOfGroup(person, passwordGroups)) {
-				authorities.add(new SamlGrantedAuthority(Constants.ROLE_CHANGE_PASSWORD_ON_OTHERS));
-			}
+		}
+		
+		// check if logged in person can change password on students (does not require NSIS)
+		if (personService.canChangePasswordOnStudents(person)) {
+			authorities.add(new SamlGrantedAuthority(Constants.ROLE_CHANGE_PASSWORD_ON_OTHERS));
 		}
 
 		tokenUser.setAuthorities(authorities);
@@ -268,7 +291,9 @@ public class SecurityUtil {
 			SecurityContext securityContext = SecurityContextHolder.getContext();
 			UsernamePasswordAuthenticationToken authentication = (UsernamePasswordAuthenticationToken) securityContext.getAuthentication();
 			
+			authentication = new UsernamePasswordAuthenticationToken(authentication.getPrincipal(), authentication.getCredentials(), authorities);
 			authentication.setDetails(tokenUser);
+			
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 			
 			if (request != null) {
@@ -338,7 +363,7 @@ public class SecurityUtil {
 		return getAuthenticationAssuranceLevel(null);
 	}
 	
-	public NSISLevel getAuthenticationAssuranceLevel(TokenUser tokenUser) {
+	private NSISLevel getAuthenticationAssuranceLevel(TokenUser tokenUser) {
 		if (tokenUser == null) {
 			tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
 		}
@@ -348,10 +373,57 @@ public class SecurityUtil {
 			String aalString = (String) attributes.get(AUTHENTICATION_ASSURANCE_LEVEL);
 
 			if (StringUtils.hasLength(aalString)) {
-				return NSISLevel.valueOf(aalString);
+				return NSISLevel.valueOf(aalString.toUpperCase());
 			}
 		}
 
 		return NSISLevel.NONE;
+	}
+	
+	public NSISLevel getLevelOfAssurance() {
+		return getLevelOfAssurance(null);
+	}
+	
+	private NSISLevel getLevelOfAssurance(TokenUser tokenUser) {
+		if (tokenUser == null) {
+			tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
+		}
+
+		Map<String, Object> attributes = tokenUser.getAttributes();
+		if (attributes != null) {
+			String loaString = (String) attributes.get(LEVEL_OF_ASSURANCE);
+
+			if (StringUtils.hasLength(loaString)) {
+				// should really make these conform to eachother, so we don't need this check
+				if ("INGEN".equalsIgnoreCase(loaString)) {
+					loaString = "NONE";
+				}
+				
+				return NSISLevel.valueOf(loaString.toUpperCase());
+			}
+		}
+
+
+		return NSISLevel.NONE;
+	}
+	
+	public boolean hasNsisAllowed() {
+		Person person = getPerson();
+		if (person != null) {
+			return person.isNsisAllowed();
+		}
+		
+		return false;
+	}
+	
+	public boolean hasNSISUserAndLoggedInWithNSISNone() {
+		Person person = getPerson();
+		
+		boolean res = false;
+		if (person != null) {
+			res = person.hasActivatedNSISUser() && NSISLevel.NONE.equals(getLevelOfAssurance());
+		}
+		
+		return res;
 	}
 }

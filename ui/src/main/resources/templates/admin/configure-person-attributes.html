@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.issued-identities')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Attributter</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle de attributter som brugere har fået tildelt enten via os2faktor brugergrænsefladen eller API indlæsning.
+									Det er muligt at give hver attribut et præsentationsnavn så det er nemmere at gøre brug af, blandt andet til opsætning af tjenesteudbyder claims.
+								</p>
+								
+								<h4>Attributter</h4>
+								<div class="table-responsive">
+									<table id="attributes" class="table table-striped table-bordered table-hover">
+										<thead>
+											<tr>
+												<th>Attribut</th>
+												<th style="width: 400px;">Præsentationsnavn</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr th:each="attribute : ${attributes}">
+												<td th:text="${attribute.name}" />
+							    				<td>
+							    					<em class="fa fa-fw fa-pencil namePencil" th:id="'namePencil-' + ${attribute.id}" th:data-id="${attribute.id}"></em>
+							    					<em class="fa fa-fw fa-times nameCancel" style="display: none;" th:id="'nameCancel-' + ${attribute.id}" th:data-id="${attribute.id}"></em>
+							    					<span style="margin-left: 10px;" th:id="'attribute-name-' + ${attribute.id}" th:text="${attribute.displayName}"></span>
+							    				</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var baseUrl = [[@{/}]];
+		var coreDataEditable = [[${coreDataEditable}]];
+		var configDomain = [[${configDomain}]]
+		+]*/
+		
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var table;
+		var modalService;
+		var tableService;
+		$(document).ready(function(){
+			tableService = new TableService();
+			tableService.init();	
+			
+			$('.nameCancel').on('click', function() {
+				var id = $(this).data('id');
+
+				$('#namePencil-' + id).removeClass('fa-save');
+				$('#namePencil-' + id).addClass('fa-pencil');
+				$('#nameCancel-' + id).hide();
+
+				var spanElem = $('#attribute-name-' + id);
+				var inputElem = $('#attribute-name-input-' + id);
+				inputElem.remove();
+				spanElem.show();
+			});
+			
+			$('.namePencil').on('click', function() {
+				var id = $(this).data('id');
+
+				if ($(this).hasClass('fa-pencil')) {
+					$(this).removeClass('fa-pencil');
+					$(this).addClass('fa-save');
+	
+					var spanElem = $('#attribute-name-' + id);
+					$('<input type="text" id="attribute-name-input-' + id + '" style="display: inline-block; width: 324px; margin-left: 10px;" class="form-control"></input>').insertAfter(spanElem);
+					spanElem.hide();
+					
+					$('#nameCancel-' + id).show();
+					
+					$('#attribute-name-input-' + id).focus();
+					$('#attribute-name-input-' + id).val(spanElem.text());
+				}
+				else {
+					$(this).removeClass('fa-save');
+					$(this).addClass('fa-pencil');
+					$('#nameCancel-' + id).hide();
+
+					var spanElem = $('#attribute-name-' + id);
+					var inputElem = $('#attribute-name-input-' + id);
+					var newValue = inputElem.val();
+					inputElem.remove();
+
+					$.ajax({
+						url: baseUrl + 'admin/konfiguration/person/attributes/' + id + '/setDisplayName',
+						method: "POST",
+						headers: {
+	     			      'X-CSRF-TOKEN': token
+	     			   	},
+	     			   	contentType: 'application/json',
+	     			   	data: JSON.stringify({'name': newValue }),
+	     			   	success: function(data, textStatus, jQxhr) {
+							toastr.success('Opdateringen gennemført')
+
+							spanElem.text(newValue);
+							spanElem.show();
+	     			   	},
+	     			   	error: function(jQxhr, textStatus, errorThrown) {
+							toastr.error('Opdateringen fejlede');
+							
+							spanElem.show();
+	     			   	}
+					});
+				}
+			});
+		});
+
+		function TableService() {
+			this.init = function() {
+				tableService.disableDataTablesAlerts();
+				tableService.initDataTable();
+			}
+
+			this.initDataTable = function() {
+				table = $('#attributes').DataTable({
+					"destroy": true,
+					"ordering": true,
+					"info": true,
+					"pageLength": 10,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"drawCallback": function (settings) {
+						$('[data-toggle="popover"]').popover();
+					},
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ attributter",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ attributter)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+		
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.disableDataTablesAlerts = function() {
+				$.fn.dataTable.ext.errMode = 'none';
+
+				$('#attributes').on('error.dt', function(e, settings, techNote, message) {
+					// it is a bit of a hack, but we assume this means that the user has been logged out
+					if (message.indexOf("Ajax error") >= 0) {
+						window.location.reload();
+					}
+				});
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

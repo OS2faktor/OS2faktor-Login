@@ -109,11 +109,12 @@ public class PasswordChangeQueueService {
 		return passwordChangeQueueDao.findFirst1ByDomainAndStatusOrderByTtsAsc(domain, ReplicationStatus.WAITING_FOR_REPLICATION);
 	}
 
-	private String encryptPassword(String password) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
+	public String encryptPassword(String password) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
 		SecretKeySpec key = getKey(commonConfiguration.getAd().getPasswordSecret());
 		Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
 		GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[]{0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00});
 		cipher.init(Cipher.ENCRYPT_MODE, key, gcmParameterSpec);
+
 		return Base64.getEncoder().encodeToString(cipher.doFinal(password.getBytes("UTF-8")));
 	}
 

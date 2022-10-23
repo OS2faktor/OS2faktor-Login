@@ -80,13 +80,19 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 			attributes.put("NemIDPid", nemIDPid);
 		}
 
+		// we need to issue a claim with AAL, to support two scenarios inside the selfservice (cases where the user is NOT logged in with
+		// an "erhvervsidentitet", but still need to perform certain operations. These are
+		//
+		// - locking and unlocking themselves in the UI (so managing life-cycle for the erhvervsidentitet using NemID/MitID)
+		// - enrolling new MFA devices (if they use NemID/MitID to login, we will allow enrolling MFA devices at those levels, even if they did
+		//   not have an "erhvervsidentitet" at that time.
 		if (sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
 			NSISLevel authAssuranceLevel = sessionHelper.getMFALevel();
-
+			
 			if (authAssuranceLevel != null) {
 				switch (authAssuranceLevel) {
 					case SUBSTANTIAL:
-					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local issue
+					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local scenario
 						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.SUBSTANTIAL.toString());
 						break;
 					default:
@@ -95,12 +101,14 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 			}
 		}
 		else {
-			NSISLevel authAssuranceLevel = sessionHelper.getLoginState();
+			// in this case they actually have an active and valid "erhvervsidentitet", so we might as well issue the
+			// same claim, to make it easier for the selfservice application to use this field (though using the LOA level and mapping it to AAL)
+			NSISLevel levelOfAssurannce = sessionHelper.getLoginState();
 
-			if (authAssuranceLevel != null) {
-				switch (authAssuranceLevel) {
+			if (levelOfAssurannce != null) {
+				switch (levelOfAssurannce) {
 					case SUBSTANTIAL:
-					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local issue
+					case HIGH: // HIGH is mapped to SUBSTANTIAL, as we do not support HIGH in our local scenario
 						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.SUBSTANTIAL.toString());
 						break;
 					default:
@@ -142,6 +150,11 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	}
 
 	@Override
+	public boolean nemLogInBrokerEnabled() {
+		return false;
+	}
+
+	@Override
 	public String getEntityId() {
 		return config.getEntityId();
 	}
@@ -175,4 +188,13 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
         return config.getMetadataUrl();
     }
 
+	@Override
+	public boolean supportsNsisLoaClaim() {
+		return true;
+	}
+	
+	@Override
+	public boolean preferNIST() {
+		return config.preferNIST();
+	}
 }

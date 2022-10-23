@@ -3,13 +3,14 @@ package dk.digitalidentity.service.serviceprovider;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.PublicKey;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.apache.http.client.HttpClient;
 import org.bouncycastle.util.encoders.Base64;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -26,25 +27,37 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import dk.digitalidentity.util.StringResource;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
+@Slf4j
 public abstract class ServiceProvider {
 
     @Autowired
     protected HttpClient httpClient;
 
-    public PublicKey getSigningKey() throws ResponderException, RequesterException {
-        X509Certificate certificate = getX509Certificate(UsageType.SIGNING);
-        if (certificate == null) {
+    public List<PublicKey> getSigningKeys() throws ResponderException, RequesterException {
+        List<X509Certificate> certificates = getX509Certificate(UsageType.SIGNING);
+        if (certificates.size() == 0) {
         	throw new RequesterException("Kunne ikke finde tjenesteudbyderens 'X509Certificate' af typen SIGNING");
         }
 
-        return certificate.getPublicKey();
+        return certificates.stream().map(c -> c.getPublicKey()).collect(Collectors.toList());
+    }
+    
+    public X509Certificate getEncryptionCertificate() throws RequesterException, ResponderException {
+    	List<X509Certificate> certificates = getX509Certificate(UsageType.ENCRYPTION);
+        if (certificates.size() == 0) {
+        	throw new RequesterException("Kunne ikke finde tjenesteudbyderens 'X509Certificate' af typen ENCRYPTION");
+        }
+ 
+        return certificates.get(0);
     }
 
     public SingleLogoutService getLogoutEndpoint() throws ResponderException, RequesterException {
@@ -96,36 +109,32 @@ public abstract class ServiceProvider {
         return match.get();
     }
 
-    public X509Certificate getX509Certificate(UsageType usageType) throws ResponderException, RequesterException {
+    private List<X509Certificate> getX509Certificate(UsageType usageType) throws ResponderException, RequesterException {
+    	List<X509Certificate> certificates = new ArrayList<>();
+    	
         SPSSODescriptor ssoDescriptor = getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
 
         // Find X509Cert in Metadata filtered by type
-        Optional<KeyDescriptor> match = ssoDescriptor.getKeyDescriptors().stream()
-                .filter(keyDescriptor -> keyDescriptor.getUse().equals(usageType)).findFirst();
+        List<KeyDescriptor> keyDescriptors = ssoDescriptor.getKeyDescriptors().stream()
+                .filter(keyDescriptor -> keyDescriptor.getUse().equals(usageType) || keyDescriptor.getUse() == null || keyDescriptor.getUse().equals(UsageType.UNSPECIFIED))
+                .collect(Collectors.toList());
 
-        if (match.isEmpty()) {
-        	return null;
+        for (KeyDescriptor keyDescriptor : keyDescriptors) {
+        	try {
+		        org.opensaml.xmlsec.signature.X509Certificate x509Certificate = keyDescriptor.getKeyInfo().getX509Datas().get(0).getX509Certificates().get(0);
+		
+		        byte[] bytes = Base64.decode(x509Certificate.getValue());
+		        ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+		        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+		
+	            certificates.add((X509Certificate) certificateFactory.generateCertificate(inputStream));
+        	}
+        	catch (Exception ex) {
+        		log.error("Failed to parse service provider certificate - skipping entry", ex);
+        	}
         }
 
-        org.opensaml.xmlsec.signature.X509Certificate x509Certificate = match.get().getKeyInfo().getX509Datas().get(0)
-                .getX509Certificates().get(0);
-
-        // Transform opensaml x509 cert --> java x509 cert
-        byte[] bytes = Base64.decode(x509Certificate.getValue());
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-        CertificateFactory instance = null;
-
-        try {
-            instance = CertificateFactory.getInstance("X.509");
-        } catch (CertificateException e) {
-            throw new ResponderException("Kunne ikke oprette 'X509 Certificate' læser", e);
-        }
-
-        try {
-            return (X509Certificate) instance.generateCertificate(inputStream);
-        } catch (CertificateException e) {
-            throw new RequesterException("Kunne ikke læse X509 Certificate fra Metadata", e);
-        }
+        return certificates;
     }
 
     protected HTTPMetadataResolver getMetadataResolver(String entityId, String metadataURL) throws ResponderException, RequesterException {
@@ -200,10 +209,13 @@ public abstract class ServiceProvider {
     public abstract boolean mfaRequired(AuthnRequest authnRequest);
     public abstract NSISLevel nsisLevelRequired(AuthnRequest authnRequest);
 	public abstract boolean preferNemId();
+	public abstract boolean nemLogInBrokerEnabled();
     public abstract String getEntityId();
 	public abstract String getName(AuthnRequest authnRequest);
     public abstract RequirementCheckResult personMeetsRequirements(Person person);
 	public abstract boolean encryptAssertions();
 	public abstract boolean enabled();
+	public abstract boolean supportsNsisLoaClaim();
 	public abstract String getProtocol();
+	public abstract boolean preferNIST();
 }

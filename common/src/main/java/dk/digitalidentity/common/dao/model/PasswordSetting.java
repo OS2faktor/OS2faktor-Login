@@ -73,13 +73,6 @@ public class PasswordSetting {
 	@Column
 	@Size(max = 255)
 	private String monitoringEmail;
-	
-	@Column
-	private boolean changePasswordOnUsersEnabled;
-
-	@OneToOne
-	@JoinColumn(name = "change_password_on_users_group_id")
-	private Group changePasswordOnUsersGroup;
 
 	@Column
 	private Long triesBeforeLockNumber;

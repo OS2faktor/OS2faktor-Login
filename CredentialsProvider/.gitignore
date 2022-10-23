@@ -12,7 +12,4 @@ CredentialProviderFunctionality/[Pp]ackages/*
 # Uncomment if necessary however generally it will be regenerated when needed
 !CredentialProviderFunctionality/[Pp]ackages/repositories.config
 
-.vs/*
-
-obj/*
-bin/*
+#.vs/*

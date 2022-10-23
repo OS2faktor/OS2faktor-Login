@@ -12,6 +12,7 @@ namespace OS2faktorADSync
         public string SAMAccountNameProperty { get; set; }
         public string DeletedProperty { get; set; }
         public string ObjectGuidProperty { get; set; }
+        public string AccountExpireProperty { get; set; }
         public string[] AllProperties { get; set; }
         public string[] GroupProperties { get; set; }
         public string[] KombitProperties { get; set; }
@@ -23,6 +24,7 @@ namespace OS2faktorADSync
         public string RoleDomainProperty { get; set; }
         public string RoleCvrProperty { get; set; }
         public string DescriptionProperty { get; set; }
+        public string RidProperty { get; set; }
 
         public PropertyResolver()
         {
@@ -35,6 +37,7 @@ namespace OS2faktorADSync
             SAMAccountNameProperty = "sAMAccountName";
             DeletedProperty = "isdeleted";
             ObjectGuidProperty = "objectGUID";
+            AccountExpireProperty = "accountExpires";
             UserAccountControlProperty = "useraccountcontrol";
             MemberOfProperty = "MemberOf";
             NameProperty = "Name";
@@ -42,6 +45,7 @@ namespace OS2faktorADSync
             RoleDomainProperty = Settings.GetStringValue("Kombit.RoleDomainAttribute");
             RoleCvrProperty = Settings.GetStringValue("Kombit.RoleCvrAttribute");
             DescriptionProperty = "description";
+            RidProperty = Settings.GetStringValue("ActiveDirectory.Property.Rid");
 
             var allProperties = new List<string>();
             allProperties.AddRange(
@@ -56,9 +60,15 @@ namespace OS2faktorADSync
                     SAMAccountNameProperty,
                     DeletedProperty,
                     ObjectGuidProperty,
+                    AccountExpireProperty,
                     UserAccountControlProperty,
                     MemberOfProperty
                 });
+
+            if (!string.IsNullOrEmpty(RidProperty))
+            {
+                allProperties.Add(RidProperty);
+            }
 
             // Resolve attributes fields, Value is eqial to AD attributes that needs to be read.
             Dictionary<string, string> attributes = Settings.GetStringValues("ActiveDirectory.Attributes.");

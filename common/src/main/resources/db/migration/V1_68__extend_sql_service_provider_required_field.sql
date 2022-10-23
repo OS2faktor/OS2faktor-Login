@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_required_fields ADD COLUMN single_value_only BOOLEAN NOT NULL DEFAULT 0;

@@ -83,6 +83,30 @@ namespace OS2faktorADSync
                                 .WithCronSchedule(nsisCron)
                             .Build()));
                     }
+
+                    string nemLoginCron = Settings.GetStringValue("Scheduled.NemLoginAllowedSyncTask.cron");
+                    if (!string.IsNullOrEmpty(nemLoginCron))
+                    {
+                        nemLoginCron = fuzz(nemLoginCron);
+
+                        s.ScheduleQuartzJob(q =>
+                             q.WithJob(() => JobBuilder.Create<TransferToNemloginSyncJob>().Build())
+                                .AddTrigger(() => TriggerBuilder.Create()
+                                .WithCronSchedule(nemLoginCron)
+                            .Build()));
+                    }
+
+                    string kombitAttributeCron = Settings.GetStringValue("Scheduled.Kombit.Attributes.Cron");
+                    if (!string.IsNullOrEmpty(kombitAttributeCron))
+                    {
+                        kombitAttributeCron = fuzz(kombitAttributeCron);
+
+                        s.ScheduleQuartzJob(q =>
+                             q.WithJob(() => JobBuilder.Create<KombitAttributesSyncJob>().Build())
+                                .AddTrigger(() => TriggerBuilder.Create()
+                                .WithCronSchedule(kombitAttributeCron)
+                            .Build()));
+                    }
                 });
             });
         }

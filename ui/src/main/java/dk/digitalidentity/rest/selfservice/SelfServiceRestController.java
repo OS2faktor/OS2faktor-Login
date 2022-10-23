@@ -1,5 +1,6 @@
 package dk.digitalidentity.rest.selfservice;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -196,10 +197,10 @@ public class SelfServiceRestController {
 			return ResponseEntity.notFound().build();
 		}
 
-		// start mfa authentication
+		// start MFA authentication
 		MfaAuthenticationResponse mfaResponse = mfaService.authenticate(matchingClient.getDeviceId());
 		if (mfaResponse == null) {
-			log.error("Got a NULL response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId());
+			log.warn("Got a NULL response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId());
 			return ResponseEntity.status(500).build();
 		}
 
@@ -250,6 +251,7 @@ public class SelfServiceRestController {
 				client.setType(mfaClient.getType());
 				client.setNsisLevel(aal);
 				client.setCpr(person.getCpr());
+				client.setAssociatedUserTimestamp(new Date());
 
 				localRegisteredMfaClientService.save(client);
 
@@ -259,10 +261,10 @@ public class SelfServiceRestController {
 				activationDTO.setType(mfaClient.getType());
 				activationDTO.setName(mfaClient.getName());
 				activationDTO.setNsisLevel(aal);
-				
+
 				auditLogger.manualMfaAssociation(activationDTO.toIdentificationDetails(resourceBundle), person);
 			}
-			
+
 			return ResponseEntity.ok(authenticated);
 		}
 

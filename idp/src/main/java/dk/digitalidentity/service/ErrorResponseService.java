@@ -10,6 +10,7 @@ import dk.digitalidentity.util.ResponderException;
 import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
+import org.opensaml.saml.common.binding.SAMLBindingSupport;
 import org.opensaml.saml.common.messaging.context.SAMLEndpointContext;
 import org.opensaml.saml.common.messaging.context.SAMLPeerEntityContext;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -28,6 +29,7 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+import org.springframework.util.StringUtils;
 
 import java.util.Objects;
 
@@ -103,14 +105,16 @@ public class ErrorResponseService {
 			auditLogger.errorSentToSP(person, errorDetail);
 		}
 
+		String relayState = sessionHelper.getRelayState();
+
 		if (logoutOfSession) {
 			sessionHelper.invalidateSession();
 		}
 		
-		send(response, destination, inResponseTo, statusCode, e);
+		send(response, destination, inResponseTo, statusCode, e, relayState);
 	}
 
-	private void send(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e) {
+	private void send(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, String relayState) {
 		// attempt to clear any residual incoming authnRequest, to avoid strange behaviour on
 		// any following actions that might not be related to an authnRequest
 		try {
@@ -123,6 +127,11 @@ public class ErrorResponseService {
 		try {
 			MessageContext<SAMLObject> errorMessageContext = createErrorMessageContext(destination, inResponseTo, statusCode, e);
 
+			// Set RelayState
+			if (StringUtils.hasLength(relayState)) {
+				SAMLBindingSupport.setRelayState(errorMessageContext, relayState);
+			}
+
 			HTTPPostEncoder encoder = new HTTPPostEncoder();
 			encoder.setHttpServletResponse(response);
 			encoder.setMessageContext(errorMessageContext);
@@ -133,6 +142,9 @@ public class ErrorResponseService {
 		}
 		catch (Exception ex) {
 			log.error("Failed to send error response", ex);
+			if (e != null) {
+				log.error("Inner exception", e);				
+			}
 		}
 	}
 

@@ -1,5 +1,7 @@
 package dk.digitalidentity.service;
 
+import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
+
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Map;
@@ -38,10 +40,11 @@ import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml.saml2.core.impl.AssertionMarshaller;
+import org.opensaml.saml.saml2.core.impl.AttributeStatementMarshaller;
+import org.opensaml.saml.saml2.core.impl.AttributeStatementUnmarshaller;
 import org.opensaml.saml.saml2.encryption.Encrypter;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.credential.Credential;
-import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.algorithm.descriptors.SignatureRSASHA256;
 import org.opensaml.xmlsec.encryption.support.DataEncryptionParameters;
@@ -133,9 +136,9 @@ public class AssertionService {
 
 		// Create and sign Assertion
 		Assertion assertion = createAssertion(issueInstant, authnRequest, person, serviceProvider);
-		
+
 		auditLogger.login(person, serviceProvider.getName(authnRequest), samlHelper.prettyPrint(assertion));
-		
+
 		signAssertion(assertion);
 
 		// Create Response
@@ -164,7 +167,8 @@ public class AssertionService {
 
 		loggingUtil.logAssertion(assertion, Constants.OUTGOING, person);
 
-		X509Certificate encryptionCertificate = serviceProvider.getX509Certificate(UsageType.ENCRYPTION);
+		X509Certificate encryptionCertificate = serviceProvider.getEncryptionCertificate();
+
 		if (serviceProvider.encryptAssertions() && encryptionCertificate != null) {
 			EncryptedAssertion proxyEncryptedAssertion = encryptAssertion(assertion, encryptionCertificate);
 			response.getEncryptedAssertions().add(proxyEncryptedAssertion);
@@ -193,6 +197,7 @@ public class AssertionService {
 
 		// Set AuthnInstant (The moment password/mfa/nemid was validated)
 		DateTime authnInstant = sessionHelper.getAuthnInstant();
+
 		if (authnInstant == null) {
 			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
 		}
@@ -200,6 +205,7 @@ public class AssertionService {
 
 		Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
 		Map<String, String> map = spSessions.get(serviceProvider.getEntityId());
+
 		if (map != null) {
 			map.put(Constants.SESSION_INDEX, id);
 		}
@@ -266,15 +272,36 @@ public class AssertionService {
 		attributeStatements.add(attributeStatement);
 
 		Map<String, Object> attributes = serviceProvider.getAttributes(authnRequest, person);
+
+		if (sessionHelper.isInSelectClaimsFlow()) {
+			sessionHelper.setInSelectClaimsFlow(false);
+
+			Map<String, String> selectedClaims = sessionHelper.getSelectedClaims();
+			// Overwrite raw attributes with selected claims in case of SingleValueOnly=True in the SP Config for some field
+			attributes.putAll(selectedClaims);
+		}
+
 		if (attributes != null) {
+
 			for (Map.Entry<String, Object> entry : attributes.entrySet()) {
 				attributeStatement.getAttributes().add(createSimpleAttribute(entry.getKey(), entry.getValue()));
 			}
 		}
 		
-		NSISLevel nsisLevel = sessionHelper.getLoginState();
-		if (nsisLevel != null && nsisLevel.toClaimValue() != null) {
-			attributeStatement.getAttributes().add(createSimpleAttribute(Constants.LEVEL_OF_ASSURANCE, nsisLevel.toClaimValue()));
+		if (serviceProvider.preferNIST()) {
+			
+			// value "2" if loged in with username/password and value "3" if logged in with 2-faktor
+			String NISTValue = "2";
+			if (sessionHelper.hasUsedMFA()) {
+				NISTValue = "3";
+			}
+			attributeStatement.getAttributes().add(createSimpleAttribute(Constants.NIST_CLAIM, NISTValue));
+		} else {
+			NSISLevel nsisLevel = sessionHelper.getLoginState();
+
+			if (nsisLevel != null && nsisLevel.toClaimValue() != null && serviceProvider.supportsNsisLoaClaim()) {
+				attributeStatement.getAttributes().add(createSimpleAttribute(Constants.LEVEL_OF_ASSURANCE, nsisLevel.toClaimValue()));
+			}
 		}
 
 		return assertion;
@@ -351,8 +378,9 @@ public class AssertionService {
 		else if (attributeValue instanceof List) {
 			@SuppressWarnings("rawtypes")
 			List list = (List) attributeValue;
-			
+
 			for (Object o : list) {
+
 				if (o instanceof String) {
 					XSAny value = xsAnyBuilder.buildObject(SAMLConstants.SAML20_NS, AttributeValue.DEFAULT_ELEMENT_LOCAL_NAME, SAMLConstants.SAML20_PREFIX);
 					value.setTextContent((String) o);
@@ -362,5 +390,187 @@ public class AssertionService {
 		}
 
 		return attribute;
+	}
+
+	public MessageContext<SAMLObject> createBrokerAssertionMessage(Assertion assertion, AuthnRequest authnRequest) throws ResponderException, RequesterException {
+		String assertionConsumerServiceURL = authnRequestHelper.getConsumerEndpoint(authnRequest);
+
+		// Create proxy Response
+		Response response = createBrokerResponse(assertion, authnRequest);
+
+		// Build Proxy MessageContext and add response
+		MessageContext<SAMLObject> messageContext = new MessageContext<>();
+		messageContext.setMessage(response);
+
+		// Set RelayState
+		SAMLBindingSupport.setRelayState(messageContext, sessionHelper.getRelayState());
+
+		// Set destination
+		SAMLPeerEntityContext peerEntityContext = messageContext.getSubcontext(SAMLPeerEntityContext.class, true);
+		SAMLEndpointContext endpointContext = peerEntityContext.getSubcontext(SAMLEndpointContext.class, true);
+
+		SingleSignOnService endpoint = samlHelper.buildSAMLObject(SingleSignOnService.class);
+		endpoint.setBinding(SAMLConstants.SAML2_POST_BINDING_URI);
+		endpoint.setLocation(assertionConsumerServiceURL);
+
+		endpointContext.setEndpoint(endpoint);
+
+		return messageContext;
+	}
+
+	private Response createBrokerResponse(Assertion assertion, AuthnRequest authnRequest) throws ResponderException, RequesterException {
+		// Get SP metadata
+		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+		String location = serviceProvider
+				.getMetadata()
+				.getSPSSODescriptor(SAMLConstants.SAML20P_NS)
+				.getDefaultAssertionConsumerService()
+				.getLocation();
+
+		DateTime issueInstant = new DateTime();
+
+		// Create and sign Assertion
+		Assertion brokerAssertion = createBrokerAssertion(issueInstant, authnRequest, assertion, serviceProvider);
+
+		signAssertion(brokerAssertion);
+
+		// Create Response
+		Response response = samlHelper.buildSAMLObject(Response.class);
+		response.setConsent("urn:oasis:names:tc:SAML:2.0:consent:unspecified");
+		response.setDestination(location);
+		response.setInResponseTo(authnRequest.getID());
+		response.setIssueInstant(issueInstant);
+
+		RandomIdentifierGenerationStrategy secureRandomIdGenerator = new RandomIdentifierGenerationStrategy();
+		String id = secureRandomIdGenerator.generateIdentifier();
+		response.setID(id);
+
+		// Create issuer
+		Issuer issuer = samlHelper.buildSAMLObject(Issuer.class);
+		response.setIssuer(issuer);
+
+		issuer.setValue(configuration.getEntityId());
+
+		// Create status
+		Status status = samlHelper.buildSAMLObject(Status.class);
+		StatusCode statusCode = samlHelper.buildSAMLObject(StatusCode.class);
+		statusCode.setValue(StatusCode.SUCCESS);
+		status.setStatusCode(statusCode);
+		response.setStatus(status);
+
+		loggingUtil.logAssertion(brokerAssertion, Constants.OUTGOING, null);
+
+		X509Certificate encryptionCertificate = serviceProvider.getEncryptionCertificate();
+
+		if (serviceProvider.encryptAssertions() && encryptionCertificate != null) {
+			EncryptedAssertion proxyEncryptedAssertion = encryptAssertion(brokerAssertion, encryptionCertificate);
+			response.getEncryptedAssertions().add(proxyEncryptedAssertion);
+		}
+		else {
+			response.getAssertions().add(brokerAssertion);
+		}
+
+		return response;
+	}
+
+	private Assertion createBrokerAssertion(DateTime issueInstant, AuthnRequest authnRequest, Assertion assertion, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
+		// Create random id for assertion
+		RandomIdentifierGenerationStrategy secureRandomIdGenerator = new RandomIdentifierGenerationStrategy();
+		String id = secureRandomIdGenerator.generateIdentifier();
+
+		// Create assertion
+		Assertion brokerAssertion = samlHelper.buildSAMLObject(Assertion.class);
+		brokerAssertion.setIssueInstant(issueInstant);
+		brokerAssertion.setID(id);
+
+		// Create AuthnStatement
+		AuthnStatement authnStatement = samlHelper.buildSAMLObject(AuthnStatement.class);
+		brokerAssertion.getAuthnStatements().add(authnStatement);
+		authnStatement.setSessionIndex(id);
+
+		// Set AuthnInstant (The moment password/mfa/nemid was validated)
+		if (assertion.getAuthnStatements() == null) {
+			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
+		}
+
+		DateTime authnInstant = assertion.getAuthnStatements().get(0).getAuthnInstant();
+		authnStatement.setAuthnInstant(authnInstant);
+
+		Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
+		Map<String, String> map = spSessions.get(serviceProvider.getEntityId());
+
+		if (map != null) {
+			map.put(Constants.SESSION_INDEX, id);
+		}
+		sessionHelper.setServiceProviderSessions(spSessions);
+
+		AuthnContext authnContext = samlHelper.buildSAMLObject(AuthnContext.class);
+		authnStatement.setAuthnContext(authnContext);
+
+		AuthnContextClassRef authnContextClassRef = samlHelper.buildSAMLObject(AuthnContextClassRef.class);
+		authnContext.setAuthnContextClassRef(authnContextClassRef);
+
+		authnContextClassRef.setAuthnContextClassRef("urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport");
+
+		// Create Issuer
+		Issuer issuer = samlHelper.buildSAMLObject(Issuer.class);
+		brokerAssertion.setIssuer(issuer);
+
+		issuer.setFormat(NameID.ENTITY);
+		issuer.setValue(configuration.getEntityId());
+
+		// Create Subject
+		Subject subject = samlHelper.buildSAMLObject(Subject.class);
+		brokerAssertion.setSubject(subject);
+
+		NameID nameID = samlHelper.buildSAMLObject(NameID.class);
+		subject.setNameID(nameID);
+
+		Subject nemLogInSubject = assertion.getSubject();
+		NameID nemLogInNameId = nemLogInSubject.getNameID();
+		nameID.setValue(nemLogInNameId.getValue());
+		nameID.setFormat(nemLogInNameId.getFormat());
+
+		SubjectConfirmation subjectConfirmation = samlHelper.buildSAMLObject(SubjectConfirmation.class);
+		subject.getSubjectConfirmations().add(subjectConfirmation);
+
+		// this will throw an exception if we do not have a SubjectConfirmation from the NemLog-in token (we will have that, but we should probably do some safer/saner checking)
+		SubjectConfirmation nemLogInSubjectConfirmation = nemLogInSubject.getSubjectConfirmations().get(0);
+		subjectConfirmation.setMethod(nemLogInSubjectConfirmation.getMethod());
+
+		SubjectConfirmationData subjectConfirmationData = samlHelper.buildSAMLObject(SubjectConfirmationData.class);
+		subjectConfirmationData.setInResponseTo(authnRequest.getID());
+		subjectConfirmation.setSubjectConfirmationData(subjectConfirmationData);
+
+		subjectConfirmationData.setNotOnOrAfter(nemLogInSubjectConfirmation.getSubjectConfirmationData().getNotOnOrAfter());
+
+		String assertionConsumerServiceURL = authnRequestHelper.getConsumerEndpoint(authnRequest);
+		subjectConfirmationData.setRecipient(assertionConsumerServiceURL);
+
+		// Create Audience restriction
+		Conditions conditions = samlHelper.buildSAMLObject(Conditions.class);
+		brokerAssertion.setConditions(conditions);
+
+		conditions.setNotBefore(issueInstant);
+		conditions.setNotOnOrAfter(new DateTime(issueInstant).plusHours(1));
+
+		AudienceRestriction audienceRestriction = samlHelper.buildSAMLObject(AudienceRestriction.class);
+		conditions.getAudienceRestrictions().add(audienceRestriction);
+
+		Audience audience = samlHelper.buildSAMLObject(Audience.class);
+		audienceRestriction.getAudiences().add(audience);
+
+		audience.setAudienceURI(authnRequest.getIssuer().getValue());
+
+		// Copy Attributes
+		List<AttributeStatement> attributeStatements = brokerAssertion.getAttributeStatements();
+
+		for (AttributeStatement statement : assertion.getAttributeStatements()) {
+			AttributeStatement attributeStatement = null;
+			attributeStatement = (AttributeStatement) copyXMLObject(statement, new AttributeStatementMarshaller(), new AttributeStatementUnmarshaller());
+			attributeStatements.add(attributeStatement);
+		}
+
+		return brokerAssertion;
 	}
 }

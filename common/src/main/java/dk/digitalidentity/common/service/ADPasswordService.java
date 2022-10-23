@@ -151,7 +151,7 @@ public class ADPasswordService {
 		String message = "";
 		try {
 			RestTemplate restTemplate = new RestTemplate();
-			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL("api/validatePassword") , HttpMethod.POST, getRequest(person, password), ADPasswordResponse.class);
+			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL("api/validatePassword"), HttpMethod.POST, getRequest(person, password), ADPasswordResponse.class);
 
 			if (response.getStatusCodeValue() == 200) {
 				ADPasswordResponse result = response.getBody();

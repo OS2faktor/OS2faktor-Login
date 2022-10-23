@@ -29,7 +29,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "groups")
+@Table(name = "ggroups")
 public class Group {
 
     @Id

@@ -15,6 +15,8 @@ import dk.digitalidentity.common.service.mfa.model.ClientType;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Date;
+
 @Getter
 @Setter
 @Entity
@@ -47,4 +49,7 @@ public class LocalRegisteredMfaClient {
 	@Column
 	@NotNull
 	private NSISLevel nsisLevel;
+
+	@Column
+	private Date associatedUserTimestamp;
 }

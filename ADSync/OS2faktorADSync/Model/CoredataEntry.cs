@@ -45,11 +45,23 @@ namespace OS2faktorADSync
         [JsonProperty(PropertyName = "samAccountName")]
         public string SamAccountName { get; set; }
 
+        [JsonProperty(PropertyName = "subDomain")]
+        public string SubDomain { get; set; }
+
         [JsonProperty(PropertyName = "nsisAllowed")]
         public bool NSISAllowed { get; set; }
 
         [JsonProperty(PropertyName = "attributes")]
         public Dictionary<string, string> Attributes { get; set; }
+
+        [JsonProperty(PropertyName = "expireTimestamp")]
+        public string ExpireTimestamp { get; set; }
+
+        [JsonProperty(PropertyName = "transferToNemlogin")]
+        public bool TransferToNemlogin { get; set; }
+
+        [JsonProperty(PropertyName = "rid")]
+        public string Rid { get; set; }
 
         [JsonIgnore]
         public bool Deleted { get; set; }

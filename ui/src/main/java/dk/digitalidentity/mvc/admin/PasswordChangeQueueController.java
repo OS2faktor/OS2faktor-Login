@@ -32,7 +32,12 @@ public class PasswordChangeQueueController {
 			passwordChangeQueue = passwordChangeQueueService.getAll();
 		}
 		else if (securityUtil.hasRole(Constants.ROLE_SUPPORTER)) {
-			passwordChangeQueue = passwordChangeQueueService.getByDomain(securityUtil.getPerson().getSupporter().getDomain().getName());
+			if (securityUtil.getPerson().getSupporter().getDomain() != null) {
+				passwordChangeQueue = passwordChangeQueueService.getByDomain(securityUtil.getPerson().getSupporter().getDomain().getName());
+			}
+			else {
+				passwordChangeQueue = passwordChangeQueueService.getAll();
+			}
 		}
 
 		model.addAttribute("passwordChangeQueue", passwordChangeQueue);

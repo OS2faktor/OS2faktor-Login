@@ -23,4 +23,6 @@ public class CommonConfiguration {
 	private RadiusConfiguration radiusConfiguration = new RadiusConfiguration();
 	private Cpr cpr = new Cpr();
 	private Nemlogin nemlogin = new Nemlogin();
+	private MfaDatabase mfaDatabase = new MfaDatabase();
+	private StilStudents stilStudent = new StilStudents();
 }

@@ -17,6 +17,7 @@ import lombok.Setter;
 @Setter
 @Getter
 public class SqlServiceProviderRequiredField {
+
     @Id
     @Column
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,4 +35,8 @@ public class SqlServiceProviderRequiredField {
     @NotNull
     @Size(max = 255)
     private String attributeName;
+
+    @Column
+    @NotNull
+    private boolean singleValueOnly;
 }

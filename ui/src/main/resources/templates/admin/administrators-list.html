@@ -16,7 +16,7 @@
 
 							<div class="ibox-content">
 								<p>
-									Nedenfor listes alle nuværende administratorer i løsningnen, samt de rettigheder de har i løsningen. For at redigere
+									Nedenfor listes alle nuværende administratorer i løsningen, samt de rettigheder de har i løsningen. For at redigere
 									rettighederne for en eksisterende administrator, anvendes blot blyanten til højre for navnet.
 								</p>
 								<p>
@@ -30,7 +30,7 @@
 										<li><b>Administrator</b>. En adminsitrator har næsten fuld adgang til hele administratorportalen. Den eneste begrænsning er at en administrator ikke har adgang til den funktionalitet som er knyttet til "registrant" rollen.</li>
 										<li><b>TU Administrator</b>. En TU administrator (tjenesteudbyder-administrator), har læseadgang til data i løsningen, samt fuld adgang til at oprette og vedligeholde tjenesteudbyderer.</li>
 										<li><b>Supporter</b>. En supporter har læseadgang til brugere, hændelseslogs og rapporter, og kan hhv spærre og låse brugere op.</li>
-										<li><b>Registrant</b>. En registrant er en særligt betroet medarbejder, der kan udføre den manuelle identitetssikringsproces for medarbejdere der ikke ønsker at gennemføre den selvbetjente/digitale identitetssikringsproces.</li>
+										<li th:if="${@commonConfiguration.customer.enableRegistrant}"><b>Registrant</b>. En registrant er en særligt betroet medarbejder, der kan udføre den manuelle identitetssikringsproces for medarbejdere der ikke ønsker at gennemføre den selvbetjente/digitale identitetssikringsproces.</li>
 										<li><b>Brugeradministrator</b>. En brugeradministrator kan tilgå dette skærmbillede, og tildele/fjerne administrator-roller via funktionen i dette skærmbillede.</li>
 									</ul>
 								</p>
@@ -57,7 +57,7 @@
 														<li th:if="${admin.admin}">Administrator</li>
 														<li th:if="${admin.serviceProviderAdmin}">TU administrator</li>
 														<li th:if="${admin.userAdmin}">Brugeradministrator</li>
-														<li th:if="${admin.registrant}">Registrant</li>
+														<li th:if="${admin.registrant and @commonConfiguration.customer.enableRegistrant}">Registrant</li>
 														<li th:if="${admin.supporter}">Supporter</li>
 													</ul>
 												</td>
@@ -70,7 +70,7 @@
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
 							</div>
 						</div>
@@ -112,7 +112,7 @@
 							<input id="userAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_USER_ADMIN" />
 						</div>
 					</div>
-					<div class="form-group row">
+					<div class="form-group row" th:if="${@commonConfiguration.customer.enableRegistrant}">
 						<label class="col-sm-4 col-form-label">Registrant</label>
 						<div class="col-sm-8">
 							<input id="registrantCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_REGISTRANT" />
@@ -244,6 +244,12 @@
 			        value: 0,
 			        text : '---',
 			        selected : 0 == $(elem).data("domainid")
+			    }));
+
+			    $('#domainSelect').append($('<option>', {
+			        value: -1,
+			        text : 'Alle domæner',
+			        selected : -1 == $(elem).data("domainid")
 			    }));
 				
 				$.each(domains, function (i, domain) {

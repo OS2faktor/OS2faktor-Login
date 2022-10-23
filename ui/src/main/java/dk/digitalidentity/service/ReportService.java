@@ -1,12 +1,15 @@
 package dk.digitalidentity.service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Service;
 
+import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
 import dk.digitalidentity.common.service.AuditLogService;
@@ -54,18 +57,12 @@ public class ReportService {
 		return model;
 	}
 
-	public Map<String, Object> getAuditorReportLoginHistoryModel() {
+	public Map<String, Object> getAuditorReportModel(ReportType type, LocalDateTime from, LocalDateTime to) {
 		Map<String, Object> model = new HashMap<>();
 		model.put("resourceBundle", resourceBundle);
-		model.put("auditLogs", auditLogService.findByReportType(ReportType.LOGIN_HISTORY));
-
-		return model;
-	}
-	
-	public Map<String, Object> getAuditorReportGeneralHistoryModel() {
-		Map<String, Object> model = new HashMap<>();
-		model.put("resourceBundle", resourceBundle);
-		model.put("auditLogs", auditLogService.findByReportType(ReportType.GENERAL_HISTORY));
+		List<AuditLog> auditLogs = auditLogService.findByReportTypeAndTtsBetween(type, from, to);
+		model.put("auditLogs", auditLogs);
+		model.put("auditLogListEmpty", auditLogs.isEmpty());
 
 		return model;
 	}

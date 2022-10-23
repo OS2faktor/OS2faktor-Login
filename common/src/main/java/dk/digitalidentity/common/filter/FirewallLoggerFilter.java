@@ -2,43 +2,44 @@ package dk.digitalidentity.common.filter;
 
 import java.io.IOException;
 
-import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.web.firewall.RequestRejectedException;
+import org.springframework.security.web.firewall.RequestRejectedHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.GenericFilterBean;
 
 import lombok.extern.slf4j.Slf4j;
 
 @Component
 @Slf4j
-@Order(Ordered.HIGHEST_PRECEDENCE)
-public class FirewallLoggerFilter extends GenericFilterBean {
+public class FirewallLoggerFilter implements RequestRejectedHandler {
 
-    @Override
-    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain) throws IOException, ServletException {
-        try {
-            chain.doFilter(req, res);
-        }
-        catch (RequestRejectedException ex) {
-            HttpServletRequest request = (HttpServletRequest) req;
-            HttpServletResponse response = (HttpServletResponse) res;
+	@Override
+	public void handle(HttpServletRequest request, HttpServletResponse response, RequestRejectedException requestRejectedException) throws IOException, ServletException {
+        log.warn("request_rejected: remote={}, user_agent={}, request_url={}, request_method={}, message={}",
+        	getIpAddress(request),
+            request.getHeader(HttpHeaders.USER_AGENT),
+            request.getRequestURL(),
+            request.getMethod(),
+            ((requestRejectedException != null) ? requestRejectedException.getMessage() : "<null>")
+        );
 
-            log.warn("request_rejected: remote={}, user_agent={}, request_url={}",
-	            request.getRemoteHost(),
-	            request.getHeader(HttpHeaders.USER_AGENT),
-	            request.getRequestURL()
-            );
+        response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+	}
+	
+	private static String getIpAddress(HttpServletRequest request) {
+		String remoteAddr = "";
 
-            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
-        }
-    }
+		if (request != null) {
+			remoteAddr = request.getHeader("X-FORWARDED-FOR");
+			if (remoteAddr == null || "".equals(remoteAddr)) {
+				remoteAddr = request.getRemoteAddr();
+			}
+		}
+
+		return remoteAddr;
+	}
 }

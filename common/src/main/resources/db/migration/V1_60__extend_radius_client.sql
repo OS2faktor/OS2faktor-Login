@@ -1,0 +1,1 @@
+ALTER TABLE radius_clients ADD COLUMN nsis_level_required VARCHAR(255) NOT NULL DEFAULT 'NONE';

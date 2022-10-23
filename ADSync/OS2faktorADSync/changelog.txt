@@ -9,3 +9,13 @@
 2022.03.02 - 1.5.0 - support for synchronizing KOMBIT Jobfunctionsroles
 2022.03.04 - 1.5.1 - fixet a bug where KOMBIT roles HAD to be in same OU as users
 2022.03.16 - 1.5.2 - groupSync supports groups in groups
+2022.05.12 - 1.5.3 - handle loadAllUsers=false setting on deltasync correctly
+2022.06.16 - 1.6.0 - removed "loadAllUsers" setting (use the filter instead), and added more debugging log entries
+2022.08.23 - 1.7.0 - read accountExpire property
+2022.08.31 - 1.7.1 - support SG notation for Jobfunktionsroller
+2022.09.04 - 2.0.0 - support for "transferToNemLogin" and "RID" information to be used with NemLog-in useradministration integration
+2022.09.09 - 2.0.1 - support DSD model for Jobfunktionsroller (including ignore filter with supergroup)
+2022.09.13 - 2.0.2 - support SubDomains (e.g. students)
+2022.09.13 - 2.0.3 - co-exists with other coredata loaders when using subdomains :)
+2022.09.23 - 2.0.4 - support custom identify JFR syntax
+2022.09.28 - 2.0.5 - fix bug when transferToNemLogin property is not filled out (make property optionel)

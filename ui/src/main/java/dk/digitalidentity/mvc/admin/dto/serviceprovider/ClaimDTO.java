@@ -16,6 +16,7 @@ public class ClaimDTO {
 	private ClaimType type;
 	private String attribute;
 	private String value;
+	private boolean singleValueOnly;
 	private String externalOperation;
 	private String externalOperationArgument;
 
@@ -23,6 +24,7 @@ public class ClaimDTO {
 		this.id = requiredField.getId();
 		this.attribute = requiredField.getAttributeName();
 		this.value = requiredField.getPersonField();
+		this.singleValueOnly = requiredField.isSingleValueOnly();
 
 		this.type = ClaimType.DYNAMIC;
 	}
@@ -31,6 +33,8 @@ public class ClaimDTO {
 		this.id = staticClaim.getId();
 		this.attribute = staticClaim.getField();
 		this.value = staticClaim.getValue();
+		this.singleValueOnly = false;
+
 
 		this.type = ClaimType.STATIC;
 	}
@@ -41,6 +45,7 @@ public class ClaimDTO {
 		this.value = rcClaim.getClaimValue();
 		this.externalOperation = rcClaim.getExternalOperation().toString();
 		this.externalOperationArgument = rcClaim.getExternalOperationArgument();
+		this.singleValueOnly = false;
 
 		this.type = ClaimType.ROLE_CATALOGUE;
 	}

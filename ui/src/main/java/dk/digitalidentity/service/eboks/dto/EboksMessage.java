@@ -8,8 +8,7 @@ import lombok.Setter;
 public class EboksMessage {
 	private String cpr;
 	private String cvr;
-	private String senderId;
-	private String contentTypeId;
 	private String subject;
-	private String pdfFileBase64;
+	private String municipalityName;
+	private String content;
 }

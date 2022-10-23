@@ -44,9 +44,9 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed"></div>
+									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
 
-									<div class="form-group row">
+									<div class="form-group row disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">NameID Format</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="nameIdFormatSelect">
@@ -55,28 +55,29 @@
 										</div>
 									</div>
 
-									<div class="form-group row">
+									<div class="form-group row disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">NameID Værdi</label>
 										<div class="col-sm-9">
-											<select id="nameIdValueDropdown" class="form-control m-b" onchange="serviceProviderService.nameIdValueChange();">
-												<option id="nameIdValueOther" label="Andet" value="" ></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'userId'" label="UserId" value="userId" ></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'sAMAccountName'" label="sAMAccountName" value="sAMAccountName" ></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'uuid'" label="UUID" value="uuid" ></option>
-												<option th:selected="${serviceprovider.nameIdValue} == 'cpr'" label="CPR" value="cpr" ></option>
+											<select class="form-control m-b" id="nameIdValueDropdown" name="nameIdValue">
+												<option value="userId" th:selected="'userId' == ${serviceprovider.nameIdValue} or 'sAMAccountName' == ${serviceprovider.nameIdValue}">Brugernavn</option>
+												<option value="email" th:selected="'email' == ${serviceprovider.nameIdValue}">E-mail</option>
+												<option value="uuid" th:selected="'uuid' == ${serviceprovider.nameIdValue}">UUID</option>
+												<option value="cpr" th:selected="'cpr' == ${serviceprovider.nameIdValue}">Personnummer</option>
+												<option value="name" th:selected="'name' == ${serviceprovider.nameIdValue}">Navn</option>
+												<option value="alias" th:selected="'alias' == ${serviceprovider.nameIdValue}">Kaldenavn</option>
+												<option value="firstname" th:selected="'firstname' == ${serviceprovider.nameIdValue}">Fornavn</option>
+												<option value="lastname" th:selected="'lastname' == ${serviceprovider.nameIdValue}">Efternavn</option>
+												<option th:each="personAttribute : ${@personAttributeService.getAll()}" th:value="${personAttribute.name}" th:selected="${personAttribute.name} == ${serviceprovider.nameIdValue}">
+													<th:block th:unless="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.displayName + ' (' + personAttribute.name + ')'}"></th:block>
+													<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>
+												</option>
 											</select>
 										</div>
 									</div>
 
-									<div class="form-group row">
-										<div class="offset-md-3 col-sm-9">
-											<input placeholder="Indtast venligst et felt alle personer har, f.eks. en attribut" th:field="${serviceprovider.nameIdValue}" type="text" class="form-control" style="display: none;"/>
-										</div>
-									</div>
+									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
 
-									<div class="hr-line-dashed"></div>
-
-									<div class="form-group row">
+									<div class="form-group row disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="forceMfaRequiredSelect">
@@ -85,9 +86,9 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed"></div>
+									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
 
-									<div class="form-group row">
+									<div class="form-group row disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="nsisLevelRequiredSelect">
@@ -98,20 +99,30 @@
 
 									<div class="hr-line-dashed"></div>
 
-									<div class="form-group row">
-										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+										<label class="col-sm-3 col-form-label">Gennemstil logins til NemLog-In</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks passwordField">
+												<input th:field="${serviceprovider.nemLogInBrokerEnabled}" type="checkbox" class="i-checks">
 											</label>
 										</div>
 									</div>
+
+									<div class="form-group row disabledByBrokerFunctionality">
+										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks">
+											</label>
+										</div>
+									</div>
+
 
 									<div class="form-group row">
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks passwordField">
+												<input th:field="${serviceprovider.encryptAssertions}" type="checkbox" class="i-checks">
 											</label>
 										</div>
 									</div>
@@ -120,7 +131,16 @@
 										<label class="col-sm-3 col-form-label">Aktiv</label>
 										<div class="col-sm-9">
 											<label>
-												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks passwordField">
+												<input th:field="${serviceprovider.enabled}" type="checkbox" class="i-checks">
+											</label>
+										</div>
+									</div>
+									
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Anvend NIST sikringsniveauer</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.preferNIST}" type="checkbox" class="i-checks">
 											</label>
 										</div>
 									</div>
@@ -162,7 +182,7 @@
 							</div>
 						</div>
 
-						<div class="ibox">
+						<div class="ibox disabledByBrokerFunctionality">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp;Claims</h5>
 								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
@@ -179,6 +199,7 @@
 											<th style="width: 200px;">Type</th>
 											<th>Attribut</th>
 											<th style="width: 300px;">Værdi</th>
+											<th style="width: 200px;">Send én værdi</th>
 											<th style="width: 80px;">Handlinger</th>
 										</tr>
 										</thead>
@@ -188,7 +209,8 @@
 											<td data-type="id" th:data-extop="${claim.externalOperation}" th:data-extoparg="${claim.externalOperationArgument}" th:text="${claim.id}" style="display:none;"/>
 											<td data-type="type" th:attr="data-enum=${claim.type}" th:text="${claim.type.message}" />
 											<td data-type="attribute" th:text="${claim.attribute}" />
-											<td data-type="value" th:text="${claim.value}" />
+											<td data-type="value" th:data-val="${claim.value}" th:text="${claim.value}" />
+											<td data-type="singleValueOnly" th:data-value="${claim.singleValueOnly}"><em th:if="${claim.singleValueOnly}" class="fa fa-fw fa-check"></td>
 											<td>
 												<a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim">
 													<em class="fa fa-fw fa-pencil"></em>
@@ -204,7 +226,7 @@
 							</div>
 						</div>
 
-						<div class="ibox" id="iboxConditionalAccess">
+						<div class="ibox disabledByBrokerFunctionality" id="iboxConditionalAccess">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
 							</div>
@@ -288,44 +310,128 @@
 						<span aria-hidden="true">×</span>
 						<span class="sr-only">Luk</span>
 					</button>
-					<h4 class="modal-title" id="modalClaimTitle">Opret/Rediger claim</h4>
+					<h4 class="modal-title" id="modalClaimTitle">Opret/rediger claim</h4>
 				</div>
 				<div class="modal-body">
 					<input id="modalIDField" style="display:none;">
+					<div id="wizard" style="background: #f8fafb;">
+						<h1>Claim type</h1>
+						<div>
+							<h3>Vælg claim type</h3>
+							<p>Der findes forskellige typer claims du kan vælge at opsætte på en tjenesteudbyder:
+								<ul style="margin-left:20px;">
+									<li>Personligt: udsteder et claim baseret på brugerens data.</li>
+									<li>Fast: udsteder et fast claim for alle brugere. Dette claim har samme værdi uagtet brugeren der logger ind.</li>
+									<li id="roleCatalogueFeatureDescription">OS2rollekatalog: giver muligheden for at sende et claim baseret på opslag i OS2rollekatalog.</li>
+								</ul>
+							</p>
+							<hr>
+							<div id="modalTypeSelector">
+								<label th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}" class="col-sm-12 col-form-label">
+									<input class="i-checks" type="radio" th:value="${claimType}" name="modalTypeSelect" th:data-type-name="${claimType.message}" required>
+									&nbsp;
+									<th:block th:text="${claimType.message}"></th:block>
+								</label>
+							</div>
+						</div>
 
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">Type</label>
-						<select class="col-sm-10 form-control m-b" id="modalTypeSelect" onchange="modalService.typeChanged(this)">
-							<option th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}" th:value="${claimType}" th:text="${claimType.message}"></option>
-						</select>
-					</div>
+						<h1>Claim værdi</h1>
+						<div>
+							<block id="modalClaimTypeDynamic">
+								<h3>Vælg claim værdi</h3>
+								<p>Her skal du vælge hvilken attribut fra brugernes data som skal overføres til tjenesteudbyderen.</p>
 
-					<div class="form-group row" id="modalExternalOperation">
-						<label class="col-sm-2 col-form-label" id="modalExternalOperationLabel">Operation</label>
-						<select class="col-sm-10 form-control" id="modalExternalOperationField" onchange="modalService.externalOperationChanged(this)">
-							<option th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.RoleCatalogueOperation).values()}" th:value="${claimType}" th:text="${claimType.message}"></option>
-						</select>
-					</div>
-					
-					<div class="form-group row" id="modalExternalOperationArgument">
-						<label class="col-sm-2 col-form-label" id="modalExternalOperationArgumentLabel">Argument</label>
-						<input class="col-sm-10 form-control" placeholder="Indtast værdi" id="modalExternalOperationArgumentField"></input>
-					</div>
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="col-sm-3 col-form-label" id="modalAttributeLabel">Bruger attribut</label>
+									<select class="col-sm-9 form-control m-b" id="modalClaimValueDynamic">
+										<option value="userId" selected="selected">Brugernavn</option>
+										<option value="email">E-mail</option>
+										<option value="uuid">UUID</option>
+										<option value="cpr">Personnummer</option>
+										<option value="name">Navn</option>
+										<option value="alias">Kaldenavn</option>
+										<option value="firstname">Fornavn</option>
+										<option value="lastname">Efternavn</option>
+										<option th:each="personAttribute : ${@personAttributeService.getAll()}" th:value="${personAttribute.name}">
+											<th:block th:unless="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.displayName + ' (' + personAttribute.name + ')'}"></th:block>
+											<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>
+										</option>
+									</select>
+								</div>
+								
+								<hr>
 
-					<div class="form-group row" id="modalAttribute">
-						<label class="col-sm-2 col-form-label" id="modalAttributeLabel">Attribut</label>
-						<input class="col-sm-10 form-control" placeholder="Indtast attribut" id="modalAttributeField"></input>
-					</div>
+								<h3>Send kun én værdi</h3>
+								<p>
+									Hvis der vælges en værdi som brugeren kan have flere af (fx medarbejdernummer, ansættelsessted eller lignende information), og
+									tjenesteudbyderen ikke understøtte flere værdier i dette claim, så kan man sætte et flueben i nedenstående checkbox, og så
+									bliver brugeren bedt om at vælge hvilken værdi der skal overføres (kun hvis brugeren har flere værdier at vælge mellem).
+								</p>
+								
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="col-sm-12 col-form-label" id="modalSingleValueOnlyLabel">
+										<input id="modalSingleValueOnlyField" name="modalSingleValueOnlyField" type="checkbox" class="i-checks">
+										&nbsp;
+										send kun én værdi
+									</label>
+								</div>
+							</block>
+							
+							<block id="modalClaimTypeStatic">
+								<h3>Vælg claim værdi</h3>
+								<p>Her skal du vælge hvilken fast værdi som du vil sende til tjenesteudbyderen for alle brugere</p>
+								<div class="form-group row">
+									<label class="col-sm-3 col-form-label" id="modalAttributeLabel">Fast claim værdi</label>
+									<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimValueStatic"></input>
+								</div>
+							</block>
+							
+							<block id="modalClaimTypeRC">
+								<h3>Vælg data fra OS2rollekatalog</h3>
+								<p> Her skal du vælge den type data du ønsker at hente fra OS2rollekatalog. Der kan vælges mellem
+									<ul style="margin-left:20px;">
+										<li><b>Alle tildelte systemroller</b>: dette er det mest almindelige opslag på tildelte roller til en bruger</li>
+										<li><b>Alle tildelte jobfunktionsroller</b>: denne anvendes i stedet for opslag på systemroller, hvis tjenesteudbyderen skal modtage roller på jobfunktionsrollerniveau (dette er typisk ikke tilfældet)</li>
+										<li><b>Alle tildelte systemroller (som OIO-BPP)</b>: dette laver et opslag på tildelte roller, og indpakker dem i OIO-BPP formatet</li>
+										<li><b>hvis bruger tildelt systemrolle</b>: hvis denne vælges, så udstedes et claim med en bestemt værdi, hvis og kun hvis brugeren er tildelt netop den angivne systemrolle</li>
+										<li><b>hvis bruger tildelt jobfunktionsrolle</b>: hvis denne vælges, så udstedes et claim med en bestemt værdi, hvis og kun hvis brugeren er tildelt netop den angivne jobfunktionsrolle</li>
+									</ul>
+								</p>
+								
+								<div class="form-group row" style="margin-right:0px;" id="modalExternalOperation">
+									<label class="col-sm-3 col-form-label" id="modalExternalOperationLabel">Operation</label>
+									<select class="col-sm-9 form-control" id="modalExternalOperationField" onchange="modalService.externalOperationChanged(this)">
+										<option th:each="claimType : ${T(dk.digitalidentity.common.dao.model.enums.RoleCatalogueOperation).values()}" th:value="${claimType}" th:text="${claimType.message}"></option>
+									</select>
+								</div>
+								
+								<div class="form-group row" style="margin-right:0px;" id="modalExternalOperationArgument">
+									<label class="col-sm-3 col-form-label" id="modalExternalOperationArgumentLabel">Argument</label>
+									<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalExternalOperationArgumentField"></input>
+								</div>
+								
+								<div id="modalClaimValueRCOptionalValue" style="display: none;">
+									<hr>
+									<h3>Vælg claim værdi</h3>
+									<p>Her skal du vælge hvilken værdi der skal sendes til tjenesteudbyderen hvis brugeren er tildelt den nævnte rolle</p>
+									<div class="form-group row" style="margin-right:0px;">
+										<label class="col-sm-3 col-form-label" id="modalValueLabel">Værdi</label>
+										<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimValueRC"></input>
+									</div>
+								</div>
+							</block>
+						</div>
 
-					<div class="form-group row" id="modalValue">
-						<label class="col-sm-2 col-form-label" id="modalValueLabel">Værdi</label>
-						<input class="col-sm-10 form-control" placeholder="Indtast værdi" id="modalValueField"></input>
+						<h1>Claim navn</h1>
+						<div>
+							<h3>Vælg claim navn</h3>
+							<p>Her angives navnet på det claim, som tjenesteudbyderen forventer at få overført vædien via.</p>
+							<div class="form-group row">
+								<label class="col-sm-3 col-form-label" id="modalAttributeLabel">Claim navn</label>
+								<input class="col-sm-9 form-control" placeholder="Indtast navnet på claimet" id="modalClaimName"></input>
+							</div>
+						</div>
 					</div>
-				</div>
-
-				<div class="modal-footer">
-					<button type="button" class="btn btn-danger" data-dismiss="modal">Annuller</button>
-					<button type="button" class="btn btn-primary" onclick="modalService.save()">Gem</button>
 				</div>
 			</div>
 		</div>
@@ -335,11 +441,29 @@
 	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
 	
 </body>
+
+<style>
+	.wizard .content {
+    	min-height: 400px;
+	    background: #f8fafb;
+	}
+	.wizard .content > .body {
+		width: 100%;
+		height: auto;
+		padding: 15px;
+		position: absolute;
+	}
+	.wizard .content .body.current {
+		position: relative;
+	}
+</style>
+
 <script th:inline="javascript">
 		/*<![CDATA[*/
 
 		/*[+
 		var rcEnabled = [[${@commonConfiguration.roleCatalogue.enabled}]];
+		var nemLoginEnabled = [[${@commonConfiguration.nemlogin.brokerEnabled}]];
 		var rootUrl = [[@{/}]];
 		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
 		var claimTypes = [[${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}]];
@@ -349,8 +473,10 @@
 
 		var nameIdValue = [[${serviceprovider.nameIdValue}]];
 		var forceMfaRequired = [[${serviceprovider.forceMfaRequired}]];
+		var nemLogInBrokerEnabled = [[${serviceprovider.nemLogInBrokerEnabled}]];
 		var conditionsDomains = [[${serviceprovider.conditionsDomains}]];
 		var conditionsGroups = [[${serviceprovider.conditionsGroups}]];
+		var attributeValueMap = [[${attributeValueMap}]];
 		+]*/
 
 		// messages
@@ -366,6 +492,8 @@
 		var serviceProviderService;
 		var conditionsService;
 		$(document).ready(function() {
+			
+
 			serviceProviderService = new ServiceProviderService();
 			serviceProviderService.init();
 
@@ -381,16 +509,39 @@
 
 		function ServiceProviderService() {
 			this.init = function() {
-				serviceProviderService.nameIdActualValueToggleVisible();
 				serviceProviderService.defaultValues();
+
+				$('input[name=nemLogInBrokerEnabled]').on('ifToggled', function(event){
+					if (event.currentTarget.checked) {
+						$('.disabledByBrokerFunctionality').hide()
+					}
+					else {
+						$('.disabledByBrokerFunctionality').show()
+					}
+				});
 			}
 
 			this.defaultValues = function() {
 				if (nameIdValue == null) {
-					$("#nameIdValueDropdown").val("sAMAccountName").change();
+					$("#nameIdValueDropdown").val("userId").change();
 				}
 				if (forceMfaRequired == null) {
 					$("#forceMfaRequiredSelect").val("DEPENDS").change();
+				}
+				if (nemLogInBrokerEnabled) {
+					$('.disabledByBrokerFunctionality').hide()
+				}
+
+				// Set displaynames for claims based on data-val attribute
+				var dataValueObj = $('#claimTable tbody tr td[data-type="value"]');
+				for (var i = 0; i < dataValueObj.length; i++) {
+					var obj = $(dataValueObj[i]);
+					var actualValue = obj.data('val');
+					var displayValue = attributeValueMap[actualValue];
+
+					if (displayValue) {
+						obj.text(displayValue);
+					}
 				}
 			}
 
@@ -415,7 +566,7 @@
 							data.id = id;
 							data.name = $('#name').val();
 							data.entityId = $('#entityId').val();
-							data.nameIdValue = $('#nameIdValue').val();
+							data.nameIdValue = $('#nameIdValueDropdown').children("option:selected").val();
 
 							// Handle dropdowns
 							data.nameIdFormat = $('#nameIdFormatSelect option:selected').val();
@@ -426,7 +577,13 @@
 							data.preferNemid = $('input[name=preferNemid]').iCheck('update')[0].checked;
 							data.encryptAssertions = $('input[name=encryptAssertions]').iCheck('update')[0].checked;
 							data.enabled = $('input[name=enabled]').iCheck('update')[0].checked;
-							
+							data.preferNIST = $('input[name=preferNIST]').iCheck('update')[0].checked;
+							if (nemLoginEnabled) {
+								data.nemLogInBrokerEnabled = $('input[name=nemLogInBrokerEnabled]').iCheck('update')[0].checked;
+							} else {
+								data.nemLogInBrokerEnabled = nemLogInBrokerEnabled;
+							}
+
 							// Handle metadata
 							var selectedMetadataOption = $(".checked input[name=metadataRadios]").val();
 							
@@ -447,9 +604,10 @@
 								claimObj.id = $(claims[i]).children('td[data-type="id"]').text();
 								claimObj.type = $(claims[i]).children('td[data-type="type"]').data('enum');
 								claimObj.attribute = $(claims[i]).children('td[data-type="attribute"]').text();
-								claimObj.value = $(claims[i]).children('td[data-type="value"]').text();
+								claimObj.value = $(claims[i]).children('td[data-type="value"]').data('val');
 								claimObj.externalOperation = $(claims[i]).children('td[data-type="id"]').data('extop');
 								claimObj.externalOperationArgument = $(claims[i]).children('td[data-type="id"]').data('extoparg');
+								claimObj.singleValueOnly = $(claims[i]).children('td[data-type="singleValueOnly"]').data('value');
 
 								claimData.push(claimObj);
 							}
@@ -493,23 +651,6 @@
 						}
 					}
 				);	
-			}
-
-			this.nameIdValueChange = function() {
-				var value = $('#nameIdValueDropdown').children("option:selected").val();
-				$('#nameIdValue').val(value);
-				serviceProviderService.nameIdActualValueToggleVisible();
-			}
-
-			this.nameIdActualValueToggleVisible = function() {
-				var value = $('#nameIdValueDropdown').children("option:selected").val();
-
-				if (value === "") {
-					$('#nameIdValue').show();
-				}
-				else {
-					$('#nameIdValue').hide();
-				}
 			}
 		}
 
@@ -613,81 +754,169 @@
 			this.editedRow;
 
 			this.init = function() {
+				// Init wizard
+				var settings = {
+					/* Transition Effects */
+					transitionEffect: $.fn.steps.transitionEffect.slideLeft,
+					transitionEffectSpeed: 200,
+
+					/* Events */
+					onStepChanging: function (event, currentIndex, newIndex) {
+						// Change wizard based on what choice was made 
+						// and also wizard page validation: not allowing user to continue before required fields are chosen
+
+						switch (currentIndex) {
+							case 0:
+								var type = $('input[name=modalTypeSelect]:checked').val();
+								
+								if (type == 'STATIC') {
+									$('#modalClaimTypeStatic').show()
+									$('#modalClaimTypeDynamic').hide()
+									$('#modalClaimTypeRC').hide()
+								}
+								else if (type == 'DYNAMIC') {
+									$('#modalClaimTypeDynamic').show()
+									$('#modalClaimTypeStatic').hide()	
+									$('#modalClaimTypeRC').hide()
+								}
+								else if (type == 'ROLE_CATALOGUE') {
+									$('#modalClaimTypeRC').show()
+									$('#modalClaimTypeDynamic').hide()
+									$('#modalClaimTypeStatic').hide()	
+								}
+								else {
+									// If no type is selected you cant continue to next page in the wizard
+									return false;
+								}
+								break;
+							case 1:
+								if (newIndex > currentIndex) {
+									var type = $('input[name=modalTypeSelect]:checked').val();
+									if (type == 'STATIC' && !$("#modalClaimValueStatic").val().trim()) {
+										return false;
+									}
+									else if (type == 'DYNAMIC' && !$("#modalClaimValueDynamic").val().trim()) {
+										return false;
+									}
+									else if (type == 'ROLE_CATALOGUE' && !$("#modalExternalOperationArgumentField").val().trim()) {
+										return false;
+									}	
+								}	
+								break;
+							case 2:
+								break;
+							default:
+								return false;
+						}
+
+						 return true; 
+					},
+					onStepChanged: function (event, currentIndex, priorIndex) { }, 
+					onCanceled: function (event) { },
+					onFinishing: function (event, currentIndex) { 
+						// Validation before finishing
+
+						// Type has to be selected
+						var type = $('input[name=modalTypeSelect]:checked').val();
+						if (!type.trim()) {
+							return false;
+						}
+
+						// Different required fields for each type
+						if (type == 'STATIC' && !$("#modalClaimValueStatic").val().trim()) {
+							return false;
+						}
+						else if (type == 'DYNAMIC' && !$("#modalClaimValueDynamic").val().trim()) {
+							return false;
+						}
+						else if (type == 'ROLE_CATALOGUE' && !$("#modalExternalOperationArgumentField").val().trim()) {
+							return false;
+						}
+						
+						// Name has to be chosen
+						if (!$("#modalClaimName").val().trim()) {
+							return false;
+						}
+						return true;
+					 }, 
+					onFinished: function (event, currentIndex)  { 
+						$('#modalClaim').modal("hide"); 
+						modalService.save();
+					},
+
+					/* Labels */
+					labels: {
+						cancel: "Annuller",
+						finish: "Tilføj claim",
+						next: "Næste",
+						previous: "Tilbage"
+					}
+				};
+				
+				var wizard = $("#wizard").steps(settings);
+
+				// ICheck seems to need reinitialization when run inside a model
+				$('#modalClaim .i-checks').iCheck({
+					checkboxClass: 'icheckbox_square-green',
+					radioClass: 'iradio_square-green',
+				});
+
+				// Remove RC option if not enabled
 				if (!rcEnabled) {
-					$('#modalTypeSelect option[value="ROLE_CATALOGUE"]').remove();
-				}
-			}
-
-			this.typeChanged = function(obj) {
-				var claimType = $(obj).children('option:selected').val();
-				if (claimType == 'STATIC') {
-					$('#modalValueField').attr('placeholder', staticPlaceholderMsg);
-
-					$('#modalAttribute').show();
-					$('#modalValue').show();
-					$('#modalExternalOperation').hide();
-					$('#modalExternalOperationArgument').hide();
-				} 
-				else if (claimType == 'DYNAMIC') {
-					$('#modalValueField').attr('placeholder', dynamicPlaceholderMsg);
-
-					$('#modalAttribute').show();
-					$('#modalValue').show();
-					$('#modalExternalOperation').hide();
-					$('#modalExternalOperationArgument').hide();
-				}
-				else if (claimType == 'ROLE_CATALOGUE') {
-					$('#modalAttribute').show();
-					$('#modalValue').show();
-					$('#modalExternalOperation').show();
-					$('#modalExternalOperationArgument').show();
-					
-					// update UI depending on choice in dropdown
-					$("#modalExternalOperationField").trigger("change");
+					$('input[value="ROLE_CATALOGUE"]').parents('label').remove();
+					$('#roleCatalogueFeatureDescription').remove();
 				}
 			}
 
 			this.externalOperationChanged = function(obj) {
 				var operationType = $(obj).children('option:selected').val();
 				if (operationType == 'CONDITION_MEMBER_OF_USER_ROLE') {
-					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på Jobfunktionsrolle');
-					$('#modalValue').show();
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på jobfunktionsrolle');
+					$('#modalClaimValueRCOptionalValue').show();
 				}
 				else if (operationType == 'CONDITION_MEMBER_OF_SYSTEM_ROLE') {
-					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på Systemrolle');
-					$('#modalValue').show();
+					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på systemrolle');
+					$('#modalClaimValueRCOptionalValue').show();
 				}
 				else if (operationType == 'GET_USER_ROLES') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
-					$('#modalValue').hide();
+					$('#modalClaimValueRCOptionalValue').hide();
 				}
 				else if (operationType == 'GET_SYSTEM_ROLES') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
-					$('#modalValue').hide();
+					$('#modalClaimValueRCOptionalValue').hide();
 				}
 				else if (operationType == 'GET_SYSTEM_ROLES_OIOBPP') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
-					$('#modalValue').hide();
+					$('#modalClaimValueRCOptionalValue').hide();
 				}
 			}
 
 			this.showModal = function() {
+				$("#wizard").steps("destroy");
+				
+				// Reset radio buttons / checkboxes inside the wizard
+				for (let label of $('#modalTypeSelector label')) {
+					$(label).children('div').replaceWith($(label).find('.i-checks[name=modalTypeSelect]').clone())
+				}
+				$('#modalSingleValueOnlyLabel').children('div').replaceWith($('#modalSingleValueOnlyLabel').find('.i-checks').clone())
 
+				modalService.init()
+				
 				// clear input fields
 				$('#modalExternalOperationArgumentField').val("");
-				$('#modalAttributeField').val("");
-				$('#modalValueField').val("");
+				$('#modalClaimValueRCOptionalValue').val("");
+				$('#modalClaimName').val("");
 
 				// make sure dropdowns are set to default values
 				$('#modalExternalOperationField').val("GET_USER_ROLES");
 				$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
-				$("#modalTypeSelect").val("STATIC");
+				$('#modalClaimValueRCOptionalValue').hide();
 
-				// display default fields
-				$('#modalAttribute').show();
-				$('#modalValue').show();
-				$('#modalExternalOperation').hide();
-				$('#modalExternalOperationArgument').hide();
+
+				// Set default radio / checkbox values
+				//$('input[name=modalSingleValueOnlyField]').iCheck('check');
+				$('input[name=modalTypeSelect][value=DYNAMIC]').iCheck('check');
 				
 				// show
 				$('#modalClaim').modal("show");
@@ -705,11 +934,29 @@
 
 				var id = $('#modalIDField').val();
 
+				// Extract claim value and value displayname from wizard
+				var claimValue = "";
+				var claimValueName = "";
+				var type = $('input[name=modalTypeSelect]:checked').val();
+				if (type == 'STATIC') {
+					var claimValue = $("#modalClaimValueStatic").val();
+					var claimValueName = $("#modalClaimValueStatic").val();
+				}
+				else if (type == 'DYNAMIC') {
+					var claimValue = $("#modalClaimValueDynamic option:selected").val();
+					var claimValueName = $("#modalClaimValueDynamic option:selected").text();
+				}
+				else if (type == 'ROLE_CATALOGUE') {
+					var claimValue = $("#modalClaimValueRC").val();
+					var claimValueName = $("#modalClaimValueRC").val();
+				}
+
 				var innerRow =
 					'<td data-type="id" data-extop="' + $('#modalExternalOperationField option:selected').val() + '" data-extoparg="' + $('#modalExternalOperationArgumentField').val() + '" style="display:none;">' + id + '</td>' +
-					'<td data-type="type" data-enum="' + $('#modalTypeSelect option:selected').val() + '">' + $('#modalTypeSelect option:selected').text() + '</td>' +
-					'<td data-type="attribute">' + $('#modalAttributeField').val() + '</td>' +
-					'<td data-type="value">' + $('#modalValueField').val() + '</td>' +
+					'<td data-type="type" data-enum="' + $('.i-checks[name=modalTypeSelect]:checked').val() + '">' + $('.i-checks[name=modalTypeSelect]:checked').data('type-name') + '</td>' +
+					'<td data-type="attribute">' + $('#modalClaimName').val() + '</td>' +
+					'<td data-type="value" data-val="' + claimValue + '">' + claimValueName + '</td>' +
+					'<td data-type="singleValueOnly" data-value="' + $('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked + '">' + ($('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked ? '<em class="fa fa-fw fa-check">' : '') + '</td>' +
 					'<td><a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim"><em class="fa fa-fw fa-pencil"></em></a>&nbsp;<a onclick="modalService.delete(this)" title="Slet claim"><em class="fa fa-fw fa-times"></em></a></td>';
 
 				if (modalService.editedRow == null) {
@@ -725,6 +972,7 @@
 				$('#modalClaim').modal("hide");
 			}
 
+
 			this.edit = function(obj) {
 				modalService.editedRow = obj;
 				modalService.showModal();
@@ -735,11 +983,20 @@
 				var extoparg = $(idColumn).data('extoparg');
 				
 				// set selected type
-				$('#modalTypeSelect option:contains(' + $(obj).closest('tr').children("td[data-type='type']").text() + ')').prop('selected', 'selected');
-				$("#modalTypeSelect").trigger("change");
+				$('#modalClaim .i-checks[name=modalTypeSelect][value=' + $(obj).closest('tr').children("td[data-type='type']").data('enum') + ']').iCheck('check');
 
-				// set selected operation
-				if ($('#modalTypeSelect').val() == 'ROLE_CATALOGUE') {
+				// Set Value based on claim type
+				var type = $('#modalClaim input[name=modalTypeSelect]:checked').val();
+				if (type == 'STATIC') {
+					$("#modalClaimValueStatic").val($(obj).closest('tr').children("td[data-type='value']").text());
+				}
+				else if (type == 'DYNAMIC') {
+					$("#modalClaimValueDynamic").val($(obj).closest('tr').children("td[data-type='value']").data('val'));
+				}
+				else if (type == 'ROLE_CATALOGUE') {
+					$("#modalClaimValueRC").val($(obj).closest('tr').children("td[data-type='value']").text());
+
+					// set selected operation
 					$('#modalExternalOperationField').val(extop);
 					$("#modalExternalOperationField").trigger("change");
 				}
@@ -747,8 +1004,8 @@
 				// copy data into fields
 				$('#modalIDField').val(id);
 				$('#modalExternalOperationArgumentField').val(extoparg);
-				$('#modalAttributeField').val($(obj).closest('tr').children("td[data-type='attribute']").text());
-				$('#modalValueField').val($(obj).closest('tr').children("td[data-type='value']").text());
+				$('#modalClaimName').val($(obj).closest('tr').children("td[data-type='attribute']").text());
+				$('input[name=modalSingleValueOnlyField]').iCheck($(obj).closest('tr').children("td[data-type='singleValueOnly']").data('value') ? 'check' : "uncheck");
 			}
 
 			this.delete = function(obj) {

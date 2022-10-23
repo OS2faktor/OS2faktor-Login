@@ -9,4 +9,5 @@ public class GeoIP {
 	private String ip;
 	private String city;
 	private String country;
+	private boolean retry;
 }

@@ -100,6 +100,10 @@ public:
 
   void _StartResetPasswordProcess();
 
+  HRESULT _ConvertUPNToSAMAccountName(PWSTR upn, _Outref_result_nullonfailure_ PWSTR &sAMAccountName);
+
+  HRESULT _FetchAndSaveUPN(PWSTR username);
+
   public:
     HRESULT Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
                        _In_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR const *rgcpfd,
@@ -124,6 +128,9 @@ public:
     bool                                    _fShowControls;                                 // Tracks the state of our show/hide controls link.
     bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
     bool                                    _IsLoggingEnabled;                              // Tracks if logging is enabled
+    bool                                    _IsUPNCacheEnabled;                             // Tracks if the WCP is caching UPNs for off-domain login
     bool                                    _IsAnonUser;                                    // Tracks if the credential is for anonymous login
+    bool                                    _IsStatusPasswordMustChange;                    // Tracks if the user must change their password before logging in
+    bool                                    _IsPasswordChangeBeforeLoginSuccess;            // Tracks if the user successfully changed their password before logging in
     HKEY                                    _hKey;                                          // HKEY for configuration
 };

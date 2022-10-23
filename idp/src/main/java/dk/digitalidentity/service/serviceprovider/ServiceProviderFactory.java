@@ -46,6 +46,7 @@ public class ServiceProviderFactory {
                 .filter(serviceProvider -> !(serviceProvider instanceof SqlServiceProvider) && serviceProvider.enabled())
                 .collect(Collectors.toList());
 
+        // calling this method bypasses the @Transactional annotation, which is okay in this specific case
         loadSQLServiceProviders();
 
         log.info(serviceProviders.size() + " ServiceProviders initialized");

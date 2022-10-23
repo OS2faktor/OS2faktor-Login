@@ -2,12 +2,24 @@ package dk.digitalidentity.common.service.mfa;
 
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
+import java.security.spec.KeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import javax.annotation.PostConstruct;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,13 +27,17 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StopWatch;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
+import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
@@ -34,11 +50,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 public class MFAService {
-	private static final String connectorVersion = "1.0.0";
+	private static final String connectorVersion = "nsis-1.0.0";
+	private IvParameterSpec iv;
+	private SecretKey encryptionKey;
 
 	@Autowired
 	@Qualifier("defaultRestTemplate")
 	private RestTemplate restTemplate;
+
+	@Autowired(required = false)
+	@Qualifier("mfaTemplate")
+	private JdbcTemplate jdbcTemplate;
 
 	@Autowired
 	private CommonConfiguration configuration;
@@ -48,6 +70,23 @@ public class MFAService {
 	
 	@Autowired
 	private PersonService personService;
+	
+	@PostConstruct
+	public void init() throws Exception {
+		if (!configuration.getMfaDatabase().isEnabled()) {
+			return;
+		}
+
+		// generate password derived secret key
+		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+		KeySpec spec = new PBEKeySpec(configuration.getMfaDatabase().getEncryptionKey().toCharArray(), new byte[] { 0x00, 0x01, 0x02, 0x03 }, 65536, 256);
+		SecretKey tmp = factory.generateSecret(spec);
+		encryptionKey = new SecretKeySpec(tmp.getEncoded(), "AES");
+		
+		// generate static IV
+		byte[] ivData = new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+		iv = new IvParameterSpec(ivData);
+	}
 
 	public MFAClientDetails getClientDetails(String deviceId) {
 		HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -96,9 +135,9 @@ public class MFAService {
 					mfaClients.add(client);
 				}
 			}
-			
-			if (!configuration.getMfa().isAllowTotp() && mfaClients != null) {
-				mfaClients = mfaClients.stream().filter(c -> !c.getType().equals(ClientType.TOTP)).collect(Collectors.toList());
+
+			if (mfaClients != null) {
+				mfaClients = mfaClients.stream().filter(c -> configuration.getMfa().getEnabledClients().contains(c.getType().toString())).collect(Collectors.toList());
 			}
 
 			// update cached MFA clients
@@ -152,6 +191,32 @@ public class MFAService {
 		// base64 encode
 		return Base64.getEncoder().encodeToString(ssnDigest);
 	}
+	
+	public String encryptAndEncodeSsn(String ssn) throws Exception {
+		if (ssn == null) {
+			return null;
+		}
+
+		// remove slashes
+		ssn = ssn.replace("-", "");
+		
+		// digest
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		byte[] ssnDigest = md.digest(ssn.getBytes(Charset.forName("UTF-8")));
+
+		// encrypt
+		byte[] encryptedDigestedSsn = encrypt(ssnDigest);
+
+		// base64 encode
+		return Base64.getEncoder().encodeToString(encryptedDigestedSsn);
+	}
+
+	private byte[] encrypt(byte[] data) throws Exception {
+		Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, iv);
+		
+		return cipher.doFinal(data);
+	}
 
 	public List<MfaAuthenticationResponse> authenticateWithCpr(String cpr) {
 		List<MfaAuthenticationResponse> response = new ArrayList<>();
@@ -202,6 +267,15 @@ public class MFAService {
 			ResponseEntity<MfaAuthenticationResponse> response = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 			return response.getBody();
 		}
+		catch (HttpClientErrorException ex) {
+			if (HttpStatus.FORBIDDEN.equals(ex.getStatusCode())) {
+				// This can happen if a users MFA client is locked parallel to a login-flow requiring MFA in the IdP
+				log.warn("Failed initialise authentication, StatusCode Forbidden: " + ex);
+			} else {
+				log.error("Failed initialise authentication: " + ex);
+			}
+			return null;
+		}
 		catch (Exception ex) {
 			log.error("Failed initialise authentication: " + ex);
 			return null;
@@ -223,8 +297,15 @@ public class MFAService {
 			if (responseBody != null) {
 				return responseBody.isClientAuthenticated();
 			}
-		}
-		catch (Exception ex) {
+		} catch (HttpClientErrorException ex) {
+			if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
+				log.warn("Failed to get mfa auth status for person with uuid " + person.getUuid() + ", and subscriptionKey = " + subscriptionKey, ex);
+			} else {
+				log.error("Failed to get mfa auth status for person with uuid " + person.getUuid() + ", and subscriptionKey = " + subscriptionKey, ex);
+			}
+			
+			return false;
+		} catch (Exception ex) {
 			log.error("Failed to get mfa auth status for person with uuid " + person.getUuid() + ", and subscriptionKey = " + subscriptionKey, ex);
 			return false;
 		}
@@ -251,9 +332,58 @@ public class MFAService {
 		}
 	}
 	
-	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
-		List<Person> persons = personService.getByCpr(cpr);
+	@Transactional
+	public void synchronizeCachedMfaClients() {
+		if (!configuration.getMfaDatabase().isEnabled()) {
+			return;
+		}
+		
+		StopWatch stopWatch = new StopWatch();
+		stopWatch.start();
+		
+		log.info("Performing a synchronization of all MFA clients from OS2faktor datbase into cached clients table");
+		
+		// find all active persons and put into a cpr-based map
+		Map<String, List<Person>> personMap = new HashMap<>();
+		for (Person person : personService.getAll().stream().filter(p -> !p.isLocked()).collect(Collectors.toList())) {
+			try {
+				String encodedSsn = encryptAndEncodeSsn(person.getCpr());
+				
+				if (!personMap.containsKey(encodedSsn)) {
+					personMap.put(encodedSsn, new ArrayList<>());
+				}
 
+				personMap.get(encodedSsn).add(person);
+			}
+			catch (Exception ex) {
+				log.error("Unable to encode cpr for person " + person.getId(), ex);
+			}
+		}
+		
+		for (String encodedSsn : personMap.keySet()) {
+			List<Person> persons = personMap.get(encodedSsn);
+			
+			maintainCachedClients(persons, lookupMfaClientsInDB(encodedSsn));
+		}
+		
+		stopWatch.stop();
+		log.info("completed in: " + stopWatch.toString());
+	}
+
+	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, c.nsis_level FROM clients c JOIN users u ON u.id = c.user_id WHERE u.ssn = ? AND disabled = 0;";
+
+	private List<MfaClient> lookupMfaClientsInDB(String encodedSsn) {
+		return jdbcTemplate.query(
+				selectClientsSql,
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("client_type"), rs.getString("nsis_level")),
+				encodedSsn);
+	}
+
+	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
+		maintainCachedClients(personService.getByCpr(cpr), mfaClients);
+	}	
+
+	private void maintainCachedClients(List<Person> persons, List<MfaClient> mfaClients) {
 		for (Person person : persons) {
 			if (person.getMfaClients() == null) {
 				// this case should never happen - Hibernate will make sure we get an empty collection
@@ -263,7 +393,11 @@ public class MFAService {
 				personService.save(person);
 			}
 			else if (person.getMfaClients().size() == 0) {
-				person.getMfaClients().addAll(toCachedMFAClients(mfaClients, person));
+				if (mfaClients != null && mfaClients.size() > 0) {
+					person.getMfaClients().addAll(toCachedMFAClients(mfaClients, person));
+	
+					personService.save(person);
+				}
 			}
 			else {
 				List<String> cachedMFAClientDeviceIds = person.getMfaClients().stream().map(c -> c.getDeviceId()).collect(Collectors.toList());

@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <Lmwksta.h>
 #include <StrSafe.h>
+#include <Security.h>
 #include <lmerr.h>
 #include <locale>
 #include <codecvt>
@@ -44,8 +45,11 @@ Credential::Credential() :
 	_fShowControls(false),
 	_dwComboIndex(0),
 	_IsLoggingEnabled(false),
+	_IsUPNCacheEnabled(false),
 	_hKey(nullptr),
-	_IsAnonUser(false)
+	_IsAnonUser(false),
+	_IsStatusPasswordMustChange(false),
+	_IsPasswordChangeBeforeLoginSuccess(false)
 {
 	DllAddRef();
 
@@ -77,6 +81,13 @@ Credential::Credential() :
 				// Add logging
 				loguru::add_file(converted_str.c_str(), loguru::Append, 1);
 				_IsLoggingEnabled = true;
+			}
+
+			bool upnEnabled;
+			getValueResult = GetBoolRegKey(hKey, L"upnCacheEnabled", upnEnabled, false);
+			if (getValueResult == ERROR_SUCCESS)
+			{
+				_IsUPNCacheEnabled = upnEnabled;
 			}
 		}
 	}
@@ -155,7 +166,6 @@ HRESULT Credential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
 			LOG_F(INFO, "Creating credential for anonymous login");
 		}
 		_IsAnonUser = true;
-		_fIsLocalUser = true; // This is not strictly correct, but we need to handle the code for AnonUsers the same way we handle LocalUsers
 	}
 
 	// Copy the field descriptors for each field. This is useful if you want to vary the field
@@ -164,7 +174,7 @@ HRESULT Credential::Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
 	{
 		LOG_F(1, "Copying the field descriptors for each field");
 	}
-	
+
 	for (DWORD i = 0; SUCCEEDED(hr) && i < ARRAYSIZE(_rgCredProvFieldDescriptors); i++)
 	{
 		_rgFieldStatePairs[i] = rgfsp[i];
@@ -324,19 +334,37 @@ HRESULT Credential::SetSelected(_Out_ BOOL* pbAutoLogon)
 	if (_IsLoggingEnabled)
 	{
 		LOG_F(INFO, "SetSelected called");
-		LOG_F(INFO, "_IsAnonUser = %s", _IsAnonUser ? "true" : "false" );
+		LOG_F(INFO, "_IsAnonUser = %s", _IsAnonUser ? "true" : "false");
 	}
 
 	if (_IsAnonUser)
 	{
 		_pCredProvCredentialEvents->BeginFieldUpdates();
 		_pCredProvCredentialEvents->SetFieldState(nullptr, FI_USERNAME, CPFS_DISPLAY_IN_BOTH);
-		_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_USERNAME, CPFIS_FOCUSED);
-		_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_PASSWORD, CPFIS_NONE);
+
+		// If the username field has any input, focus the password field. this happens on wrong password/username 
+		if (wcslen(_rgFieldStrings[FI_USERNAME]) == 0)
+		{
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_USERNAME, CPFIS_FOCUSED);
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_PASSWORD, CPFIS_NONE);
+		}
+		else {
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_USERNAME, CPFIS_NONE);
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_PASSWORD, CPFIS_FOCUSED);
+		}
+		
 		_pCredProvCredentialEvents->EndFieldUpdates();
 	}
 
-	*pbAutoLogon = FALSE;
+
+	if (_IsPasswordChangeBeforeLoginSuccess)
+	{
+		*pbAutoLogon = TRUE;
+		_IsPasswordChangeBeforeLoginSuccess = false;
+	}
+	else {
+		*pbAutoLogon = FALSE;
+	}
 	return S_OK;
 }
 
@@ -662,32 +690,28 @@ HRESULT Credential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIALIZATION
 
 
 	// Depending on the usage scenario we now need to do serilize the object differently
-	switch (_cpus)
+	if (_cpus == CPUS_CHANGE_PASSWORD || _IsStatusPasswordMustChange)
 	{
-	case CPUS_LOGON:
-	case CPUS_UNLOCK_WORKSTATION:
-		// For local user, the domain and user name can be split from _pszQualifiedUserName (domain\username).
-		// CredPackAuthenticationBuffer() cannot be used because it won't work with unlock scenario.
-		if (_fIsLocalUser)
+		// In the case of change password scenario 
+		// OR if we have been told that the user needs to change password prior to log in, 
+		// we will use a specific object for serilization
+		// In case of change password we use KERB_CHANGEPASSWORD_REQUEST
+
+		// Make sure the passwords are not 0 length
+		if (wcslen(_rgFieldStrings[FI_NEW_PASSWORD]) > 0 && wcslen(_rgFieldStrings[FI_NEW_PASSWORD_CONFIRM]) > 0)
 		{
-			if (_IsLoggingEnabled)
-			{
-				LOG_F(1, "GetSerialization: Local user");
-			}
-			PWSTR pwzProtectedPassword;
-			hr = ProtectIfNecessaryAndCopyPassword(_rgFieldStrings[FI_PASSWORD], _cpus, &pwzProtectedPassword);
-			if (SUCCEEDED(hr))
+			// Validate that "new password" and "new password confirm" matches content.
+			if (wcscmp(_rgFieldStrings[FI_NEW_PASSWORD], _rgFieldStrings[FI_NEW_PASSWORD_CONFIRM]) == 0)
 			{
 				if (_IsLoggingEnabled)
 				{
-					LOG_F(1, "GetSerialization: Password copied");
+					LOG_F(1, "GetSerialization - Change password: New passwords were non zero and matching");
 				}
 
+				// Get Domain and username
 				PWSTR pszDomain{};
 				PWSTR pszUsername{};
 
-				// Get Username and domain
-				// Logic for getting them is slighty different depending on if its a local user or a anonymous user
 				if (_IsAnonUser)
 				{
 					// For Anonymous users we need to fetch domain the machine we are running on is joined to.
@@ -713,174 +737,10 @@ HRESULT Credential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIALIZATION
 					}
 					CoTaskMemFree(info);
 				}
-				else
-				{
+				else {
 					hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
 				}
 
-				if (SUCCEEDED(hr))
-				{
-					if (_IsLoggingEnabled)
-					{
-						LOG_F(1, "GetSerialization: Username and domain copied to variable");
-					}
-					// In case of a Logon/Unlock we use KERB_INTERACTIVE_UNLOCK_LOGON
-					KERB_INTERACTIVE_UNLOCK_LOGON kiul;
-					hr = KerbInteractiveUnlockLogonInit(pszDomain, pszUsername, pwzProtectedPassword, _cpus, &kiul);
-					if (SUCCEEDED(hr))
-					{
-						if (_IsLoggingEnabled)
-						{
-							LOG_F(INFO, "GetSerialization: KerbInteractiveUnlockLogonInit OK");
-						}
-
-						// We use KERB_INTERACTIVE_UNLOCK_LOGON in both unlock and logon scenarios.  It contains a
-						// KERB_INTERACTIVE_LOGON to hold the creds plus a LUID that is filled in for us by Winlogon
-						// as necessary.
-						hr = KerbInteractiveUnlockLogonPack(kiul, &pcpcs->rgbSerialization, &pcpcs->cbSerialization);
-						if (SUCCEEDED(hr))
-						{
-							if (_IsLoggingEnabled)
-							{
-								LOG_F(INFO, "GetSerialization: KerbInteractiveUnlockLogonPack OK");
-							}
-							ULONG ulAuthPackage;
-							hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);
-							if (SUCCEEDED(hr))
-							{
-								if (_IsLoggingEnabled)
-								{
-									LOG_F(INFO, "GetSerialization: RetrieveNegotiateAuthPackage OK");
-								}
-								pcpcs->ulAuthenticationPackage = ulAuthPackage;
-								pcpcs->clsidCredentialProvider = CLSID_CSample;
-
-								// Here we start the call to the OS2Faktor backend for verification and SSO.
-								// If a success this will write a token to the registry that the browser plugins can read and use to establish a session
-								_StartCreateSessionProcess(pszUsername, _rgFieldStrings[FI_PASSWORD]);
-
-								// At this point the credential has created the serialized credential used for logon
-								// By setting this to CPGSR_RETURN_CREDENTIAL_FINISHED we are letting logonUI know
-								// that we have all the information we need and it should attempt to submit the
-								// serialized credential.
-								*pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
-							}
-						}
-					}
-
-					CoTaskMemFree(pszDomain);
-					CoTaskMemFree(pszUsername);
-				}
-				CoTaskMemFree(pwzProtectedPassword);
-			}
-		}
-		else
-		{
-			// Non-local user
-			if (_IsLoggingEnabled)
-			{
-				LOG_F(1, "GetSerialization: Not a local user");
-			}
-			DWORD dwAuthFlags = CRED_PACK_PROTECTED_CREDENTIALS | CRED_PACK_ID_PROVIDER_CREDENTIALS;
-
-			// First get the size of the authentication buffer to allocate
-			if (!CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(_rgFieldStrings[FI_PASSWORD]), nullptr, &pcpcs->cbSerialization) &&
-				(GetLastError() == ERROR_INSUFFICIENT_BUFFER))
-			{
-				if (_IsLoggingEnabled)
-				{
-					LOG_F(1, "GetSerialization: get the size of the authentication buffer OK");
-				}
-				pcpcs->rgbSerialization = static_cast<byte*>(CoTaskMemAlloc(pcpcs->cbSerialization));
-				if (pcpcs->rgbSerialization != nullptr)
-				{
-					hr = S_OK;
-
-					// Retrieve the authentication buffer
-					if (CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(_rgFieldStrings[FI_PASSWORD]), pcpcs->rgbSerialization, &pcpcs->cbSerialization))
-					{
-						if (_IsLoggingEnabled)
-						{
-							LOG_F(1, "GetSerialization: Retrieve the authentication buffer");
-						}
-						ULONG ulAuthPackage;
-						hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);
-						if (SUCCEEDED(hr))
-						{
-							if (_IsLoggingEnabled)
-							{
-								LOG_F(1, "GetSerialization: RetrieveNegotiateAuthPackage OK");
-							}
-							pcpcs->ulAuthenticationPackage = ulAuthPackage;
-							pcpcs->clsidCredentialProvider = CLSID_CSample;
-
-							// We need just the username for verification in OS2Faktor so we need to split the _pszQualifiedUserName up
-							PWSTR pszDomain;
-							PWSTR pszUsername;
-							hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
-							if (_IsLoggingEnabled)
-							{
-								LOG_F(1, "GetSerialization: SplitDomainAndUsername OK");
-							}
-
-							// Here we start the call to the OS2Faktor backend for verification and SSO.
-							// If a success this will write a token to the registry that the browser plugins can read and use to establish a session
-							_StartCreateSessionProcess(pszUsername, _rgFieldStrings[FI_PASSWORD]);
-							if (_IsLoggingEnabled)
-							{
-								LOG_F(INFO, "GetSerialization: _StartCreateSessionProcess OK");
-							}
-
-							// Free the memory we just used before logging in to windows
-							CoTaskMemFree(pszDomain);
-							CoTaskMemFree(pszUsername);
-
-							// At this point the credential has created the serialized credential used for logon
-							// By setting this to CPGSR_RETURN_CREDENTIAL_FINISHED we are letting logonUI know
-							// that we have all the information we need and it should attempt to submit the
-							// serialized credential.
-							*pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
-						}
-					}
-					else
-					{
-						hr = HRESULT_FROM_WIN32(GetLastError());
-						if (SUCCEEDED(hr))
-						{
-							hr = E_FAIL;
-						}
-					}
-
-					if (FAILED(hr))
-					{
-						CoTaskMemFree(pcpcs->rgbSerialization);
-					}
-				}
-				else
-				{
-					hr = E_OUTOFMEMORY;
-				}
-			}
-		}
-		break;
-	case CPUS_CHANGE_PASSWORD:
-		// In case of change password we use KERB_CHANGEPASSWORD_REQUEST
-
-		// Make sure the passwords are not 0 length
-		if (wcslen(_rgFieldStrings[FI_NEW_PASSWORD]) > 0 && wcslen(_rgFieldStrings[FI_NEW_PASSWORD_CONFIRM]) > 0)
-		{
-			// Validate that "new password" and "new password confirm" matches content.
-			if (wcscmp(_rgFieldStrings[FI_NEW_PASSWORD], _rgFieldStrings[FI_NEW_PASSWORD_CONFIRM]) == 0)
-			{
-				if (_IsLoggingEnabled)
-				{
-					LOG_F(1, "GetSerialization - Change password: New passwords wore non zero and matching");
-				}
-
-				// Get Domain and username
-				PWSTR pszDomain;
-				PWSTR pszUsername;
-				hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
 				if (SUCCEEDED(hr))
 				{
 					if (_IsLoggingEnabled)
@@ -973,11 +833,245 @@ HRESULT Credential::GetSerialization(_Out_ CREDENTIAL_PROVIDER_GET_SERIALIZATION
 			*pcpsiOptionalStatusIcon = CPSI_ERROR;
 			hr = SHStrDupW(L"Kodeordet må ikke være tomt", ppwszOptionalStatusText);
 		}
-
-		break;
-	default:
-		break;
 	}
+	else if (_cpus == CPUS_LOGON || _cpus == CPUS_UNLOCK_WORKSTATION)
+	{
+		// In the case of a login we will use the default serilization object
+		if (_fIsLocalUser || _IsAnonUser)
+		{
+			// We handle local users and anonymous users almost the same way
+			// they do differ in how to fetch the username and domain
+			if (_IsLoggingEnabled)
+			{
+				LOG_F(1, "GetSerialization: Local or Anonymous user");
+			}
+
+			PWSTR pwzProtectedPassword;
+			hr = ProtectIfNecessaryAndCopyPassword(_rgFieldStrings[FI_PASSWORD], _cpus, &pwzProtectedPassword);
+			if (SUCCEEDED(hr))
+			{
+				if (_IsLoggingEnabled)
+				{
+					LOG_F(1, "GetSerialization: Password copied");
+				}
+
+				PWSTR pszDomain{};
+				PWSTR pszUsername{};
+
+				// Get Username and domain
+				// Logic for getting them is slighty different depending on if its a local user or a anonymous user
+				if (_IsAnonUser)
+				{
+					// For Anonymous users we first check if the user supplied a domain in the username field, if they did we will just use that to determine domain
+					// if the user only provided a username however, we need to fetch domain the machine we are running on is joined to and use that instead
+
+					// check to see if we have an '\' character in the username indicating a domain has been supplied
+					const wchar_t* positionOfSplitter = wcschr(_rgFieldStrings[FI_USERNAME], L'\\');
+					if (positionOfSplitter != nullptr)
+					{
+						// A domain has been supplied, so try to extract it
+						hr = SplitDomainAndUsername(_rgFieldStrings[FI_USERNAME], &pszDomain, &pszUsername);
+					}
+					else {
+						// No domain was supplied, so we default to the domain the machine is joined to and try to login with that
+						PWKSTA_INFO_100 info;
+						hr = NetWkstaGetInfo(NULL, 100, (LPBYTE*)&info);
+						if (SUCCEEDED(hr))
+						{
+							if (_IsLoggingEnabled)
+							{
+								LOG_F(1, "GetSerialization: NetWkstaGetInfo fetched");
+							}
+
+							hr = SHStrDupW(info->wki100_langroup, &pszDomain);
+
+							if (SUCCEEDED(hr))
+							{
+								if (_IsLoggingEnabled)
+								{
+									LOG_F(1, "GetSerialization: Domain copied to variable");
+								}
+
+								// Try to fetch and cache UPN/SAMAccountName keypair by username
+								if (_IsUPNCacheEnabled) {
+									_FetchAndSaveUPN(_rgFieldStrings[FI_USERNAME]);
+								}
+
+								// Figure out if username is of type sAMAccountName or UPN
+								const wchar_t* positionOfAtSign = wcschr(_rgFieldStrings[FI_USERNAME], L'@');
+								PWSTR sAMAccountName;
+								if (_IsUPNCacheEnabled && positionOfAtSign != nullptr) {
+									hr = _ConvertUPNToSAMAccountName(_rgFieldStrings[FI_USERNAME], sAMAccountName);
+									if (SUCCEEDED(hr))
+									{
+										hr = SHStrDupW(sAMAccountName, &pszUsername);
+									}
+									else {
+										hr = SHStrDupW(_rgFieldStrings[FI_USERNAME], &pszUsername);
+									}
+								}
+								else {
+									hr = SHStrDupW(_rgFieldStrings[FI_USERNAME], &pszUsername);
+								}
+							}
+						}
+						CoTaskMemFree(info);
+					}
+				}
+				else
+				{
+					// For local user, the domain and user name can be split from _pszQualifiedUserName (domain\username).
+					hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
+				}
+
+				// CredPackAuthenticationBuffer() cannot be used because it won't work with unlock scenario for Local/anon users, 
+				// so we use a different method for this than in the case of known non-local users which is handled below
+				if (SUCCEEDED(hr))
+				{
+					if (_IsLoggingEnabled)
+					{
+						LOG_F(1, "GetSerialization: Username and domain copied to variable");
+					}
+					// In case of a Logon/Unlock we use KERB_INTERACTIVE_UNLOCK_LOGON
+					KERB_INTERACTIVE_UNLOCK_LOGON kiul;
+					hr = KerbInteractiveUnlockLogonInit(pszDomain, pszUsername, pwzProtectedPassword, _cpus, &kiul);
+					if (SUCCEEDED(hr))
+					{
+						if (_IsLoggingEnabled)
+						{
+							LOG_F(INFO, "GetSerialization: KerbInteractiveUnlockLogonInit OK");
+						}
+
+						// We use KERB_INTERACTIVE_UNLOCK_LOGON in both unlock and logon scenarios.  It contains a
+						// KERB_INTERACTIVE_LOGON to hold the creds plus a LUID that is filled in for us by Winlogon
+						// as necessary.
+						hr = KerbInteractiveUnlockLogonPack(kiul, &pcpcs->rgbSerialization, &pcpcs->cbSerialization);
+						if (SUCCEEDED(hr))
+						{
+							if (_IsLoggingEnabled)
+							{
+								LOG_F(INFO, "GetSerialization: KerbInteractiveUnlockLogonPack OK");
+							}
+							ULONG ulAuthPackage;
+							hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);
+							if (SUCCEEDED(hr))
+							{
+								if (_IsLoggingEnabled)
+								{
+									LOG_F(INFO, "GetSerialization: RetrieveNegotiateAuthPackage OK");
+								}
+								pcpcs->ulAuthenticationPackage = ulAuthPackage;
+								pcpcs->clsidCredentialProvider = CLSID_CSample;
+
+								// Here we start the call to the OS2Faktor backend for verification and SSO.
+								// If a success this will write a token to the registry that the browser plugins can read and use to establish a session
+								_StartCreateSessionProcess(pszUsername, _rgFieldStrings[FI_PASSWORD]);
+
+								// At this point the credential has created the serialized credential used for logon
+								// By setting this to CPGSR_RETURN_CREDENTIAL_FINISHED we are letting logonUI know
+								// that we have all the information we need and it should attempt to submit the
+								// serialized credential.
+								*pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
+							}
+						}
+					}
+
+					CoTaskMemFree(pszDomain);
+					CoTaskMemFree(pszUsername);
+				}
+				CoTaskMemFree(pwzProtectedPassword);
+			}
+		}
+		else
+		{
+			// Non-local, Non-anonymous user
+			if (_IsLoggingEnabled)
+			{
+				LOG_F(1, "GetSerialization: Not a local or anonymous user");
+			}
+			DWORD dwAuthFlags = CRED_PACK_PROTECTED_CREDENTIALS | CRED_PACK_ID_PROVIDER_CREDENTIALS;
+
+			// First get the size of the authentication buffer to allocate
+			if (!CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(_rgFieldStrings[FI_PASSWORD]), nullptr, &pcpcs->cbSerialization) &&
+				(GetLastError() == ERROR_INSUFFICIENT_BUFFER))
+			{
+				if (_IsLoggingEnabled)
+				{
+					LOG_F(1, "GetSerialization: get the size of the authentication buffer OK");
+				}
+				pcpcs->rgbSerialization = static_cast<byte*>(CoTaskMemAlloc(pcpcs->cbSerialization));
+				if (pcpcs->rgbSerialization != nullptr)
+				{
+					hr = S_OK;
+
+					// Retrieve the authentication buffer
+					if (CredPackAuthenticationBuffer(dwAuthFlags, _pszQualifiedUserName, const_cast<PWSTR>(_rgFieldStrings[FI_PASSWORD]), pcpcs->rgbSerialization, &pcpcs->cbSerialization))
+					{
+						if (_IsLoggingEnabled)
+						{
+							LOG_F(1, "GetSerialization: Retrieve the authentication buffer");
+						}
+						ULONG ulAuthPackage;
+						hr = RetrieveNegotiateAuthPackage(&ulAuthPackage);
+						if (SUCCEEDED(hr))
+						{
+							if (_IsLoggingEnabled)
+							{
+								LOG_F(1, "GetSerialization: RetrieveNegotiateAuthPackage OK");
+							}
+							pcpcs->ulAuthenticationPackage = ulAuthPackage;
+							pcpcs->clsidCredentialProvider = CLSID_CSample;
+
+							// We need just the username for verification in OS2Faktor so we need to split the _pszQualifiedUserName up
+							PWSTR pszDomain;
+							PWSTR pszUsername;
+							hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
+							if (_IsLoggingEnabled)
+							{
+								LOG_F(1, "GetSerialization: SplitDomainAndUsername OK");
+							}
+
+							// Here we start the call to the OS2Faktor backend for verification and SSO.
+							// If a success this will write a token to the registry that the browser plugins can read and use to establish a session
+							_StartCreateSessionProcess(pszUsername, _rgFieldStrings[FI_PASSWORD]);
+							if (_IsLoggingEnabled)
+							{
+								LOG_F(INFO, "GetSerialization: _StartCreateSessionProcess OK");
+							}
+
+							// Free the memory we just used before logging in to windows
+							CoTaskMemFree(pszDomain);
+							CoTaskMemFree(pszUsername);
+
+							// At this point the credential has created the serialized credential used for logon
+							// By setting this to CPGSR_RETURN_CREDENTIAL_FINISHED we are letting logonUI know
+							// that we have all the information we need and it should attempt to submit the
+							// serialized credential.
+							*pcpgsr = CPGSR_RETURN_CREDENTIAL_FINISHED;
+						}
+					}
+					else
+					{
+						hr = HRESULT_FROM_WIN32(GetLastError());
+						if (SUCCEEDED(hr))
+						{
+							hr = E_FAIL;
+						}
+					}
+
+					if (FAILED(hr))
+					{
+						CoTaskMemFree(pcpcs->rgbSerialization);
+					}
+				}
+				else
+				{
+					hr = E_OUTOFMEMORY;
+				}
+			}
+		}
+	}
+
 	return hr;
 }
 
@@ -1037,13 +1131,78 @@ HRESULT Credential::ReportResult(NTSTATUS ntsStatus,
 	{
 	case CPUS_LOGON:
 	case CPUS_UNLOCK_WORKSTATION:
-		// If we failed the logon, try to erase the password + username fields.
-		if (FAILED(HRESULT_FROM_NT(ntsStatus)))
+		// Check if we have previously prompted the user to change their password before logging in, 
+		// if it went well send the password to backend
+		if (_IsStatusPasswordMustChange)
 		{
-			if (_pCredProvCredentialEvents)
+			if (SUCCEEDED(HRESULT_FROM_NT(ntsStatus)))
 			{
-				_pCredProvCredentialEvents->SetFieldString(this, FI_PASSWORD, L"");
-				_pCredProvCredentialEvents->SetFieldString(this, FI_USERNAME, L"");
+				// No longer in password change scenario
+				_IsStatusPasswordMustChange = false;
+
+				// Split the qualifiedUsername 
+				PWSTR pszDomain;
+				PWSTR pszUsername;
+				HRESULT hr = SplitDomainAndUsername(_pszQualifiedUserName, &pszDomain, &pszUsername);
+				if (SUCCEEDED(hr) && wcslen(_rgFieldStrings[FI_NEW_PASSWORD]) > 0)
+				{
+					_StartChangePasswordProcess(pszUsername, _rgFieldStrings[FI_PASSWORD], _rgFieldStrings[FI_NEW_PASSWORD]);
+				}
+
+				// Override the password used for serilization and indicate that we want to autologin due to a successful password change
+				_rgFieldStrings[FI_PASSWORD] = _rgFieldStrings[FI_NEW_PASSWORD];
+				_IsPasswordChangeBeforeLoginSuccess = true;
+			}
+			else {
+				// Change password before login failed, clear fields
+
+				// If we failed the logon, try to erase the password + username fields.
+				if (FAILED(HRESULT_FROM_NT(ntsStatus)))
+				{
+					if (_pCredProvCredentialEvents)
+					{
+						_pCredProvCredentialEvents->SetFieldString(this, FI_PASSWORD, L"");
+						_pCredProvCredentialEvents->SetFieldString(this, FI_NEW_PASSWORD, L"");
+						_pCredProvCredentialEvents->SetFieldString(this, FI_NEW_PASSWORD_CONFIRM, L"");
+					}
+				}
+			}
+			return S_OK;
+		}
+
+		// If we failed logon due to user needing to change their password before logging in, 
+		// we should show new password fields
+		if (ntsStatus == STATUS_PASSWORD_MUST_CHANGE || (ntsStatus == STATUS_ACCOUNT_RESTRICTION && ntsSubstatus == STATUS_PASSWORD_EXPIRED)) {
+			_IsStatusPasswordMustChange = true;
+
+			_pCredProvCredentialEvents->BeginFieldUpdates();
+			_pCredProvCredentialEvents->SetFieldState(nullptr, FI_NEW_PASSWORD, CPFS_DISPLAY_IN_BOTH);
+			_pCredProvCredentialEvents->SetFieldState(nullptr, FI_NEW_PASSWORD_CONFIRM, CPFS_DISPLAY_IN_BOTH);
+
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_NEW_PASSWORD, CPFIS_FOCUSED);
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_PASSWORD, CPFIS_NONE);
+			_pCredProvCredentialEvents->SetFieldSubmitButton(nullptr, FI_SUBMIT_BUTTON, FI_NEW_PASSWORD_CONFIRM);
+			_pCredProvCredentialEvents->EndFieldUpdates();
+		}
+		else {
+			_IsStatusPasswordMustChange = false;
+
+			_pCredProvCredentialEvents->BeginFieldUpdates();
+			_pCredProvCredentialEvents->SetFieldState(nullptr, FI_NEW_PASSWORD, CPFS_HIDDEN);
+			_pCredProvCredentialEvents->SetFieldState(nullptr, FI_NEW_PASSWORD_CONFIRM, CPFS_HIDDEN);
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_NEW_PASSWORD, CPFIS_NONE);
+			_pCredProvCredentialEvents->SetFieldInteractiveState(nullptr, FI_PASSWORD, CPFIS_FOCUSED);
+			_pCredProvCredentialEvents->SetFieldSubmitButton(nullptr, FI_SUBMIT_BUTTON, FI_PASSWORD);
+			_pCredProvCredentialEvents->EndFieldUpdates();
+
+			// If we failed the logon, try to erase the password + username fields.
+			if (FAILED(HRESULT_FROM_NT(ntsStatus)))
+			{
+				if (_pCredProvCredentialEvents)
+				{
+					_pCredProvCredentialEvents->SetFieldString(this, FI_PASSWORD, L"");
+					//_pCredProvCredentialEvents->SetFieldString(this, FI_USERNAME, L"");
+				}
 			}
 		}
 
@@ -1437,6 +1596,111 @@ void Credential::_StartResetPasswordProcess()
 		if (_IsLoggingEnabled)
 		{
 			LOG_F(ERROR, "_StartCreateSessionProcess threw an exception(%d)", GetLastError());
+		}
+	}
+}
+
+
+HRESULT Credential::_ConvertUPNToSAMAccountName(PWSTR upn, _Outref_result_nullonfailure_ PWSTR &sAMAccountName)
+{
+	LOG_F(INFO, "_ConvertUPNToSAMAccountName called");
+	try
+	{
+		HKEY hKey;
+		DWORD disposition;
+
+		wchar_t* upnPath = nullptr;
+		mergeWChar(upnPath, L"SOFTWARE\\DigitalIdentity\\OS2faktorLogin\\UPNCache\\");
+		mergeWChar(upnPath, upn);
+
+		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, upnPath, 0, KEY_ALL_ACCESS, &hKey) != ERROR_SUCCESS)
+		{
+			sAMAccountName = L"";
+			return GetLastError();
+		}
+
+		wstring keyValue;
+		LONG getValueResult = GetStringRegKey(hKey, L"sAMAccountName", keyValue, L"");
+		if (getValueResult != ERROR_SUCCESS) {
+			LOG_F(ERROR, "Could not get sAMAccountName from registry. Error code: %d", GetLastError());
+			sAMAccountName = L"";
+			return GetLastError();
+		}
+
+		sAMAccountName = &keyValue[0];
+		return S_OK;
+	}
+	catch (const std::exception&)
+	{
+		if (_IsLoggingEnabled)
+		{
+			LOG_F(ERROR, "ConvertUPNToSAMAccountName threw an exception(%d)", GetLastError());
+		}
+		sAMAccountName = L"";
+		return GetLastError();
+	}
+}
+
+HRESULT Credential::_FetchAndSaveUPN(PWSTR username)
+{
+	LOG_F(INFO, "_FetchAndSaveUPN called");
+	try
+	{
+		// Figure out if username is of type sAMAccountName or UPN
+		const wchar_t* positionOfSplitter = wcschr(username, L'@');
+
+		PWSTR sAMAccountName;
+		PWSTR userPrincipalName;
+
+		ULONG size = 1013;
+		wchar_t buffer[1013];
+		if (positionOfSplitter == nullptr)
+		{
+			return S_OK;
+		}
+
+		BOOLEAN result = TranslateNameW(username, NameUserPrincipal, NameSamCompatible, buffer, &size);
+		if (result == 0) {
+			DWORD err = GetLastError();
+			LOG_F(INFO, "Failed to Translate UPN error code (%d)", err);
+			return err;
+		}
+
+		userPrincipalName = username;
+		sAMAccountName = buffer;
+
+		//LOG_F(1, "Convert username success. SAMAccountName: '%ws', UserPrincipalName: '%ws'", sAMAccountName, userPrincipalName);
+
+		// Save UPN/sAMAccountName key/value pair
+		HKEY hKey;
+		DWORD disposition;
+		wstring subKey = L"SOFTWARE\\DigitalIdentity\\OS2faktorLogin";
+		LSTATUS lResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE, subKey.c_str(), 0, KEY_ALL_ACCESS, &hKey);
+		if (lResult == ERROR_SUCCESS)
+		{
+			wchar_t* upnPath = nullptr;
+			mergeWChar(upnPath, L"UPNCache\\");
+			mergeWChar(upnPath, userPrincipalName);
+			lResult = RegCreateKeyEx(hKey, upnPath, 0, NULL, 0, KEY_ALL_ACCESS, NULL, &hKey, &disposition);
+			if (lResult == ERROR_SUCCESS)
+			{
+				PWSTR pszDomain{};
+				PWSTR pszUsername{};
+
+				HRESULT hr = SplitDomainAndUsername(sAMAccountName, &pszDomain, &pszUsername);
+				if (SUCCEEDED(hr)) {
+					lResult = RegSetValueExW(hKey, L"sAMAccountName", 0, REG_SZ, (BYTE*)pszUsername, sizeof(wchar_t) * wcslen(pszUsername));
+				}
+			}
+
+			return lResult;
+		}
+	}
+	catch (const std::exception&)
+	{
+		if (_IsLoggingEnabled)
+		{
+			LOG_F(ERROR, "ConvertUPNToSAMAccountName threw an exception(%d)", GetLastError());
 		}
 	}
 }

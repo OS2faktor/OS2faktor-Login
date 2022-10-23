@@ -30,6 +30,9 @@ public class AdminPersonView {
 	private NSISLevel nsisLevel;
 
 	@Column
+	private boolean nsisAllowed;
+
+	@Column
 	private String name;
 
 	@Column
@@ -48,13 +51,22 @@ public class AdminPersonView {
 	private boolean lockedAdmin;
 
 	@Column
+	private boolean lockedExpired;
+	
+	@Column
+	private boolean lockedCivilState;
+	
+	@Column
 	private boolean lockedPassword;
 	
 	@Column
-	private boolean lockedDead;
+	private String domain;
+	
+	@Column 
+	private String mfaClients;
 	
 	@Column
-	private String domain;
+	private String approvedConditions;
 	
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")

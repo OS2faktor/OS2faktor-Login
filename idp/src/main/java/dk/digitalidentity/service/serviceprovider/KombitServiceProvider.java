@@ -1,7 +1,10 @@
 package dk.digitalidentity.service.serviceprovider;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -111,61 +114,82 @@ public class KombitServiceProvider extends ServiceProvider {
 			map.put("dk:gov:saml:attribute:Privileges_intermediate", oiobpp);
 		}
 
+		if (person.getKombitAttributes() != null && person.getKombitAttributes().size() > 0) {
+			for (String key : person.getKombitAttributes().keySet()) {
+				map.put(key, person.getKombitAttributes().get(key));
+			}
+		}
+
 		return map;
 	}
 
 	@Override
 	public boolean mfaRequired(AuthnRequest authnRequest) {
+		// a configured "always require" on the subsystem overrides any requested level
 		String entityId = getEntityIdFromAuthnRequest(authnRequest);
-
 		if (entityId != null) {
 			KombitSubsystem subSystem = getSubsystem(entityId);
 
-			if (subSystem.isAlwaysRequireMfa()) {
+			if (subSystem != null && subSystem.isAlwaysRequireMfa()) {
 				return true;
 			}
 		}
 		
-		return false;
+		// otherwise check the requested level
+    	switch (nsisLevelRequired(authnRequest)) {
+			case HIGH:
+	    	case SUBSTANTIAL:
+	    		return true;
+			default:
+				return false;
+		}
 	}
 
 	@Override
 	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
-		NSISLevel requiredLevel = NSISLevel.NONE;
-		
-		// if the subsystem has a configured minimum level, upgrade to that
-		String entityId = getEntityIdFromAuthnRequest(authnRequest);
-		if (entityId != null) {
-			KombitSubsystem subSystem = getSubsystem(entityId);
-
-			if (subSystem.getMinNsisLevel().isGreater(requiredLevel)) {
-				requiredLevel = subSystem.getMinNsisLevel();
-			}
-		}
-
-    	// if the AuthnRequest supplies a required level, upgrade to that
+    	// get AuthnRequest supplied level
+        NSISLevel requestedLevel = NSISLevel.NONE;
         RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
                 if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
-        			if (NSISLevel.SUBSTANTIAL.isGreater(requiredLevel)) {
-        				requiredLevel = NSISLevel.SUBSTANTIAL;
-        			}
+                    requestedLevel = NSISLevel.SUBSTANTIAL;
+                    break;
                 }
-                else if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
-        			if (NSISLevel.LOW.isGreater(requiredLevel)) {
-        				requiredLevel = NSISLevel.LOW;
-        			}
+
+                if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    requestedLevel = NSISLevel.LOW;
+                    break;
                 }
             }
         }
 
-		return requiredLevel;
+        // get configured level
+		NSISLevel configuredLevel = NSISLevel.NONE;
+		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+		if (entityId != null) {
+			KombitSubsystem subSystem = getSubsystem(entityId);
+			if (subSystem != null) {
+				configuredLevel = subSystem.getMinNsisLevel();
+			}
+		}
+
+        // return the max of configuredLevel and requestedLevel
+        ArrayList<NSISLevel> levels = new ArrayList<>();
+        levels.add(requestedLevel);
+        levels.add(configuredLevel);
+
+        return Collections.max(levels, Comparator.comparingInt(NSISLevel::getLevel));
 	}
 
 	@Override
 	public boolean preferNemId() {
 		return kombitConfig.preferNemId();
+	}
+
+	@Override
+	public boolean nemLogInBrokerEnabled() {
+		return false;
 	}
 
 	@Override
@@ -197,7 +221,7 @@ public class KombitServiceProvider extends ServiceProvider {
 	public boolean encryptAssertions() {
 		return kombitConfig.encryptAssertions();
 	}
-
+	
 	@Override
 	public String getNameIdFormat() {
 		return kombitConfig.getNameIdFormat();
@@ -264,5 +288,15 @@ public class KombitServiceProvider extends ServiceProvider {
 		String oiobpp = builder.toString();
 		
 		return Base64.getEncoder().encodeToString(oiobpp.getBytes(Charset.forName("UTF-8")));
+	}
+
+	@Override
+	public boolean supportsNsisLoaClaim() {
+		return false;
+	}
+	
+	@Override
+	public boolean preferNIST() {
+		return kombitConfig.preferNIST();
 	}
 }

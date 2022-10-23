@@ -51,6 +51,16 @@
 											<input type="text" class="form-control" th:field="${radiusClient.ipAddress}" placeholder="Angiv IP adressen på xxx.xxx.xxx.xxx/yy   (yy kan være 16, 24 eller 32)" />
 										</div>
 									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" id="nsisLevelRequiredSelect">
+												<option th:each="nsisLevel : ${T(dk.digitalidentity.common.dao.model.enums.NSISLevel).values()}" th:value="${nsisLevel}" th:text="#{__${nsisLevel.message}__}" th:selected="${nsisLevel} == ${radiusClient.nsisLevelRequired}"></option>
+											</select>
+										</div>
+									</div>
+
 								</form>
 							</div>
 						</div>
@@ -205,6 +215,7 @@
 							data.id = id;
 							data.name = $('#name').val();
 							data.ipAddress = $('#ipAddress').val();
+							data.nsisLevelRequired = $('#nsisLevelRequiredSelect option:selected').val();
 
 							// Handle conditions
 							var conditionsDomains = [];

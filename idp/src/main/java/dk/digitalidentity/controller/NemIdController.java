@@ -29,9 +29,6 @@ import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.NemIDService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.PidAndCprOrError;
-import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
@@ -54,9 +51,6 @@ public class NemIdController {
 
 	@Autowired
 	private AuthnRequestHelper authnRequestHelper;
-
-	@Autowired
-	private ServiceProviderFactory serviceProviderFactory;
 
 	@Autowired
 	private LoginService loginService;
@@ -87,14 +81,8 @@ public class NemIdController {
 				return loginService.initiateApproveConditions(model);
 			}
 
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
-
-			// If trying to login to anything else than selfservice check if person is locked
-			if (!(serviceProvider instanceof SelfServiceServiceProvider)) {
-				if (person.isLocked()) {
-					return new ModelAndView("error-locked-account");
-				}
+			if (person.isLockedByOtherThanPerson()) {
+				return new ModelAndView(PersonService.getCorrectLockedPage(person));
 			}
 
 			return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
@@ -132,7 +120,14 @@ public class NemIdController {
 
 			return null;
 		}
+		
+		// in case we end up in a sub-flow, we need to know that we are in the middle of a NemID/MitID login flow
+		sessionHelper.setInNemIdOrMitIDAuthenticationFlow(true);
+		
+		// store for later usage
 		sessionHelper.setNemIDPid(result.getPid());
+		sessionHelper.setNemIDMitIDNSISLevel(NSISLevel.SUBSTANTIAL);
+		sessionHelper.setAuthenticatedWithNemIdOrMitId(true);
 
 		// Check if we have a person on the session, if we do we will only work with this person
 		Person person = sessionHelper.getPerson();
@@ -156,16 +151,21 @@ public class NemIdController {
 			}
 			else if (people.size() != 1) {
 				if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-					List<Person> peopleThatCanBeActivated = people.stream().filter(p -> !p.hasActivatedNSISUser() && p.isNsisAllowed()).collect(Collectors.toList());
+					List<Person> peopleThatCanBeActivated = people.stream()
+							.filter(p -> !p.hasActivatedNSISUser() && p.isNsisAllowed())
+							.collect(Collectors.toList());
+
 					if (peopleThatCanBeActivated.size() == 1) {
 						person = peopleThatCanBeActivated.get(0);
-					} else {
-						auditlogger.usedNemID(result.getPid(), null);
-						return loginService.initiateUserSelect(model, people, true);
 					}
-				} else {
+					else {
+						auditlogger.usedNemID(result.getPid(), null);
+						return loginService.initiateUserSelect(model, people);
+					}
+				}
+				else {
 					auditlogger.usedNemID(result.getPid(), null);
-					return loginService.initiateUserSelect(model, people, true);
+					return loginService.initiateUserSelect(model, people);
 				}
 			}
 			else {

@@ -9,5 +9,7 @@ public interface ServiceProviderConfig {
     String getMetadataContent() throws Exception;
     boolean enabled();
     boolean preferNemId();
+    boolean nemLogInBrokerEnabled();
     boolean encryptAssertions();
+    boolean preferNIST();
 }

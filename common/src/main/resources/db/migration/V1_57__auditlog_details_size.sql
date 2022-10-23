@@ -1,0 +1,1 @@
+ALTER TABLE auditlogs_details MODIFY COLUMN detail_content MEDIUMTEXT NULL;

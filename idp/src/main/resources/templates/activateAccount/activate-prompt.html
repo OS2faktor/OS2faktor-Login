@@ -1,23 +1,29 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (checkbox = false)" />
-<body class="gray-bg">
-<div class="loginColumns animated fadeInDown">
-	<div class="row">
-		<div class="ibox col-md-12">
-			<div class="ibox-title">
-				<h5><em class="fa fa-calendar-times-o "></em> &nbsp; Aktiver brugerkonto</h5>
-			</div>
-
-			<div class="ibox-content">
-				<p>Din brugerkonto er ikke blevet aktiveret endnu, og kan ikke anvendes til login på webtjenester der kræver et højt sikkerhedsniveau. Ønsker du at aktivere brugerkontoen nu?</p>
-				<a th:href="@{/konto/aktiver}" class="btn btn-primary block full-width m-b">Ja, aktiver brugerkonto</a>
-				<a th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b">Nej</a>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+			
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="ibox offset-md-2 col-md-8">
+						<div class="ibox-title">
+							<h5><em class="fa fa-calendar-times-o "></em> &nbsp; Aktiver brugerkonto</h5>
+						</div>
+			
+						<div class="ibox-content">
+							<p>Din brugerkonto er ikke blevet aktiveret endnu, og kan ikke anvendes til login på webtjenester der kræver et højt sikkerhedsniveau. Ønsker du at aktivere brugerkontoen nu?</p>
+							<a th:href="@{/konto/aktiver}" class="btn btn-primary block full-width m-b">Ja, aktiver brugerkonto</a>
+							<a th:href="@{/konto/fortsaetlogin}" class="btn btn-primary block full-width m-b">Nej</a>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
-</div>
 
-<div th:replace="fragments/footer :: scripts (checkbox = false)" />
+	<div th:replace="fragments/footer :: scripts"></div>
 </body>
 </html>

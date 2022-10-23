@@ -43,6 +43,9 @@ public class AuditLog {
 	private String ipAddress;
 	
 	@Column
+	private String location;
+	
+	@Column
 	private String correlationId;
 
 	// referenced person which data was used
@@ -75,17 +78,11 @@ public class AuditLog {
 	@Column
 	@Enumerated(EnumType.STRING)
 	private LogAction logAction;
-	
-	@Column
-	private String logTargetId;
-	
-	@Column
-	private String logTargetName;
-	
+
 	@Column
 	private String message;
 	
-	@OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
+	@OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
 	@JoinColumn(name = "auditlogs_details_id")
 	@JsonIgnore
 	private AuditLogDetail details;

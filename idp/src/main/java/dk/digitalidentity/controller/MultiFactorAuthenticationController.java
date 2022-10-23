@@ -2,6 +2,7 @@ package dk.digitalidentity.controller;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
@@ -62,7 +63,7 @@ public class MultiFactorAuthenticationController {
 	private AuditLogger auditlogger;
 
 	@GetMapping("/sso/saml/mfa/{deviceId}")
-	public String mfaChallengePage(HttpServletResponse response, HttpServletRequest httpServletRequest, Model model, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
+	public ModelAndView mfaChallengePage(HttpServletResponse response, HttpServletRequest httpServletRequest, Model model, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
 		List<MfaClient> mfaClients = sessionHelper.getMFAClients();
 		if (mfaClients == null) {
 			String message = "Kunne ikke hente 2-faktor enheder, valgt deviceId: " + deviceId;
@@ -74,7 +75,7 @@ public class MultiFactorAuthenticationController {
 			}
 			else {
 				// Probably a bookmarking error
-				String destination = errorHandlingService.error("/sso/saml/mfa/{deviceId}", httpServletRequest, "No MFA Clients on session", model);
+				ModelAndView destination = errorHandlingService.modelAndViewError("/sso/saml/mfa/{deviceId}", httpServletRequest, "No MFA Clients on session", model);
 				sessionHelper.invalidateSession();
 				return destination;
 			}
@@ -88,7 +89,6 @@ public class MultiFactorAuthenticationController {
 				break;
 			}
 		}
-		
 
 		if (matchingClient == null) {
 			ResponderException error = new ResponderException("Den valgte 2-faktor enhed ikke fundet");
@@ -103,8 +103,31 @@ public class MultiFactorAuthenticationController {
 			return null;
 		}
 
-		// Start mfa authentication
+		// start MFA authentication
 		MfaAuthenticationResponse mfaResponse = mfaService.authenticate(matchingClient.getDeviceId());
+		if (mfaResponse == null) {
+			// Handle error in initialising MFA authentication
+			log.warn("mfaResponse was null");
+
+			Person person = sessionHelper.getPerson();
+			NSISLevel requiredNSISLevel = sessionHelper.getMFAClientRequiredNSISLevel();
+			if (person != null && requiredNSISLevel != null) {
+				return loginService.initiateMFA(model, person, requiredNSISLevel);
+			}
+
+			// Wrong state, show error instead of silently handling it
+			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+			ResponderException error = new ResponderException("mfaResponse was null");
+			if (authnRequest != null) {
+				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, error);
+			}
+			else {
+				log.error("No AuthnRequest on session, SP and error endpoint unknown", error);
+			}
+
+			return null;
+		}
+
 		sessionHelper.setSelectedMFAClient(matchingClient);
 		sessionHelper.setSubscriptionKey(mfaResponse.getSubscriptionKey());
 
@@ -122,7 +145,7 @@ public class MultiFactorAuthenticationController {
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 
-		return "login-mfa-challenge";
+		return new ModelAndView("login-mfa-challenge", model.asMap());
 	}
 
 	@GetMapping("/sso/saml/mfa/{deviceId}/completed")
@@ -146,6 +169,7 @@ public class MultiFactorAuthenticationController {
 		// clear session for next login attempt
 		sessionHelper.setSubscriptionKey(null);
 		sessionHelper.setSelectedMFAClient(null);
+		sessionHelper.setMFAClientRequiredNSISLevel(null);
 		
 		if (subscriptionKey == null || selectedMFAClient == null || !Objects.equals(selectedMFAClient.getDeviceId(), deviceId)) {
 			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Fejl i 2-faktor login"));

@@ -85,6 +85,10 @@
                         url: os2faktorBackend + "/api/notification/" + pollingKey + "/poll",
                         success: function(data, textStatus, xhr) {
                             if (data && data.stateChange == true) {
+                            	// prevent double-submits if the form is slow
+                            	clearInterval(pollingFn);
+                            	
+                            	// submit form
                                 $("#loginForm").submit();
                             }
                         }

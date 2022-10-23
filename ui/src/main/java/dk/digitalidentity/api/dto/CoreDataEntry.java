@@ -1,5 +1,6 @@
 package dk.digitalidentity.api.dto;
 
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +21,9 @@ public class CoreDataEntry {
 	private boolean nsisAllowed;
 	private Map<String, String> attributes;
 	private String domain;
+	private String expireTimestamp;
+	private boolean transferToNemlogin;
+	private String rid;
 
 	public CoreDataEntry() {
 		this.attributes = new HashMap<>();
@@ -33,6 +37,12 @@ public class CoreDataEntry {
 		this.samAccountName = person.getSamaccountName();
 		this.attributes = person.getAttributes();
 		this.nsisAllowed = person.isNsisAllowed();
+		this.transferToNemlogin = person.isTransferToNemlogin();
+		this.rid = person.getRid();
+
+		if (person.getExpireTimestamp() != null) {
+			this.expireTimestamp = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		}
 
 		if (person.getDomain().getParent() != null) {
 			this.domain = person.getDomain().getParent().getName();

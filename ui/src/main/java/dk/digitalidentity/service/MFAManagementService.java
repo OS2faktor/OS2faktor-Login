@@ -74,7 +74,7 @@ public class MFAManagementService {
 		return false;
 	}
 
-	public String authenticateUser(String cpr, NSISLevel nsisLevel) {
+	public String authenticateUser(String cpr, NSISLevel nsisLevel, String type) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -86,7 +86,7 @@ public class MFAManagementService {
 		HttpEntity<AuthenticateUserRequestBody> entity = new HttpEntity<>(body, headers);
 
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(getURL("/api/login/authenticateUser"), HttpMethod.POST, entity, String.class);
+			ResponseEntity<String> response = restTemplate.exchange(getURL("/api/login/authenticateUser?type=" + type), HttpMethod.POST, entity, String.class);
 			if (response.getStatusCode() == HttpStatus.OK) {
 				return response.getBody();
 			}

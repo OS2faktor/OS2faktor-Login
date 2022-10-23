@@ -75,9 +75,23 @@ public class ChangePasswordController {
     public void initClientBinder(WebDataBinder binder) {
         binder.setValidator(passwordChangeFormValidator);
     }
+    
+    @GetMapping("/sso/saml/forgotpworlocked")
+    public ModelAndView forgotPWOrLocked(Model model, HttpServletRequest request) throws RequesterException, ResponderException {
+		setRedirectUrl(request);
+		sessionHelper.setInChoosePasswordResetOrUnlockAccountFlow(true);
+
+        // if there is no person on the session initiate login
+        Person person = sessionHelper.getPerson();
+        if (person == null) {
+            return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, null);
+        }
+
+        return loginService.continueChoosePasswordResetOrUnlockAccount(model);
+    }
 
     @GetMapping("/sso/saml/changepassword")
-    public ModelAndView changePassword(Model model, HttpServletRequest request, HttpServletResponse response, @RequestParam(name = "redirectUrl", required = false) String url) throws ResponderException, RequesterException {
+    public ModelAndView changePassword(Model model, HttpServletRequest request, HttpServletResponse response, @RequestParam(name = "redirectUrl", required = false, defaultValue = "") String url, @RequestParam(name = "errCode", required = false) String errCode) throws ResponderException, RequesterException {
         // remember where to redirect to
         sessionHelper.setPasswordChangeSuccessRedirect(url);
 
@@ -87,8 +101,8 @@ public class ChangePasswordController {
 
         // if there is no person on the session initiate login
         Person person = sessionHelper.getPerson();
-        if (person == null) {
-            return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD);
+        if (person == null || sessionHelper.hasNSISUserAndLoggedInWithNSISNone()) {
+            return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, errCode);
         }
         
         // if the person has not approved the conditions then do that first
@@ -99,7 +113,7 @@ public class ChangePasswordController {
 
 		// if the user is allowed to activate their NSIS account and have not done so yet,
 		// we should prompt first since they will not set their NSIS password without activating first
-		if (person.isNsisAllowed() && !person.hasActivatedNSISUser()) {
+		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
 			// TODO: infinite loop?
 			return loginService.initiateActivateNSISAccount(model, true);
 		}
@@ -146,36 +160,57 @@ public class ChangePasswordController {
         }
 
         // Get Person object and check if they are allowed to change password
-        Person person = sessionHelper.getPerson();
-        if (person == null || !isAllowedChangePassword(person) || isInCanNotChangePasswordGroup(person) || changedPasswordTooManyTimes(person)) {
-            sessionHelper.clearSession();
-            log.warn("User entered changepassword with bad session, clearing");
+        String redirectUrl = "/sso/saml/changepassword";
+        String successRedirect = sessionHelper.getPasswordChangeSuccessRedirect();
+        boolean failureAndRedirect = false;
 
-            String redirectUrl = "sso/saml/changepassword";
-            String successRedirect = sessionHelper.getPasswordChangeSuccessRedirect();
-            redirectUrl += StringUtils.hasLength(successRedirect) ? "?redirectUrl=" + successRedirect : "";
+        Person person = sessionHelper.getPerson();
+        if (person == null) {
+        	log.warn("person is null - redirecting to change password page");
+
+        	failureAndRedirect = true;
+        	redirectUrl += "?errCode=PERSON";
+        }
+        else if (!isAllowedChangePassword(person)) {
+        	log.warn("person has accessed page without correct credentials - " + (person != null ? person.getId() : "<null>"));
+        	
+        	failureAndRedirect = true;
+        	if (person.isNsisAllowed()) {
+        		redirectUrl += "?errCode=SUBSTANTIAL";
+        	}
+        	else {
+        		redirectUrl += "?errCode=MFA";
+        	}
+        }
+        else if (isInCanNotChangePasswordGroup(person)) {
+        	log.warn("person is not allowed to change password (group restriction) - " + (person != null ? person.getId() : "<null>"));
+        	
+        	failureAndRedirect = true;
+        	redirectUrl += "?errCode=GROUP";
+        }
+        else if (changedPasswordTooManyTimes(person)) {
+        	log.warn("person is not allowed to change password (too many changes in a single day) - " + (person != null ? person.getId() : "<null>"));
+
+        	redirectUrl += "?errCode=LIMIT";
+        	failureAndRedirect = true;
+        }
+        
+        if (failureAndRedirect) {
+            sessionHelper.clearSession();
+
+            redirectUrl += StringUtils.hasLength(successRedirect) ? "&redirectUrl=" + successRedirect : "";
             return new ModelAndView("redirect:" + redirectUrl);
         }
 
         // Check for password errors
         if (bindingResult.hasErrors()) {
-            PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
-            String samaccountName = null;
-
-            if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
-            	samaccountName = person.getSamaccountName();
-            }
-
-            model.addAttribute("samaccountName", samaccountName);
-            model.addAttribute("settings", settings);
-
             ChangePasswordResult reason = sessionHelper.getPasswordChangeFailureReason();
             if (reason != null && !reason.equals(ChangePasswordResult.OK)) {
             	auditLogger.changePasswordFailed(person, reason.getMessage());
             	sessionHelper.setPasswordChangeFailureReason(null);	
             }
-            
-            return new ModelAndView("changePassword/change-password", model.asMap());
+
+            return loginService.continueChangePassword(model, form);
         }
 
         try {
@@ -183,17 +218,7 @@ public class ChangePasswordController {
             if (ADPasswordResponse.isCritical(adPasswordStatus)) {
             	model.addAttribute("technicalError", true);
 
-                PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
-                String samaccountName = null;
-
-                if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
-                	samaccountName = person.getSamaccountName();
-                }
-
-                model.addAttribute("samaccountName", samaccountName);
-                model.addAttribute("settings", settings);
-
-                return new ModelAndView("changePassword/change-password", model.asMap());
+                return loginService.continueChangePassword(model, form);
             }
 
             // Save encrypted password on session (for use in password expiry flow)
@@ -208,7 +233,7 @@ public class ChangePasswordController {
 			}
             
             // Show success page
-			String redirectUrl = sessionHelper.getPasswordChangeSuccessRedirect();
+			redirectUrl = sessionHelper.getPasswordChangeSuccessRedirect();
 			model.addAttribute("redirectUrl", redirectUrl);
             sessionHelper.setInPasswordChangeFlow(false);
 
@@ -219,6 +244,24 @@ public class ChangePasswordController {
             throw new ResponderException("Kunne ikke kryptere kodeord");
         }
     }
+
+	private void setRedirectUrl(HttpServletRequest request) {
+		String redirectUrl = "";
+		String queryString = request.getQueryString();
+		if (queryString != null) {
+			String[] encodedParameters = queryString.split("&");
+
+			for (String param : encodedParameters) {
+				String[] keyValuePair = param.split("=");
+
+				// Find RedirectUrl if present, otherwise set empty string
+				if ("redirectUrl".equalsIgnoreCase(keyValuePair[0])) {
+					redirectUrl = keyValuePair[1];
+				}
+			}
+		}
+		sessionHelper.setPasswordChangeSuccessRedirect(redirectUrl);
+	}
 
     private boolean isAllowedChangePassword(Person person) {
         // Instead of using the computed NSIS level,

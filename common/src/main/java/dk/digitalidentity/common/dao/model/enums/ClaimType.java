@@ -4,8 +4,8 @@ import lombok.Getter;
 
 @Getter
 public enum ClaimType {
-    STATIC("Statisk"),
-    DYNAMIC("Dynamisk"),
+    DYNAMIC("Personligt"),
+    STATIC("Fast"),
     ROLE_CATALOGUE("OS2rollekatalog");
 
     private String message;

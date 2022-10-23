@@ -1,5 +1,8 @@
 package dk.digitalidentity.common.config;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.stereotype.Component;
 
 import lombok.Getter;
@@ -12,7 +15,9 @@ public class MfaConfiguration {
 	private String baseUrl = "https://backend.os2faktor.dk";
 	private String apiKey;
 	private String managementApiKey;
-
-	@FeatureDocumentation(name = "TOTP klienter", description = "Tillad anvendelsen af TOTP 2-faktor enheder, fx Microsoft Authenticator")
-	private boolean allowTotp = false;
+	private String enabledClients = "WINDOWS,IOS,ANDROID,CHROME,YUBIKEY,EDGE";
+	
+	public List<String> getEnabledClients() {
+		return Arrays.asList(enabledClients.split(","));
+	}
 }

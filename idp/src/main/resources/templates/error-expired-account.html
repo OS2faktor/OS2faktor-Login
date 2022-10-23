@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (checkbox = false)"></head>
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5><em class="fa fa-paragraph"></em> &nbsp; Udløben konto</h5>
+                </div>
+
+                <div class="ibox-content">
+                	<p th:utext="${@cmsMessageBundle.getText('cms.account.expired')}" />
+                </div>
+            </div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (checkbox = false)"></div>
+</body>
+</html>

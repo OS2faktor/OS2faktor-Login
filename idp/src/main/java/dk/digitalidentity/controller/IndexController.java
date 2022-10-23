@@ -26,8 +26,13 @@ public class IndexController {
 
 	@GetMapping("/")
 	public String index(Model model) {
+		NSISLevel loginState = sessionHelper.getLoginState();
+		if (loginState == null) {
+			sessionHelper.clearSession();
+		}
+		
 		model.addAttribute("person", sessionHelper.getPerson());
-		model.addAttribute("nsis", sessionHelper.getLoginState());
+		model.addAttribute("nsis", loginState);
 		model.addAttribute("mfa", (NSISLevel.LOW.equalOrLesser(sessionHelper.getMFALevel())) ? "Ja" : "Nej");
 
 		List<String> sps = new ArrayList<>();

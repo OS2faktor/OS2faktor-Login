@@ -56,6 +56,7 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.login.selectUser.content", getDescription("cms.login.selectUser.content")));
 		all.add(new CmsMessageListDTO("cms.login.content", getDescription("cms.login.content")));
 		all.add(new CmsMessageListDTO("cms.login.mfa.noClients", getDescription("cms.login.mfa.noClients")));
+		all.add(new CmsMessageListDTO("cms.login.nsisLevelTooLow", getDescription("cms.login.nsisLevelTooLow")));
 		all.add(new CmsMessageListDTO("cms.changePassword.content", getDescription("cms.changePassword.content")));
 		all.add(new CmsMessageListDTO("cms.changePassword.identification", getDescription("cms.changePassword.identification")));
 		all.add(new CmsMessageListDTO("cms.login.mfaChallenge.content.top", getDescription("cms.login.mfaChallenge.content.top")));
@@ -66,6 +67,7 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.myidentity.links.help", getDescription("cms.myidentity.links.help")));
 		all.add(new CmsMessageListDTO("cms.myidentity.references.help", getDescription("cms.myidentity.references.help")));
 		all.add(new CmsMessageListDTO("cms.index.content", getDescription("cms.index.content")));
+		all.add(new CmsMessageListDTO("cms.index.forgotPasswordOrLocked", getDescription("cms.index.forgotPasswordOrLocked")));
 		all.add(new CmsMessageListDTO("cms.activate.initiate", getDescription("cms.activate.initiate")));
 		all.add(new CmsMessageListDTO("cms.activate.ad-password-change", getDescription("cms.activate.ad-password-change")));
 		all.add(new CmsMessageListDTO("cms.activate.during-login", getDescription("cms.activate.during-login")));
@@ -73,6 +75,14 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.login.nemlogin.description", getDescription("cms.login.nemlogin.description")));
 		all.add(new CmsMessageListDTO("cms.activate.personDead", getDescription("cms.activate.personDead")));
 		all.add(new CmsMessageListDTO("cms.changePassword.canNotChangePasswordGroup.content", getDescription("cms.changePassword.canNotChangePasswordGroup.content")));
+		all.add(new CmsMessageListDTO("cms.lockAccount.content", getDescription("cms.lockAccount.content")));
+		all.add(new CmsMessageListDTO("cms.links.description", getDescription("cms.links.description")));
+		all.add(new CmsMessageListDTO("cms.forgotPasswordOrLocked.changePassword", getDescription("cms.forgotPasswordOrLocked.changePassword")));
+		all.add(new CmsMessageListDTO("cms.forgotPasswordOrLocked.unlockAD", getDescription("cms.forgotPasswordOrLocked.unlockAD")));
+		all.add(new CmsMessageListDTO("cms.password.mismatch.content", getDescription("cms.password.mismatch.content")));
+		all.add(new CmsMessageListDTO("cms.unlockAccount.content", getDescription("cms.unlockAccount.content")));
+		all.add(new CmsMessageListDTO("cms.account.expired", getDescription("cms.account.expired")));
+		all.add(new CmsMessageListDTO("cms.login.selectClaims.content.top", getDescription("cms.login.selectClaims.content.top")));
 
 		return all;
 	}
@@ -96,7 +106,10 @@ public class CmsMessageBundle {
 			case "cms.login.nemlogin.description":
 				return "Den ledetekst der vises på login-siden, når man vælger fanen 'MitID'";
 			case "cms.login.mfa.noClients":
-				return "Den ledetekst der vises på siden, man lander på, hvis man ikke har en 2-faktor enhed";
+				return "Den ledetekst der vises på siden man lander på, hvis man ikke har en 2-faktor enhed";
+
+			case "cms.login.nsisLevelTooLow":
+				return "Den ledetekst der vises på siden man lander på, hvis det sikringsniveau (NSIS niveau) der lå til grund for login ikke var højt nok";
 
 			case "cms.changePassword.identification":
 				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med genskabelse af glemt kodeord";
@@ -120,6 +133,8 @@ public class CmsMessageBundle {
 
 			case "cms.index.content":
 				return "Den ledetekst der vises på forsiden af selvbetjeningen før man er logget ind";
+			case "cms.index.forgotPasswordOrLocked":
+				return "Den tekst der står på knappen, man skal trykke på, hvis man har glemt kodeord eller er låst ude";
 
 			case "cms.activate.initiate":
 				return "Den ledetekst der vises på startsiden for det dedikerede aktiveringsflow";
@@ -131,7 +146,25 @@ public class CmsMessageBundle {
 				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med identifikationen ved det dedikerede aktiveringsflow";
 			case "cms.activate.personDead":
 				return "Den fejlbesked der vises, hvis cpr opslaget under aktivering viser at personen er død";
+			case "cms.lockAccount.content":
+				return "Den tekst der vises på siden, hvor en bruger kan låse sin erhvervsidentitet.";
+			case "cms.unlockAccount.content":
+				return "Den tekst der vises på siden, hvor en bruger kan fjerne låsen på sin erhvervsidentitet.";
+						
+			case "cms.links.description":
+				return "Den tekst der vises under overskiften i boksen med links";
+			case "cms.forgotPasswordOrLocked.changePassword":
+				return "Den tekst der vises ud for skift kodeord knappen på siden hvor man vælger om man vil skifte kodeord eller låse sin AD konto op.";
+			case "cms.forgotPasswordOrLocked.unlockAD":
+				return "Den tekst der vises ud for lås AD konto op knappen på siden hvor man vælger om man vil skifte kodeord eller låse sin AD konto op.";
 
+			case "cms.password.mismatch.content":
+				return "Den tekst der vises for brugeren, hvis deres AD kodeord er kommet ud af sync med deres OS2faktor kodeord, når de forsøger at logge ind i selvbetjeningen";
+
+			case "cms.account.expired":
+				return "Den tekst der vises for brugeren, hvis deres konto er udløben, og de derfor ikke kan gennemføre et login";
+			case "cms.login.selectClaims.content.top":
+				return "Den tekst der vises for brugeren, hvis de er ved at logge på en tjenesteudbyder der kun kan modtage en værdi per claim og ikke en liste og derfor skal brugeren vælge hvilke claims de vil gøre brug af";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

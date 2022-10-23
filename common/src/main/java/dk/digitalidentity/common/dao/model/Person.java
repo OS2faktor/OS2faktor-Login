@@ -1,6 +1,7 @@
 package dk.digitalidentity.common.dao.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -105,6 +106,15 @@ public class Person {
 	private boolean lockedDead;
 
 	@Column
+	private boolean lockedDisenfranchised;
+
+	@Column
+	private boolean lockedExpired;
+
+	@Column
+	private LocalDateTime expireTimestamp;
+
+	@Column
 	private LocalDateTime lockedPasswordUntil;
 
 	@Column
@@ -129,13 +139,27 @@ public class Person {
 
 	@Column
 	private String mitIdNameId;
+	
+	@Column
+	private boolean transferToNemlogin;
+	
+	@Column
+	private String rid;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")
 	private Domain domain;
 
-	@OneToOne(mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
-	private Supporter supporter;
+	// NOTICE!
+	// This field is actually a OneToOne, but we had to make it a OneToMany to help Hibernate do lazy-loading. To avoid having to
+	// rewrite all the other code, the setter and getter methods for this field is custom-written below, to ensure a single entry
+	// in this list (and allow empty lists)
+	//
+	// The longer story is that a nullable field used in a OneToOne cannot be lazy-loaded, as the Hibernate proxy would never be
+	// null, preventing code from working with null values (including setting the value to null)
+	@BatchSize(size = 100)
+	@OneToMany(mappedBy = "person", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+	private List<Supporter> supporter;
 
 	@Column
 	private boolean nameProtected;
@@ -154,6 +178,13 @@ public class Person {
 	@Column(name = "attribute_value")
 	private Map<String, String> attributes;
 
+	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
+	@ElementCollection
+	@CollectionTable(name = "persons_kombit_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
+	@MapKeyColumn(name = "attribute_key")
+	@Column(name = "attribute_value")
+	private Map<String, String> kombitAttributes;
+
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
 	private List<PersonGroupMapping> groups;
@@ -166,12 +197,24 @@ public class Person {
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<CachedMfaClient> mfaClients;
 
+	@BatchSize(size = 100)
+	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<SchoolRole> schoolRoles;
+
 	public boolean isOnlyLockedByPerson() {
-		return lockedPerson && !lockedAdmin && !lockedDataset && !lockedPassword && !lockedDead;
+		return lockedPerson && !lockedAdmin && !lockedDataset && !lockedPassword && !isLockedCivilState() && !lockedExpired;
+	}
+	
+	public boolean isLockedByOtherThanPerson() {
+		return lockedAdmin || lockedDataset || lockedPassword || isLockedCivilState() || lockedExpired;
 	}
 
 	public boolean isLocked() {
-		return lockedPerson || lockedAdmin || lockedDataset || lockedPassword || lockedDead;
+		return lockedPerson || lockedAdmin || lockedDataset || lockedPassword || isLockedCivilState() || lockedExpired;
+	}
+	
+	public boolean isLockedCivilState() {
+		return lockedDead || lockedDisenfranchised;
 	}
 
 	public String getIdentifier() {
@@ -183,17 +226,35 @@ public class Person {
 	}
 
 	public boolean isSupporter() {
-		return supporter != null;
+		return supporter != null && supporter.size() > 0;
 	}
 
+	// please read the common on the supporter field
 	public void setSupporter(Supporter supporter) {
 		if (supporter == null) {
-			this.supporter = null;
+			if (this.supporter != null) {
+				this.supporter.clear();
+			}
+			else {
+				this.supporter = new ArrayList<>();
+			}
+
 			return;
 		}
 
 		supporter.setPerson(this);
-		this.supporter = supporter;
+
+		this.supporter.clear();
+		this.supporter.add(supporter);
+	}
+
+	// please read the common on the supporter field
+	public Supporter getSupporter() {
+		if (this.supporter != null && this.supporter.size() > 0) {
+			return this.supporter.get(0);
+		}
+		
+		return null;
 	}
 	
 	@JsonIgnore

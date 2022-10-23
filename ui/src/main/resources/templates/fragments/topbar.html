@@ -7,9 +7,6 @@
 				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
 				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
 			</a>
-			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-label="Toggle navigation">
-				<i class="fa fa-reorder"></i>
-			</button>
 
 			<div class="navbar-collapse collapse" id="navbar">
 				<ul class="nav navbar-nav mr-auto">
@@ -22,25 +19,11 @@
 					</li>
 
 					<li sec:authorize="hasRole('ROLE_CHANGE_PASSWORD_ON_OTHERS')" th:class="${page != null and #strings.startsWith(page, 'otherUsers')} ? 'active' : ''">
-						<a role="button" th:href="@{/andre-brugere}">Andre brugere</a>
+						<a role="button" th:href="@{/andre-brugere/kodeord/skift/list}">Elever</a>
 					</li>
-				</ul>
-				
-				<ul sec:authorize="!isAuthenticated()" class="nav navbar-top-links navbar-right">
-					<li>
-						<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'konto/init-aktiver'">
-							<i class="fa fa-user-plus"></i> Aktiver brugerkonto
-						</a>
-					</li>
-					<li>
-						<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">
-							<i class="fa fa-unlock"></i> Skift kodeord
-						</a>
-					</li>
-					<li>
-						<a th:href="@{/saml/login}">
-							<i class="fa fa-sign-in"></i> Log ind
-						</a>
+
+					<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')" th:if="${@OS2faktorConfiguration.checkVersion() == false}">
+						<a role="button" th:href="@{/version}" style="color: #0050B5 !important;"><em class="fa fa-fw fa-warning"></em> Ny version!</a>
 					</li>
 				</ul>
 

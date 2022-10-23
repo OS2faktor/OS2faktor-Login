@@ -16,7 +16,7 @@ public class ADPasswordRequest {
 	private String password;
 
 	public ADPasswordRequest(Person person, String password) {
-		this.domain = person.getDomain().getName();
+		this.domain = person.getTopLevelDomain().getName();
 		this.userUuid = person.getUuid();
 		this.userName = person.getSamaccountName();
 		this.password = password;

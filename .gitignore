@@ -1,9 +1,15 @@
 .classpath
 .project
 .settings
+target/
 .idea/
 *.iml
-
-target/
+**/.factorypath
+.vs/
+[Dd]ebug/
+[Rr]elease/
+.jpb/
+#x64/
+#x86/
 
 common/src/main/java/dk/digitalidentity/common/dao/bootstrap/DevBootstrapper.java

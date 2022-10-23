@@ -7,9 +7,11 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -27,39 +29,21 @@ public class RoleCatalogueService {
 	@Autowired
 	private CommonConfiguration configuration;
 
-	public String getNameId(Person person) {
-		RestTemplate restTemplate = new RestTemplate();
-
-		String roleCatalogueUrl = configuration.getRoleCatalogue().getBaseUrl();
-		if (!roleCatalogueUrl.endsWith("/")) {
-			roleCatalogueUrl += "/";
-		}
-		roleCatalogueUrl += "api/user/" + person.getUuid() + "/nameid";
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
-
-		HttpEntity<String> request = new HttpEntity<>(headers);
-
-		ResponseEntity<String> response = restTemplate.exchange(roleCatalogueUrl, HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
-
-		return response.getBody();
-	}
-
 	public String getOIOBPP(Person person, String system) {
+		if (!configuration.getRoleCatalogue().isEnabled()) {
+			log.error("RoleCatalogue not enabled - oiobpp is null");
+			return null;
+		}
+
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 	
 			String roleCatalogueUrl = configuration.getRoleCatalogue().getBaseUrl();
-			if (!roleCatalogueUrl.endsWith("/")) {
-				roleCatalogueUrl += "/";
-			}
-			
 			if (StringUtils.hasLength(person.getSamaccountName())) {
 				roleCatalogueUrl += "api/user/" + person.getSamaccountName() + "/roles";
 			}
 			else {
-				roleCatalogueUrl += "/api/user/" + person.getUuid() + "/roles";
+				roleCatalogueUrl += "api/user/" + person.getUuid() + "/roles";
 			}
 	
 			HttpHeaders headers = new HttpHeaders();
@@ -69,19 +53,31 @@ public class RoleCatalogueService {
 			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", system);
 	
 			ResponseEntity<OIOBPP> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
-	
+
 			OIOBPP oiobpp = response.getBody();
 	
 			return oiobpp != null ? oiobpp.getOioBPP() : null;
 		}
 		catch (Exception ex) {
-			log.error("Failed to connect to role catalogue", ex);
+			if (ex instanceof HttpStatusCodeException) {
+				HttpStatusCodeException httpStatusException = (HttpStatusCodeException) ex;
+				if (httpStatusException.getStatusCode() == HttpStatus.NOT_FOUND) {
+					log.warn("User not found for PersonID: " + person.getId());
+					return null;
+				}
+			}
 
+			log.error("Failed to connect to role catalogue", ex);
 			return null;
 		}
 	}
 
 	public List<String> getSystemRoles(Person person, String itSystem) {
+		if (!configuration.getRoleCatalogue().isEnabled()) {
+			log.error("RoleCatalogue not enabled - systemRoles is null");
+			return null;
+		}
+
 		RoleCatalogueRolesResponse response = lookupRoles(person, itSystem);
 		if (response == null) {
 			return null;
@@ -91,6 +87,11 @@ public class RoleCatalogueService {
 	}
 	
 	public List<String> getUserRoles(Person person, String itSystem) {
+		if (!configuration.getRoleCatalogue().isEnabled()) {
+			log.error("RoleCatalogue not enabled - userRoles is null");
+			return null;
+		}
+
 		RoleCatalogueRolesResponse response = lookupRoles(person, itSystem);
 		if (response == null) {
 			return null;
@@ -100,6 +101,11 @@ public class RoleCatalogueService {
 	}
 	
 	public String getSystemRolesAsOIOBPP(Person person, String itSystem) {
+		if (!configuration.getRoleCatalogue().isEnabled()) {
+			log.error("RoleCatalogue not enabled - oiobpp/systemroles is null");
+			return null;
+		}
+
 		RoleCatalogueOIOBPPResponse response = lookupRolesAsOIOBPP(person, itSystem);
 		if (response == null) {
 			return null;
@@ -125,15 +131,11 @@ public class RoleCatalogueService {
 			RestTemplate restTemplate = new RestTemplate();
 	
 			String roleCatalogueUrl = configuration.getRoleCatalogue().getBaseUrl();
-			if (!roleCatalogueUrl.endsWith("/")) {
-				roleCatalogueUrl += "/";
-			}
-			
 			if (StringUtils.hasLength(person.getSamaccountName())) {
 				roleCatalogueUrl += "api/user/" + person.getSamaccountName() + "/roles";
 			}
 			else {
-				roleCatalogueUrl += "/api/user/" + person.getUuid() + "/roles";
+				roleCatalogueUrl += "api/user/" + person.getUuid() + "/roles";
 			}
 	
 			HttpHeaders headers = new HttpHeaders();
@@ -147,8 +149,15 @@ public class RoleCatalogueService {
 			return response.getBody();
 		}
 		catch (Exception ex) {
-			log.error("Failed to connect to role catalogue", ex);
+			if (ex instanceof HttpStatusCodeException) {
+				HttpStatusCodeException httpStatusException = (HttpStatusCodeException) ex;
+				if (httpStatusException.getStatusCode() == HttpStatus.NOT_FOUND) {
+					log.warn("User not found for PersonID: " + person.getId());
+					return null;
+				}
+			}
 
+			log.error("Failed to connect to role catalogue", ex);
 			return null;
 		}
 	}
@@ -158,15 +167,11 @@ public class RoleCatalogueService {
 			RestTemplate restTemplate = new RestTemplate();
 	
 			String roleCatalogueUrl = configuration.getRoleCatalogue().getBaseUrl();
-			if (!roleCatalogueUrl.endsWith("/")) {
-				roleCatalogueUrl += "/";
-			}
-			
 			if (StringUtils.hasLength(person.getSamaccountName())) {
 				roleCatalogueUrl += "api/user/" + person.getSamaccountName() + "/rolesAsList";
 			}
 			else {
-				roleCatalogueUrl += "/api/user/" + person.getUuid() + "/rolesAsList";
+				roleCatalogueUrl += "api/user/" + person.getUuid() + "/rolesAsList";
 			}
 	
 			HttpHeaders headers = new HttpHeaders();
@@ -176,12 +181,19 @@ public class RoleCatalogueService {
 			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", itSystem);
 	
 			ResponseEntity<RoleCatalogueRolesResponse> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
-	
+
 			return response.getBody();
 		}
 		catch (Exception ex) {
-			log.error("Failed to connect to role catalogue", ex);
+			if (ex instanceof HttpStatusCodeException) {
+				HttpStatusCodeException httpStatusException = (HttpStatusCodeException) ex;
+				if (httpStatusException.getStatusCode() == HttpStatus.NOT_FOUND) {
+					log.warn("User not found for PersonID: " + person.getId());
+					return null;
+				}
+			}
 
+			log.error("Failed to connect to role catalogue", ex);
 			return null;
 		}
 	}

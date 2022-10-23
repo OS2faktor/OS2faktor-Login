@@ -3,6 +3,7 @@ package dk.digitalidentity.mvc.admin.xlsview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -24,12 +25,14 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
+	private boolean enableRegistrantFeature;
 
 	@SuppressWarnings("unchecked")
 	@Override
 	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		// Get data
 		persons = (List<Person>) model.get("persons");
+		enableRegistrantFeature = (boolean) model.get("enableRegistrantFeature");
 
 		// Setup shared resources
 		Font headerFont = workbook.createFont();
@@ -55,7 +58,9 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 		headers.add("Domæne");
 		headers.add("Dato for godkendt vilkår");
 		headers.add("NSIS sikringsniveau");
+		headers.add("NSIS status");
 		headers.add("2-faktor enheder");
+		headers.add("Administratorroller");
 
 		createHeaderRow(sheet, headers);
 
@@ -88,6 +93,34 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			// NSIS niveau
 			createCell(dataRow, column++, nsisLevelToDanish(entry.getNsisLevel()), null);
 			
+			// NSIS status
+			if (entry.isLocked()) {
+				if (entry.isLockedAdmin() || entry.isLockedDataset()) {
+					createCell(dataRow, column++, "Spærret (af kommunen)", null);
+				}
+				else if (entry.isLockedPerson() || entry.isLockedPassword()) {
+					createCell(dataRow, column++, "Spærret (af brugeren selv)", null);
+				}
+				else if (entry.isLockedExpired()) {
+					createCell(dataRow, column++, "Spærret (udløbet)", null);
+				}
+				else {
+					createCell(dataRow, column++, "Spærret (civilstatus)", null);
+				}
+			}
+			else if (entry.isNsisAllowed()) {
+				if (entry.getNsisLevel().equals(NSISLevel.NONE)) {
+					createCell(dataRow, column++, "Erhvervsidentitet ikke aktiveret", null);
+				}
+				else {
+					createCell(dataRow, column++, "Erhvervsidentitet aktiveret", null);
+				}
+			}
+			else {
+				createCell(dataRow, column++, "Erhvervsidentitet ikke tildelt", null);
+			}
+
+			
 			// MFA klienter
 			StringBuilder mfaClients = new StringBuilder();
 			for (CachedMfaClient mfaClient : entry.getMfaClients()) {
@@ -99,6 +132,32 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			}
 
 			createCell(dataRow, column++, mfaClients.toString(), null);
+
+			// Administratorroller
+
+			StringJoiner adminRoles = new StringJoiner("\n");
+			
+			if (entry.isAdmin()) {
+				adminRoles.add("Administrator");
+			}
+
+			if (entry.isServiceProviderAdmin()) {
+				adminRoles.add("TU administrator");
+			}
+
+			if (entry.isUserAdmin()) {
+				adminRoles.add("Brugeradministrator");
+			}
+
+			if (entry.isRegistrant() && enableRegistrantFeature) {
+				adminRoles.add("Registrant");
+			}
+
+			if (entry.isSupporter()) {
+				adminRoles.add("Supporter");
+			}
+
+			createCell(dataRow, column++, adminRoles.toString(), null);
 		}
 	}
 

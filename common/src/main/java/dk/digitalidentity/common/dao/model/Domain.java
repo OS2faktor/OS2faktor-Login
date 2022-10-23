@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -40,7 +41,7 @@ public class Domain {
 	@Column
 	private boolean monitored;
 
-	@ManyToOne
+	@ManyToOne(fetch = FetchType.LAZY)
 	@JsonIgnore
 	@JoinColumn(name = "parent_domain_id", nullable = true)
 	private Domain parent;

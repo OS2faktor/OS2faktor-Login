@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.lock-account')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-user"></em> &nbsp; Fjern lås på erhvervsidentitet</h5>
+							</div>
+
+							<div class="ibox-content">
+								<form id="unlockForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/fjernlaas}">
+									<div th:if="${@cmsMessageBundle.getText('cms.unlockAccount.content')} != ''" class="mb-5">
+				                		<span th:utext="${@cmsMessageBundle.getText('cms.unlockAccount.content')}"></span>
+				                	</div>
+
+									<button id="unlockBtn" type="button" class="btn btn-primary block full-width m-b">Fjern lås på erhvervsidentitet</button>
+								</form>
+							</div>
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.lock-account')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts" />
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+		var lockButtonConfirm = [[#{shared.button.yes}]];
+		var lockButtonCancel = [[#{shared.button.no}]];
+		+]*/
+
+		var lockText = "Er du sikker på at du vil fjerne låsen på din erhvervsidentitet?";
+		
+		$(document).ready(function() {
+			$("#unlockBtn").click(function(){
+				swal({
+					title: '',
+					text: lockText,
+					showCancelButton: true,
+					type: "warning",
+					confirmButtonColor: "#DD6B55",
+					confirmButtonText: lockButtonConfirm,
+					cancelButtonText: lockButtonCancel,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				 },
+				 function (isConfirm) {
+					if (isConfirm) {
+						$("#unlockForm").submit();
+					}
+				 });
+			});
+		});
+		/*]]>*/
+	</script>
+</body>
+</html>

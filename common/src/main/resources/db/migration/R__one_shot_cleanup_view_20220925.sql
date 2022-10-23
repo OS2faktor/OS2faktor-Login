@@ -1,0 +1,1 @@
+DROP VIEW IF EXISTS view_person_where_password_change_allowed;

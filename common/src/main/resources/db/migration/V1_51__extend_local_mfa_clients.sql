@@ -1,0 +1,1 @@
+ALTER TABLE local_registered_mfa_clients ADD COLUMN associated_user_timestamp VARCHAR(255) NULL;

@@ -23,8 +23,10 @@
 								
 								<h4>Konfiguration</h4>
 								
+								<span th:text="#{page.admin.configuration.features.subheader(${@commonConfiguration.customer.cvr})}"></span>
+								
 								<div class="table-responsive">
-									<table id="featureTable" class="table table-striped table-hover">
+									<table id="featureTable" class="table table-striped table-hover configTables">
 										<thead>
 											<tr>
 												<th style="text-align: center; width: 100px;">Slået til</th>
@@ -35,9 +37,79 @@
 							
 										<tbody>
 											<tr th:each="feature : ${features}">
-												<td style="text-align: center;"><em th:if="${feature.enabled}" class="fa fa-check"></em>
+												<td style="text-align: center;"><em th:if="${feature.enabled}" class="fa fa-check"></em></td>
 												<td th:text="${feature.name}" />
 												<td th:text="${feature.description}" />
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+						
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Klienttyper</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor vises de typer af klienter, der kan anvendes til at logge ind. Disse typer opsættes af driftoperatøren. Hvis de typer af klienter, der kan anvendes, skal ændres,
+									skal der tages kontakt til driftoperatøren via <a href="mailto:helpdesk@digital-identity.dk">helpdesk@digital-identity.dk</a>.
+								</p>
+								
+								<h4>Konfiguration</h4>
+								
+								<div class="table-responsive">
+									<table id="clientTable" class="table table-striped table-hover configTables">
+										<thead>
+											<tr>
+												<th style="text-align: center; width: 100px;">Kan anvendes</th>
+												<th>Klienttype</th>
+											</tr>
+										</thead>
+							
+										<tbody>
+											<tr th:each="client : ${T(dk.digitalidentity.common.service.mfa.model.ClientType).values()}">
+												<td style="text-align: center;"><em th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, client.toString())}__}" class="fa fa-check"></em></td>
+												<td th:text="#{${client.getMessage()}}" />
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+						
+						<div class="ibox" th:if="@{__${@commonConfiguration.stilStudent.enabled}__}">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Regler for kodeordsskifte på elever</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor er de nuværende indstillinger for kodeordsskifte på elever. Disse indstillinger opsættes af driftoperatøren. Hvis indstillingerne skal ændres,
+									skal der tages kontakt til driftoperatøren via <a href="mailto:helpdesk@digital-identity.dk">helpdesk@digital-identity.dk</a>.
+								</p>
+								<p>
+									Roller, der ikke er med i listen herunder, kan ikke skifte kodeord på elever.
+								</p>
+								
+								<h4>Konfiguration</h4>
+								<div class="table-responsive">
+									<table id="stilStudentConfiguration" class="table table-striped table-hover">
+										<thead>
+											<tr>
+												<th>Rolle</th>
+												<th>Regel</th>
+												<th>Filter</th>
+											</tr>
+										</thead>
+							
+										<tbody>
+											<tr th:each="setting : ${roleSettings}">
+												<td th:text="${setting.role.message}" />
+												<td th:text="${setting.type.message}" />
+												<td th:text="${setting.filter}" />
 											</tr>
 										</tbody>
 									</table>
@@ -71,7 +143,7 @@
 		
 		function FeatureService() {
 			this.init = function() {
-				$('#featureTable').DataTable({
+				$('.configTables').DataTable({
 					"bSort": false,
 					"paging": false,
 					"responsive": true,
@@ -82,6 +154,29 @@
 			        ],
 			        "columnDefs": [
 			            { "targets": [0], "orderable": false }
+			        ],
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ rækker)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+				
+				$('#stilStudentConfiguration').DataTable({
+					"bSort": false,
+					"paging": false,
+					"responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>>",
+					'ordering': true,
+			        'order': [
+			        	[ 1, 'asc' ]
 			        ],
 					"language": {
 						"search":	   "Søg",

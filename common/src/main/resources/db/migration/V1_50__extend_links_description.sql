@@ -1,0 +1,1 @@
+ALTER TABLE links ADD COLUMN description VARCHAR(255) NULL;

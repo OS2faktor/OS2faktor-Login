@@ -1,9 +1,8 @@
 ﻿using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Win32;
 using Serilog;
 using System;
-using System.Threading.Tasks;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace ResetPasswordDialog
@@ -12,9 +11,46 @@ namespace ResetPasswordDialog
     {
         public  ResetPasswordForm()
         {
+
             Log.Verbose("Initialising components");
             InitializeComponent();
             Log.Verbose("Components initialised");
+
+            resizeAndCenterWindow();
+        }
+
+        private void resizeAndCenterWindow()
+        {
+            Log.Verbose("resizeAndCenterWindow called");
+
+            // Get Window size
+            Rectangle workingArea = Screen.FromControl(this).Bounds;
+
+            // Choose size of window
+            double xScale = 0.9;
+            double yScale = 0.9;
+            if (workingArea.Bottom >= 1440)
+            {
+                xScale = 0.5;
+                yScale = 0.5 * 1.2;
+            }
+            else if (workingArea.Bottom >= 1080)
+            {
+                xScale = 0.7;
+                yScale = 0.7 * 1.2;
+            }
+
+            double width = workingArea.Right * xScale;
+            double height = workingArea.Bottom * yScale;
+
+            this.Size = new Size((int) Math.Floor(width), (int)Math.Floor(height));
+
+            // Center window on screen
+            this.Location = new Point()
+            {
+                X = Math.Max(workingArea.X, workingArea.X + (workingArea.Width - this.Width) / 2),
+                Y = Math.Max(workingArea.Y, workingArea.Y + (workingArea.Height - this.Height) / 2)
+            };
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -81,7 +117,7 @@ namespace ResetPasswordDialog
                         }
 
                         // Create URL from configured baseURL
-                        string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "sso/saml/changepassword";
+                        string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "sso/saml/forgotpworlocked";
                         Log.Verbose("Calling url: " + url);
                         webView.Source = new Uri(url);
                     }
@@ -107,7 +143,7 @@ namespace ResetPasswordDialog
 
         private async void ResetPasswordForm_LoadAsync(object sender, EventArgs e)
         {
-            Log.Verbose("ResetPasswordForm_LoadAsync calledx");
+            Log.Verbose("ResetPasswordForm_LoadAsync called");
             try
             {
                 _ = Application.StartupPath;
