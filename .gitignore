@@ -1,15 +1,45 @@
+# Java IDE files
 .classpath
 .project
-.settings
-target/
+.settings/
 .idea/
 *.iml
 **/.factorypath
+
+# Build folders
+target/
 .vs/
 [Dd]ebug/
 [Rr]elease/
 .jpb/
+
+# OS generated files
+.DS_Store
+*.swp
+*~
+._*
+
+# Compiled code
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Logging files
+*.log
+*.sql
+*.sqlite
+
+# DevBootstrapper & x64 x86
+common/src/main/java/dk/digitalidentity/common/dao/bootstrap/DevBootstrapper.java
 #x64/
 #x86/
-
-common/src/main/java/dk/digitalidentity/common/dao/bootstrap/DevBootstrapper.java
