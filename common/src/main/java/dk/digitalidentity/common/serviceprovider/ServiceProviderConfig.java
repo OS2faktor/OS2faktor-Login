@@ -1,15 +1,19 @@
 package dk.digitalidentity.common.serviceprovider;
 
+import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
+
 public interface ServiceProviderConfig {
     String getName();
-    String getEntityId() throws Exception;
-    String getProtocol();
-    String getNameIdFormat();
+    String getEntityId();
+    Protocol getProtocol();
+    NameIdFormat getNameIdFormat();
     String getMetadataUrl();
-    String getMetadataContent() throws Exception;
-    boolean enabled();
-    boolean preferNemId();
-    boolean nemLogInBrokerEnabled();
-    boolean encryptAssertions();
-    boolean preferNIST();
+    String getMetadataContent();
+    boolean isEnabled();
+    boolean isPreferNemid();
+    boolean isNemLogInBrokerEnabled();
+    boolean isEncryptAssertions();
+    boolean isPreferNIST();
+    boolean isRequireOiosaml3Profile();
 }

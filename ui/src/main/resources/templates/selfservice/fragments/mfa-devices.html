@@ -27,9 +27,10 @@
 						<td th:text="#{__${client.nsisLevel.message}__}" />
 
 						<td th:if="${showDeleteAction || showPrimaryAction || (#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction)}">
+							<a th:if="${showEditAction}" href="#" onclick="editClient(this)" th:attr="data-deviceid=${client.deviceId},data-devicename=${client.name}" style="color: black;" title="Rediger navn"><em class="fa fa-fw fa-pencil"></em></a>
 							<a th:if="${showLocalDeleteAction && client.localClient}" href="#" onclick="clientService.deleteLocalClient(this)" th:attr="data-deviceid=${client.deviceId}" style="color: black;" title="Slet enhed"><em class="fa fa-fw fa-times"></em></a>
 							<a th:if="${showDeleteAction}" href="#" onclick="deleteClient(this)" th:attr="data-deviceid=${client.deviceId}" style="color: black;" title="Slet enhed"><em class="fa fa-fw fa-times"></em></a>
-							<a th:if="${showPrimaryAction && client.type != T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" href="#" onclick="primaryModalService.setPrimaryClient(this)" th:attr="data-deviceid=${client.deviceId}, data-prime=${client.prime}" style="color: black;">
+							<a th:if="${showPrimaryAction}" href="#" onclick="primaryModalService.setPrimaryClient(this)" th:attr="data-deviceid=${client.deviceId}, data-prime=${client.prime}" style="color: black;">
 								<em th:unless="${client.prime}" class="fa fa-fw fa-heart-o" title="Vælg enhed som primær"></em>
 								<em th:if="${client.prime}" class="fa fa-fw fa-heart" title="Fravælg enhed som primær"></em>
 							</a>

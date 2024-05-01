@@ -12,8 +12,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
-import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -38,18 +36,17 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.controller.dto.ValidateADPasswordForm;
 import dk.digitalidentity.controller.validator.PasswordChangeValidator;
-import dk.digitalidentity.service.AuthnRequestHelper;
 import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
-import dk.digitalidentity.service.LoginService;
+import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import dk.digitalidentity.util.UsernameAndPasswordHelper;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -69,7 +66,7 @@ public class ActivateAccountController {
 	private PasswordSettingService passwordService;
 
 	@Autowired
-	private LoginService loginService;
+	private FlowService flowService;
 
 	@Autowired
 	private ErrorHandlingService errorHandlingService;
@@ -78,16 +75,10 @@ public class ActivateAccountController {
 	private ErrorResponseService errorResponseService;
 
 	@Autowired
-	private AuthnRequestHelper authnRequestHelper;
-
-	@Autowired
 	private PasswordChangeValidator passwordChangeFormValidator;
 	
 	@Autowired
 	private PasswordSettingService passwordSettingService;
-
-	@Autowired
-	private UsernameAndPasswordHelper usernameAndPasswordHelper;
 	
 	@Autowired
 	private ADPasswordService adPasswordService;
@@ -120,8 +111,8 @@ public class ActivateAccountController {
 
 		// If not in activate account flow, check for stored authnRequest on session and proceed with login. Otherwise send error.
 		if (error == null && !sessionHelper.isInActivateAccountFlow()) {
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest == null) {
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest == null) {
 				error = "Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow";
 			}
 			else {
@@ -131,7 +122,7 @@ public class ActivateAccountController {
 					return new ModelAndView(PersonService.getCorrectLockedPage(person));
 				}
 
-				return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+				return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
 			}
 		}
 
@@ -147,9 +138,9 @@ public class ActivateAccountController {
 
 		// handle error in sanity checks
 		if (error != null) {
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest != null) {
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException(error));
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				errorResponseService.sendError(httpServletResponse, loginRequest, new RequesterException(error));
 				return null;
 			}
 			else {
@@ -158,23 +149,14 @@ public class ActivateAccountController {
 		}
 
 		// check if the person has authorized with nemid, if so both PasswordLevel and MFALevel should be SUBSTANTIAL and nemidpid should be saved on session
-		String nemIDPid = sessionHelper.getNemIDPid();
 		String mitIDNameID = sessionHelper.getMitIDNameID();
 		NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
 		NSISLevel mfaLevel = sessionHelper.getMFALevel();
-		if ((!StringUtils.hasLength(nemIDPid) && !StringUtils.hasLength(mitIDNameID)) || !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
-			return loginService.initiateNemIDOnlyLogin(model, httpServletRequest, RequireNemIdReason.ACTIVATE_ACCOUNT);
+		if (!StringUtils.hasLength(mitIDNameID) || !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
+			return flowService.initiateNemIDOnlyLogin(model, httpServletRequest, RequireNemIdReason.ACTIVATE_ACCOUNT);
 		}
 
 		// create User for person
-		String userId = usernameAndPasswordHelper.getUserId(person);
-		if (userId == null) {
-			log.warn("Could not issue identity to " + person.getId() + " because userId generation failed!");
-			return new ModelAndView("activateAccount/activate-failed");
-		}
-
-		person.setUserId(userId);
-		person.setNemIdPid(nemIDPid);
 		person.setMitIdNameId(mitIDNameID);
 		person.setNsisLevel(NSISLevel.SUBSTANTIAL);
 		
@@ -183,26 +165,28 @@ public class ActivateAccountController {
 			return new ModelAndView("activateAccount/activate-failed-dead");
 		}
 		
-		auditLogger.activatedByPerson(person, nemIDPid, mitIDNameID);
+		auditLogger.activatedByPerson(person, mitIDNameID);
 
 		// if you were prompted to activate your NSIS account during your change password request and accepted
 		// you will end up in this controller and we should just finish the change password flow which will set the NSIS password (and AD if enabled)
 		// along with redirecting you to where you were supposed to go.
 		if (sessionHelper.isInPasswordChangeFlow()) {
 			personService.save(person);
-			return loginService.continueChangePassword(model);
+			return flowService.continueChangePassword(model);
 		}
 
 		// check if person has authenticated with their AD password. If they have, replicate the AD password to the nsis password field
 		if (sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(sessionHelper.getPassword())) {
 
 			// replication of the AD password to the NSIS Password field is only allowed if the password follows the rules set for
-			// NSIS passwords otherwise ask the user for a new password
-			ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(sessionHelper.getPerson(), sessionHelper.getPassword());
+			// NSIS passwords otherwise ask the user for a new password.
+			// In the case where a user has previously had a NSIS password (and therefore password history exists)
+			// we allow the user to use their AD password even if it matches with a password history we have saved.
+			ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(sessionHelper.getPerson(), sessionHelper.getPassword(), true, false);
 			if (validPassword.equals(ChangePasswordResult.OK)) {
 				try {
 					// can ignore return value because we bypass replication
-					personService.changePassword(person, sessionHelper.getPassword(), true);
+					personService.changePassword(person, sessionHelper.getPassword(), true, null, null, false);
 					sessionHelper.setAuthenticatedWithADPassword(false);
 				} catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
 					log.error("Kunne ikke kryptere password, password blev derfor ikke ændret", e);
@@ -223,7 +207,7 @@ public class ActivateAccountController {
 		
 		// Go to choose password reset or unlock account page
 		if (sessionHelper.isInChoosePasswordResetOrUnlockAccountFlow()) {
-			return loginService.continueChoosePasswordResetOrUnlockAccount(model);
+			return flowService.continueChoosePasswordResetOrUnlockAccount(model);
 		}
 		
 		// if password has not been set yet, go to pick password page
@@ -232,13 +216,13 @@ public class ActivateAccountController {
 
 	@GetMapping("/konto/fortsaetlogin")
 	public ModelAndView continueLogin(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 
 		try {
-			// Sanity checks
+			// sanity checks
 			RequesterException ex = null;
 			if (!sessionHelper.isInActivateAccountFlow()) {
-				ex = new RequesterException("Prøvede at tilgå forsæt login uden lige at have aktiveret sin erhvervskonto");
+				ex = new RequesterException("Prøvede at tilgå forsæt login uden at være i et aktiveringsflow");
 			}
 	
 			Person person = sessionHelper.getPerson();
@@ -249,17 +233,20 @@ public class ActivateAccountController {
 			// if you were prompted to activate your NSIS account during your change password request and rejected the prompt
 			// you will end up in this controller and we should just finish the change password flow which will NOT set the NSIS password
 			if (sessionHelper.isInPasswordChangeFlow()) {
-				return loginService.continueChangePassword(model);
+				return flowService.continueChangePassword(model);
 			}
-	
+			else if (sessionHelper.isInChoosePasswordResetOrUnlockAccountFlow()) {
+				return flowService.continueChoosePasswordResetOrUnlockAccount(model);
+			}
+
 			// Handle error in sanity checks
-			if (authnRequest == null) {
+			if (loginRequest == null) {
 				// probably some kind of bookmark
-				return errorHandlingService.modelAndViewError("/konto/fortsaetlogin", httpServletRequest, "Attempted to access endpoint without an AuthnRequest present", model);
+				return errorHandlingService.modelAndViewError("/konto/fortsaetlogin", httpServletRequest, "Attempted to access endpoint without an loginRequest present", model);
 			}
 	
 			if (ex != null) {
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 				return null;
 			}
 	
@@ -271,20 +258,17 @@ public class ActivateAccountController {
 
 			sessionHelper.setDeclineUserActivation(true);
 
-			return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+			return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
 		}
 		catch (RequesterException | ResponderException ex) {
-			if (authnRequest == null) {
+			if (loginRequest == null) {
 				// TODO: remove this error log once we know why this happens (BSG)
-				log.error("Got an exception while authnRequest = null", ex);
+				log.error("Got an exception while loginRequest = null", ex);
 
 				return errorHandlingService.modelAndViewError("/konto/fortsaetlogin", httpServletRequest, ex.getMessage(), model);
 			}
-			else if (ex instanceof RequesterException) {
-				errorResponseService.sendRequesterError(httpServletResponse, authnRequest, (RequesterException) ex);
-			}
 			else {
-				errorResponseService.sendResponderError(httpServletResponse, authnRequest, (ResponderException) ex);				
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 			}
 		}
 
@@ -313,12 +297,13 @@ public class ActivateAccountController {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 		}
 		
-		PasswordSetting settings = passwordService.getSettings(person.getDomain());
+		PasswordSetting topDomainSettings = passwordService.getSettingsCached(person.getTopLevelDomain());
+		PasswordSetting settings = passwordService.getSettingsCached(person.getDomain());
 		if (sessionHelper.isInDedicatedActivateAccountFlow() && sessionHelper.isDoNotUseCurrentADPassword()) {
-			return loginService.continueChangePassword(model).getViewName();
+			return flowService.continueChangePassword(model).getViewName();
 		}
 		
-		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && settings.isValidateAgainstAdEnabled()) {
+		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && topDomainSettings.isValidateAgainstAdEnabled()) {
 			model.addAttribute("validateADPasswordForm", new ValidateADPasswordForm());
 			return "activateAccount/activate-validate-ad-password";
 		}
@@ -342,9 +327,9 @@ public class ActivateAccountController {
 			ex = (person == null) ? new RequesterException("Prøvede at vælge kode, men ingen person var associeret med sessionen")
 								  : new RequesterException("Prøvede at vælge kode, men personen havde ikke en oprettet en NSIS Bruger");
 
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest != null) {
-				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				errorResponseService.sendError(response, loginRequest, ex);
 				return null;
 			}
 			else {
@@ -354,27 +339,37 @@ public class ActivateAccountController {
 		}
 
 		if (bindingResult.hasErrors()) {
-			model.addAttribute("settings", passwordService.getSettings(person.getDomain()));
+			model.addAttribute("settings", passwordService.getSettingsCached(person.getDomain()));
 			return new ModelAndView("activateAccount/activate-select-password");
 		}
 
 		try {
-			ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword(), false);
+			ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword());
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordService.getSettings(person.getDomain()));
+				model.addAttribute("settings", passwordService.getSettingsCached(person.getDomain()));
+				
 				return new ModelAndView("activateAccount/activate-select-password");
 			}
 		}
 		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Kunne ikke skifte password på personen", e));
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			errorResponseService.sendError(response, loginRequest, new RequesterException("Kunne ikke skifte password på personen", e));
 			return null;
 		}
 
+		// send to activation completed and allow them to login if they want
+		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
+			sessionHelper.clearSession();
+			model.addAttribute("username", PersonService.getUsername(person));
+			model.addAttribute("linkToSelfservice", true);
+
+			return new ModelAndView("activateAccount/activation-completed", model.asMap());
+		}
+
 		sessionHelper.setDoNotUseCurrentADPassword(false);
-		
-		return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
+
+		return flowService.initiateFlowOrSendLoginResponse(model, response, request, person);
 	}
 	
 	@PostMapping("/konto/valideradkodeord")
@@ -385,9 +380,9 @@ public class ActivateAccountController {
 			ex = (person == null) ? new RequesterException("Prøvede at validere AD kodeord, men ingen person var associeret med sessionen")
 								  : new RequesterException("Prøvede at validere AD kodeord, men personen havde ikke en oprettet en NSIS Bruger");
 
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest != null) {
-				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				errorResponseService.sendError(response, loginRequest, ex);
 				return null;
 			}
 			else {
@@ -400,12 +395,14 @@ public class ActivateAccountController {
 			return new ModelAndView("activateAccount/activate-validate-ad-password");
 		}
 		
-		if (!adPasswordService.validatePassword(person, form.getPassword())) {
+		if (!ADPasswordResponse.ADPasswordStatus.OK.equals(adPasswordService.validatePassword(person, form.getPassword()))) {
 			model.addAttribute("wrongPassword", true);
 			return new ModelAndView("activateAccount/activate-validate-ad-password");
 		}
-		
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword());
+
+		// In the case where a user has previously had a NSIS password (and therefore password history exists)
+		// we allow the user to use their AD password even if it matches with a password history we have saved.
+		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true, false);
 		if (!validPassword.equals(ChangePasswordResult.OK)) {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 			model.addAttribute("redirectUrl", "/konto/vaelgkode");
@@ -415,26 +412,37 @@ public class ActivateAccountController {
 
 		try {
 			// can ignore return value because we bypass replication
-			personService.changePassword(person, form.getPassword(), true);
+			personService.changePassword(person, form.getPassword(), true, null, null, false);
 		}
 		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Kunne ikke skifte password på personen", e));
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			errorResponseService.sendError(response, loginRequest, new RequesterException("Kunne ikke skifte password på personen", e));
 			return null;
 		}
 
 		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
-			sessionHelper.setInDedicatedActivateAccountFlow(false);
+			sessionHelper.clearSession();
 			model.addAttribute("username", PersonService.getUsername(person));
+			model.addAttribute("linkToSelfservice", true);
 
 			return new ModelAndView("activateAccount/activation-completed", model.asMap());
 		}
 
-		return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
+		return flowService.initiateFlowOrSendLoginResponse(model, response, request, person);
 	}
 	
 	@GetMapping("/konto/init-aktiver")
 	public String initiateActivation(Model model) {
+		// clear all states/flows, so we get a clean activation
+		sessionHelper.clearFlowStates();
+
+		try {
+			sessionHelper.setLoginRequest(null);
+		}
+		catch (Exception ignored) {
+			;
+		}
+		
 		return "activateAccount/initiate-activate";
 	}
 	
@@ -443,6 +451,6 @@ public class ActivateAccountController {
 		sessionHelper.clearSession();
 		sessionHelper.setInDedicatedActivateAccountFlow(true);
 		
-		return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.DEDICATED_ACTIVATE_ACCOUNT);
+		return flowService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.DEDICATED_ACTIVATE_ACCOUNT);
 	}
 }

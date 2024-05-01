@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import dk.digitalidentity.common.dao.model.RadiusClient;
 import dk.digitalidentity.common.service.DomainService;
+import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.RadiusClientService;
 import dk.digitalidentity.mvc.admin.dto.RadiusClientDTO;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
@@ -23,6 +24,9 @@ public class RadiusClientController {
 	@Autowired
 	private DomainService domainService;
 
+	@Autowired
+	private PersonAttributeService personAttributeService;
+	
 	@GetMapping("/admin/konfiguration/radiusklienter")
 	public String getRadiusClients(Model model) throws Exception {
 		model.addAttribute("radiusClients", radiusClientService.getAll());
@@ -50,6 +54,7 @@ public class RadiusClientController {
 
 		model.addAttribute("radiusClient", radiusClientDTO);
 		model.addAttribute("domains", domainService.getAllParents());
+		model.addAttribute("attributeValueMap", personAttributeService.getAttributeValueMappings(true));
 
 		return "admin/radius-client-edit";
 	}

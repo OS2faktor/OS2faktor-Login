@@ -47,6 +47,8 @@
 												<td th:text="${link.link}" />
 												<td th:text="${link.domain.name}" />
 												<td>
+													<i class="fa fa-pencil" aria-hidden="true" title="Rediger" th:attr="data-id=${link.id}, data-title=${link.linkText}, data-description=${link.description}, data-address=${link.link}, data-domainid=${link.domain.id}" th:onClick="operationService.editLink(this)"></i>
+													&nbsp;
 													<i class="fa fa-trash" aria-hidden="true" title="Slet" th:attr="data-id=${link.id}" th:onClick="operationService.deleteLink(this)"></i>
 												</td>
 											</tr>
@@ -75,10 +77,13 @@
 					<button type="button" class="close" data-dismiss="modal">
 						<span class="sr-only">Luk</span>
 					</button>
-					<h4 class="modal-title">Opret link</h4>
+					<h4 class="modal-title" id="createLinkTitle" hidden>Opret link</h4>
+					<h4 class="modal-title" id="editLinkTitle" hidden>Rediger link</h4>
 				</div>
 
 				<div class="modal-body">
+					<input id="modalIdInput" hidden>
+					
 					<div class="form-group row">
 						<label class="col-sm-2 col-form-label">Link tekst</label>
 						<input class="col-sm-10 form-control" placeholder="Indtast link tekst" id="modalTextInput" maxlength="64">
@@ -148,13 +153,31 @@
 		
 		function ModalService() {
 			this.openCreateModal = function() {
+				$('#modalIdInput').val('0');
 				$('#modalTextInput').val('');
 				$('#modalLinkInput').val('');
+				$('#modalDescription').val('');
+				$("#editLinkTitle").prop('hidden', true);
+				$("#createLinkTitle").prop('hidden', false);
 				$('#modalLink').modal("show");
 				$('#modalTextInput').focus();				
 			}
 			
+			this.openEditModal = function(id, title, description, domainId, address) {
+				$('#modalIdInput').val(id);
+				$('#modalTextInput').val(title);
+				$('#modalLinkInput').val(address);
+				$('#modalDescription').val(description);
+				$('#modalDomain').val(domainId);
+				$("#editLinkTitle").prop('hidden', false);
+				$("#createLinkTitle").prop('hidden', true);
+				$('#modalLink').modal("show");
+				$('#modalTextInput').focus();
+			}
+			
 			this.save = function() {
+				var id = $('#modalIdInput').val();
+				console.log(id);
 				var text = $('#modalTextInput').val();
 				var link = $('#modalLinkInput').val();
 				var domainId = $('#modalDomain').val();
@@ -168,6 +191,7 @@
      			   type: 'post',
      			   contentType: 'application/json',
      			   data: JSON.stringify({
+					  'id': id,
      			      'text': text,
      			      'link' : link,
      			      'domainId' : domainId,
@@ -202,6 +226,15 @@
 							toastr.error("Fejl! Kunne ikke slette link.");
 					   }
 				});
+			};
+			
+			this.editLink = function(obj) {
+				var id = $(obj).data("id");
+				var title = $(obj).data("title");
+				var description = $(obj).data("description");
+				var domainId = $(obj).data("domainid");
+				var address = $(obj).data("address");
+				modalService.openEditModal(id, title, description, domainId, address);
 			};
 		}
 		

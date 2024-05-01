@@ -48,7 +48,11 @@ public class RadiusClient {
 	@OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "client")
 	private Set<RadiusClientCondition> conditions;
 
+	@OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "client")
+	private Set<RadiusClientClaim> claims;
+
 	public void loadFully() {
+		this.claims.size();
 		this.conditions.size();
 		this.conditions.forEach(conditions -> {
 			if (conditions.getDomain() != null) {

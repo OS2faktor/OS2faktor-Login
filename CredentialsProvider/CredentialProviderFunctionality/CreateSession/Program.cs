@@ -1,12 +1,12 @@
 ﻿using Microsoft.Win32;
 using Serilog;
 using System;
-using System.Collections.Generic;
 using System.DirectoryServices.AccountManagement;
-using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Configuration;
+using System.Globalization;
+using System.Security.Principal;
+using System.Security.Cryptography;
 
 namespace CreateSession
 {
@@ -17,7 +17,7 @@ namespace CreateSession
             try
             {
                 // Open up the settings, we need these to run the program so without them it just closes
-                String settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
+                string settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
 
                 using (RegistryKey rootKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
                 {
@@ -30,21 +30,15 @@ namespace CreateSession
 
                         // Settings avaliable, continue process
                         string logPath = null;
-                        string domain;
                         string baseUrl;
-                        string clientID;
                         string clientApiKey;
-                        string EdgeBrowserExtensionId;
-                        string ChromeBrowserExtensionId;
+                        string version;
 
                         try
                         {
-                            domain = (string)settingsKey.GetValue("os2faktorUserDomain");
                             baseUrl = (string)settingsKey.GetValue("os2faktorBaseUrl");
-                            clientID = (string)settingsKey.GetValue("clientID");
                             clientApiKey = (string)settingsKey.GetValue("clientApiKey");
-                            EdgeBrowserExtensionId = (string)settingsKey.GetValue("EdgeBrowserExtensionId");
-                            ChromeBrowserExtensionId = (string)settingsKey.GetValue("ChromeBrowserExtensionId");
+                            version = (string)settingsKey.GetValue("version"); 
 
                             object logPathObj = settingsKey.GetValue("CreateSessionLogPath");
                             if (logPathObj != null)
@@ -67,9 +61,11 @@ namespace CreateSession
                         }
 
                         Log.Verbose("Logging initialized, CreateSession invoked.");
+                        Log.Verbose($"Running as: {WindowsIdentity.GetCurrent().Name}");
+
 
                         // Check that the args are correct
-                        if (args.Length != 2)
+                        if (args.Length != 3)
                         {
                             Log.Error("Incorrect amount of args ({0}) passed to CreateSession", args.Length);
                             return;
@@ -78,126 +74,91 @@ namespace CreateSession
                         // Make configurable or remove (this is for self signed certificates)
                         //ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
-                        // Create HttpClient and set RequestHeaders
-                        Log.Verbose("Setting clientID to: " + clientID);
-                        Log.Verbose("Setting domain to: " + domain);
-                        HttpClient client = new HttpClient();
-                        client.DefaultRequestHeaders.Add("clientID", clientID);
-                        client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
 
 
-                        // Set parameters for the call domain/username/password
-                        var parameters = new Dictionary<string, string> {
-                            { "domain", domain },
-                            { "username", args[0] },
-                            { "password", args[1] }
-                        };
-
-                        var content = new FormUrlEncodedContent(parameters);
-
-                        // Call the service and wait for the response
+                        // Fetch the users SID to edit the registry
+                        PrincipalContext context = null;
                         try
                         {
-                            // Create URL from configured baseURL
-                            string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/login";
+                            Log.Verbose("UserPrincipal context: Domain");
+                            context = new PrincipalContext(ContextType.Domain);
+                        }
+                        catch (PrincipalServerDownException)
+                        {
+                            Log.Verbose("UserPrincipal context: Local machine");
+                            context = new PrincipalContext(ContextType.Machine);
+                        }
 
-                            HttpResponseMessage response = await client.PostAsync(url, content);
-                            if (response.IsSuccessStatusCode)
+                        using (context)
+                        {
+                            using (UserPrincipal user = UserPrincipal.FindByIdentity(context, args[0]))
                             {
-                                string establishSessionUrl = await response.Content.ReadAsStringAsync();
-
-                                // Fetch the users SID to edit the registry
-                                PrincipalContext context = null;
-                                try
+                                if (string.IsNullOrEmpty(user.Sid.Value))
                                 {
-                                    context = new PrincipalContext(ContextType.Domain);
-                                }
-                                catch (PrincipalServerDownException)
-                                {
-                                    context = new PrincipalContext(ContextType.Machine);
+                                    Log.Error("User SID was null or empty");
+                                    return;
                                 }
 
-                                using (context)
+                                Log.Information("userSID: " + user.Sid.Value);
+
+                                // Create HttpClient and set RequestHeaders
+                                HttpClient client = new HttpClient();
+                                client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
+
+
+                                // Create body of message
+                                // {
+                                //   "username": "xxxx",
+                                //   "password": "xxxx",
+                                //   "version": "xxxx"
+                                // }
+                                string body = "{\"username\":\"" + args[0] + "\",\"password\":\"" + getPassword(args[1]) + "\"";
+                                if (version != null)
                                 {
-                                    using (UserPrincipal user = UserPrincipal.FindByIdentity(context, args[0]))
+                                    string versionParameter = version.Replace(".", "").Trim();
+                                    if (!String.IsNullOrWhiteSpace(versionParameter))
                                     {
-                                        if (string.IsNullOrEmpty(user.Sid.Value))
-                                        {
-                                            Log.Error("User SID was null or empty");
-                                            return;
-                                        }
-
-                                        string[] vs = Registry.Users.GetSubKeyNames();
-                                        bool foundUserSubkey = false;
-                                        foreach (var Subkey in vs)
-                                        {
-                                            if (user.Sid.Value.Equals(Subkey))
-                                            {
-                                                foundUserSubkey = true;
-                                            }
-                                        }
-
-                                        if (!foundUserSubkey)
-                                        {
-                                            // User subkey not created yet.
-                                            // Sleep before running rest of program to give windows time to generate Subkey
-                                            Log.Warning("Sleeping. Waiting for User SubKey to be avaliable");
-                                            System.Threading.Thread.Sleep(30 * 1000);
-
-                                        }
-
-                                        // Set Edge token
-                                        string edgeKeyPath = "";
-                                        try
-                                        {
-                                            if (string.IsNullOrEmpty(EdgeBrowserExtensionId))
-                                            {
-                                                throw new Exception("EdgeBrowserExtensionId was null or empty");
-                                            }
-
-                                            edgeKeyPath = user.Sid.Value + @"\Software\Policies\Microsoft\Edge\3rdparty\extensions\" + EdgeBrowserExtensionId + @"\policy";
-                                            RegistryKey edgeKey = Registry.Users.CreateSubKey(edgeKeyPath);
-                                            edgeKey.SetValue("token", establishSessionUrl, RegistryValueKind.String);
-                                            edgeKey.SetValue("timestamp", DateTime.Now, RegistryValueKind.String);
-                                            edgeKey.Close();
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Log.Error(ex, "Could not set Token and Timestamp for EdgeExtension in registry. KeyPath: " + edgeKeyPath);
-                                        }
-
-                                        // Set Chrome token
-                                        string chromeKeyPath = "";
-                                        try
-                                        {
-                                            if (string.IsNullOrEmpty(ChromeBrowserExtensionId))
-                                            {
-                                                throw new Exception("ChromeBrowserExtensionId was null or empty");
-                                            }
-
-                                            chromeKeyPath = user.Sid.Value + @"\Software\Policies\Google\Chrome\3rdparty\extensions\" + ChromeBrowserExtensionId + @"\policy";
-                                            RegistryKey chromeKey = Registry.Users.CreateSubKey(chromeKeyPath);
-                                            chromeKey.SetValue("token", establishSessionUrl, RegistryValueKind.String);
-                                            chromeKey.SetValue("timestamp", DateTime.Now, RegistryValueKind.String);
-                                            chromeKey.Close();
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Log.Error(ex, "Could not set Token and Timestamp for ChromeExtension in registry. KeyPath: " + chromeKeyPath);
-                                        }
+                                        body += ",\"version\":\"" + versionParameter + "\"";
                                     }
                                 }
+                                body += "}";
+                                HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+
+
+                                // Call the service and wait for the response
+                                try
+                                {
+                                    // Create URL from configured baseURL
+                                    string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/loginWithBody";
+
+                                    Log.Verbose("Calling url: " + url);
+
+                                    HttpResponseMessage response = await client.PostAsync(url, content);
+
+                                    Log.Verbose("Response recieved");
+
+                                    if (response.IsSuccessStatusCode)
+                                    {
+                                        Log.Verbose("Response was positive, extablishing session");
+
+                                        string establishSessionUrl = await response.Content.ReadAsStringAsync();
+                                        Log.Verbose("Token read");
+
+                                        Log.Verbose("Sending establishSessionUrl to CredentialManager");
+                                        Console.Out.Write(establishSessionUrl);
+                                    }
+                                    else
+                                    {
+                                        Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, response.ReasonPhrase);
+                                        return;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Error(ex, "Could not fetch temporary session key from os2faktor.");
+                                    return;
+                                }
                             }
-                            else
-                            {
-                                Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, response.ReasonPhrase);
-                                return;
-                            }
-                        }
-                        catch (System.Exception ex)
-                        {
-                            Log.Error(ex, "Could not fetch temporary session key from os2faktor.");
-                            return;
                         }
                     }
                 }
@@ -213,6 +174,13 @@ namespace CreateSession
                     ;
                 }
             }
+        }
+
+        private static string getPassword(string encodedPassword)
+        {
+            byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
+            string nonEncPass = System.Text.Encoding.Unicode.GetString(bytes);
+            return nonEncPass;
         }
     }
 }

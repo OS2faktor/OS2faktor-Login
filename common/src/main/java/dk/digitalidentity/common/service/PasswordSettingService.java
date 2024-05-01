@@ -4,6 +4,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -12,12 +16,14 @@ import dk.digitalidentity.common.dao.PasswordSettingDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
+@EnableCaching
 public class PasswordSettingService {
 
 	@Autowired
@@ -29,7 +35,33 @@ public class PasswordSettingService {
 	@Autowired
 	private PasswordHistoryService passwordHistoryService;
 
-	public ChangePasswordResult validatePasswordRules(Person person, String password) {
+	@Autowired
+	private PasswordSettingService self;
+
+	@Autowired
+	private AuditLogger auditLogger;
+	
+	public ChangePasswordResult validatePasswordRules(Person person, String password, boolean auditlog) {
+		ChangePasswordResult result = validate(person, password, false);
+		
+		if (auditlog && result != ChangePasswordResult.OK) {
+			auditLogger.changePasswordFailed(person, result.getMessage());
+		}
+		
+		return result;
+	}
+
+	public ChangePasswordResult validatePasswordRules(Person person, String password, boolean bypassPasswordHistory, boolean auditlog) {
+		ChangePasswordResult result = validate(person, password, bypassPasswordHistory);
+		
+		if (auditlog && result != ChangePasswordResult.OK) {
+			auditLogger.changePasswordFailed(person, result.getMessage());
+		}
+		
+		return result;
+	}
+
+	private ChangePasswordResult validate(Person person, String password, boolean bypassPasswordHistory) {
 		if (person == null) {
 			log.warn("Person is null!");
 			return ChangePasswordResult.TECHNICAL_MISSING_PERSON;
@@ -41,7 +73,7 @@ public class PasswordSettingService {
 		}
 
 		Domain domain = person.getDomain();
-		PasswordSetting settings = getSettings(domain);
+		PasswordSetting settings = self.getSettingsCached(domain);
 
 		// Domain specific checks
 		if (password.length() < settings.getMinLength()) {
@@ -109,7 +141,7 @@ public class PasswordSettingService {
 		if (settings.isDisallowNameAndUsername()) {
 			String lowerPwd = password.toLowerCase();
 			for (String name : person.getName().toLowerCase().split(" ")) {
-				if (lowerPwd.contains(name)) {
+				if (StringUtils.hasLength(name) && lowerPwd.contains(name)) {
 					return ChangePasswordResult.CONTAINS_NAME;
 				}
 			}
@@ -120,7 +152,7 @@ public class PasswordSettingService {
 			}
 		}
 
-		if (settings.isDisallowOldPasswords()) {
+		if (!bypassPasswordHistory && settings.isDisallowOldPasswords()) {
 			BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
 			List<String> lastXPasswords = passwordHistoryService.getLastXPasswords(person);
@@ -133,7 +165,22 @@ public class PasswordSettingService {
 
 		return ChangePasswordResult.OK;
 	}
+	
+	@CacheEvict(value = "passwordSettingsByDomain", allEntries = true)
+	public void cleanPasswordSettingsCache() {
+		;
+	}
 
+	@Scheduled(fixedRate = 5 * 60 * 1000)
+	public void cleanUpTask() {
+		self.cleanPasswordSettingsCache();
+	}
+
+	@Cacheable("passwordSettingsByDomain")
+	public PasswordSetting getSettingsCached(Domain domain) {
+		return getSettings(domain);
+	}
+	
 	public PasswordSetting getSettings(Domain domain) {
 		List<PasswordSetting> all = passwordSettingDao.findByDomain(domain);
 
@@ -148,7 +195,6 @@ public class PasswordSettingService {
 			settings.setRequireSpecialCharacters(false);
 			settings.setDisallowDanishCharacters(false);
 			settings.setDisallowNameAndUsername(false);
-			settings.setValidateAgainstAdEnabled(true);
 			settings.setOldPasswordNumber((long) 8);
 			settings.setTriesBeforeLockNumber((long) 5);
 			settings.setLockedMinutes((long) 5);
@@ -156,6 +202,10 @@ public class PasswordSettingService {
 			settings.setMaxPasswordChangesPrDay((long) 1);
 			settings.setDomain(domain);
 			settings.setPreventBadPasswords(true);
+			
+			if (!domain.isStandalone()) {
+				settings.setValidateAgainstAdEnabled(true);
+			}
 
 			return settings;
 		}

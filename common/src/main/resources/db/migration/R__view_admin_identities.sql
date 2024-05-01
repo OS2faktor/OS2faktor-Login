@@ -1,6 +1,6 @@
 CREATE OR REPLACE VIEW view_person_admin_identities AS
   SELECT p.id,
-         COALESCE(p.samaccount_name, p.user_id) AS user_id,
+         p.samaccount_name AS user_id,
          p.name,
          (p.locked_dataset OR p.locked_person OR p.locked_admin OR p.locked_dead OR p.locked_disenfranchised OR p.locked_password OR p.locked_expired) AS locked,
          p.locked_dataset,

@@ -5,148 +5,136 @@
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
 			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.index')"></div>
-
 			<div class="wrapper wrapper-content">
 				<div class="row">
-					<div class="col-lg-9">
-						<div class="ibox">
-							<div class="ibox-title">
-								<h5><em class="fa fa-user"></em> &nbsp; Brugerkonto</h5>
-								<div class="ibox-tools">
-									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mydata.help')}"></em>
+					<div class="column col-lg-9">
+						<div class="col-lg-12">
+							<div class="ibox ">
+								<div class="ibox-title" style="height: 50px;">
+									<h5><em class="fa fa-mobile"></em> &nbsp; Mine 2-faktor enheder</h5>
+									<div class="ibox-tools" style="top: 10px;">
+										<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mfaclients.help')}"></em>
+									</div>
 								</div>
-							</div>
-
-							<div class="ibox-content">
-								<form>
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">Navn</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="${form.name}"/>
+	
+								<div class="ibox-content">
+									<div id="mfa-devices-holder">
+										<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
+											<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
 										</div>
 									</div>
-
-									<div class="hr-line-dashed"></div>
-
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">Brugernavn</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="${form.userId}"/>
-										</div>
+	
+									<!-- Hidden on mobile -->
+									<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
+										<a th:if="${@commonConfiguration.customer.enableRegistrant == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+											<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
+										</a>
+										<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+											<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+											<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+											<em class="fa fa-mobile fa-rotate-90"></em> &nbsp; Tilføj authenticator
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTPH')}__}" href="/selvbetjening/tilfoej?type=kodeviser" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+											<em class="fa fa-mobile"></em> &nbsp; Tilføj kodeviser
+										</a>
 									</div>
 									
-									<div class="hr-line-dashed"></div>
-
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">E-mail</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="${form.email}"/>
-										</div>
+									<!-- Visible on mobile -->
+									<div class="d-block d-lg-none" style="text-align: right; margin-right: 15px">
+										<a th:if="${@commonConfiguration.customer.enableRegistrant == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg btn-block">
+											<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
+										</a>
+										<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg btn-block">
+											<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg btn-block">
+											<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg btn-block">
+											<em class="fa fa-mobile"></em> &nbsp; Tilføj authenticator
+										</a>
+										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTPH')}__}" href="/selvbetjening/tilfoej?type=kodeviser" class="btn btn-primary btn-lg btn-block">
+											<em class="fa fa-mobile"></em> &nbsp; Tilføj kodeviser
+										</a>
 									</div>
-
-									<div class="hr-line-dashed"></div>
-									
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">
-											Status
-										</label>
-										<div class="col-sm-10">
-											<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.nsisStatus.message}__}"/>
-										</div>
-									</div>
-								</form>
-							</div>
-						</div>
-					</div>
-					
-					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.index')" />
-					
-					<div class="col-lg-12">
-						<div class="ibox ">
-							<div class="ibox-title" style="height: 50px;">
-								<h5><em class="fa fa-mobile"></em> &nbsp; Mine 2-faktor enheder</h5>
-								<div class="ibox-tools" style="top: 10px;">
-									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mfaclients.help')}"></em>
-								</div>
-							</div>
-
-							<div class="ibox-content">
-								<div id="mfa-devices-holder">
-									<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
-										<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
-									</div>
-								</div>
-
-								<!-- Hidden on mobile -->
-								<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
-									<a href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
-										<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
-									</a>
-									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
-										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
-									</a>
-									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
-										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
-									</a>
-									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg" style="margin-left:15px; width: 250px;">
-										<em class="fa fa-mobile"></em> &nbsp; Tilføj authenticator
-									</a>
 								</div>
 								
-								<!-- Visible on mobile -->
-								<div class="d-block d-lg-none" style="text-align: right; margin-right: 15px">
-									<a href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg btn-block">
-										<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
-									</a>
-									<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg btn-block">
-										<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
-									</a>
-									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg btn-block">
-										<em class="fa fa-key"></em> &nbsp; Tilføj hardwarenøgle
-									</a>
-									<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" href="/selvbetjening/tilfoej?type=authenticator" class="btn btn-primary btn-lg btn-block">
-										<em class="fa fa-mobile"></em> &nbsp; Tilføj authenticator
-									</a>
-								</div>
 							</div>
-							
 						</div>
-					</div>
-					
-					<div class="col-lg-12">
-						<div class="ibox ">
-							<div class="ibox-title">
-								<h5><em class="fa fa-bars"></em> &nbsp; Hændelseslog</h5>
-								<div class="ibox-tools">
-									<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.logs.help')}"></em>
+						
+						<div class="col-lg-12">
+							<div class="ibox ">
+								<div class="ibox-title">
+									<h5><em class="fa fa-bars"></em> &nbsp; Hændelseslog</h5>
+									<div class="ibox-tools">
+										<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.logs.help')}"></em>
+									</div>
+								</div>
+	
+								<div class="ibox-content">
+	
+									<div class="table-responsive">
+										<table id="eventlog" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 180px;">Tidspunkt</th>
+													<th>Hændelse</th>
+												</tr>
+											</thead>
+		
+											<tbody>
+											</tbody>
+										</table>
+									</div>
 								</div>
 							</div>
-
-							<div class="ibox-content">
-
-								<div class="table-responsive">
-									<table id="eventlog" class="table table-striped table-bordered table-hover" >
-										<thead>
-											<tr>
-												<th style="width: 180px;">Tidspunkt</th>
-												<th>Hændelse</th>
-											</tr>
-										</thead>
+						</div>
+						
+						<div th:replace="fragments/school-data :: schoolData (schoolRoles = ${form.schoolRoles})"></div>
+					</div>
+					<div class="column col-lg-3">
+						<div>
+							<div class="ibox">
+								<div class="ibox-title">
+									<h5><em class="fa fa-user"></em> &nbsp; Brugerkonto</h5>
+									<div class="ibox-tools">
+										<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.mydata.help')}"></em>
+									</div>
+								</div>
 	
-					                    <tbody>
-					                    </tbody>
-				                    </table>
-		                        </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div th:replace="fragments/school-data :: schoolData (schoolRoles = ${form.schoolRoles})" />
-                    
+								<div class="ibox-content">
+									<ul class="list-group clear-list">
+										<li class="list-group-item fist-item">
+											<span class="float-right" th:text="${form.name}"></span>
+											Navn
+										</li>
+										<li class="list-group-item">
+											<span class="float-right" th:text="${form.userId}"></span>
+											Brugernavn
+										</li>
+										<li class="list-group-item">
+											<span class="float-right" th:text="${form.email}"></span>
+											E-mail
+										</li>
+										<li class="list-group-item">
+											<span class="float-right" th:text="#{__${form.nsisStatus.message}__}"></span>
+											Status
+										</li>
+									</ul>
+								</div>
+							</div>
+						</div>
+						
+						<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.index')"></div>
+					</div>
 	            </div>
 	        </div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 	
@@ -185,11 +173,9 @@
 				<div class="modal-body">
 					<div class="ibox-content">
 						<div id="searchBox">							
-							<h4>Find 2-faktor enhed</h4>
+							<h4 th:utext="${@cmsMessageBundle.getText('cms.self-service.add.2-factor.heading')}"></h4>
 
-							<p>
-								Nedenfor indtastes det 12-cifrede ID fra din 2-faktor enhed. Du kan se ID'et
-								ved at åbne din 2-faktor enhed. Det står typisk nederst på skærmbilledet.
+							<p th:utext="${@cmsMessageBundle.getText('cms.self-service.add.2-factor.text')}">
 							</p>
 
 							<div class="form-group row">
@@ -243,7 +229,35 @@
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	<!-- Edit MFA Modal -->
+	<div class="modal inmodal" id="modalEditMfa" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<h4 class="modal-title" id="modalLockTitle">Rediger 2-faktor enhed</h4>
+				</div>
+				
+				<div class="modal-body">
+					<input type="hidden" id="mfaNewNameDeviceId"></input>
+					<div class="form-group col-md-12" style="margin-bottom: 0px;">
+						<b>Angiv det ønskede navn til klienten</b>
+					</div>
+					
+					<div class="form-group col-md-12">
+						<input id="mfaNewName" class="col-sm-12 form-control"></input>
+					</div>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-white" style="width: 80px;" onclick="$('#modalEditMfa').hide();">Luk</button>
+					<button type="button" class="btn btn-primary" style="width: 80px;" onclick="saveEditClient()">Gem</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End Edit MFA Modal -->
+	
+	<div th:replace="fragments/footer :: scripts (datatables = true)"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -349,7 +363,10 @@
 			}
 			
 			primaryModalService = new PrimaryModalService();
+
 			addDeviceModalService = new AddDeviceModalService();
+			addDeviceModalService.init();
+
 			mfaService = new MfaService();
         });
 
@@ -370,6 +387,38 @@
 						}
 					}
 				});
+			});
+		}
+
+		function editClient(element) {
+			var deviceId = element.dataset.deviceid;
+			var deviceName = element.dataset.devicename;
+
+			$("#mfaNewName").val(deviceName);
+			$("#mfaNewNameDeviceId").val(deviceId);
+			$("#modalEditMfa").show();
+		}
+		
+		function saveEditClient() {
+			var newName = $("#mfaNewName").val();
+			var deviceId = $("#mfaNewNameDeviceId").val();
+			$("#modalEditMfa").hide();
+			
+			$.ajax({
+				method : "POST",
+				url: "/rest/selvbetjening/rename",
+				headers: {
+					"content-type": "application/json",
+					"X-CSRF-TOKEN": token
+				},
+				processData: false,
+				data: '{"mfaNewName": "' + newName + '", "mfaDeviceId": "' + deviceId + '"}',
+				success: function(data, textStatus, jqXHR) {
+					window.location.reload();
+				},
+				error: function(jqXHR, textStatus, errorThrown) {					
+					toastr.warning("Der opstod en teknisk fejl");
+				}
 			});
 		}
 
@@ -467,6 +516,18 @@
 
 		function AddDeviceModalService() {
 			this.deviceId = null;
+
+			this.init = function() {
+				// This listener ensures correct formatting for device ids when using the search in the add device modal
+				$('#search').keyup(function() {
+					var value = $(this).val().split("-").join("");
+					if (value.length > 0) {
+						value = value.match(new RegExp('.{1,3}', 'g')).join("-");
+					}
+					$(this).val(value);
+				});
+			}
+
 			this.openModal = function() {
 				$("#modalAddDevice").show();
 				this.deviceId = null;

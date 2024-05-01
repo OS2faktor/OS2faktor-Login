@@ -1,0 +1,105 @@
+# Changelog
+
+## v1.0
+
+- Initial release
+
+## v1.1
+
+- Added Advanced Installer
+
+## v1.2
+
+- Fixed WebView for ResetPasswordDialog
+
+## v1.3
+
+- Removed VCRedist from .msi package, should be installed separately
+
+## v1.4
+
+- Fixed remote desktop connection issue
+- Improved garbage collection
+
+## v1.5
+
+- Added configuration option for "Other user" text
+- Added configuration option for "Forgot password" text
+
+## v1.6
+
+- Fixed "Other user"-tile to be CredentialProviderV2 Compliant. Other user option is now under normal other user tile as a sign in option
+
+## v1.6.2
+
+- Fixed size of password reset screen on smaller monitors
+- Support forced changed password, in the case that the default WCP is disabled
+
+## v1.6.4
+- Fixed issue with displaying last logged-in name
+
+## v1.6.5
+- Fixed login issue with local accounts, and some corner case with forced changed password (expire passwords)
+
+## v1.6.6
+- Fixed race conditions during login, which would cause SSO hand-over til browsers to fail
+
+## v1.7.0
+- No longer clears username when entering wrong password
+- Can be configured to store a cache of UPN/sAMAccountNames to allow UPN login in offline mode
+
+## v1.7.1
+- Bugfix for UPN based logins
+
+## v1.7.2
+- Bugfix for creating SSO sessions with passwords containing badly encoded special characters (e.g. '+')
+
+## v1.8.1
+- Added configuration option to filter credential providers based on usage scenarios
+- Added text displaying domain or computername for other user login option
+
+## v1.8.3
+- Improvements to SSO transfer during login
+
+## v1.9.0
+- Fix bugs with RDP
+- Support session tranfer on RDP
+
+## v2.0.2
+- Reworked the SSO logic
+- Removed dependency on OS2faktor MFA browser extensions
+- Added support for WCP SSO browser extensions (improved usability with WCP SSO)
+
+## v2.0.4
+- Removed dependency on .NET 6
+- Added SessionEstablisher to startup job in installer
+- Perform SSO with minimized browser windows
+
+## v2.0.6
+- Changed default baseUrl in registry
+- Added WaitForDiskAccess option to support Roaming browser profiles stored on network disks
+- Added Option to customize some error/info messages
+
+## v2.0.8
+- Added more fault tolerance to SessionEstablisher
+
+## v2.0.9
+- Fixed previousToken logic, should result in sessions being extended correctly
+- Added more logging to SessionEstablisher code
+
+## v2.2.0
+- Secure IPC communication
+
+## v3.0.0
+- Major rework of session establishing
+- Added CredentialManager
+- Added Simple change password WCP
+- Added version number to API calls
+- Changed IPC communication
+
+## v3.0.1
+- Changed uninstall to ensure better cleanup
+
+## v3.1.0
+- Added support for establishing session in Firefox
+- Added option to enable/disable session establishing individually for Chrome, Edge and Firefox

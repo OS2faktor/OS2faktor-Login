@@ -1,4 +1,5 @@
 package dk.digitalidentity.config.modules;
+
 import lombok.Getter;
 import lombok.Setter;
 

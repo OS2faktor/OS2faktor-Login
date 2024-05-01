@@ -1,0 +1,1 @@
+ALTER TABLE mitid_erhverv_cache ADD qualified_signature BOOLEAN DEFAULT 0 NOT NULL;

@@ -25,12 +25,13 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain());
+			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
 
 			return result.get();
 		}
 		catch (Exception ex) {
 			log.error("Failed to validate password", ex);
+
 			response.setMessage(ex.getMessage());
 		}
 
@@ -42,12 +43,44 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain());
+			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
+
+			// convert technical error to insufficent permissions if needed
+			PasswordResponse res = result.get();
+			if (res.getMessage() != null && res.getMessage().contains("E_ACCESSDENIED")) {
+				res.setStatus(PasswordStatus.INSUFFICIENT_PERMISSION);
+			}
 
 			return result.get();
 		}
 		catch (Exception ex) {
 			log.error("Failed to set password", ex);
+			
+			response.setMessage(ex.getMessage());
+		}
+
+		return response;
+	}
+	
+	public PasswordResponse setPasswordWithForcedChange(PasswordRequest request) {
+		PasswordResponse response = new PasswordResponse();
+		response.setStatus(PasswordStatus.FAILURE);
+
+		try {
+			AsyncResult<PasswordResponse> result = socketHandler.setPasswordWithForcedChange(request.getUserName(), request.getPassword(), request.getDomain(), true);
+
+			// convert technical error to insufficent permissions if needed
+			PasswordResponse res = result.get();
+			if (res.getMessage() != null && res.getMessage().contains("E_ACCESSDENIED")) {
+				res.setStatus(PasswordStatus.INSUFFICIENT_PERMISSION);
+			}
+
+			return result.get();
+		}
+		catch (Exception ex) {
+			log.error("Failed to set password", ex);
+			
+			response.setMessage(ex.getMessage());
 		}
 
 		return response;
@@ -58,12 +91,38 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.unlockAccount(request.getUserName(), request.getDomain());
+			AsyncResult<PasswordResponse> result = socketHandler.unlockAccount(request.getUserName(), request.getDomain(), true);
+
+			// convert technical error to insufficent permissions if needed
+			PasswordResponse res = result.get();
+			if (res.getMessage() != null && res.getMessage().contains("E_ACCESSDENIED")) {
+				res.setStatus(PasswordStatus.INSUFFICIENT_PERMISSION);
+			}
+			
+			return res;
+		}
+		catch (Exception ex) {
+			log.error("Failed to unlock account", ex);
+			
+			response.setMessage(ex.getMessage());
+		}
+
+		return response;
+	}
+
+	public PasswordResponse passwordExpires(UnlockRequest request) {
+		PasswordResponse response = new PasswordResponse();
+		response.setStatus(PasswordStatus.FAILURE);
+
+		try {
+			AsyncResult<PasswordResponse> result = socketHandler.passwordExpires(request.getUserName(), request.getDomain(), true);
 
 			return result.get();
 		}
 		catch (Exception ex) {
-			log.error("Failed to unlock account", ex);
+			log.error("Failed to run password expires soon script", ex);
+
+			response.setMessage(ex.getMessage());
 		}
 
 		return response;

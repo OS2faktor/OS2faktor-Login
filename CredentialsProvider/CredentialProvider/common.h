@@ -17,18 +17,26 @@
 // The indexes of each of the fields in our credential provider's tiles.
 // This is used to reference the different fields by windows login. 
 // We will usually just get an index value from winlogin so we use this to keep track of them.
+//enum FIELD_ID
+//{
+//    FI_TILEIMAGE            = 0,
+//    FI_LABEL                = 1,
+//    FI_LARGE_TEXT           = 2,
+//    FI_LOGIN_TARGET         = 3,
+//    FI_USERNAME             = 4,
+//    FI_PASSWORD             = 5,
+//    FI_NEW_PASSWORD         = 6,
+//    FI_NEW_PASSWORD_CONFIRM = 7,
+//    FI_SUBMIT_BUTTON        = 8,
+//    FI_RESET_PASSWORD_LINK  = 9,
+//    FI_NUM_FIELDS           = 10   // Note: if new fields are added, keep NUM_FIELDS last.  This is used as a count of the number of fields
+//};
 enum FIELD_ID
 {
-    FI_TILEIMAGE            = 0,
-    FI_LABEL                = 1,
-    FI_LARGE_TEXT           = 2,
-    FI_USERNAME             = 3,
-    FI_PASSWORD             = 4,
-    FI_NEW_PASSWORD         = 5,
-    FI_NEW_PASSWORD_CONFIRM = 6,
-    FI_SUBMIT_BUTTON        = 7,
-    FI_RESET_PASSWORD_LINK  = 8,
-    FI_NUM_FIELDS           = 9   // Note: if new fields are added, keep NUM_FIELDS last.  This is used as a count of the number of fields
+    FI_TILEIMAGE = 0,
+    FI_LARGE_TEXT = 1,
+    FI_RESET_PASSWORD_LINK = 2,
+    FI_NUM_FIELDS = 3   // Note: if new fields are added, keep NUM_FIELDS last.  This is used as a count of the number of fields
 };
 
 // The first value indicates in which cases the tile should be displayed.
@@ -54,15 +62,9 @@ struct FIELD_STATE_PAIR
 // want to set up a credential with various combinations of field state pairs
 // and field descriptors.
 static const FIELD_STATE_PAIR s_rgFieldStatePairs[] =
-{
-    { CPFS_DISPLAY_IN_BOTH,              CPFIS_NONE       },    // FI_TILEIMAGE           
-    { CPFS_HIDDEN,                       CPFIS_NONE       },    // FI_LABEL               
-    { CPFS_HIDDEN,                       CPFIS_NONE       },    // FI_LARGE_TEXT               
-    { CPFS_DISPLAY_IN_DESELECTED_TILE,   CPFIS_NONE       },    // FI_USERNAME            
-    { CPFS_DISPLAY_IN_BOTH,              CPFIS_FOCUSED    },    // FI_PASSWORD            
-    { CPFS_HIDDEN,                       CPFIS_NONE       },    // FI_NEW_PASSWORD            
-    { CPFS_HIDDEN,                       CPFIS_NONE       },    // FI_NEW_PASSWORD_CONFIRM            
-    { CPFS_DISPLAY_IN_BOTH,              CPFIS_NONE       },    // FI_SUBMIT_BUTTON       
+{    
+    { CPFS_DISPLAY_IN_BOTH,              CPFIS_NONE       },    // FI_TILEIMAGE 
+    { CPFS_HIDDEN,                       CPFIS_NONE       },    // FI_LARGE_TEXT 
     { CPFS_DISPLAY_IN_BOTH,              CPFIS_NONE       }     // FI_RESET_PASSWORD_LINK 
 };
 
@@ -76,13 +78,7 @@ static const FIELD_STATE_PAIR s_rgFieldStatePairs[] =
 //      and we should not try to show any image ourselves, windows will show both username and image for us.
 static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR s_rgCredProvFieldDescriptors[] =
 {
-    { FI_TILEIMAGE,             CPFT_TILE_IMAGE,    L"Image",                         CPFG_CREDENTIAL_PROVIDER_LOGO  },
-    { FI_LABEL,                 CPFT_SMALL_TEXT,    L"Tooltip",                       CPFG_CREDENTIAL_PROVIDER_LABEL },
-    { FI_LARGE_TEXT,            CPFT_LARGE_TEXT,    L"OS2faktor Credential Provider",                                },
-    { FI_USERNAME,              CPFT_EDIT_TEXT,     L"Brugernavn",                    CPFG_LOGON_USERNAME            },
-    { FI_PASSWORD,              CPFT_PASSWORD_TEXT, L"Kodeord"                                                       },
-    { FI_NEW_PASSWORD,          CPFT_PASSWORD_TEXT, L"Nyt kodeord"                                                   },
-    { FI_NEW_PASSWORD_CONFIRM,  CPFT_PASSWORD_TEXT, L"Gentag kodeord"                                                },
-    { FI_SUBMIT_BUTTON,         CPFT_SUBMIT_BUTTON, L"Log ind"                                                       },
-    { FI_RESET_PASSWORD_LINK,   CPFT_COMMAND_LINK,  L"Skift Kodeord"                                                 },
+    { FI_TILEIMAGE,             CPFT_TILE_IMAGE,      L"Image",                           CPFG_CREDENTIAL_PROVIDER_LOGO   },     // FI_TILEIMAGE 
+    { FI_LARGE_TEXT,            CPFT_LARGE_TEXT,      L"OS2faktor Credential Provider",   CPFG_CREDENTIAL_PROVIDER_LABEL  },     // FI_LARGE_TEXT 
+    { FI_RESET_PASSWORD_LINK,   CPFT_COMMAND_LINK,    L"Skift Kodeord",                   CPFG_STYLE_LINK_AS_BUTTON       }      // FI_RESET_PASSWORD_LINK 
 };

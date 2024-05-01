@@ -1,9 +1,8 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -11,13 +10,19 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import dk.digitalidentity.common.dao.model.Group;
+import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.PersonAttributeService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
+import dk.digitalidentity.service.KeystoreService;
 import dk.digitalidentity.service.MetadataService;
 
 @RequireServiceProviderAdmin
@@ -35,11 +40,20 @@ public class ServiceProviderController {
 
 	@Autowired
 	private PersonAttributeService personAttributeSetService;
-
+	
+	@Autowired
+	private SettingService settingService;
+	
+	@Autowired
+	private KeystoreService keystoreService;
+	
+	@Autowired
+	private GroupService groupService;
+	
 	@GetMapping("/admin/konfiguration/tjenesteudbydere")
 	public String getServiceProviders(Model model) throws Exception {
 		ArrayList<ServiceProviderDTO> serviceProviders = new ArrayList<>();
-		serviceProviders.addAll(metadataService.getStaticServiceProviderDTOs());
+		serviceProviders.addAll(metadataService.getStaticServiceProviderDTOs(false));
 
 		List<SqlServiceProviderConfiguration> sqlSPs = sqlServiceProviderConfigurationService.getAll();
 		for (SqlServiceProviderConfiguration sqlSP : sqlSPs) {
@@ -49,6 +63,36 @@ public class ServiceProviderController {
 		model.addAttribute("serviceproviders", serviceProviders);
 
 		return "admin/serviceproviders-list";
+	}
+	
+	@GetMapping("/admin/konfiguration/tjenesteudbydere/rulehelp")
+	public String ruleHelp(Model model) {
+		return "admin/advanced-rule-help";
+	}
+	
+	@GetMapping("/admin/konfiguration/tjenesteudbydere/metadata")
+	public String getMetadata(Model model) throws Exception {
+		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingsKey.CERTIFICATE_ROLLOVER_TTS);
+		boolean plannedRollover = false;
+		
+		if (tts.isBefore(LocalDateTime.parse(SettingsKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()))) {
+			plannedRollover = true;
+		}
+		
+		model.addAttribute("planedRollOver", plannedRollover);
+		model.addAttribute("planedRollOverTts", tts.toString().replace('T', ' '));
+		
+		List<Keystore> keystores = keystoreService.findAll();
+		for (Keystore keystore : keystores) {
+			if (keystore.isPrimaryForIdp()) {
+				model.addAttribute("primaryCertName", keystore.getSubjectDn());
+			}
+			else {
+				model.addAttribute("secondaryCertName", keystore.getSubjectDn());
+			}
+		}
+		
+		return "admin/serviceproviders-metadata";
 	}
 
 	@GetMapping("/admin/konfiguration/tjenesteudbydere/{id}")
@@ -75,7 +119,7 @@ public class ServiceProviderController {
 		}
 		
 		model.addAttribute("serviceprovider", serviceProviderDTO);
-		model.addAttribute("attributeValueMap", getAttributeValueMappings());
+		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
 
 		return "admin/serviceprovider-view";
 	}
@@ -98,7 +142,11 @@ public class ServiceProviderController {
 		}
 
 		model.addAttribute("serviceprovider", serviceProviderDTO);
-		model.addAttribute("attributeValueMap", getAttributeValueMappings());
+		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
+		
+		List<Group> groups = groupService.getAll();
+		model.addAttribute("groups", groups);
+		model.addAttribute("showGroups", groups.size() > 0);
 
 		return "admin/serviceprovider-edit";
 	}
@@ -109,27 +157,5 @@ public class ServiceProviderController {
 
 		model.addAttribute("attributes", allPersonAttributes);
 		return "admin/configure-person-attributes";
-	}
-
-	private Map<String, String> getAttributeValueMappings() {
-		Map<String, String> result = new HashMap<>();
-
-
-		List<PersonAttribute> allPersonAttributes = personAttributeSetService.getAll();
-		if (allPersonAttributes != null && !allPersonAttributes.isEmpty()) {
-			allPersonAttributes.forEach(personAttribute -> result.put(personAttribute.getName(), personAttribute.getDisplayName()));
-		}
-
-		result.put("userId", "Brugernavn");
-		result.put("sAMAccountName", "Windows Brugernavn"); // TODO: this is deprecated, but we are keeping it to support existing SPs setup with this value until they are migrated
-		result.put("uuid", "UUID");
-		result.put("cpr", "Personnummer");
-		result.put("name", "Navn");
-		result.put("alias", "Kaldenavn");
-		result.put("email", "E-mail");
-		result.put("firstname", "Fornavn");
-		result.put("lastname", "Efternavn");
-
-		return result;
 	}
 }

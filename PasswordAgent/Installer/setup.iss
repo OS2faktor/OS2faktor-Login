@@ -1,7 +1,7 @@
 #define AppId "{{e59ce7e7-2fc9-48b9-8f82-bda996c833b8}"
 #define AppSourceDir "..\OS2faktor Password Agent\bin\Debug"
 #define AppName "OS2faktorPasswordAgent"
-#define AppVersion "1.5.2"
+#define AppVersion "2.2.0"
 #define AppPublisher "Digital Identity"
 #define AppURL "http://digital-identity.dk/"
 #define AppExeName "OS2faktorPasswordAgent"

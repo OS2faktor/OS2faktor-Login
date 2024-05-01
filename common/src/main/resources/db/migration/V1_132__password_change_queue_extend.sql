@@ -1,0 +1,1 @@
+ALTER TABLE password_change_queue ADD change_on_next_login BOOLEAN NOT NULL DEFAULT 0;

@@ -44,7 +44,7 @@
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter">
-													<select class="form-control" style="width: 100%;">
+													<select id="logActionFilter" class="form-control" style="width: 100%;">
 														<option selected="selected" value="">Alle</option>
 														<option th:each="action : ${logActions}"
 												            th:value="${action.logAction}"
@@ -60,6 +60,9 @@
 										</tbody>
 									</table>
 								</div>
+								
+								<button id="downloadReport" class="btn btn-primary" onclick="downloadReport()" title="Download"><em class="fa fa-fw fa-file-excel-o"></em>&nbsp; Gem sidste 3 måneder som CSV</button>
+								<a id="downloadLink" th:href="@{/ui/report/download/auditorReportSelection}" style="display:none;"></em></a>
 							</div>
 						</div>
 					</div>
@@ -72,13 +75,72 @@
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, validate = true)" />
+
+	<div id="openSaveSearchCriteriaModalTemplate" style="display: none;">
+		<div class="text-right">
+			<select class="form-control btn text-left d-inline-block w-auto" th:disabled="${emptySearchCriteria}" id="searchCriteriaSelect" onchange="selectSearchCriteria()">
+				<option style="color: darkgray;" value="NONE">Vælg søgekriterier</option>
+				<option th:each="filter: ${searchCriteria}" th:value="${filter.id}" th:text="${filter.name}" th:attr="data-logActionFilter=${filter.logActionFilter}, data-messageFilter=${filter.messageFilter}"></option>
+			</select>
+			<button id="deleteCriteriaBtn" disabled class="btn btn-danger" onclick="deleteSearchCriteria()"><em class="fa fa-fw fa-trash"></em></button>
+			<button id="saveCriteriaBtn" disabled class="btn btn-w-m btn-default" onclick="openSaveSearchCriteriaModal()">Gem søgekriterier</button>
+		</div>
+	</div>
+
+	<!-- Search Criteria Modal -->
+	<div class="modal inmodal" id="modalSearchCriteria" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content animated fadeIn">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal">
+						<span aria-hidden="true">×</span>
+						<span class="sr-only">Luk</span>
+					</button>
+					<h4 class="modal-title" id="modalClaimTitle">Gem søgekriterier</h4>
+				</div>
+				<div class="modal-body">
+					<form id="form">
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Navn</label>
+							<div class="col-sm-8">
+								<input id="scName" name="name" class="form-control" />
+							</div>
+						</div>
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Beskrivelse</label>
+							<div class="col-sm-8">
+								<textarea id="scDescription" name="description" class="form-control" rows="5"></textarea>
+							</div>
+						</div>
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Hændelsestype</label>
+							<div class="col-sm-8">
+								<input type="text" readonly class="form-control-plaintext" id="scLogAction">
+							</div>
+						</div>
+						<div class="form-group row">
+							<label class="col-sm-4 col-form-label">Hændelse</label>
+							<div class="col-sm-8">
+								<input type="text" readonly class="form-control-plaintext" id="scMessage">
+							</div>
+						</div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" onclick="saveSearchCriteria()" class="btn btn-primary">Gem</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	<!-- End Search Criteria Modal -->
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
 
 		/*[+
 		var rootUrl = [[@{/}]];
+		var downloadReportUrl = [[@{/ui/report/download/auditorReportSelection}]];
 		+]*/
 
 		var token = $("meta[name='_csrf']").attr("content");
@@ -93,12 +155,15 @@
 				}
 			});
 		}
+		
+		var table;
 
 		$(document).ready(function() {
+			$("#form").validate();
 			
 			disableDataTablesAlerts();
 			
-			var table = $('#eventlog').DataTable({
+			table = $('#eventlog').DataTable({
 				"destroy": true,
 				"ajax": {
 					"contentType": "application/json",
@@ -141,9 +206,8 @@
 		        "order": [ [ 0, "desc" ] ],
 				"info": true,
 				"pageLength": 10,
-				"lengthChange": false,
 				"bSort": false,
-				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"dom": "<'row'l<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
 				"responsive": true,
 				"language": {
 					"search":	   "Søg",
@@ -165,7 +229,19 @@
 				$('input, select', this).on('keyup change', function () {
 					if (column.search() !== this.value) {
 						column.search(this.value).draw();
+						//Clear searchCriteriaSelect
+						$('#searchCriteriaSelect').val("NONE");
+						$('#deleteCriteriaBtn').prop('disabled', true);
+						
+						handleSaveCriteria();
 					}
+				});
+			});
+			
+			// set search input when searching programmatically
+			table.on('search.dt', function() {
+				table.columns().every(function() {
+					$('input, select', this.footer()).val(this.search());
 				});
 			});
 			
@@ -173,7 +249,161 @@
 				var data = table.row(this).data();
 				window.location = rootUrl + "admin/logs/" + data.id;
 			});
+			
+			$('#eventlog_wrapper>.row:first()>div:nth-child(1)').after($('#openSaveSearchCriteriaModalTemplate').html());
+			$('#eventlog_wrapper>.row>div').slice(0,2).addClass('col-sm-6');
+			
+			//$('#modalSearchCriteria').modal("show");
+			
+			//Add validation to SearchCriteria modal
+			$("#scName").rules("add", {
+				required: true,
+				minlength: 2,
+				messages: {
+					required: "Navn er påkrævet",
+					minlength: jQuery.validator.format("Navnet er for kort. Mindst {0} tegn")
+				}
+			});
+			$("#scDescription").rules("add", {
+				required: true,
+				minlength: 2,
+				messages: {
+					required: "Beskrivelse er påkrævet",
+					minlength: jQuery.validator.format("Beskrivelse er for kort. Mindst {0} tegn")
+				}
+			});
 		});
+		
+
+		function handleSaveCriteria() {
+			var searchA = table.column(3).search();
+			var searchB = table.column(4).search();
+			
+			if (searchA != '' || searchB != '') {
+				$('#saveCriteriaBtn').prop('disabled', '');
+				$('#saveCriteriaBtn').removeClass('btn-default');
+				$('#saveCriteriaBtn').addClass('btn-info');
+			} else {
+				$('#saveCriteriaBtn').prop('disabled', true);
+				$('#saveCriteriaBtn').removeClass('btn-info');
+				$('#saveCriteriaBtn').addClass('btn-default');
+			}
+		}
+		
+		function selectSearchCriteria() {
+			//Clear previous search
+			table.columns().search("").draw();
+			
+			//Disable saving criteria until user modifies
+			$('#saveCriteriaBtn').prop('disabled', true);
+			$('#saveCriteriaBtn').removeClass('btn-info');
+			$('#saveCriteriaBtn').addClass('btn-default');
+
+			if ($('#searchCriteriaSelect').val() == "NONE") {
+				$('#deleteCriteriaBtn').prop('disabled', true);
+				table.columns().search("").draw();
+			} else {
+				$('#deleteCriteriaBtn').prop('disabled', false);
+				var searchA = $('#searchCriteriaSelect').find(':selected').data("logactionfilter");
+				var searchB = $('#searchCriteriaSelect').find(':selected').data("messagefilter");
+
+				if (searchA && searchB) {
+					table.column(3).search(searchA).column(4).search(searchB).draw();
+				} else if (searchA) {
+					table.column(3).search(searchA).draw();
+				} else if (searchB) {
+					table.column(4).search(searchB).draw();
+				}
+			}
+		}
+
+		function openSaveSearchCriteriaModal() {
+			var searchA = table.column(3).search();
+			var searchB = table.column(4).search();
+			
+			var logActionMessage = $('#logActionFilter option[value="' + searchA + '"]').text();
+			
+			$('#scLogAction').val(logActionMessage);
+			$('#scMessage').val(searchB);
+			
+			$('#modalSearchCriteria').modal("show");
+		}
+
+		function saveSearchCriteria() {
+			if ($('#form').valid()) {
+				var data = {
+					name: $('#scName').val(),
+					description: $('#scDescription').val(),
+					logActionFilter: table.column(3).search(),
+					messageFilter: table.column(4).search()
+				}
+				
+				$.ajax({
+					url: window.location.origin + '/rest/admin/logs/savedSearchCriteria/add',
+					method: "POST",
+					contentType: 'application/json',
+					data: JSON.stringify(data),
+					headers: {
+						'X-CSRF-TOKEN': token
+					},
+					success: function(response) {
+						location.reload();
+					}
+				});
+			}
+		}
+
+		function deleteSearchCriteria() {
+			var filterName = $('#searchCriteriaSelect option:selected').text();
+			var filterId = $('#searchCriteriaSelect option:selected').val();
+
+			swal({
+				html: true,
+				title : '',
+				text : `Ønsker du at fjerne <font style="font-weight: 700;">${filterName}</font> fra listen over gemte søgekriterier?`,
+				type : "warning",
+				showCancelButton : true,
+				confirmButtonColor : "#DD6B55",
+				confirmButtonText : "Ja",
+				cancelButtonText : "Nej",
+				closeOnConfirm : true,
+				closeOnCancel : true
+			},
+			function (isConfirm) {
+				if (isConfirm) {
+					$.ajax({
+						url: window.location.origin + '/rest/admin/logs/savedSearchCriteria/remove/' + filterId,
+						method: "POST",
+						headers: {
+							'X-CSRF-TOKEN': token
+						},
+						success: function(response) {
+							location.reload();
+						}
+					});
+				}
+			}
+			);
+		}
+
+		function downloadReport() {
+			var searchA = table.column(3).search();
+			var searchB = table.column(4).search();
+
+			var a = document.getElementById("downloadLink");
+			a.href = downloadReportUrl;
+			let params = new URLSearchParams(a.search);
+
+			if (searchA) {
+				params.append('logAction', searchA);
+			}
+			if (searchB) {
+				params.append('message', searchB);
+			}
+			
+			a.search = params.toString();
+			a.click();
+		}
 		
 		/*]]>*/
 	</script>

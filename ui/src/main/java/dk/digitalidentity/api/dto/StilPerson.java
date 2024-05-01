@@ -12,6 +12,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class StilPerson {
 	private String cpr;
+	private String name;
+	private String userId;
 	private String institutionNumber;
 	private String institutionName;
 	private StilPersonType type;

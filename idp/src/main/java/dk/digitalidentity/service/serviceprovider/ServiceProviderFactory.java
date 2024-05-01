@@ -1,13 +1,17 @@
 package dk.digitalidentity.service.serviceprovider;
 
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 
 import java.time.LocalDateTime;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -17,8 +21,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.HttpClient;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
@@ -40,6 +46,12 @@ public class ServiceProviderFactory {
     @Autowired
     private SessionHelper sessionHelper;
 
+    @Autowired
+    private AdvancedRuleService advancedRuleService;
+    
+    @Autowired
+    private AuditLogger auditLogger;
+    
     @PostConstruct
     public void loadServiceProviderFactory() {
         serviceProviders = serviceProviders.stream()
@@ -56,7 +68,10 @@ public class ServiceProviderFactory {
     public void loadSQLServiceProviders() {
         LocalDateTime nextLastReload = LocalDateTime.now();
 
-        for (SqlServiceProviderConfiguration config : serviceProviderConfigurationService.getAllLoadedFully()) {
+        List<SqlServiceProviderConfiguration> allConfigs = serviceProviderConfigurationService.getAllLoadedFully();
+        
+        // add or update
+        for (SqlServiceProviderConfiguration config : allConfigs) {
             if (!config.isEnabled()) {
                 continue;
             }
@@ -70,21 +85,23 @@ public class ServiceProviderFactory {
                 // Check matching EntityId, if matching check if updated since last reload
                 SqlServiceProvider sqlSP = (SqlServiceProvider) serviceProvider;
                 
-                LocalDateTime oldTimestamp = sqlSP.getManualReloadTimestamp();
-                LocalDateTime newTimestamp = config.getManualReloadTimestamp();
-
-                // TODO: this check does not appear to work
-                boolean refreshMetadata = !Objects.equals(newTimestamp, oldTimestamp);
-
                 if (Objects.equals(config.getEntityId(), sqlSP.getEntityId())) {
+                    LocalDateTime oldTimestamp = sqlSP.getManualReloadTimestamp();
+                    LocalDateTime newTimestamp = config.getManualReloadTimestamp();
+                    String oldMetadataUrl = sqlSP.getMetadataUrl();
+                    String newMetadataUrl = config.getMetadataUrl();
+                    
+                    boolean refreshMetadata = !Objects.equals(newTimestamp, oldTimestamp) || !Objects.equals(oldMetadataUrl, newMetadataUrl);
+                    boolean recreateResolver = !Objects.equals(oldMetadataUrl, newMetadataUrl);
+                    
                     if (lastReload == null || lastReload.isBefore(config.getLastUpdated())) {
                         log.info("Updating SQL SP with entityID: " + config.getEntityId());
 
                         sqlSP.setConfig(config);
 
                         if (refreshMetadata) {
-                        	log.info("Force reloading metadata for " + sqlSP.getEntityId());
-                        	sqlSP.reloadMetadata();
+                        	log.info("Force reloading metadata for " + sqlSP.getEntityId() + " recreate = " + recreateResolver);
+                        	sqlSP.reloadMetadata(recreateResolver);
                         }
                     }
 
@@ -97,10 +114,37 @@ public class ServiceProviderFactory {
             if (!foundExisting) {
                 log.info("Creating SQL SP with entityID: " + config.getEntityId());
 
-                serviceProviders.add(new SqlServiceProvider(config, httpClient, roleCatalogueService));
+                serviceProviders.add(new SqlServiceProvider(config, httpClient, roleCatalogueService, advancedRuleService, auditLogger));
             }
         }
+        
+        // remove removed serviceProviders
+        for (Iterator<ServiceProvider> iterator = serviceProviders.iterator(); iterator.hasNext();) {
+			ServiceProvider serviceProvider = iterator.next();
 
+            if (!(serviceProvider instanceof SqlServiceProvider)) {
+                continue;
+            }
+
+            boolean found = false;
+            
+            for (SqlServiceProviderConfiguration config : allConfigs) {
+                if (!config.isEnabled()) {
+                    continue;
+                }
+                
+                if (Objects.equals(config.getEntityId(), serviceProvider.getEntityId())) {
+                	found = true;
+                	break;
+                }
+            }
+            
+            if (!found) {
+            	log.info("Removing deleted/disabled SQL SP with entityID: " + serviceProvider.getEntityId());
+            	iterator.remove();
+            }
+        }
+        
         lastReload = nextLastReload;
     }
 
@@ -115,15 +159,45 @@ public class ServiceProviderFactory {
         throw new RequesterException("Ingen Issuer fundet i AuthnRequest (" + (authnRequest != null ? authnRequest.getID() : "null") + ") og kunne derfor ikke finde tjenesteudbyderens instillinger");
     }
 
+    public ServiceProvider getServiceProvider(LoginRequest loginRequest) throws RequesterException, ResponderException {
+        switch (loginRequest.getProtocol()) {
+            case SAML20:
+                AuthnRequest authnRequest = loginRequest.getAuthnRequest();
+                if (authnRequest != null && authnRequest.getIssuer() != null) {
+                    ServiceProvider serviceProvider = getServiceProvider(authnRequest.getIssuer().getValue());
+
+
+                    return serviceProvider;
+                }
+
+                // TODO: this is a common error, we need this to track down the issues and fix them - remove once we are error free :)
+                log.warn("session data dump: " + sessionHelper.serializeSessionAsString());
+                throw new RequesterException("Ingen Issuer fundet i AuthnRequest (" + (authnRequest != null ? authnRequest.getID() : "null") + ") og kunne derfor ikke finde tjenesteudbyderens instillinger");
+            case OIDC10:
+                OAuth2AuthorizationCodeRequestAuthenticationToken token = loginRequest.getToken();
+                if (token != null && StringUtils.hasLength(token.getClientId())) {
+                    return getServiceProvider(token.getClientId());
+                }
+
+                throw new RequesterException("Ingen ClientId fundet i OAuth2AuthorizationCodeRequestAuthenticationToken og kunne derfor ikke finde tjenesteudbyderens indstillinger");
+            case WSFED:
+                return getServiceProvider(loginRequest.getServiceProviderId());
+            default:
+                throw new IllegalStateException("Unexpected value: " + loginRequest.getProtocol());
+        }
+    }
+
     public ServiceProvider getServiceProvider(String entityId) throws RequesterException, ResponderException {
         for (ServiceProvider serviceProvider : serviceProviders) {
 
-        	if (Objects.equals(serviceProvider.getEntityId(), entityId)) {
-                return serviceProvider;
-            }
+        	for (String spEntityId : serviceProvider.getEntityIds()) {
+	        	if (Objects.equals(spEntityId, entityId)) {
+	                return serviceProvider;
+	            }
+        	}
         }
 
-        log.error("Kunne ikke finde en tjenesteudbyder der matcher: '" + entityId + "'");
+        log.warn("Kunne ikke finde en tjenesteudbyder der matcher: '" + entityId + "'");
         throw new RequesterException("Kunne ikke finde en tjenesteudbyder der matcher: '" + entityId + "'");
     }
 

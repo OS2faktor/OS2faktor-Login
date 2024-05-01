@@ -6,7 +6,9 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.decoder.MessageDecodingException;
+import org.opensaml.messaging.decoder.servlet.BaseHttpServletRequestXMLMessageDecoder;
 import org.opensaml.saml.common.SAMLObject;
+import org.opensaml.saml.saml2.binding.decoding.impl.HTTPPostDecoder;
 import org.opensaml.saml.saml2.binding.decoding.impl.HTTPRedirectDeflateDecoder;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
@@ -25,13 +27,14 @@ public class AuthnRequestService {
 
 	public MessageContext<SAMLObject> getMessageContext(HttpServletRequest request) throws RequesterException, ResponderException {
 		try {
-			HTTPRedirectDeflateDecoder decoder = new HTTPRedirectDeflateDecoder();
+			BaseHttpServletRequestXMLMessageDecoder<SAMLObject> decoder = "POST" .equals(request.getMethod()) ? new HTTPPostDecoder() : new HTTPRedirectDeflateDecoder();
+
 			decoder.setHttpServletRequest(request);
 
 			BasicParserPool parserPool = new BasicParserPool();
 			parserPool.initialize();
-
 			decoder.setParserPool(parserPool);
+
 			decoder.initialize();
 			decoder.decode();
 
@@ -49,6 +52,7 @@ public class AuthnRequestService {
 			throw new RequesterException("Kunne ikke afkode " + method + " forespørgsel fra: " + referer, ex);
 		}
 
+		// SUK, den rammer ikke her, fordi exceptionen spises i BaseHttpServletRequestXmlMessageDecoder.unmarshalMessage() metoden i line 154
 		// TODO: remove this once we know why the XMLParserException gets here
 		catch (Exception ex) {
 
@@ -73,7 +77,6 @@ public class AuthnRequestService {
 			}
 			catch (Exception ex2) {
 				log.error("Hmmm...", ex2);
-				;
 			}
 
 			throw new RequesterException("Kunne ikke deserializere authnRequestet - formatet var ugyldigt", ex);
@@ -86,17 +89,21 @@ public class AuthnRequestService {
 
 	public boolean requireNemId(AuthnRequest authnRequest) {
 		RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
-		if (requestedAuthnContext == null) { return false; }
+		if (requestedAuthnContext == null) {
+			return false;
+		}
 
 		List<AuthnContextClassRef> authnContextClassRefs = requestedAuthnContext.getAuthnContextClassRefs();
-		if (authnContextClassRefs == null) { return false; }
+		if (authnContextClassRefs == null) {
+			return false;
+		}
 
 		for (AuthnContextClassRef authnContextClassRef : authnContextClassRefs) {
 			if ("https://www.digital-identity.dk/require-nemid".equals(authnContextClassRef.getAuthnContextClassRef())) {
 				return true;
 			}
 		}
-
+		
 		return false;
 	}
 }

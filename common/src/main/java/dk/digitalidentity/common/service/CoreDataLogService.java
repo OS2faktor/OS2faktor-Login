@@ -7,6 +7,7 @@ import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.CoreDataLogDao;
 import dk.digitalidentity.common.dao.model.CoreDataLog;
@@ -57,7 +58,11 @@ public class CoreDataLogService {
 		}
 	}
 
-	public CoreDataLog addLog(String endpoint, String domainName) {
+	public CoreDataLog addLog(String endpoint, String domainName, String subDomain) {
+		if (StringUtils.hasLength(subDomain)) {
+			endpoint = endpoint + "?subdDomain=" + subDomain;
+		}
+
 		Domain domain = domainService.getByName(domainName);
 
 		return save(new CoreDataLog(endpoint, domain));

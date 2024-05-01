@@ -45,6 +45,17 @@ public class PasswordApi {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 	
+	@PostMapping("/api/setPasswordWithForcedChange")
+	public ResponseEntity<?> setPasswordWithForcedChange(@Valid @RequestBody PasswordRequest request, BindingResult bindingResult) {
+		if (bindingResult.hasErrors()) {
+			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
+		}
+
+		PasswordResponse response = passwordService.setPasswordWithForcedChange(request);
+		
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+	
 	@PostMapping("/api/unlockAccount")
 	public ResponseEntity<?> unlockAccount(@Valid @RequestBody UnlockRequest request, BindingResult bindingResult) {
 		if (bindingResult.hasErrors()) {
@@ -53,6 +64,17 @@ public class PasswordApi {
 
 		PasswordResponse response = passwordService.unlockAccount(request);
 		
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+	@PostMapping("/api/passwordExpires")
+	public ResponseEntity<?> passwordExpires(@Valid @RequestBody UnlockRequest request, BindingResult bindingResult) {
+		if (bindingResult.hasErrors()) {
+			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
+		}
+
+		PasswordResponse response = passwordService.passwordExpires(request);
+
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 

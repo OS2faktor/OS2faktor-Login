@@ -52,4 +52,7 @@ public class LocalRegisteredMfaClient {
 
 	@Column
 	private Date associatedUserTimestamp;
+
+	@Column
+	private boolean prime;
 }

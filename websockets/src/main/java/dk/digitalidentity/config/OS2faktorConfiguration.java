@@ -13,4 +13,5 @@ import lombok.Setter;
 public class OS2faktorConfiguration {
 	private String apiKey;
 	private String webSocketKey;
+	private long maxWait = 40;
 }

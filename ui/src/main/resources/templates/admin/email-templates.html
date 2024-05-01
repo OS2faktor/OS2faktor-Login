@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (texteditor = true, checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -15,69 +15,88 @@
 							</div>
 
 							<div class="ibox-content">
-								<form class="form-horizontal">
-									<div class="form-group row">
-										<label class="col-sm-2 col-form-label">Skabelon</label>
-										<div class="col-sm-10">
-											<select id="templateDropdown" class="form-control m-b">
-												<option th:each="template : ${templates}" th:value="${template.id}" th:text="#{${template.templateTypeText}}"></option>
-											</select>
-										</div>
-									</div>
-								</form>
-		
 								<div class="row">
 									<div class="col-lg-12">
-										<form th:each="template : ${templates}" class="form-horizontal templateForm" th:id="'template' + ${template.id}" style="display: none;">
-											<input type="hidden" name="id" th:value="${template.id}"/>
-											<input type="hidden" name="enabled" th:value="${template.enabled}" />
-											<input type="hidden" name="emailEnabled" th:value="${template.emailEnabled}" />
-											<input type="hidden" name="eboksEnabled" th:value="${template.eboksEnabled}" />
-											
+										<form class="form-horizontal">
+											<div class="form-group row">
+												<label class="col-sm-2 col-form-label">Skabelon</label>
+												<div class="col-sm-10">
+													<select id="templateDropdown" class="form-control m-b">
+														<option th:each="template : ${templates}" th:value="${template.id}" th:text="#{${template.templateTypeText}}"></option>
+													</select>
+												</div>
+											</div>
+										</form>
+									</div>
+								</div>
+		
+								<div class="row">
+									<div th:each="template : ${templates}" class="form-horizontal templateForm col-lg-12" th:id="'template' + ${template.id}" style="display: none; width: 100%;">
+										<div class="row">
+											<div class="col-lg-12">
+												<form class="form-horizontal">
+													<div class="form-group row">
+														<label class="col-sm-2 control-label">Domæne</label>
+														<div class="col-sm-10">
+															<select class="form-control childDropdown" th:id="'childDropdown' + ${template.id}" >
+																<option th:each="domain : ${domains}" th:value="${domain.id}" th:text="${domain.toString()}"></option>
+															</select>
+														</div>
+													</div>
+												</form>
+											</div>
+										</div>
+
+										<form th:each="child : ${template.children}" class="form-horizontal childForm" th:id="'child' + ${template.id} + '_' + ${child.domainId}" style="display: none;">
+											<input type="hidden" name="id" th:value="${child.id}"/>
+											<input type="hidden" name="enabled" th:value="${child.enabled}" />
+											<input type="hidden" name="emailEnabled" th:value="${child.emailEnabled}" />
+											<input type="hidden" name="eboksEnabled" th:value="${child.eboksEnabled}" />
+
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Aktiv</label>
 												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks enabledCheckbox" th:checked="${template.enabled}"></label>
+													<label><input type="checkbox" class="i-checks enabledCheckbox" th:checked="${child.enabled}"></label>
 												</div>
 											</div>
-											
+
 											<div class="form-group row" th:if="${template.emailAllowed}">
 												<label class="col-sm-2 control-label">Send som email</label>
 												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks emailCheckbox" th:checked="${template.emailEnabled}"></label>
+													<label><input type="checkbox" class="i-checks emailCheckbox" th:checked="${child.emailEnabled}"></label>
 												</div>
 											</div>
-											
-											<div class="form-group row" th:if="${template.eboksAllowed}">
-												<label class="col-sm-2 control-label">Send som E-Boks besked</label>
+
+											<div class="form-group row" th:if="${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}">
+												<label class="col-sm-2 control-label">Send som digital post</label>
 												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks eboksCheckbox" th:checked="${template.eboksEnabled}"></label>
+													<label><input type="checkbox" class="i-checks eboksCheckbox" th:checked="${child.eboksEnabled}"></label>
 												</div>
 											</div>
-		
+
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Overskrift</label>
 												<div class="col-sm-10">
-													<input name="title" th:value="${template.title}" class="form-control" />
+													<input name="title" th:value="${child.title}" class="form-control" />
 												</div>
 											</div>
-		
+
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Brødtekst</label>
 												<div class="col-sm-10">
-													<textarea name="message" th:text="${template.message}" class="mb-0 preformat" rows="10" style="width:100%;"></textarea>
+													<textarea name="message" th:text="${child.message}" class="mb-0 preformat" rows="10" style="width:100%;"></textarea>
 												</div>
 											</div>
-											
+
 											<div class="row">
 												<div class="col-sm-2"></div>
 												<div class="col-sm-10">
-													* I brødteksten kan man anvende <strong>{modtager}</strong> som pladsholder for modtageren.
+													* I brødteksten kan man anvende <strong>{modtager}</strong> og <strong>{brugernavn}</strong> som pladsholder for modtagerens navn og brugernavn.
 												</div>
 											</div>
-											
+
 											<hr/>
-											
+
 											<div class="form-group row">
 												<div class="col-sm-12">
 													<button type="button" style="margin-right: 5px;" class="btn btn-primary block full-width m-b buttonSubmit">Gem</button>
@@ -91,15 +110,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.email-template')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.email-template')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (checkbox = true, texteditor = true)" />
+	<div th:replace="fragments/footer :: scripts (checkbox = true, texteditor = true)"></div>
 	
 	<script th:inline="javascript">
 	/*<![CDATA[*/
@@ -138,38 +157,50 @@
 				
 				// show chosen
 				$('#template' + $("#templateDropdown").val()).show();
+
+				//handle child
+				$('.childForm').hide();
+				$('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val()).show();
+			});
+
+			$('.childDropdown').change(function() {
+				// hide all
+				$('.childForm').hide();
+
+				// show chosen
+				$('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val()).show();
 			});
 						
 			$('.buttonSubmit').click(function() {
-				var oForm = $('#template' + $("#templateDropdown").val());
+				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
 				var data = getFormData(oForm);
 				
 				save(data, false);
 			});
 			
 			$('.buttonTest').click(function() {
-				var oForm = $('#template' + $("#templateDropdown").val());
+				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
 				var data = getFormData(oForm);
 
 				save(data, true);
 			});
 			
 			$('.enabledCheckbox').on("ifChanged", function() {
-				var oForm = $('#template' + $("#templateDropdown").val());
+				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
 				var checkboxValue = oForm.find('.enabledCheckbox')[0].checked;
 				
 				oForm.find("input[name=enabled]")[0].value = checkboxValue;
 			});
 			
 			$('.emailCheckbox').on("ifChanged", function() {
-				var oForm = $('#template' + $("#templateDropdown").val());
+				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
 				var checkboxValue = oForm.find('.emailCheckbox')[0].checked;
 				
 				oForm.find("input[name=emailEnabled]")[0].value = checkboxValue;
 			});
 			
 			$('.eboksCheckbox').on("ifChanged", function() {
-				var oForm = $('#template' + $("#templateDropdown").val());
+				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
 				var checkboxValue = oForm.find('.eboksCheckbox')[0].checked;
 				
 				oForm.find("input[name=eboksEnabled]")[0].value = checkboxValue;
@@ -177,7 +208,7 @@
 			
 			// display currently chosen template
 			$('#template' + $("#templateDropdown").val()).show();
-			
+			$('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val()).show();
 			
 		});
 	
@@ -223,7 +254,7 @@
 	 			   	if (jQxhr.responseText != "") {
 	 			   		toastr.error("Fejl: " + jQxhr.responseText);
 					} else {
-						toastr.success("Fejl!");
+						toastr.error("Fejl!");
 					}
  			   	}
 			});

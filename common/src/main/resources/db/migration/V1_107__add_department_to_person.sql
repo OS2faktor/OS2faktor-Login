@@ -1,0 +1,2 @@
+ALTER TABLE persons ADD COLUMN department VARCHAR(255) NULL;
+ALTER TABLE persons_aud ADD COLUMN department VARCHAR(255) NULL;

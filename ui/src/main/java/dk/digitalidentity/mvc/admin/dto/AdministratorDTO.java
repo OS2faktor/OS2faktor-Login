@@ -18,6 +18,10 @@ public class AdministratorDTO {
 	private long domainId;
 	private boolean registrant;
 	private boolean self;
+	private boolean kodeviserAdmin;
+	private boolean passwordResetAdmin;
+	private boolean nsisActivated;
+	private boolean institutionStudentPasswordAdmin;
 
 	public AdministratorDTO(Person person, boolean self) {
 		this.id = person.getId();
@@ -27,6 +31,10 @@ public class AdministratorDTO {
 		this.userAdmin = person.isUserAdmin();
 		this.serviceProviderAdmin = person.isServiceProviderAdmin();
 		this.supporter = person.isSupporter();
+		this.kodeviserAdmin = person.isKodeviserAdmin();
+		this.nsisActivated = person.hasActivatedNSISUser();
+		this.passwordResetAdmin = person.isPasswordResetAdmin();
+		this.institutionStudentPasswordAdmin = person.isInstitutionStudentPasswordAdmin();
 
 		if (this.supporter) {
 

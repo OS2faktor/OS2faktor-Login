@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -26,6 +27,11 @@ namespace OS2faktorADSync
                     if (tmp.Length > 10)
                     {
                         tmp = tmp.Replace("-", "");
+                    }
+
+                    if (Settings.GetBooleanValue("ActiveDirectory.Property.Cpr.Encoded"))
+                    {
+                        tmp = DecodeCpr(tmp);
                     }
 
                     if (tmp.Length == 10)
@@ -57,11 +63,17 @@ namespace OS2faktorADSync
         [JsonProperty(PropertyName = "expireTimestamp")]
         public string ExpireTimestamp { get; set; }
 
+        [JsonProperty(PropertyName = "nextPasswordChange")]
+        public string NextPasswordChange { get; set; }
+
         [JsonProperty(PropertyName = "transferToNemlogin")]
         public bool TransferToNemlogin { get; set; }
 
-        [JsonProperty(PropertyName = "rid")]
-        public string Rid { get; set; }
+        [JsonProperty(PropertyName = "department")]
+        public string Department { get; set; }
+
+        [JsonProperty(PropertyName = "ean")]
+        public string Ean { get; set; }
 
         [JsonIgnore]
         public bool Deleted { get; set; }
@@ -76,7 +88,24 @@ namespace OS2faktorADSync
 
         public bool IsValid()
         {
-            return !string.IsNullOrEmpty(Cpr) && !string.IsNullOrEmpty(Name);
+            return !string.IsNullOrEmpty(Cpr) && !string.IsNullOrEmpty(Name) && Guid.TryParse(Uuid, out _ );
+        }
+
+        private string DecodeCpr(string cpr)
+        {
+            if (long.TryParse(cpr, out long val))
+            {
+                val /= 33;
+                val--;
+
+                cpr = val.ToString();
+                if (cpr.Length == 9)
+                {
+                    cpr = "0" + cpr;
+                }
+            }
+
+            return cpr;
         }
     }
 }

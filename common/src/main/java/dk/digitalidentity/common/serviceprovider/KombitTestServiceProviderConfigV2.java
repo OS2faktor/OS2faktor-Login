@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.serviceprovider;
 
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -30,22 +31,22 @@ public class KombitTestServiceProviderConfigV2 implements ServiceProviderConfig 
     // same as prod from here on
     
     @Override
-    public String getProtocol() {
-        return "SAML20";
+    public Protocol getProtocol() {
+        return Protocol.SAML20;
     }
 
     @Override
-    public String getNameIdFormat() {
-        return NameIdFormat.X509_SUBJECT_NAME.value;
+    public NameIdFormat getNameIdFormat() {
+        return NameIdFormat.X509_SUBJECT_NAME;
     }
 
     @Override
-    public String getMetadataContent() throws Exception {
+    public String getMetadataContent() {
         return null;
     }
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabled() {
         if (config.getKombit() == null || config.getKombit().isEnabled() == false) {
             return false;
         }
@@ -54,22 +55,27 @@ public class KombitTestServiceProviderConfigV2 implements ServiceProviderConfig 
     }
 
     @Override
-    public boolean preferNemId() {
+    public boolean isPreferNemid() {
         return false;
     }
 
     @Override
-    public boolean encryptAssertions() {
+    public boolean isEncryptAssertions() {
         return config.getKombit().isEncryptAssertion();
     }
 
 	@Override
-	public boolean nemLogInBrokerEnabled() {
+	public boolean isNemLogInBrokerEnabled() {
 		return false;
 	}
 	
 	@Override
-    public boolean preferNIST() {
+    public boolean isPreferNIST() {
         return false;
     }
+
+	@Override
+	public boolean isRequireOiosaml3Profile() {
+		return true;
+	}
 }

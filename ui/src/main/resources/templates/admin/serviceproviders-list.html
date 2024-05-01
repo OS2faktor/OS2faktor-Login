@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceproviders-list')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceproviders-list')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
-							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+							<div class="ibox-title">
 								<h5><em class="fa fa-users"></em> &nbsp; Se tjenesteudbydere</h5>
 							</div>
 
@@ -35,6 +35,7 @@
 												<th>EntityId</th>
 												<th style="width: 100px;">Protokol</th>
 												<th style="width: 80px;">Status</th>
+												<th style="width: 100px;">Sikkerhedsniveau</th>
 												<th style="width: 80px;">Handlinger</th>
 											</tr>
 										</thead>
@@ -45,24 +46,39 @@
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td></td>
 											</tr>
 										</tfoot>
 										
 										<tbody style="display: table-row-group">
 											<tr th:each="serviceprovider : ${serviceproviders}">
-												<td th:text="${serviceprovider.name}"></td>
+												<td>
+													<th:block th:if="${serviceprovider.isBadMetadata()}">
+														<em class="fa fa-fw fa-exclamation-triangle" title="Tjenestens metadata kan enten ikke opdateres, eller tjenestens certifikater er udløbne" style="color: red;"></em>
+													</th:block>
+													<span th:text="${serviceprovider.name}"></span>
+												</td>
 												<td th:text="${serviceprovider.entityId}"></td>
 												<td th:text="${serviceprovider.protocol}"></td>
 												<td th:text="${serviceprovider.enabled} ? 'Aktiv' : 'Deaktiveret'"></td>
+												<th:block th:if="${serviceprovider.sqlServiceProvider == false}"> 
+													<td>&nbsp;</td>
+												</th:block>
+												<th:block th:if="${serviceprovider.sqlServiceProvider == true}">
+													<td th:if="${serviceprovider.nsisLevelRequired != null and serviceprovider.nsisLevelRequired.getLevel() != 0 }" th:text="'NSIS: ' + #{__${serviceprovider.nsisLevelRequired.getMessage()}__}"></td>
+													<td th:if="${serviceprovider.forceMfaRequired != null and (serviceprovider.nsisLevelRequired == null or serviceprovider.nsisLevelRequired.getLevel() == 0)}" th:text="'MFA: ' + #{__${serviceprovider.forceMfaRequired.getMessage()}__}"></td>
+												</th:block>
 												<td>
 													<a th:href="@{/admin/konfiguration/tjenesteudbydere/{id}(id = ${serviceprovider.id == 0 ? serviceprovider.entityId : serviceprovider.id})}" style="color: black;" title="Vis tjenesteudbyder konfiguration">
 														<em class="fa fa-fw fa-search"></em>
-													</a>													
-													&nbsp;
-													<a th:if="${serviceprovider.sqlServiceProvider}" th:href="@{/admin/konfiguration/tjenesteudbydere/} + ${serviceprovider.id} + '/edit'" style="color: black;" title="Vis tjenesteudbyder konfiguration">
+													</a>
+													<a th:if="${serviceprovider.sqlServiceProvider}" th:href="@{/admin/konfiguration/tjenesteudbydere/} + ${serviceprovider.id} + '/edit'" style="color: black;" title="Rediger tjenesteudbyder konfiguration">
 														<em class="fa fa-fw fa-pencil"></em>
-													</a>													
+													</a>
+													<a th:if="${serviceprovider.sqlServiceProvider}" th:data-sp-id="${serviceprovider.id}" href="#" onclick="serviceProviderListService.handleDelete(this.getAttribute('data-sp-id'));" style="color: black;" title="Slet tjenesteudbyder">
+														<em class="fa fa-fw fa-times"></em>
+													</a>
 												</td>
 											</tr>
 										</tbody>
@@ -72,19 +88,19 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceproviders-list')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceproviders-list')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
-			
+
 		var token = $("meta[name='_csrf']").attr("content");
 	
 		var serviceProviderListService;
@@ -128,6 +144,36 @@
 					});
 				});
 			}
+
+			this.handleDelete = function(id) {
+				swal({
+					html : true,
+					title : 'Slet tjenesteudbyder',
+					text : 'Er du sikker på at du vil slette denne tjenesteudbyder - handlingen kan ikke fortrydes senere',
+					type : "warning",
+					showCancelButton : true,
+					confirmButtonColor : "#DD6B55",
+					confirmButtonText : 'Slet',
+					cancelButtonText : 'Annuller',
+					closeOnConfirm : true,
+					closeOnCancel : true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						$.ajax({
+							method : "POST",
+							url: "/admin/konfiguration/tjenesteudbydere/" + id + "/delete",
+							headers: {
+								'X-CSRF-TOKEN': token
+							}
+						}).done(function (data) {
+							window.location.reload();
+						}).fail(function(jqXHR, textStatus, errorThrown) {
+							toastr.warning("Der opstod en fejl under sletningen");
+						});
+					}
+				});
+            }
 		}
 		/*]]>*/
 	</script>

@@ -11,7 +11,7 @@ namespace OS2faktorADSync
 {
     public class BackendService
     {
-        private const string version = "2.0.2";
+        private const string version = "2.5.0";
 
         private readonly string baseUrl = Settings.GetStringValue("Backend.URL.Base");
         public ILogger Logger { get; set; }
@@ -48,6 +48,33 @@ namespace OS2faktorADSync
                 catch (WebException ex)
                 {
                     LogException(ex, "Failed to call fullsync backend");
+
+                    throw ex;
+                }
+            }
+        }
+
+        internal List<CoredataMitIDStatus> GetMitIDStatus()
+        {
+            Logger.Verbose("Invoking backend mitid status request");
+
+            using (WebClient webClient = new WebClient())
+            {
+                webClient.Headers["Content-Type"] = "application/json";
+                webClient.Headers["ApiKey"] = Settings.GetStringValue("Backend.Password");
+                webClient.Headers["ClientVersion"] = version;
+                webClient.Encoding = System.Text.Encoding.UTF8;
+
+                try
+                {
+                    string domain = Settings.GetStringValue("Backend.Domain");
+                    string result = webClient.DownloadString(baseUrl + "nemloginStatus?domain=" + domain);
+
+                    return JsonConvert.DeserializeObject<CoredataMitIDStatusResponse>(result).Entries;
+                }
+                catch (WebException ex)
+                {
+                    LogException(ex, "Failed to call mitid status backend");
 
                     throw ex;
                 }

@@ -32,7 +32,7 @@ public class PasswordChangeQueueController {
 			passwordChangeQueue = passwordChangeQueueService.getAll();
 		}
 		else if (securityUtil.hasRole(Constants.ROLE_SUPPORTER)) {
-			if (securityUtil.getPerson().getSupporter().getDomain() != null) {
+			if (securityUtil.getPerson().getSupporter() != null && securityUtil.getPerson().getSupporter().getDomain() != null) {
 				passwordChangeQueue = passwordChangeQueueService.getByDomain(securityUtil.getPerson().getSupporter().getDomain().getName());
 			}
 			else {

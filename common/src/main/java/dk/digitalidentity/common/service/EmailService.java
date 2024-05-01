@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,15 +30,24 @@ public class EmailService {
 
 	@Autowired
 	private CommonConfiguration configuration;
+	
+	@Autowired
+	private AuditLogger auditlogger;
 
-	public boolean sendMessage(String email, String subject, String message) {
-		return sendMessage(email, subject, message, null);
+	public boolean sendMessage(String email, String subject, String message, Person person) {
+		return sendMessage(email, subject, message, null, person);
 	}
 
-	public boolean sendMessage(String email, String subject, String message, List<InlineImageDTO> inlineImages) {
+	public boolean sendMessage(String email, String subject, String message, List<InlineImageDTO> inlineImages, Person person) {
 		if (!configuration.getEmail().isEnabled()) {
 			log.warn("email server is not configured - not sending email to " + email);
 			return false;
+		}
+
+		// if person == null it means that the mail is sent to our logWatchEmail
+		if (person != null && !PersonService.isOver18(person.getCpr())) {
+			log.info("Not sending email to person with cpr = " + PersonService.maskCpr(person.getCpr()) + ". Age is under 18");
+			return true;
 		}
 
 		Transport transport = null;
@@ -54,7 +65,14 @@ public class EmailService {
 
 			MimeMessage msg = new MimeMessage(session);
 			msg.setFrom(new InternetAddress(configuration.getEmail().getFrom(), configuration.getEmail().getFromName()));
-			msg.setRecipient(Message.RecipientType.TO, new InternetAddress(email));
+
+			for (String singleEmail : email.split(";")) {
+				String trimmedEmail = singleEmail.trim();
+				if (!StringUtils.isEmpty(trimmedEmail)) {
+					msg.addRecipient(Message.RecipientType.TO, new InternetAddress(trimmedEmail));
+				}
+			}
+
 			msg.setSubject(subject, "UTF-8");
 			msg.setHeader("Content-Type", "text/html; charset=UTF-8");
 
@@ -107,6 +125,13 @@ public class EmailService {
 			}
 		}
 
+		try {
+			auditlogger.sentEmail(person, subject);
+		}
+		catch (Exception ex) {
+			log.error("Failed to auditlog sending email '" + subject + "' to " + person.getSamaccountName() + " / " + person.getId());
+		}
+		
 		return true;
 	}
 }

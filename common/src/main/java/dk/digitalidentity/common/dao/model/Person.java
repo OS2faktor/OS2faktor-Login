@@ -26,6 +26,8 @@ import javax.validation.constraints.Size;
 
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
+import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -80,6 +82,12 @@ public class Person {
 
 	@Column
 	private boolean registrant;
+
+	@Column
+	private boolean kodeviserAdmin;
+
+	@Column
+	private boolean passwordResetAdmin;
 	
 	@Column
 	private boolean approvedConditions;
@@ -96,6 +104,8 @@ public class Person {
 	@Column
 	private boolean lockedDataset;
 
+	// does not lock the person object, only the password is locked when this is flagged (other login mechanisms still work, like MitID)
+	@NotAudited
 	@Column
 	private boolean lockedPassword;
 
@@ -114,15 +124,13 @@ public class Person {
 	@Column
 	private LocalDateTime expireTimestamp;
 
+	@NotAudited
 	@Column
 	private LocalDateTime lockedPasswordUntil;
 
+	@NotAudited
 	@Column
 	private long badPasswordCount;
-	
-	@Size(max = 255)
-	@Column
-	private String userId;
 
 	@Size(max = 255)
 	@Column
@@ -132,8 +140,13 @@ public class Person {
 	private LocalDateTime nsisPasswordTimestamp;
 
 	@Column
+	private boolean doNotReplicatePassword;
+
+	@Column
 	private String samaccountName;
 
+	// We never assign this field anymore, since we do not use NemId. But persons activated before the changeover to MitId will have a PID set in the database.
+	// So we probably should keep this field to reflect the db.
 	@Column
 	private String nemIdPid;
 
@@ -144,7 +157,18 @@ public class Person {
 	private boolean transferToNemlogin;
 	
 	@Column
+	private boolean cprNameUpdated;
+	
+	@Column
 	private String rid;
+	
+	@Column
+	private String nemloginUserUuid;
+
+	// Important to note that this field is an expiry date, NOT a "when-was-the-password-set"-date which is how nsisPasswordTimestamp works.
+	@NotAudited
+	@Column
+	private LocalDateTime nextPasswordChange;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")
@@ -169,9 +193,23 @@ public class Person {
 	private String nameAlias;
 	
 	@Column
+	private String department;
+	
+	@NotAudited
+	@Column
 	private long dailyPasswordChangeCounter;
+	
+	@Column
+	private String studentPassword;
 
+	@Column
+	private String ean;
+
+	@Column
+	private boolean institutionStudentPasswordAdmin;
+	
 	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
+	@NotAudited
 	@ElementCollection
 	@CollectionTable(name = "persons_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")
@@ -179,46 +217,47 @@ public class Person {
 	private Map<String, String> attributes;
 
 	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
+	@NotAudited
 	@ElementCollection
 	@CollectionTable(name = "persons_kombit_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")
 	@Column(name = "attribute_value")
 	private Map<String, String> kombitAttributes;
 
+	@NotAudited
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
 	private List<PersonGroupMapping> groups;
 
+	@NotAudited
 	@BatchSize(size = 100)
 	@OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "person", orphanRemoval = true)
 	private List<KombitJfr> kombitJfrs;
-	
+
+	@NotAudited
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<CachedMfaClient> mfaClients;
 
+	@NotAudited
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<SchoolRole> schoolRoles;
 
 	public boolean isOnlyLockedByPerson() {
-		return lockedPerson && !lockedAdmin && !lockedDataset && !lockedPassword && !isLockedCivilState() && !lockedExpired;
+		return lockedPerson && !lockedAdmin && !lockedDataset && !isLockedCivilState() && !lockedExpired;
 	}
 	
 	public boolean isLockedByOtherThanPerson() {
-		return lockedAdmin || lockedDataset || lockedPassword || isLockedCivilState() || lockedExpired;
+		return lockedAdmin || lockedDataset || isLockedCivilState() || lockedExpired;
 	}
 
 	public boolean isLocked() {
-		return lockedPerson || lockedAdmin || lockedDataset || lockedPassword || isLockedCivilState() || lockedExpired;
+		return lockedPerson || lockedAdmin || lockedDataset || isLockedCivilState() || lockedExpired;
 	}
 	
 	public boolean isLockedCivilState() {
 		return lockedDead || lockedDisenfranchised;
-	}
-
-	public String getIdentifier() {
-		return getTopLevelDomain().getName().toLowerCase() + ":" + uuid.toLowerCase() + ":" + cpr + ":" + ((samaccountName != null) ? samaccountName.toLowerCase() : "<null>");
 	}
 
 	public boolean hasActivatedNSISUser() {
@@ -229,7 +268,7 @@ public class Person {
 		return supporter != null && supporter.size() > 0;
 	}
 
-	// please read the common on the supporter field
+	// please read the comment on the supporter field
 	public void setSupporter(Supporter supporter) {
 		if (supporter == null) {
 			if (this.supporter != null) {
@@ -243,7 +282,10 @@ public class Person {
 		}
 
 		supporter.setPerson(this);
-
+		if (this.supporter == null) {
+			this.supporter = new ArrayList<>();
+		}
+		
 		this.supporter.clear();
 		this.supporter.add(supporter);
 	}
@@ -256,7 +298,7 @@ public class Person {
 		
 		return null;
 	}
-	
+
 	@JsonIgnore
 	public Domain getTopLevelDomain() {
 		if (domain.getParent() != null) {
@@ -282,5 +324,14 @@ public class Person {
 		}
 		
 		return attributes.get("azureId");
+	}
+	
+	@JsonIgnore
+	public String getAliasWithFallbackToName() {
+		if (StringUtils.hasLength(nameAlias)) {
+			return nameAlias;
+		}
+		
+		return name;
 	}
 }

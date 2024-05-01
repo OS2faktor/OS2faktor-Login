@@ -13,7 +13,7 @@ public class UnlockADAccountRequest {
 	private String userName;
 
 	public UnlockADAccountRequest(Person person) {
-		this.domain = person.getDomain().getName();
+		this.domain = person.getTopLevelDomain().getName();
 		this.userName = person.getSamaccountName();
 	}
 }

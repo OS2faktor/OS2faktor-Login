@@ -1,0 +1,17 @@
+{
+  "domain": "kommune.dk",
+  "entryList": [
+    {
+      "samAccountName": "bsg",
+      "kombitAttributes": {
+        "acadreUuid": "29e7ccba-1ed8-4800-ba00-0000012a0002"
+      }
+    },
+    {
+      "samAccountName": "pso",
+      "kombitAttributes": {
+        "acadreUuid": "c78b3aad-b6d6-43b8-96bc-e7bd6768094f"
+      }
+    }
+  ]
+}

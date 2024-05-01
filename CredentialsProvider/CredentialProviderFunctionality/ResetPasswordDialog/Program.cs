@@ -1,11 +1,7 @@
 ﻿using Microsoft.Win32;
 using Serilog;
 using System;
-using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ResetPasswordDialog
@@ -21,7 +17,7 @@ namespace ResetPasswordDialog
             try
             {
                 // Open up the settings, we need these to run the program so without them it just closes
-                String settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
+                string settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
 
                 using (RegistryKey rootKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
                 {

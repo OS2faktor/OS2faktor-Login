@@ -3,6 +3,7 @@ package dk.digitalidentity.service;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -14,26 +15,29 @@ import java.util.stream.Stream;
 
 import javax.transaction.Transactional;
 
-import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.tinyradius.attribute.IpAttribute;
 import org.tinyradius.attribute.RadiusAttribute;
 import org.tinyradius.packet.AccessRequest;
 import org.tinyradius.packet.RadiusPacket;
 import org.tinyradius.util.RadiusException;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.RadiusClient;
+import dk.digitalidentity.common.dao.model.RadiusClientClaim;
 import dk.digitalidentity.common.dao.model.RadiusClientCondition;
 import dk.digitalidentity.common.dao.model.enums.RadiusClientConditionType;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RadiusClientService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
+import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -44,7 +48,7 @@ public class OS2faktorRadiusService {
 	private MFAService mfaService;
 	
 	@Autowired
-	private LoginService loginService;
+	private PasswordService passwordService;
 	
 	@Autowired
 	private PersonService personService;
@@ -54,6 +58,9 @@ public class OS2faktorRadiusService {
 	
 	@Autowired
 	private AuditLogger auditLogger;
+	
+	@Autowired
+	private AdvancedRuleService advancedRuleService;
 	
 	public String getSharedSecret(InetSocketAddress client) {
 		RadiusClient radiusClient = getRadiusClient(client);
@@ -106,7 +113,8 @@ public class OS2faktorRadiusService {
 				if (conditions == null) {
 					// No conditions set, everybody can use this
 					canBeUsed = true;
-				} else {
+				}
+				else {
 					// Verify WITH_ATTRIBUTE conditional access
 					boolean withAttributeConditionApplies = conditions
 							.stream()
@@ -149,7 +157,7 @@ public class OS2faktorRadiusService {
 
 				if (canBeUsed) {
 					if (radiusClient.getNsisLevelRequired().equalOrLesser(person.getNsisLevel())) {
-						if (PasswordValidationResult.VALID.equals(loginService.validatePassword(password, person))) {
+						if (PasswordValidationResult.VALID.equals(passwordService.validatePasswordNoCacheUnlessADDown(password, person))) {
 	
 							if (!person.isLockedByOtherThanPerson()) {
 	
@@ -245,7 +253,21 @@ public class OS2faktorRadiusService {
 			auditLogger.radiusLoginRequestRejected(person, reasonText);
 		}
 		
-		RadiusPacket answer = new RadiusPacket(type, accessRequest.getPacketIdentifier());
+		// copy claims if available
+		List<RadiusAttribute> attributes = new ArrayList<>();
+		for (RadiusClientClaim claim : radiusClient.getClaims()) {
+			long attributeType = claim.getAttributeId();
+            String attribute = advancedRuleService.lookupField(person, claim.getPersonField());
+            
+            // TODO: make the type configurable
+            if (attribute != null && attributeType > 0) {
+            	IpAttribute radiusAttribute = new IpAttribute((int)attributeType, attribute);
+            	
+                attributes.add(radiusAttribute);
+            }
+		}
+		
+		RadiusPacket answer = new RadiusPacket(type, accessRequest.getPacketIdentifier(), attributes);
 		copyProxyState(accessRequest, answer);
 
 		return answer;

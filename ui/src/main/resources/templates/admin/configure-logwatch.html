@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (checkbox = true)" />
+<head th:replace="fragments/header :: header (checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
@@ -15,11 +15,18 @@
 							</div>
 
 							<div class="ibox-content">
+								<p>
+									Når overvågning af logs er blevet slået til første gang, kan man ikke slå det fra selv. Det samme gælder for den indtastede email.
+								</p>
+								<p>
+									Hvis disse indstillinger skal ændres, skal der tages kontakt til driftoperatøren via <a href="mailto:helpdesk@digital-identity.dk">helpdesk@digital-identity.dk</a>
+								</p>
+
 								<form action="#" th:action="@{/admin/konfiguration/logovervaagning}" method="post" th:object="${settings}">
 									<div class="form-group row">
-										<label class="col-sm-4 col-form-label">Overvåg logs</label>
+										<h4 class="col-sm-4 col-form-label">Overvåg logs</h4>
 										<div class="col-sm-8">
-											<label><input id="enabled" th:field="*{enabled}" type="checkbox" class="i-checks" ></label>
+											<label><input id="enabled" th:field="*{enabled}" type="checkbox" class="i-checks" th:disabled="*{enabled}"></label>
 										</div>
 									</div>
 									
@@ -27,7 +34,15 @@
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Alarm email</label>
 											<div class="col-sm-8">
-												<input th:field="*{alarmEmail}" class="form-control">
+												<input th:field="*{alarmEmail}" th:disabled="${!#strings.isEmpty(settings.alarmEmail)}" class="form-control">
+											</div>
+										</div>
+
+										<h4>Altid slået til:</h4>
+										<div class="form-group row">
+											<label class="col-sm-4 col-form-label">Overvågning af administrator handlinger i selvbetjeningen</label>
+											<div class="col-sm-8">
+												<label><input type="checkbox" class="i-checks" checked="checked" disabled="disabled"></label>
 											</div>
 										</div>
 										
@@ -38,9 +53,23 @@
 												<label><input id="twoCountriesOneHour" th:field="*{twoCountriesOneHourEnabled}" type="checkbox" class="i-checks" ></label>
 											</div>
 										</div>
+
+										<div th:hidden="!*{twoCountriesOneHourEnabled}" class="form-group row" id="twoCountriesGermanyDiv" hidden>
+											<label class="col-sm-4 col-form-label"> &nbsp; - Undlad at overvåge Tyskland</label>
+											<div class="col-sm-8">
+												<label><input id="twoCountriesOneHourGermany" th:field="*{twoCountriesOneHourGermany}" type="checkbox" class="i-checks" ></label>
+											</div>
+										</div>
+										
+										<div th:hidden="!*{twoCountriesOneHourEnabled}" class="form-group row" id="twoCountriesSweedenDiv" hidden>
+											<label class="col-sm-4 col-form-label"> &nbsp; - Undlad at overvåge Sverige</label>
+											<div class="col-sm-8">
+												<label><input id="twoCountriesOneHourSweeden" th:field="*{twoCountriesOneHourSweeden}" type="checkbox" class="i-checks" ></label>
+											</div>
+										</div>
 										
 										<div class="form-group row">
-											<label class="col-sm-4 col-form-label">Mængden af forkerte kodeord overstiger en opsat grænseværdi indenfor sidste time</label>
+											<label class="col-sm-4 col-form-label">Mængden af forkerte kodeord, på tværs af alle brugere, overstiger en opsat grænseværdi indenfor sidste time</label>
 											<div class="col-sm-8">
 												<label><input id="tooManyWrongPasswords" th:field="*{tooManyWrongPasswordsEnabled}" type="checkbox" class="i-checks" ></label>
 											</div>
@@ -68,44 +97,53 @@
 										</div>
 										
 										<div class="form-group row">
-											<label class="col-sm-4 col-form-label">Mængden af brugerkonti der er spærret af en administrator (i dag) overstiger en opsat grænseværdi</label>
-											<div class="col-sm-8">
-												<label><input id="tooManyAccountsLockedByAdminToday" th:field="*{tooManyAccountsLockedByAdminTodayEnabled}" type="checkbox" class="i-checks" ></label>
-											</div>
-										</div>
-										
-										<div th:hidden="!*{tooManyAccountsLockedByAdminTodayEnabled}" class="form-group row" id="tooManyAccountsLockedByAdminTodayDiv" hidden>
-											<label class="col-sm-4 col-form-label">Antal administrator-spærrede konti</label>
-											<div class="col-sm-8">
-												<input th:field="*{tooManyAccountsLockedByAdminTodayLimit}" class="form-control">
-											</div>
-										</div>
-										
-										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">En person erklæres død eller umyndiggjort af cpr registeret</label>
 											<div class="col-sm-8">
 												<label><input id="personDeadOrIncapacitated" th:field="*{personDeadOrIncapacitatedEnabled}" type="checkbox" class="i-checks" ></label>
 											</div>
 										</div>
+
+										<div class="form-group row">
+											<label class="col-sm-4 col-form-label">Mængden af forkerte kodeord fra én IP overstiger opsat grænseværdi</label>
+											<div class="col-sm-8">
+												<label><input id="tooManyWrongPasswordsNonWhitelistEnabled" th:field="*{tooManyWrongPasswordsNonWhitelistEnabled}" type="checkbox" class="i-checks"/></label>
+											</div>
+										</div>
+										
+										<div th:hidden="!*{tooManyWrongPasswordsNonWhitelistEnabled}" class="form-group row" id="tooManyWrongPasswordsNonWhitelistLimitDiv" hidden>
+											<label class="col-sm-4 col-form-label">grænseværdi for forkerte forsøg</label>
+											<div class="col-sm-8">
+												<input type="number" th:field="*{tooManyWrongPasswordsNonWhitelistLimit}" class="form-control">
+											</div>
+										</div>
+										
+										<div th:hidden="!*{tooManyWrongPasswordsNonWhitelistEnabled}" class="form-group row" id="whitelistDiv" hidden>
+											<label class="col-sm-4 col-form-label">Positivliste af ip'er (komma separeret, CIDR tilladt)</label>
+											<div class="col-sm-8">
+												<input th:field="*{whitelist}" class="form-control">
+											</div>
+										</div>
 									</div>
 									
 									<hr/>
-									<button type="submit" class="btn btn-primary block full-width m-b">Gem</button>
-									<button href="/admin" type="button" class="btn btn-danger block full-width m-b">Annuller</button>
+									<div>
+										<button type="submit" class="btn btn-primary block full-width m-b">Gem</button>
+										<a href="/admin" type="button" class="btn btn-danger full-width m-b">Annuller</a>
+									</div>
 								</form>
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.logwatch')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.logwatch')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (checkbox = true)"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -130,22 +168,32 @@
 					$("#enabledDiv").prop("hidden", !$(this).is(":checked"));
 					$("#tooManyWrongPasswords").iCheck('uncheck');
 					$("#tooManyTimeLockedAccounts").iCheck('uncheck');
-					$("#tooManyAccountsLockedByAdminToday").iCheck('uncheck');
 					$("#personDeadOrIncapacitated").iCheck('uncheck');
 					$("#twoCountriesOneHour").iCheck('uncheck');
+					$("#tooManyWrongPasswordsNonWhitelistEnabled").iCheck('uncheck');
 				});
 				
 				$("#tooManyWrongPasswords").on("ifChanged", function() {
 					$("#tooManyWrongPasswordsDiv").prop("hidden", !$(this).is(":checked"));
 				});
+
+				$("#twoCountriesOneHour").on("ifChanged", function() {
+					$("#twoCountriesGermanyDiv").prop("hidden", !$(this).is(":checked"));
+					$("#twoCountriesSweedenDiv").prop("hidden", !$(this).is(":checked"));
+				});
+
+				$("#tooManyWrongPasswordsNonWhitelistEnabled").on("ifChanged", function() {
+					$("#tooManyWrongPasswordsNonWhitelistLimitDiv").prop("hidden",!$(this).is(":checked"));
+				})
+
+				$("#tooManyWrongPasswordsNonWhitelistEnabled").on("ifChanged", function() {
+					$("#whitelistDiv").prop("hidden",!$(this).is(":checked"));
+				})
 				
 				$("#tooManyTimeLockedAccounts").on("ifChanged", function() {
 					$("#tooManyTimeLockedAccountsDiv").prop("hidden", !$(this).is(":checked"));
 				});
-				
-				$("#tooManyAccountsLockedByAdminToday").on("ifChanged", function() {
-					$("#tooManyAccountsLockedByAdminTodayDiv").prop("hidden", !$(this).is(":checked"));
-				});
+
 			}
 		}
 		

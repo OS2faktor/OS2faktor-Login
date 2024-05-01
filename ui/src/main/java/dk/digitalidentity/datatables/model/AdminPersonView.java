@@ -1,6 +1,5 @@
 package dk.digitalidentity.datatables.model;
 
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import java.util.List;
 
 import javax.persistence.Column;
@@ -13,6 +12,7 @@ import javax.persistence.OneToMany;
 
 import org.hibernate.annotations.BatchSize;
 
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -67,7 +67,7 @@ public class AdminPersonView {
 	
 	@Column
 	private String approvedConditions;
-	
+
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
 	private List<PersonGroupView> groups;

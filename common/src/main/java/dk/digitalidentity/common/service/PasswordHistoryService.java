@@ -42,7 +42,7 @@ public class PasswordHistoryService {
         List<PasswordHistory> records = getByPerson(person);
         records.sort(Comparator.comparing(PasswordHistory::getId));
 
-        PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+        PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
         
         // Delete records if we have more than the number configured in settings
         int amountToBeDeleted = records.size() - Math.min(records.size(), settings.getOldPasswordNumber().intValue());

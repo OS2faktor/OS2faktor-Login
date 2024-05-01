@@ -1,5 +1,7 @@
 package dk.digitalidentity.mvc.admin.dto.serviceprovider;
 
+import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
@@ -19,7 +21,11 @@ public class ClaimDTO {
 	private boolean singleValueOnly;
 	private String externalOperation;
 	private String externalOperationArgument;
+	private long groupId;
 
+	// computed, just for showing in the UI
+	private String parameter;
+	
 	public ClaimDTO(SqlServiceProviderRequiredField requiredField) {
 		this.id = requiredField.getId();
 		this.attribute = requiredField.getAttributeName();
@@ -35,8 +41,16 @@ public class ClaimDTO {
 		this.value = staticClaim.getValue();
 		this.singleValueOnly = false;
 
-
 		this.type = ClaimType.STATIC;
+	}
+	
+	public ClaimDTO(SqlServiceProviderAdvancedClaim advancedClaim) {
+		this.id = advancedClaim.getId();
+		this.attribute = advancedClaim.getClaimName();
+		this.value = advancedClaim.getClaimValue();
+		this.singleValueOnly = false;
+
+		this.type = ClaimType.ADVANCED;
 	}
 
 	public ClaimDTO(SqlServiceProviderRoleCatalogueClaim rcClaim) {
@@ -47,6 +61,22 @@ public class ClaimDTO {
 		this.externalOperationArgument = rcClaim.getExternalOperationArgument();
 		this.singleValueOnly = false;
 
+		// ui shown only
+		this.parameter = rcClaim.getExternalOperation().getMessage();
+		
 		this.type = ClaimType.ROLE_CATALOGUE;
+	}
+
+	public ClaimDTO(SqlServiceProviderGroupClaim groupClaim) {
+		this.id = groupClaim.getId();
+		this.attribute = groupClaim.getClaimName();
+		this.value = groupClaim.getClaimValue();
+		this.groupId = groupClaim.getGroup().getId();
+		this.singleValueOnly = false;
+
+		// ui shown only
+		this.parameter = groupClaim.getGroup().getName();
+		
+		this.type = ClaimType.GROUP;
 	}
 }

@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace OS2faktorADSync
 {
-    class Settings
+    public class Settings
     {
         public static int GetIntValue(string key)
         {

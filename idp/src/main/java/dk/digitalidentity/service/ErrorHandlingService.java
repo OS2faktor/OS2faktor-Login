@@ -34,16 +34,18 @@ public class ErrorHandlingService {
 	}
 
 	public ModelAndView modelAndViewError(String location, Model model) {
-		logError(location, null, null);
-		model.addAttribute("location", location);
-		model.addAttribute("timestamp", new LocalDateTime().toString());
-		return new ModelAndView(ERROR_PAGE, model.asMap());
+		return modelAndViewError(location, null, null, model);
 	}
 
 	public ModelAndView modelAndViewError(String location, HttpServletRequest request, String message, Model model) {
+		return modelAndViewError(location, request, message, model, false);
+	}
+
+	public ModelAndView modelAndViewError(String location, HttpServletRequest request, String message, Model model, boolean technicalError) {
 		logError(location, request, message);
 		model.addAttribute("location", location);
 		model.addAttribute("timestamp", new LocalDateTime().toString());
+		model.addAttribute("technicalError", technicalError);
 		return new ModelAndView(ERROR_PAGE, model.asMap());
 	}
 

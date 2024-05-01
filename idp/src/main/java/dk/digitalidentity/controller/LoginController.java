@@ -1,46 +1,45 @@
 package dk.digitalidentity.controller;
 
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import dk.digitalidentity.service.model.enums.PasswordValidationResult;
-import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.messaging.context.SAMLBindingContext;
 import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.StatusCode;
+import org.opensaml.saml.saml2.core.NameID;
+import org.opensaml.saml.saml2.core.Subject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
-import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
-import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
+import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.AuthnRequestHelper;
 import dk.digitalidentity.service.AuthnRequestService;
 import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
+import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.LoginService;
-import dk.digitalidentity.service.OpenSAMLHelperService;
 import dk.digitalidentity.service.SessionHelper;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.service.validation.AuthnRequestValidationService;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
@@ -66,6 +65,9 @@ public class LoginController {
 
 	@Autowired
 	private AuthnRequestValidationService authnRequestValidationService;
+	
+    @Autowired
+    private SqlServiceProviderConfigurationService sqlServiceProviderConfigurationService;
 
 	@Autowired
 	private LoggingUtil loggingUtil;
@@ -74,35 +76,20 @@ public class LoginController {
 	private SessionHelper sessionHelper;
 
 	@Autowired
-	private ServiceProviderFactory serviceProviderFactory;
+	private LoginService loginService;
 
 	@Autowired
-	private LoginService loginService;
+	private FlowService flowService;
 
 	@Autowired
 	private PersonService personService;
 
-	@Autowired
-	private AuditLogger auditLogger;
-
-	@Autowired
-	private OpenSAMLHelperService samlHelper;
-
-	@Autowired
-	private TemporaryClientSessionKeyService temporaryClientSessionKeyService;
-
-	@Autowired
-	private CommonConfiguration commonConfiguration;
-
-	@GetMapping("/sso/saml/login")
+	@RequestMapping(value = "/sso/saml/login", method = { POST, GET } )
 	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");
 			return new ModelAndView("redirect:/");
 		}
-
-		// Clear any flow states in session so user does not end up in a bad state with a new AuthnRequest
-		sessionHelper.clearFlowStates();
 
 		// If no SAMLRequest is present, we cannot decode the message for obvious reasons
 		if (!StringUtils.hasLength(httpServletRequest.getParameter("SAMLRequest"))) {
@@ -117,6 +104,7 @@ public class LoginController {
 		}
 		catch (RequesterException ex) {
 			// note!
+			// Also checks for POST methods now.
 			// I've added a hack to HttpRedirectDeflateDecoder so it attempts normal parsing first, and if it fails,
 			// it will try to detect spaces in the payload, and if they exist, it will replace them with + signs,
 			// and attempt once more - if we update OpenSAML, we need to port that fix
@@ -128,12 +116,16 @@ public class LoginController {
 			return errorHandlingService.modelAndViewError("/sso/saml/login", httpServletRequest, "Could not Decode messageContext", model);
 		}
 
+		// Extract AuthnRequest from message
 		AuthnRequest authnRequest = authnRequestService.getAuthnRequest(messageContext);
 		if (authnRequest == null) {
 			log.warn("No authnRequest found in request");
 			return new ModelAndView("redirect:/");
 		}
-
+		
+		// At this point we have a authnRequest,
+		// so if we encounter any errors we will return them to the SP
+		// instead of just displaying an error page on the IdP
 		try {
 			loggingUtil.logAuthnRequest(authnRequest, Constants.INCOMING);
 
@@ -142,137 +134,107 @@ public class LoginController {
 			SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
 			String relayState = subcontext != null ? subcontext.getRelayState() : null;
 
-			sessionHelper.saveIncomingAuthnRequest(authnRequest, relayState);
+			sessionHelper.setRequestedUsername(getRequestedUsername(authnRequest));
 
-			boolean valid = sessionHelper.handleValidateIP();
+			LoginRequest loginRequest = new LoginRequest(authnRequest, httpServletRequest.getHeader("User-Agent"));
+			loginRequest.setRelayState(relayState);
 
-			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
-			auditLogger.authnRequest(sessionHelper.getPerson(), samlHelper.prettyPrint(authnRequest), serviceProvider.getName(authnRequest));
-			NSISLevel loginState = sessionHelper.getLoginState();
-
-			// a ServiceProvider can be configured to just proxy straight to NemLog-in, skipping the build-in IdP login mechanisms.
-			// In this case we will always just forward the request, and ignore any existing sessions, as NemLog-in is required here
-			// Start login flow against NemLog-in no matter the session
-			if (commonConfiguration.getNemlogin().isBrokerEnabled() && serviceProvider.nemLogInBrokerEnabled()) {
-				sessionHelper.setInNemLogInBrokerFlow(true);
-				return new ModelAndView("redirect:/nemlogin/saml/login");
-			}
-
-			// if forceAuthn and MFA required we need to force a new MFA auth
-			if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
-				sessionHelper.setMFALevel(null);
-			}
-
-			// if forceAuthn is required,
-			// you're not logged in,
-			// or you're accessing the service from a new ip regardless of previous authentication
-			// you will be asked login
-			if (authnRequest.isForceAuthn() || loginState == null || !valid) {
-				if (authnRequest.isPassive()) {
-					throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
-				}
-				return loginService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
-			}
-
-			// TODO: what happens if person is null?
-			Person person = sessionHelper.getPerson();
-
-			// if the SP requires NSIS LOW or above, extra checks required
-			if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-				// is user even allowed to login to NSIS applications
-				if (!person.isNsisAllowed()) {
-					throw new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
-				}
-
-				// has the user approved conditions?
-				if (loginService.requireApproveConditions(person)) {
-					if (authnRequest.isPassive()) {
-						throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
-					}
-					else {
-						return loginService.initiateApproveConditions(model);
-					}
-				}
-
-				// has the user activated their NSIS User?
-				if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-					if (!authnRequest.isPassive()) {
-						return loginService.initiateActivateNSISAccount(model);
-					}
-				}
-			}
-
-			// for non-selfservice service providers we have additional constraints
-			if (person.isLockedByOtherThanPerson()) {
-				if (authnRequest.isPassive()) {
-					throw new ResponderException("Kunne ikke gennemføre passivt login da brugerens konto er låst");
-				}
-				else {
-					return new ModelAndView(PersonService.getCorrectLockedPage(person));
-				}
-			}
-
-			return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+			return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest);
 		}
-		catch (RequesterException ex) {
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
-		}
-		catch (ResponderException ex) {
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, ex);
+		catch (RequesterException | ResponderException | SecurityException ex) {
+
+			// special case - the signature might be invalid, so we will trigger a refresh of metadata, in case that is the issue (new certificate)
+			if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("signatur")) {
+				try {
+					SqlServiceProviderConfiguration sqlServiceProviderConfiguration = sqlServiceProviderConfigurationService.getByEntityId(authnRequest.getIssuer().getValue());
+					LocalDateTime nextRefresh = sqlServiceProviderConfiguration.getManualReloadTimestamp();
+
+					if (nextRefresh == null || LocalDateTime.now().minusMinutes(5).isAfter(nextRefresh)) {
+						sqlServiceProviderConfiguration.setManualReloadTimestamp(LocalDateTime.now());
+						sqlServiceProviderConfigurationService.save(sqlServiceProviderConfiguration);
+					}
+				}
+				catch (Exception ignored) {
+					;
+				}
+			}
+
+			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex);
 		}
 
 		// we return a SAML Response with an error message instead
 		return null;
 	}
 
-	@PostMapping(value = "/sso/saml/login")
+	private String getRequestedUsername(AuthnRequest authnRequest) {
+		Subject subject = authnRequest.getSubject();
+		if (subject != null) {
+			NameID nameID = subject.getNameID();
+			if (nameID != null) {
+				String requestedUsername = nameID.getValue();
+				if (StringUtils.hasLength(requestedUsername)) {
+					return requestedUsername;
+				}
+			}
+		}
+		return null;
+	}
+
+	@PostMapping(value = "/sso/login")
 	public ModelAndView login(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
-		// Get post data
+		// get post data
 		String username = body.get("username");
 		String password = body.get("password");
 
-		// Get potential people based on username
+		// get potential people based on username
 		List<Person> people = loginService.getPeople(username);
 
-		// If no match go back to login page
-		if (people == null || people.size() == 0) {
+		// persons locked by 3rd party (municipality, admin or cpr) are filtered out
+		people = people.stream()
+				.filter(p -> !(p.isLockedAdmin() || p.isLockedCivilState() || p.isLockedDataset()))
+				.collect(Collectors.toList());
+
+		// if no match go back to login page
+		if (people.size() == 0) {
 			return loginService.initiateLogin(model, httpServletRequest, false, true, username);
 		}
 
-		// If more than one match go to select user page
+		// if more than one match go to select user page
 		if (people.size() != 1) {
 			sessionHelper.setPassword(password);
-			return loginService.initiateUserSelect(model, people);
+			
+			return flowService.initiateUserSelect(model, people, null, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
 		}
 
-		// If only one match continue login flow
+		// if only one match continue login flow
 		Person person = people.get(0);
-		return continueLoginFlow(person, username, password, sessionHelper.getAuthnRequest(), httpServletRequest, httpServletResponse, model);
+		return loginService.continueLoginFlow(person, username, password, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse, model);
 	}
 
 	// Hitting this endpoint is not intended, but if a user does it is likely due to hitting the back button in the login flow.
 	// If the person logging in picked the wrong user and pressed back, they
 	@GetMapping(value = "/sso/saml/login/multiple/accounts")
 	public ModelAndView altLoginGet(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
-
 		// Sanity checks, Has the user been through multiple account select in session, is the selected person one of the available people?
 		List<Person> availablePeople = sessionHelper.getAvailablePeople();
 		Person person = sessionHelper.getPerson();
 
 		if (availablePeople != null && !availablePeople.isEmpty() && person != null && availablePeople.contains(person)) {
-			return loginService.initiateUserSelect(model, availablePeople);
+			return flowService.initiateUserSelect(model, availablePeople, null, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
 		}
 		else {
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			RequesterException ex = new RequesterException("Tilgik '/sso/saml/login/multiple/accounts'. Sessionen var ikke korrekt, kunne ikke fortsætte login. Prøv igen.");
 
-			if (authnRequest != null) {
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+			if (loginRequest != null) {
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 				return null;
 			}
-			else {
+			else {				
+				ModelAndView view = errorHandlingService.modelAndViewError("/sso/saml/login/multiple/accounts", model);
 				sessionHelper.invalidateSession();
-				throw ex;
+
+				return view;
 			}
 		}
 	}
@@ -293,17 +255,17 @@ public class LoginController {
 			}
 		}
 
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 
 		// If person has not been determined after the user posted their selected user,
 		// something is wrong, we use AuthnRequest to send an error back to the SP otherwise we just log a warning
 		if (person == null) {
-			if (authnRequest == null) {
+			if (loginRequest == null) {
 				log.warn("No person on session for login with multiple accounts with chosen ID = " + id);
 				return new ModelAndView("redirect:/");
 			}
 
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException("Person prøvede at logge ind med bruger som de ikke havde adgang til"));
+			errorResponseService.sendError(httpServletResponse, loginRequest, new RequesterException("Person prøvede at logge ind med bruger som de ikke havde adgang til"));
 			return null;
 		}
 
@@ -312,7 +274,14 @@ public class LoginController {
 		// if person is in process of logging in with NemId or MitId
 		if (sessionHelper.isInNemIdOrMitIDAuthenticationFlow()) {
 			sessionHelper.setPerson(person);
-			return loginService.continueLoginWithMitIdOrNemId(person, sessionHelper.getNemIDMitIDNSISLevel(), authnRequest, httpServletRequest, httpServletResponse, model);
+			
+			try {
+				return loginService.continueLoginWithMitIdOrNemId(person, sessionHelper.getNemIDMitIDNSISLevel(), loginRequest, httpServletRequest, httpServletResponse, model);
+			}
+			catch (RequesterException | ResponderException ex) {
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
+				return null;
+			}
 		}
 
 		// if person is in process of changing password
@@ -320,272 +289,89 @@ public class LoginController {
 			sessionHelper.setPerson(person);
 			try {
 				// if the person has not approved the conditions then do that first
-				if (loginService.requireApproveConditions(person)) {
+				if (personService.requireApproveConditions(person)) {
 					sessionHelper.setInChangePasswordFlowAndHasNotApprovedConditions(true);
-					return loginService.initiateApproveConditions(model);
+					return flowService.initiateApproveConditions(model);
 				}
 
 				// if the user is allowed to activate their NSIS account an have not done so,
 				// we should prompt first since they will not set their NSIS password without activating first
 				if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-					return loginService.initiateActivateNSISAccount(model, true);
+					return flowService.initiateActivateNSISAccount(model, true);
 				}
 
-				return loginService.continueChangePassword(model);
+				return flowService.continueChangePassword(model);
 			}
 			catch (RequesterException ex) {
-				if (authnRequest == null) {
+				if (loginRequest == null) {
 					log.error("Error occured during password change with multiple persons with chosen personId = " + id, ex);
-					
+
 					// TODO: do something better than redirect to front-page, they are attempting to change password, so what to tell them?
 					return new ModelAndView("redirect:/");
 				}
 
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 			}
-			
+
 			return null;
 		}
 
 		// The user did not access the multi-user select from any other flow, so we continue with login
-		return continueLoginFlow(person, null, sessionHelper.getPassword(), authnRequest, httpServletRequest, httpServletResponse, model);
+		return loginService.continueLoginFlow(person, null, sessionHelper.getPassword(), loginRequest, httpServletRequest, httpServletResponse, model);
 	}
 
 	@GetMapping("/sso/saml/login/nemid")
 	public ModelAndView nemIdOnly(HttpServletRequest httpServletRequest, Model model) {
-		return loginService.initiateNemIDOnlyLogin(model, httpServletRequest, null);
+		return flowService.initiateNemIDOnlyLogin(model, httpServletRequest, null);
 	}
 
 	@GetMapping("/sso/saml/login/forceChangePassword/continueLogin")
 	public ModelAndView continueLoginAfterForceChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
+			log.warn("No loginRequest found on session");
 			return new ModelAndView("redirect:/");
 		}
 
-		if (!sessionHelper.isInForceChangePasswordFlow()) {
-			sessionHelper.clearSession();
-			RequesterException ex = new RequesterException("Bruger tilgik en url de ikke havde adgang til, prøv igen");
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
-			return null;
+		try {
+			return loginService.continueLoginAfterForceChangePassword(httpServletRequest, httpServletResponse, model);
+		}
+		catch (RequesterException | ResponderException ex) {
+			errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 		}
 
-		sessionHelper.setInForceChangePasswordFlow(false); // allows only onetime access
-
-		Person person = sessionHelper.getPerson();
-
-		// Check if locked
-		if (person.isLockedByOtherThanPerson()) {
-			return new ModelAndView(PersonService.getCorrectLockedPage(person));
-		}
-
-		// Has the user approved conditions?
-		if (loginService.requireApproveConditions(person)) {
-			return loginService.initiateApproveConditions(model);
-		}
-
-		// Has the user activated their NSIS User?
-		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-			return loginService.initiateActivateNSISAccount(model);
-		}
-
-		// Reaching this endpoint the person have already authenticated with their manually activated password or NemID
-		// so we just continue login flow from here
-		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+		return null;
 	}
 
 	@GetMapping("/sso/saml/login/continueLogin")
 	public ModelAndView continueLoginWithoutChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
+			log.warn("No loginRequest found on session");
 			return new ModelAndView("redirect:/");
 		}
 
-		if (!sessionHelper.isInPasswordExpiryFlow()) {
-			sessionHelper.clearSession();
-			RequesterException ex = new RequesterException("Bruger tilgik en url de ikke havde adgang til, prøv igen");
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, ex);
-			return null;
+		try {
+			return loginService.continueLoginChangePasswordDeclined(httpServletRequest, httpServletResponse, model);
+		}
+		catch (RequesterException | ResponderException ex) {
+			errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 		}
 
-		Person person = sessionHelper.getPerson();
-		if (person == null) {
-			// it seems weird to ever get here without a person on the session, but the endpoint can be accessed directly,
-			// so a NPE could be thrown if we do not check for null here.
-			log.warn("No person found on session");
-			return new ModelAndView("redirect:/");
-		}
-
-		sessionHelper.setInPasswordExpiryFlow(false);
-
-		// Check if locked
-		if (person.isLockedByOtherThanPerson()) {
-			return new ModelAndView(PersonService.getCorrectLockedPage(person));
-		}
-
-		// Has the user approved conditions?
-		if (loginService.requireApproveConditions(person)) {
-			return loginService.initiateApproveConditions(model);
-		}
-
-		// Has the user activated their NSIS User?
-		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-			return loginService.initiateActivateNSISAccount(model);
-		}
-
-		// Check password
-		String password = sessionHelper.getPassword();
-		sessionHelper.setPassword(null);
-
-		if (!PasswordValidationResult.VALID.equals(loginService.validatePassword(password, person))) {
-			if (person.isLockedByOtherThanPerson()) {
-				return new ModelAndView(PersonService.getCorrectLockedPage(person));
-			}
-			else {
-				return loginService.initiateLogin(model, httpServletRequest, false, true, "");
-			}
-		}
-
-		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+		return null;
 	}
 
 	@GetMapping("/sso/saml/login/cancel")
 	public String cancelLogin(HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
+			log.warn("No loginRequest found on session");
 			return "redirect:/";
 		}
 
 		ResponderException ex = new ResponderException("Brugeren afbrød login flowet");
-		errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, ex, false, true);
+		errorResponseService.sendError(httpServletResponse, loginRequest, ex, false, true);
 		return null;
-	}
-
-	@GetMapping("/sso/saml/client/login")
-	public String continueClientLogin(@RequestParam("sessionKey") String sessionKey) {
-		// No real reason to have meaningful error messages on this endpoint.
-		// It is only hit by headless programs running to establish sessions for users using the windows login credential provider
-
-		if (sessionKey == null || !StringUtils.hasLength(sessionKey)) {
-			return "redirect:/error";
-		}
-
-		TemporaryClientSessionKey temporaryClient = temporaryClientSessionKeyService.getBySessionKey(sessionKey);
-		if (temporaryClient == null) {
-			log.warn("Could not find temporaryClient");
-			return "redirect:/error";
-		}
-
-		// The temporaryClient should have been created at most 5 minutes before calling this endpoint
-		if (LocalDateTime.now().minusMinutes(5).isAfter(temporaryClient.getTts())) {
-			log.warn("Client asked for session using expired key");
-			return "redirect:/error";
-		}
-
-		// Everything checks out and we can set the person and the nsislevel on the session.
-		// Note this will not lower their level if they have already established a higher NSIS level.
-		log.debug("Windows client token exchanged for session for personID: " + temporaryClient.getPerson().getId());
-		sessionHelper.setPasswordLevel(temporaryClient.getNsisLevel());
-		sessionHelper.setAuthnInstant(DateTime.now());
-		sessionHelper.setPerson(temporaryClient.getPerson());
-
-		return "redirect:/";
-	}
-
-	private ModelAndView continueLoginFlow(Person person, String username, String password, AuthnRequest authnRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
-		// Check that AuthnRequest is present and fetch the ServiceProvider by the AuthnRequest
-		// 	This check is done before validating password, Fetching the service provider can fail because the SP is not supported
-		// 	This error would not give any information about the user that is in the process of login.
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
-			return new ModelAndView("redirect:/");
-		}
-		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
-
-		// Check password
-		switch (loginService.validatePassword(password, person)) {
-			case VALID:
-				personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false);
-				break;
-			case VALID_EXPIRED:
-				personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), true);
-				break;
-			case INVALID:
-				// Password was invalid, so we check if they have not locked themselves out of their account,
-				// otherwise we just return them to the login prompt
-				if (person.isLocked()) {
-					return new ModelAndView(PersonService.getCorrectLockedPage(person));
-				}
-				else {
-					return loginService.initiateLogin(model, httpServletRequest, false, true, (username != null ? username : ""));
-				}
-		}
-
-		// Remember the person on session since we now know who they are confirmed by username/password
-		sessionHelper.setPerson(person);
-
-		// In both Valid and Expired we check if we should initiate a password expired prompt
-		// since we start prompting the user to change their password 7 days before we force them to do so
-		ModelAndView modelAndView = loginService.initiatePasswordExpired(person, model);
-		if (modelAndView != null) {
-			sessionHelper.setInPasswordExpiryFlow(true);
-			sessionHelper.setPassword(password);
-			return modelAndView;
-		}
-
-		// Check if the person meets the requirements of the ServiceProvider specified in the AuthnRequest
-		RequirementCheckResult meetsRequirementsResult = serviceProvider.personMeetsRequirements(person);
-		if (!RequirementCheckResult.OK.equals(meetsRequirementsResult)) {
-			auditLogger.loginRejectedByConditions(person, meetsRequirementsResult);
-			ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke opfylder kravene til denne tjenesteudbyder");
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
-			return null;
-		}
-
-		// If we have to re-authenticate MFA: Instead of starting MFA we clear any previous MFA Level,
-		// and let login service handle mfa since it chooses between multiple options
-		if (authnRequest.isForceAuthn() && serviceProvider.mfaRequired(authnRequest)) {
-			sessionHelper.setMFALevel(null);
-		}
-
-		// Check if locked
-		if (person.isLockedByOtherThanPerson()) {
-			return new ModelAndView(PersonService.getCorrectLockedPage(person));
-		}
-
-		// If the SP requires NSIS LOW or above, extra checks required
-		if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(authnRequest))) {
-			if (!person.isNsisAllowed()) {
-				ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
-				errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, e);
-				return null;
-			}
-
-			// Has the user approved conditions?
-			if (loginService.requireApproveConditions(person)) {
-				return loginService.initiateApproveConditions(model);
-			}
-
-			// Has the user activated their NSIS User?
-			if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-				if (sessionHelper.isAuthenticatedWithADPassword()) {
-					sessionHelper.setPassword(password);
-				}
-				return loginService.initiateActivateNSISAccount(model);
-			}
-		}
-
-		// If a person was manually activated, after successful password login they must change their password
-		ModelAndView forceChangePassword = loginService.initiateForceChangePassword(person, model);
-		if (forceChangePassword != null) {
-			sessionHelper.setInForceChangePasswordFlow(true);
-			return forceChangePassword;
-		}
-
-		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
 	}
 
     private String getIpAddress(HttpServletRequest request) {

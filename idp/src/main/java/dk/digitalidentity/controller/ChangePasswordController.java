@@ -5,6 +5,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
+import java.util.Objects;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -13,6 +14,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
 
+import dk.digitalidentity.service.PasswordService;
+import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -29,7 +32,6 @@ import org.springframework.web.servlet.ModelAndView;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
@@ -39,7 +41,7 @@ import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStat
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.controller.validator.PasswordChangeValidator;
 import dk.digitalidentity.service.ErrorResponseService;
-import dk.digitalidentity.service.LoginService;
+import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.util.RequesterException;
@@ -50,14 +52,11 @@ import lombok.extern.slf4j.Slf4j;
 @Controller
 public class ChangePasswordController {
 
-	@Autowired
-	private AuditLogger auditLogger;
-
     @Autowired
     private SessionHelper sessionHelper;
 
-    @Autowired
-    private LoginService loginService;
+	@Autowired
+	private FlowService flowService;
 
     @Autowired
     private PersonService personService;
@@ -70,6 +69,9 @@ public class ChangePasswordController {
 
     @Autowired
     private ErrorResponseService errorResponseService;
+
+	@Autowired
+	private PasswordService passwordService;
 
     @InitBinder("passwordForm")
     public void initClientBinder(WebDataBinder binder) {
@@ -84,10 +86,10 @@ public class ChangePasswordController {
         // if there is no person on the session initiate login
         Person person = sessionHelper.getPerson();
         if (person == null) {
-            return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, null);
+            return flowService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, null);
         }
 
-        return loginService.continueChoosePasswordResetOrUnlockAccount(model);
+        return flowService.continueChoosePasswordResetOrUnlockAccount(model);
     }
 
     @GetMapping("/sso/saml/changepassword")
@@ -97,25 +99,24 @@ public class ChangePasswordController {
 
         // show NemId login form
         sessionHelper.setInPasswordChangeFlow(true);
-        sessionHelper.setPassword(null); // This will allow you to change password on any of your users regardless of which you're currently logged in with
 
         // if there is no person on the session initiate login
         Person person = sessionHelper.getPerson();
         if (person == null || sessionHelper.hasNSISUserAndLoggedInWithNSISNone()) {
-            return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, errCode);
+            return flowService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD, errCode);
         }
         
         // if the person has not approved the conditions then do that first
-		if (loginService.requireApproveConditions(person)) {
+		if (personService.requireApproveConditions(person)) {
 			sessionHelper.setInChangePasswordFlowAndHasNotApprovedConditions(true);
-			return loginService.initiateApproveConditions(model);
+			return flowService.initiateApproveConditions(model);
 		}
 
 		// if the user is allowed to activate their NSIS account and have not done so yet,
 		// we should prompt first since they will not set their NSIS password without activating first
 		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
 			// TODO: infinite loop?
-			return loginService.initiateActivateNSISAccount(model, true);
+			return flowService.initiateActivateNSISAccount(model, true);
 		}
 		
 		if (isInCanNotChangePasswordGroup(person)) {
@@ -131,25 +132,30 @@ public class ChangePasswordController {
         // continue change password logic
         try {
             if (isAllowedChangePassword(person)) {
-                return loginService.continueChangePassword(model);
+                return flowService.continueChangePassword(model);
             }
         }
         catch (RequesterException e) {
-            ResponderException ex = new ResponderException("Fejl opstået ved skift kodeord");
-            errorResponseService.sendResponderError(response, sessionHelper.getAuthnRequest(), ex);
+            errorResponseService.sendError(response, sessionHelper.getLoginRequest(), new ResponderException("Fejl opstået ved skift kodeord"));
             return null;
         }
 
+        // let's prevent students from ever being send to NemLog-in - better to show an error
+        if (personService.isStudent(person)) {
+            errorResponseService.sendError(response, sessionHelper.getLoginRequest(), new ResponderException("Ikke muligt at skifte kodeord på studerende"));
+            return null;
+        }
+        
         // Reach here if we have a person on the session but they are not logged in to the correct level
-        return loginService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD);
+        return flowService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.CHANGE_PASSWORD);
     }
 
     @PostMapping("/sso/saml/changepassword")
     public ModelAndView changePasswordPost(HttpServletResponse response, Model model, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult) throws ResponderException, RequesterException {
         if (!sessionHelper.isInPasswordChangeFlow()) {
-        	if (sessionHelper.getAuthnRequest() != null) {
+        	if (sessionHelper.getLoginRequest() != null) {
 	            ResponderException ex = new ResponderException("Fejl opstået ved skift kodeord, prøvede at ændre kodeord uden at være i skift kodeord flow");
-	            errorResponseService.sendResponderError(response, sessionHelper.getAuthnRequest(), ex);
+	            errorResponseService.sendError(response, sessionHelper.getLoginRequest(), ex);
 	            return null;
         	}
 
@@ -206,36 +212,49 @@ public class ChangePasswordController {
         if (bindingResult.hasErrors()) {
             ChangePasswordResult reason = sessionHelper.getPasswordChangeFailureReason();
             if (reason != null && !reason.equals(ChangePasswordResult.OK)) {
-            	auditLogger.changePasswordFailed(person, reason.getMessage());
             	sessionHelper.setPasswordChangeFailureReason(null);	
             }
 
-            return loginService.continueChangePassword(model, form);
+            return flowService.continueChangePassword(model, form);
         }
 
         try {
-            ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword(), false);
-            if (ADPasswordResponse.isCritical(adPasswordStatus)) {
-            	model.addAttribute("technicalError", true);
+			ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword());
+			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
+				if (adPasswordStatus.equals(ADPasswordStatus.INSUFFICIENT_PERMISSION)) {
+					model.addAttribute("insufficientPermission", true);
+				}
+				else {
+					model.addAttribute("technicalError", true);
+				}
 
-                return loginService.continueChangePassword(model, form);
-            }
+				return flowService.continueChangePassword(model, form);
+			}
 
-            // Save encrypted password on session (for use in password expiry flow)
+            // save encrypted password on session (for use in password expiry flow)
             sessionHelper.setPassword(form.getPassword());
+            
+            // no longer in change password flow
+            sessionHelper.setInPasswordChangeFlow(false);
 
-			// if activation is initiated
+			// if activation is initiated, hijack flow and send them to the completed page
 			if (sessionHelper.isInDedicatedActivateAccountFlow()) {
 				sessionHelper.setInDedicatedActivateAccountFlow(false);
 				model.addAttribute("username", PersonService.getUsername(person));
+				model.addAttribute("linkToSelfservice", true);
 
 				return new ModelAndView("activateAccount/activation-completed", model.asMap());
 			}
-            
-            // Show success page
+
+            // if this is not part of a login flow - then wipe the session (otherwise users might access change-password, and
+            // then just leave the browser afterwards, and we don't want then to stay logged in in that case
 			redirectUrl = sessionHelper.getPasswordChangeSuccessRedirect();
+			if (!Objects.equals("/sso/saml/login/continueLogin", redirectUrl) || sessionHelper.getLoginRequest() == null) {
+				sessionHelper.clearSession(false);
+			}
+
+            // show success page
 			model.addAttribute("redirectUrl", redirectUrl);
-            sessionHelper.setInPasswordChangeFlow(false);
 
             return new ModelAndView("changePassword/change-password-success", model.asMap());
         }
@@ -264,28 +283,59 @@ public class ChangePasswordController {
 	}
 
     private boolean isAllowedChangePassword(Person person) {
-        // Instead of using the computed NSIS level,
-        // we check these two levels since it allows someone who is not NSIS SUBSTANTIAL on their person
-        // to change password if they have already logged in with NemID
-        NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
+
+    	// if the user has logged in using an MFA device (including MitID) with NSIS level substantial,
+    	// they are always allowed to change password
         NSISLevel mfaLevel = sessionHelper.getMFALevel();
-
-        // If the person is allowed an nsis account we require Substantial to change their password
-        if (person.isNsisAllowed() && NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) && NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
-            return true;
+        if (NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
+        	return true;
         }
+        
+        // if we are forcing a password change, they are allowed to change the password if the
+    	// previously set password on the session is still valid (i.e. the ordinary change password case).
+    	// note that these cases only work for users with a registered password, and hence an NSIS account
+		if (sessionHelper.isInForceChangePasswordFlow() || sessionHelper.isInPasswordExpiryFlow()) {
+			String password = sessionHelper.getPassword();
 
-        // If the person is not allowed an nsis account we only require that hey are logged in and have used an MFA device
-        if (!person.isNsisAllowed() && NSISLevel.NONE.equalOrLesser(passwordLevel) && NSISLevel.NONE.equalOrLesser(mfaLevel)) {
-            return true;
-        }
+			if (StringUtils.hasLength(password)) {
+				PasswordValidationResult passwordValidationResult = null;
 
+				if (personService.isStudent(person)) {
+					// for standalone setup we validate against the studentPassword field, otherwise we validate against AD
+					// before performing the password change
+					passwordValidationResult = passwordService.validatePassword(password, person);
+				}
+				else if (!person.isNsisAllowed()) {
+					// verify session password, including validation against AD if available
+					passwordValidationResult = passwordService.validatePassword(password, person);					
+				}
+				else {
+					// no fallback to AD, this needs to be a validation against the NSIS password
+					passwordValidationResult = passwordService.validatePasswordNoAD(password, person);
+				}
+
+				switch (passwordValidationResult) {
+					case VALID:
+					case VALID_EXPIRED:
+						return true;
+					case VALID_CACHE: // no cache check, as that is AD
+					case INVALID:
+					case LOCKED:
+					case TECHNICAL_ERROR:
+						return false;
+					default:
+						throw new IllegalStateException("Unexpected value: " + passwordValidationResult);
+				}
+			}
+		}
+
+		// nope - do some MitID stuff to change your password
         return false;
     }
 
 	// check if a group of people who can not change password is set and if the person is member of it
     private boolean isInCanNotChangePasswordGroup(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+    	PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
     	if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(person, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
     		return true;
         }
@@ -295,7 +345,7 @@ public class ChangePasswordController {
     
 	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded    
     private boolean changedPasswordTooManyTimes(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+    	PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
     	if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
     		return true;
         }

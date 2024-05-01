@@ -22,6 +22,7 @@ import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
@@ -46,13 +47,13 @@ public class SecurityUtil {
 	private HttpServletRequest request;
 
 	@Autowired
-	private OS2faktorConfiguration configuration;
-
-	@Autowired
 	private PersonService personService;
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private OS2faktorConfiguration os2faktorConfiguration;
 	
 	/**
 	 * returns true if a person is currently logged in
@@ -245,8 +246,12 @@ public class SecurityUtil {
 		tokenUser.getAttributes().put(IS_WITHOUT_USER, (hasActivatedNsisAccount == false));
 		tokenUser.getAttributes().put(IS_UNLOCKED, (isLocked == false));
 
+		boolean kodeviserEnabled = commonConfiguration.getMfa().getEnabledClients().contains(ClientType.TOTPH.toString());
+		boolean passwordResetEnabled = os2faktorConfiguration.getAdminFeatures().isPasswordResetEnabled();
+		
 		List<SamlGrantedAuthority> authorities = new ArrayList<>();
-
+		authorities.add(new SamlGrantedAuthority(Constants.ROLE_EMPLOYEE));
+		
 		// if the user it not locked, and the user has an activated NSIS account, and login occurred at Substantial or better, allow admin access
 		if (hasActivatedNsisAccount && isLocked == false && NSISLevel.SUBSTANTIAL.equalOrLesser(nsisLevel)) {
 			if (person.isAdmin()) {
@@ -254,13 +259,23 @@ public class SecurityUtil {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SERVICE_PROVIDER_ADMIN));
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_USER_ADMIN));
-	
-				if (configuration.getCoreData().isEnabled()) {
-					authorities.add(new SamlGrantedAuthority(Constants.ROLE_COREDATA_EDITOR));
+				
+				if (kodeviserEnabled) {
+					authorities.add(new SamlGrantedAuthority(Constants.ROLE_KODEVISER_ADMIN));
 				}
 			}
-			else if (person.isSupporter()) {
+
+			if (person.isPasswordResetAdmin() && passwordResetEnabled) {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_PASSWORD_RESET_ADMIN));
+			}
+			
+			if (person.isSupporter()) {
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_SUPPORTER));
+			}
+
+			if (person.isKodeviserAdmin() && kodeviserEnabled) {
+				authorities.add(new SamlGrantedAuthority(Constants.ROLE_KODEVISER_ADMIN));
 			}
 
 			if (commonConfiguration.getCustomer().isEnableRegistrant() && person.isRegistrant()) {
@@ -283,6 +298,10 @@ public class SecurityUtil {
 
 		tokenUser.setAuthorities(authorities);
 		
+		updateCache(tokenUser, authorities);
+	}
+
+	public void updateCache(TokenUser tokenUser, List<SamlGrantedAuthority> authorities) {
 		// so spring really likes caching this object, so we need to make sure Spring knows about the new version
 		if (SecurityContextHolder.getContext() != null &&
 			SecurityContextHolder.getContext().getAuthentication() != null &&
@@ -346,19 +365,6 @@ public class SecurityUtil {
 		return false;
 	}
 
-	public String getNemIdPid() {
-		TokenUser tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
-
-		Map<String, Object> attributes = tokenUser.getAttributes();
-		if (attributes != null) {
-			String nemIDPid = (String) attributes.get("NemIDPid");
-			if (StringUtils.hasLength(nemIDPid)) {
-				return nemIDPid;
-			}
-		}
-		return null;
-	}
-
 	public NSISLevel getAuthenticationAssuranceLevel() {
 		return getAuthenticationAssuranceLevel(null);
 	}
@@ -394,7 +400,7 @@ public class SecurityUtil {
 			String loaString = (String) attributes.get(LEVEL_OF_ASSURANCE);
 
 			if (StringUtils.hasLength(loaString)) {
-				// should really make these conform to eachother, so we don't need this check
+				// should really make these conform to each other, so we don't need this check
 				if ("INGEN".equalsIgnoreCase(loaString)) {
 					loaString = "NONE";
 				}
@@ -425,5 +431,13 @@ public class SecurityUtil {
 		}
 		
 		return res;
+	}
+
+	public String getCpr() {
+		if (!isAuthenticated()) {
+			return null;
+		}
+
+		return (String) getTokenUser().getAttributes().getOrDefault(Constants.CPR_ATTRIBUTE_KEY, null);
 	}
 }

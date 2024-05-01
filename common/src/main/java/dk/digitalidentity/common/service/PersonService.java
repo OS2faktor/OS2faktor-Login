@@ -4,7 +4,9 @@ import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +15,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -21,6 +27,8 @@ import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -29,31 +37,36 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.config.RoleSettingDTO;
-import dk.digitalidentity.common.config.RoleSettingType;
+import dk.digitalidentity.common.config.modules.school.StudentPwdRoleSettingConfiguration;
 import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
+import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordHistory;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.LogWatchSettingKey;
 import dk.digitalidentity.common.dao.model.SchoolClass;
 import dk.digitalidentity.common.dao.model.SchoolRole;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
+import dk.digitalidentity.common.dao.model.enums.RoleSettingType;
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.dto.ChildDTO;
+import dk.digitalidentity.common.service.dto.CprLookupDTO;
+import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@EnableCaching
 public class PersonService {
-	
+
 	/*
 	 * SELECT p.id
   		FROM persons p
@@ -72,7 +85,7 @@ public class PersonService {
 		WHERE id = ?;
 	 */
 	private static final String DELETE_FROM_AUD_BY_ID = "DELETE FROM persons_aud WHERE id = ?;";
-	
+		
 	@Autowired
 	private PersonDao personDao;
 
@@ -95,10 +108,7 @@ public class PersonService {
 	private ADPasswordService adPasswordService;
 	
 	@Autowired
-	private LogWatchSettingService logWatchSettingService;
-	
-	@Autowired
-	private EmailService emailService;
+	private TermsAndConditionsService termsAndConditionsService;
 
 	@Qualifier("defaultTemplate")
 	@Autowired
@@ -106,6 +116,15 @@ public class PersonService {
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+	
+	@Autowired 
+	private SchoolClassService schoolClassService;
+	
+	@Autowired
+	private NemloginQueueService nemloginQueueService;
+	
+	@Autowired
+	private CprService cprService;
 
 	public Person getById(long id) {
 		return personDao.findById(id);
@@ -117,6 +136,10 @@ public class PersonService {
 
 	public Person save(Person entity) {
 		return personDao.save(entity);
+	}
+
+	public List<Person> getByTransferToNemLogin() {
+		return personDao.findByTransferToNemloginTrue();
 	}
 
 	public void delete(Person person, Person admin) {
@@ -131,21 +154,33 @@ public class PersonService {
 	public List<Person> getByCpr(String cpr) {
 		return personDao.findByCpr(cpr);
 	}
+	
+	public List<Person> getByMitIdNameId(String mitIdNameId) {
+		return personDao.findByMitIdNameId(mitIdNameId);
+	}
 
 	public List<Person> getByUuid(String uuid) {
 		return personDao.findByUuid(uuid);
 	}
-
-	public List<Person> getAllAdminsAndSupporters() {
-		return personDao.findByAdminTrueOrServiceProviderAdminTrueOrRegistrantTrueOrSupporterNotNullOrUserAdminTrue();
+	
+	public List<Person> getByNemloginUserUuidNotNull() {
+		return personDao.findByNemloginUserUuidNotNull();
 	}
 
-	public List<Person> saveAll(List<Person> entities) {
-		return personDao.saveAll(entities);
+	public List<Person> getAllAdminsAndSupporters() {
+		return personDao.findByAdminTrueOrServiceProviderAdminTrueOrRegistrantTrueOrSupporterNotNullOrUserAdminTrueOrKodeviserAdminTrueOrInstitutionStudentPasswordAdminTrue();
+	}
+
+	public List<Person> saveAll(List<Person> persons) {
+		return personDao.saveAll(persons);
 	}
 
 	public List<Person> getBySamaccountName(String samAccountName) {
 		return personDao.findBySamaccountName(samAccountName);
+	}
+
+	public List<Person> getByUPN(String username) {
+		return personDao.findByAttributeValue("upn", username);
 	}
 
 	@Transactional
@@ -261,17 +296,28 @@ public class PersonService {
 	public List<Person> getBySamaccountNameAndDomain(String samAccountName, Domain domain) {
 		return personDao.findBySamaccountNameAndDomain(samAccountName, domain);
 	}
-
-	public Person getByUserId(String userId) {
-		return personDao.findByUserId(userId);
-	}
 	
 	public List<Person> getBySchoolRolesNotEmptyAndDomainIn(List<Domain> domains) {
 		return personDao.findBySchoolRolesNotEmptyAndDomainIn(domains);
 	}
 
+	// always call with top-level-domain
 	private List<Person> getStudentsByDomainAndInstititionIds(Domain domain, Set<String> institutionIds) {
-		return personDao.findBySchoolRolesRoleAndDomainAndSchoolRolesInstitutionIdInAndNsisAllowedFalse(SchoolRoleValue.STUDENT, domain, institutionIds);
+		List<Person> result = new ArrayList<>();
+		
+		// get from top level domain, and then look in subdomains afterwards
+		result.addAll(personDao.findBySchoolRolesRoleAndDomainAndSchoolRolesInstitutionIdInAndNsisAllowedFalse(SchoolRoleValue.STUDENT, domain, institutionIds));
+
+		// then look in all subdomains
+		for (Domain childDomain : domain.getChildDomains()) {
+			result.addAll(personDao.findBySchoolRolesRoleAndDomainAndSchoolRolesInstitutionIdInAndNsisAllowedFalse(SchoolRoleValue.STUDENT, childDomain, institutionIds));			
+		}
+		
+		return result;
+	}
+
+	private List<Person> getAllStudentsWithStudentPassword() {
+		return personDao.findBySchoolRolesRoleAndStudentPasswordNotNull(SchoolRoleValue.STUDENT);
 	}
 	
 	public boolean canChangePasswordOnStudents(Person person) {
@@ -285,19 +331,21 @@ public class PersonService {
 		}
 
 		// filter out roles that are not allowed to change password
-		List<SchoolRole> personAuthorityRoles = person.getSchoolRoles().stream().filter(r -> !r.getRole().equals(SchoolRoleValue.STUDENT)).collect(Collectors.toList());		
-		for (Iterator<SchoolRole> iterator = personAuthorityRoles.iterator(); iterator.hasNext();) {
-			SchoolRole schoolRole = iterator.next();
+		List<SchoolRole> personAuthorityRoles = person.getSchoolRoles().stream().filter(r -> !r.getRole().equals(SchoolRoleValue.STUDENT)).collect(Collectors.toList());
+		if (!person.isInstitutionStudentPasswordAdmin()) {
+			for (Iterator<SchoolRole> iterator = personAuthorityRoles.iterator(); iterator.hasNext();) {
+				SchoolRole schoolRole = iterator.next();
 
-			for (RoleSettingDTO setting : commonConfiguration.getStilStudent().getRoleSettings()) {
-				if (Objects.equals(setting.getRole(), schoolRole.getRole())) {
-					if (setting.getType().equals(RoleSettingType.CANNOT_CHANGE_PASSWORD)) {
-						iterator.remove();
+				for (StudentPwdRoleSettingConfiguration setting : commonConfiguration.getStilStudent().getRoleSettings()) {
+					if (Objects.equals(setting.getRole(), schoolRole.getRole())) {
+						if (setting.getType().equals(RoleSettingType.CANNOT_CHANGE_PASSWORD)) {
+							iterator.remove();
+						}
 					}
 				}
 			}
 		}
-		
+
 		return personAuthorityRoles;
 	}
 
@@ -318,11 +366,21 @@ public class PersonService {
 		}
 
 		// find all students from the same institutions that the teacher belongs to
-		List<Person> students = getStudentsByDomainAndInstititionIds(person.getDomain(), institutionIds);
+		List<Person> students = getStudentsByDomainAndInstititionIds(person.getTopLevelDomain(), institutionIds);
 
 		for (Person student : students) {
+			if (student.isLockedDataset() || !StringUtils.hasLength(student.getSamaccountName())) {
+				continue;
+			}
+
 			List<SchoolRole> studentRoles = student.getSchoolRoles().stream().filter(r -> r.getRole().equals(SchoolRoleValue.STUDENT)).collect(Collectors.toList());
 			if (studentRoles.isEmpty()) { // not really needed, but safety first
+				continue;
+			}
+
+			// if the "teacher" isInstitutionStudentPasswordAdmin password change is allowed on all students inside its own institutions
+			if (person.isInstitutionStudentPasswordAdmin()) {
+				result.add(student);
 				continue;
 			}
 			
@@ -331,7 +389,7 @@ public class PersonService {
 			for (SchoolRole loggedInPersonSchoolRole : personAuthorityRoles) {
 				
 				// find the settings for this role
-				RoleSettingDTO roleSetting = commonConfiguration.getStilStudent().getRoleSettings().stream()
+				StudentPwdRoleSettingConfiguration roleSetting = commonConfiguration.getStilStudent().getRoleSettings().stream()
 						.filter(r -> r.getRole().equals(loggedInPersonSchoolRole.getRole()))
 						.findFirst()
 						.orElse(null);
@@ -396,14 +454,14 @@ public class PersonService {
 				}
 			}
 		}
-		
+
 		return result;
 	}
 
-	public void badPasswordAttempt(Person person) {
-		auditLogger.badPassword(person);
+	public void badPasswordAttempt(Person person, boolean isWCP) {
+		auditLogger.badPassword(person, isWCP);
 		person.setBadPasswordCount(person.getBadPasswordCount() + 1);
-		PasswordSetting setting = passwordSettingService.getSettings(person.getDomain());
+		PasswordSetting setting = passwordSettingService.getSettingsCached(person.getDomain());
 
 		if (person.getBadPasswordCount() >= setting.getTriesBeforeLockNumber()) {
 			auditLogger.tooManyBadPasswordAttempts(person, setting.getLockedMinutes());
@@ -414,8 +472,8 @@ public class PersonService {
 		save(person);
 	}
 
-	public void correctPasswordAttempt(Person person, boolean authenticatedWithADPassword, boolean expired) {
-		auditLogger.goodPassword(person, authenticatedWithADPassword, expired);
+	public void correctPasswordAttempt(Person person, boolean authenticatedWithADPassword, boolean expired, boolean againstCache) {
+		auditLogger.goodPassword(person, authenticatedWithADPassword, expired, againstCache);
 		if (person.getBadPasswordCount() > 0) {
 			person.setBadPasswordCount(0L);
 
@@ -423,8 +481,20 @@ public class PersonService {
 		}
 	}
 
-	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
-		return changePassword(person, newPassword, bypassReplication, null);
+	public ADPasswordStatus changePassword(Person person, String newPassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+		return changePassword(person, newPassword, false, null, null, false);
+	}
+
+	public ADPasswordStatus changePasswordBypassQueue(Person person, String newPassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+		return changePassword(person, newPassword, true, null, null, false);
+	}
+
+	public ADPasswordStatus changePasswordByParent(Person person, String newPassword, String parentCpr) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+		return changePassword(person, newPassword, false, null, parentCpr, false);
+	}
+
+	public ADPasswordStatus changePasswordByAdmin(Person person, String newPassword, Person admin, boolean forceChangePassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+		return changePassword(person, newPassword, false, admin, null, forceChangePassword);
 	}
 
 	/**
@@ -432,34 +502,38 @@ public class PersonService {
 	 * common use-case for this, is an admin setting the users password, which should not be replicated to AD,
 	 * as that could potentially lock out the user (also we do not want to expose AD passwords to the registrant)
 	 */
-	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication, Person admin) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
+	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication, Person admin, String parentCpr, boolean forceChangePassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
 		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-		PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
 
-		// sanity check if admin is available
+		// sanity check if admin is available with required role for changing password on NSIS users
+		// note that calls from IdentitiesController still need to perform verification that the user has the Kodeordsadministrator role,
+		// and that it only should allow changing password on non-nsis users - this check is for registrant-functionality only as an
+		// extra security check for NSIS users
 		if (admin != null && !admin.isRegistrant() && person.isNsisAllowed()) {
 			throw new RuntimeException("Kun registranter kan skifte kodeord på personer med en erhvervsidentitet!");
 		}
 
-		// Replicate password to AD if enabled
+		// replicate password to AD if enabled
 		boolean replicateToAD = false;
 		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
 		
 		// if not flagged with bypass, attempt to change password in Active Directory
-		if (!bypassReplication) {
+		if (!bypassReplication && !person.isDoNotReplicatePassword() && !person.getDomain().isStandalone()) {
 			if (settings.isReplicateToAdEnabled() && StringUtils.hasLength(person.getSamaccountName())) {
-				adPasswordStatus = passwordChangeQueueService.attemptPasswordChange(person, newPassword);
+				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword);
 
 				switch (adPasswordStatus) {
-		            case FAILURE:
-		            case TECHNICAL_ERROR:
-		            	// this should be handled by the caller - either bypass replication, or fail
-		            	return adPasswordStatus;
-		            case NOOP:
-		            case OK:
-		            case TIMEOUT:
-		            	// these are OK
-		            	break;
+					case FAILURE:
+					case TECHNICAL_ERROR:
+					case INSUFFICIENT_PERMISSION:
+						// this should be handled by the caller - either bypass replication, or fail
+						return adPasswordStatus;
+					case NOOP:
+					case OK:
+					case TIMEOUT:
+						// these are OK
+						break;
 	            }
 
 				replicateToAD = true;
@@ -469,7 +543,7 @@ public class PersonService {
 			// this is usually the case if the password change originates from AD (using our WCP), in
 			// which case we just log the password change as proof in our logs (consistency)
 
-			PasswordChangeQueue change = new PasswordChangeQueue(person, passwordChangeQueueService.encryptPassword(newPassword));
+			PasswordChangeQueue change = new PasswordChangeQueue(person, passwordChangeQueueService.encryptPassword(newPassword), forceChangePassword);
 			change.setStatus(ReplicationStatus.DO_NOT_REPLICATE);
 
 			passwordChangeQueueService.save(change);
@@ -479,7 +553,10 @@ public class PersonService {
 		String encodedPassword = encoder.encode(newPassword);
 
 		// update password counter for this person
-		person.setDailyPasswordChangeCounter(person.getDailyPasswordChangeCounter() + 1);
+		// but only if the password was actually changed by the person themselves
+		if (admin == null) {
+			person.setDailyPasswordChangeCounter(person.getDailyPasswordChangeCounter() + 1);
+		}
 
 		// store password history
 		PasswordHistory passwordHistory = new PasswordHistory();
@@ -492,29 +569,91 @@ public class PersonService {
 		if (person.isNsisAllowed()) {
 			person.setNsisPassword(encodedPassword);
 			person.setNsisPasswordTimestamp(LocalDateTime.now());
-			person.setForceChangePassword(false);
+			person.setLockedPassword(false);
+			person.setLockedPasswordUntil(null);
 
 			nsisPasswordChanged = true;
 
 			save(person);
 		}
 
+		// if the changePassword was performed with a requested change-password-on-next-login, set that flag,
+		// otherwise remove the flag if set already
+		if (forceChangePassword && StringUtils.hasLength(person.getNsisPassword())) {
+			person.setForceChangePassword(true);
+			save(person);
+		}
+		else if (person.isForceChangePassword()) {
+			person.setForceChangePassword(false);
+			save(person);
+		}
+
+		// for students in Indskoling and SpecialNeeds classes we keep an encrypted copy for local usage,
+		// and if the domain is standalone we only keep the password locally, there's no NSIS password
+		if (isStudentInIndskolingOrSpecialNeedsClass(person) || person.getDomain().isStandalone()) {
+			try {
+				String encrypted = passwordChangeQueueService.encryptPassword(newPassword);
+				if (encrypted == null) {
+					throw new UnsupportedEncodingException("Failed to encrypt password (null)");
+				}
+		
+				person.setStudentPassword(encrypted);
+				save(person);
+			}
+			catch (Exception ex) {
+				log.error("Failed to store studentPassword on " + person.getId(), ex);
+			}
+		}
+
 		// auditlog it
-		if (admin == null) {
-			auditLogger.changePasswordByPerson(person, nsisPasswordChanged, replicateToAD);
+		if (parentCpr != null) {
+			auditLogger.changePasswordByParent(person, parentCpr);
+		}
+		else if (admin != null) {
+			auditLogger.changePasswordByAdmin(admin, person, replicateToAD);
 		}
 		else {
-			auditLogger.changePasswordByAdmin(admin, person, replicateToAD);
+			auditLogger.changePasswordByPerson(person, nsisPasswordChanged, replicateToAD);
 		}
 
 		return adPasswordStatus;
 	}
 	
-	public ADPasswordStatus unlockADAccount(Person person) {
+	public boolean isStudent(Person person) {
+		return person.getSchoolRoles().stream().anyMatch(r -> Objects.equals(r.getRole(), SchoolRoleValue.STUDENT));
+	}
+	
+	public boolean isStudentInIndskolingOrSpecialNeedsClass(Person person) {
+		List<SchoolRole> roles = person.getSchoolRoles().stream().filter(r -> Objects.equals(r.getRole(), SchoolRoleValue.STUDENT)).collect(Collectors.toList());
+		
+		for (SchoolRole role : roles) {
+			for (SchoolRoleSchoolClassMapping clazzMapping : role.getSchoolClasses()) {
+				SchoolClass clazz = clazzMapping.getSchoolClass();
+				
+				if (clazz.isIndskoling()) {
+					return true;
+				}
+				
+				if (schoolClassService.isSpecialNeedsClass(clazz)) {
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	public ADPasswordStatus unlockAccount(Person person) {
 		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
 		if (StringUtils.hasLength(person.getSamaccountName())) {
 			adPasswordStatus = adPasswordService.attemptUnlockAccount(person);
-			auditLogger.unlockAccountByPerson(person);
+			if (!ADPasswordResponse.isCritical(adPasswordStatus)) {
+				person.setBadPasswordCount(0);
+				person.setLockedPassword(false);
+				person.setLockedPasswordUntil(null);
+				auditLogger.unlockAccountByPerson(person);
+				save(person);
+			}
 		}
 
 		return adPasswordStatus;
@@ -551,6 +690,67 @@ public class PersonService {
 		return "";
 	}
 
+	public static boolean isOver18(String cpr) {
+		long years = getAge(cpr);
+		if (years < 18) {
+			return false;
+		}
+
+		return true;
+	}
+	
+	public static long getAge(String cpr) {
+		// the get birthday localDate from cpr code is stolen from Sofd AuthorizationCodeService
+		String day = cpr.substring(0, 2);
+		String month = cpr.substring(2, 4);
+		String yearString = cpr.substring(4, 6);
+		int year = Integer.parseInt(yearString);
+
+		switch (cpr.charAt(6)) {
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+				yearString = "19" + yearString;
+				break;
+			case '4':
+			case '9':
+				if (year <= 36) {
+					yearString = "20" + yearString;
+				}
+				else {
+					yearString = "19" + yearString;
+				}
+				break;
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+				if (year <= 57) {
+					yearString = "20" + yearString;
+				}
+				else {
+					yearString = "18" + yearString;
+				}
+				break;
+			default:
+				return -1;
+		}
+
+		String dateString = yearString + "-" + month + "-" + day;
+		LocalDate date = null;
+		try {
+			date = LocalDate.parse(dateString);
+		}
+		catch (Exception ex) {
+			return -1;
+		}
+
+		LocalDate now = LocalDate.now();
+		
+		return ChronoUnit.YEARS.between(date, now);
+	}
+
 	public void suspend(Person person) {
 		person.setNsisLevel(NSISLevel.NONE);
 		person.setApprovedConditions(false);
@@ -563,19 +763,37 @@ public class PersonService {
 		if (person == null) {
 			return null;
 		}
-		else if (StringUtils.hasLength(person.getSamaccountName())) {
-			return person.getSamaccountName();
-		}
-
-		return person.getUserId();
+		
+		return person.getSamaccountName();
 	}
 	
 	public static String getCorrectLockedPage(Person person) {
 		if (person.isLockedExpired()) {
 			return "error-expired-account";
 		}
-
+	
 		return "error-locked-account";
+	}
+
+	public boolean requireApproveConditions(Person person) {
+		if (!person.isApprovedConditions()) {
+			return true;
+		}
+
+		if (person.getApprovedConditionsTts() == null) {
+			return true;
+		}
+
+		LocalDateTime tts = termsAndConditionsService.getLastRequiredApprovedTts();
+		if (tts == null) {
+			return false;
+		}
+
+		if (person.getApprovedConditionsTts().isBefore(tts)) {
+			return true;
+		}
+
+		return false;
 	}
 
 	@Transactional(rollbackFor = Exception.class)
@@ -593,9 +811,15 @@ public class PersonService {
 		    log.info("Deleted " + rows + " aud row for id = " + id);
 		}
 		
-		List<Person> personsToBeDeleted = personDao.findAll().stream().filter(p -> idsToBeDeleted.contains(p.getId())).collect(Collectors.toList());
+		List<Person> personsToBeDeleted = personDao.findAll().stream().filter(p -> idsToBeDeleted.contains(p.getId())).collect(Collectors.toList());		
+		List<Person> personsToBeDeletedInMitIDErhverv = personsToBeDeleted.stream().filter(p -> StringUtils.hasLength(p.getNemloginUserUuid())).collect(Collectors.toList());
+
+		for (Person person : personsToBeDeletedInMitIDErhverv) {
+			nemloginQueueService.save(new NemloginQueue(person, NemloginAction.DELETE));
+		}
+
 		personDao.deleteAll(personsToBeDeleted);
-		
+
 		log.info("Deleted " + personsToBeDeleted.size() + " persons because they where removed from dataset more than 13 months ago");
 	}
 	
@@ -619,26 +843,135 @@ public class PersonService {
 
 		personDao.saveAll(modifiedPersons);
 	}
-
-	@Transactional
-	public void logWatchTooManyLockedOnPassword() {
-		long limit = logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, 0);
-		if (limit == 0) {
-			return;
-		}
-		
-		long logCount = personDao.countByLockedPasswordTrue();
-		
-		if (logCount > limit) {
-			log.warn("Too many time locked accounts");
-			
-			String subject = "Overvågning af logs: For mange tids-spærrede konti";
-			String message = "Antallet af tids-spærrede konti har oversteget grænsen på " + limit + ".<br/>Der er " + logCount + " tids-spærrede konti.";
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message);
-		}
-	}
+	
 	
 	public Set<String> findDistinctAttributeNames() {
 		return personDao.findDistinctAttributeNames();
+	}
+	
+	@Transactional
+	public void cleanupOldStudentsPasswords() {
+		if (!commonConfiguration.getStilStudent().isEnabled() || commonConfiguration.getStilStudent().isIndskolingSpecialEnabled()) {
+			return;
+		}
+		
+		List<Person> students = getAllStudentsWithStudentPassword();
+		
+		for (Person student : students) {
+			SchoolClass passwordClass = isYoungStudent(student);
+			
+			// no longer a young student, so clear password
+			if (passwordClass == null) {
+				student.setStudentPassword(null);
+				personDao.save(student);
+			}
+		}
+	}
+	@Transactional
+	public void resetNSISLevelOnIncompleteActivations(){
+		List<Person> peopleToFix = personDao.findByNsisLevelAndNsisPasswordNull(NSISLevel.SUBSTANTIAL);
+		for (Person p : peopleToFix) {
+			p.setNsisLevel(NSISLevel.NONE);
+		}
+
+		if (!peopleToFix.isEmpty()) {
+			log.info("Reset NSIS Level on " + peopleToFix.size() + " persons");
+		}
+		saveAll(peopleToFix);
+	}
+
+	public SchoolClass isYoungStudent(Person student) {
+		// special feature to enable handling young students differently
+		if (commonConfiguration.getStilStudent().isIndskolingSpecialEnabled()) {
+			// assuming there is only one student role
+			SchoolRole studentSchoolRole = student.getSchoolRoles().stream().filter(r -> r.getRole().equals(SchoolRoleValue.STUDENT)).findAny().orElse(null);
+			if (studentSchoolRole == null) {
+				return null;
+			}
+			
+			for (SchoolRoleSchoolClassMapping schoolClassMapping : studentSchoolRole.getSchoolClasses()) {
+				SchoolClass schoolClass = schoolClassMapping.getSchoolClass();
+				
+				// check for 'indskoling'
+				if (schoolClass.isIndskoling()) {
+					return schoolClass;
+				}
+				
+				// check for special needs
+				if (schoolClassService.isSpecialNeedsClass(schoolClass)) {
+					return schoolClass;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	public void deleteAll(List<Person> toDelete) {
+		personDao.deleteAll(toDelete);		
+	}
+
+	@Cacheable("getChildren")
+	public List<Person> getChildrenPasswordAllowed(String cpr) {
+		List<Person> result = new ArrayList<>();
+		
+		Future<CprLookupDTO> cprFuture = cprService.getByCpr(cpr);
+		CprLookupDTO personLookup = null;
+
+		try {
+			personLookup = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
+		}
+		catch (InterruptedException | ExecutionException | TimeoutException ex) {
+			log.warn("Got a timeout on lookup of children", ex);
+			return result;
+		}
+
+		if (personLookup != null && personLookup.getChildren() != null && !personLookup.getChildren().isEmpty()) {
+			for (ChildDTO child : personLookup.getChildren()) {
+				List<Person> childPersons = getByCpr(child.getCpr());
+
+				for (Person person : childPersons) {
+					if (person.isNsisAllowed()) {
+						continue;
+					}
+					
+					if (person.isLocked()) {
+						continue;
+					}
+					
+					if (isAdult(getBirthDateFromCpr(person.getCpr()))) {
+						continue;
+					}
+					
+					result.add(person);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private boolean isAdult(LocalDate birthday) {
+		return LocalDate.from(birthday).until(LocalDate.now(), ChronoUnit.YEARS) >= 16;
+	}
+
+	private LocalDate getBirthDateFromCpr(String cpr) {
+		var datePart = Integer.parseInt(cpr.substring(0, 2));
+		var monthPart = Integer.parseInt(cpr.substring(2, 4));
+		var yearPart = Integer.parseInt(cpr.substring(4, 6));
+		var seventh = Integer.parseInt(cpr.substring(6, 7));
+		var century = 0;
+		
+		if (seventh < 4) {
+			century = 1900;
+		}
+		else if (seventh == 4 || seventh == 9) {
+			century = yearPart < 37 ? 2000 : 1900;
+		}
+		else {
+			century = yearPart < 58 ? 2000 : 1800;
+		}
+		
+		return LocalDate.of(century + yearPart, monthPart, datePart);
 	}
 }

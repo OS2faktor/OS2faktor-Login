@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ADPasswordResponse {
-	public enum ADPasswordStatus { NOOP, OK, FAILURE, TECHNICAL_ERROR, TIMEOUT }
+	public enum ADPasswordStatus { NOOP, OK, FAILURE, TECHNICAL_ERROR, TIMEOUT, INSUFFICIENT_PERMISSION }
 	
 	private ADPasswordStatus status;
 	private String message;
@@ -15,6 +15,7 @@ public class ADPasswordResponse {
 		switch (status) {
 			case FAILURE:
 			case TECHNICAL_ERROR:
+			case INSUFFICIENT_PERMISSION:
 				return true;
 			case NOOP:
 			case OK:

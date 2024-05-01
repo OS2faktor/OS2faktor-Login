@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (texteditor = true, checkbox = true)"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-envelope"></em> &nbsp; Emailskabeloner til logovervågning</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="row">
+									<div class="col-lg-12">
+										<form class="form-horizontal">
+											<div class="form-group row">
+												<label class="col-sm-2 col-form-label">Skabelon</label>
+												<div class="col-sm-10">
+													<select id="templateDropdown" class="form-control m-b">
+														<option th:each="template : ${templates}" th:value="${template.id}" th:text="#{${template.templateTypeText}}"></option>
+													</select>
+												</div>
+											</div>
+										</form>
+									</div>
+								</div>
+		
+								<div class="row">
+									<div th:each="template : ${templates}" class="form-horizontal templateForm col-lg-12" th:id="'template' + ${template.id}" style="width: 100%;">
+
+										<form th:each="child : ${template.children}" class="form-horizontal childForm" th:id="'child' + ${template.id}" style="display: none;">
+											<input type="hidden" name="id" th:value="${child.id}"/>
+
+											<div class="form-group row">
+												<label class="col-sm-2 control-label">Overskrift</label>
+												<div class="col-sm-10">
+													<input name="title" th:value="${child.title}" class="form-control" />
+												</div>
+											</div>
+
+											<div class="form-group row">
+												<label class="col-sm-2 control-label">Brødtekst</label>
+												<div class="col-sm-10">
+													<textarea name="message" th:text="${child.message}" class="mb-0 preformat" rows="10" style="width:100%;"></textarea>
+												</div>
+											</div>
+
+											<hr/>
+
+											<div class="form-group row">
+												<div class="col-sm-12">
+													<button type="button" style="margin-right: 5px;" class="btn btn-primary block full-width m-b buttonSubmit">Gem</button>
+													<button type="button" style="margin-right: 5px;" class="btn btn-warning block full-width m-b buttonTest">Test email</button>
+												</div>
+											</div>
+										</form>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.email-template')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (checkbox = true, texteditor = true)"></div>
+	
+	<script th:inline="javascript">
+	/*<![CDATA[*/
+
+	/*[+
+	+]*/
+	
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function () {
+			
+			$('textarea[name="message"]').summernote({
+				"height": 320,
+				"toolbar": [
+					[ "font", [ "bold", "italic", "underline" ]],
+					[ "para", [ "ul", "ol" ]],
+					[ "insert", [ "picture", "link" ]]
+				],
+				maximumImageFileSize: 100*1024, // 100 KB
+				callbacks: {
+					onImageUploadError: function(msg) {
+						swal({
+							title: "Billede for stort",
+							text: "Det er ikke muligt at anvende billeder større end 100kb",
+							confirmButtonColor : "#4765a0",
+							confirmButtonText : "OK"
+						});
+					}
+				},
+				dialogsInBody: true
+			});
+			
+			$('#templateDropdown').change(function() {
+				// hide all children
+				$('.childForm').hide();
+				
+				// show relevant one
+				$('#child' + $("#templateDropdown").val()).show();
+			});
+
+			$('.buttonSubmit').click(function() {
+				var oForm = $('#child' + $("#templateDropdown").val());
+				var data = getFormData(oForm);
+				
+				save(data, false);
+			});
+			
+			$('.buttonTest').click(function() {
+				var oForm = $('#child' + $("#templateDropdown").val());
+				var data = getFormData(oForm);
+
+				save(data, true);
+			});
+
+			// display currently chosen template
+			$('#template' + $("#templateDropdown").val()).show();
+			$('#child' + $("#templateDropdown").val()).show();			
+		});
+	
+		// polyfill for IE11 and endsWith() support
+		if (!String.prototype.endsWith) {
+		    String.prototype.endsWith = function(search, this_len) {
+		        if (this_len === undefined || this_len > this.length) {
+		            this_len = this.length;
+		        }
+		        return this.substring(this_len - search.length, this_len) === search;
+		    };
+		}
+
+		function getFormData(oForm) {
+		    var unindexed_array = oForm.serializeArray();
+		    var indexed_array = {};
+
+		    $.map(unindexed_array, function(n, i){
+		        indexed_array[n['name']] = n['value'];
+		    });
+
+		    return indexed_array;
+		}
+		
+		function save(payload, tryEmail) {
+			$.ajax({
+				method : "POST",
+				url: "/admin/rest/mailtemplates?tryEmail=" + tryEmail,
+				headers: {
+					"content-type": "application/json",
+					'X-CSRF-TOKEN': token
+				},
+				data: JSON.stringify(payload),
+				success: function(data, textStatus, jQxhr) {
+					if (jQxhr.responseText != "") {
+						toastr.success(jQxhr.responseText);
+					} else {
+						toastr.success("Gemt!");
+					}
+ 			   	},
+ 			   	error: function(jQxhr, textStatus, errorThrown) {
+	 			   	if (jQxhr.responseText != "") {
+	 			   		toastr.error("Fejl: " + jQxhr.responseText);
+					} else {
+						toastr.error("Fejl!");
+					}
+ 			   	}
+			});
+		}
+		
+	/*]]>*/
+	</script>
+</body>
+</html>

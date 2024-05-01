@@ -1,10 +1,10 @@
 package dk.digitalidentity.common.service.mfa.model;
 
+import java.util.Date;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.Date;
 
 @Getter
 @Setter
@@ -14,4 +14,6 @@ public class MFAClientDetails {
 	private Date created;
 	private Date associatedUserTimestamp;
 	private String pid;
+	private boolean locked;
+	private Date lockedUntil;
 }

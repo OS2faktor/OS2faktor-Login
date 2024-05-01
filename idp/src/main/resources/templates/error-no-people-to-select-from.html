@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<body class="top-navigation">
+	<div id="wrapper">
+	    <div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+
+	        <div class="wrapper wrapper-content">
+	            <div class="row">
+	                <div class="col-lg-12">
+					    <div class="middle-box text-center animated fadeInDown" style="margin-top: 40px;">
+					        <h1 style="font-size: 40px;">Noget gik galt <em class="fa fa-frown-o"></em></h1>
+					
+					        <div class="error-desc" th:utext="${@cmsMessageBundle.getText('cms.selectUser.content.error')}">
+
+									<li style="text-align: left;"><a th:href="${@commonConfiguration.selfService.baseUrl}">Selvbetjening</a></li>
+									<li style="text-align: left;"><a th:href="@{/sso/saml/changepassword}">Skift kodeord</a></li>
+								</ul>
+							</div>
+					    </div>
+	                </div>
+	            </div>
+	        </div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+	    </div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

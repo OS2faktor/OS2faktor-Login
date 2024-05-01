@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -21,6 +22,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,6 +30,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.ADPasswordCacheDao;
+import dk.digitalidentity.common.dao.model.ADPasswordCache;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
@@ -58,13 +62,91 @@ public class ADPasswordService {
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private ADPasswordCacheDao passwordCache;
 
+	@Autowired
+	private PersonService personService;
+	
 	// clear max values at 02:00 every night
 	@Scheduled(cron = "0 2 * * * *")
 	public void resetCount() {
 		websocketMaxConnections = new HashMap<>();
 	}
 
+	@Transactional
+	public void cleanupCache() {
+		passwordCache.deleteOld();
+	}
+
+	public boolean hasCachedADPassword(Person person) {
+		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
+		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+			return false;
+		}
+		
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			return false;
+		}
+
+		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
+		if (cache == null) {
+			return false;
+		}
+
+		return true;
+	}
+
+	public boolean validateAgainstCache(Person person, String password) {
+		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
+		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+			return false;
+		}
+
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			return false;
+		}
+
+		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
+		if (cache == null) {
+			return false;
+		}
+
+		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+		return encoder.matches(password, cache.getPassword());
+	}
+	
+	public void updateCache(Person person, String password) {
+		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
+		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+			return;
+		}
+
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			return;
+		}
+
+		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
+		if (cache == null) {
+			cache = new ADPasswordCache();
+			cache.setDomainId(person.getTopLevelDomain().getId());
+			cache.setSamAccountName(person.getSamaccountName());
+		}
+
+		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+		cache.setPassword(encoder.encode(password));
+		cache.setLastUpdated(LocalDateTime.now());		
+		
+		try {
+			passwordCache.save(cache);
+		}
+		catch (Exception ex) {
+			// most likely a constraint issue, due to parallel logins
+			log.warn("Unable to update password cache for " + person.getSamaccountName() , ex);
+		}
+	}
+	
 	public boolean monitorConnection(String domain) {
 		try {
 			int sessionCount = getWebsocketSessionCount(domain);
@@ -143,9 +225,9 @@ public class ADPasswordService {
 		return 0;
 	}
 
-	public boolean validatePassword(Person person, String password) {
-		if (!passwordSettingService.getSettings(person.getDomain()).isValidateAgainstAdEnabled()) {
-			return false;
+	public ADPasswordResponse.ADPasswordStatus validatePassword(Person person, String password) {
+		if (!passwordSettingService.getSettingsCached(person.getTopLevelDomain()).isValidateAgainstAdEnabled()) {
+			return ADPasswordStatus.FAILURE;
 		}
 
 		String message = "";
@@ -158,22 +240,41 @@ public class ADPasswordService {
 
 				if (result != null) {
 					message = result.getMessage();
+
 					if (StringUtils.hasLength(message)) {
-						log.error("Websocket returned a non null message: " + message);
+						String prefix = "Websocket returned a non null message: ";
+						
+						// special handling of this, it is just a connection issue, the user should be able to try again later
+						if (message.contains("[TEXT_PARTIAL_WRITING]")) {
+							log.warn(prefix + message);
+
+							return ADPasswordStatus.TECHNICAL_ERROR;
+						}
+						else if (message.contains("E_ACCESSDENIED")) {
+							log.warn("Insufficient permissions: " + message);
+
+							return ADPasswordStatus.INSUFFICIENT_PERMISSION;
+						}
+						else if (message.contains("No authenticated WebSocket connection available") || message.contains("Timeout waiting for response")) {
+							log.warn(prefix + message);
+
+							return ADPasswordStatus.TIMEOUT;
+						}
+						else {
+							log.error(prefix + message);
+						}
 					}
 
-					return ADPasswordResponse.ADPasswordStatus.OK.equals(result.getStatus());
+					return result.getStatus();
 				}
 			}
 
-			return false;
+			return ADPasswordStatus.FAILURE;
 		}
 		catch (RestClientException ex) {
-			log.error("Failed to connect to AD Password validation service", ex);
+			log.error("Failed to connect to AD Password validation service for " + person.getId(), ex);
+			return ADPasswordStatus.TECHNICAL_ERROR;
 		}
-
-		log.warn("Could not validate password against AD for " + person.getSamaccountName() + ", Message: " + message);
-		return false;
 	}
 
 	@Transactional(rollbackFor = Exception.class)
@@ -188,7 +289,7 @@ public class ADPasswordService {
 			if (domain == null) {
 				log.error("Unrecognized domain, skipping. changeId: " + change.getId());
 				change.setMessage("Unknown domain");
-				change.setStatus(ReplicationStatus.ERROR);
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
 				passwordChangeQueueService.save(change, false);
 				continue;
 			}
@@ -203,7 +304,7 @@ public class ADPasswordService {
 			if (passwordSetting == null) {
 				log.error("PasswordSettings for domain was null, skipping. domain: " + change.getDomain());
 				change.setMessage("Missing configuration for domain");
-				change.setStatus(ReplicationStatus.ERROR);
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
 				passwordChangeQueueService.save(change, false);
 				continue;
 			}
@@ -211,19 +312,34 @@ public class ADPasswordService {
 			if (!passwordSetting.isReplicateToAdEnabled()) {
 				log.debug("Queued password change skipped since isReplicateToAdEnabled=false for associated domain");
 				change.setMessage("Password replication disabled for domain");
-				change.setStatus(ReplicationStatus.ERROR);
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
 				passwordChangeQueueService.save(change, false);
 				continue;
 			}
 
-			attemptPasswordReplication(change);
+			// make sure we have a pointer to the right person
+			final Domain fDomain = domain;
+			List<Person> persons = personService.getBySamaccountName(change.getSamaccountName());
+			persons = persons.stream().filter(p -> Objects.equals(p.getTopLevelDomain().getId(), fDomain.getId())).collect(Collectors.toList());
+
+			if (persons.size() == 0) {
+				log.error("Person did not exist in database for userId=" + change.getSamaccountName());
+				change.setMessage("Missing person in database");
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
+				passwordChangeQueueService.save(change, false);
+				continue;
+			}
+
+			attemptPasswordReplication(persons.get(0), change);
+
 			passwordChangeQueueService.save(change, ReplicationStatus.SYNCHRONIZED.equals(change.getStatus()));
 		}
 	}
 
-	public ADPasswordResponse.ADPasswordStatus attemptPasswordReplication(PasswordChangeQueue change) {
+	public ADPasswordResponse.ADPasswordStatus attemptPasswordReplication(Person person, PasswordChangeQueue change) {
 		try {
-			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL("api/setPassword") , HttpMethod.POST, getRequest(change), ADPasswordResponse.class);
+			String url = (change.isChangeOnNextLogin()) ? "api/setPasswordWithForcedChange" : "api/setPassword";
+			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL(url), HttpMethod.POST, getRequest(change), ADPasswordResponse.class);
 
 			ADPasswordResponse result = response.getBody();
 			if (result == null) {
@@ -234,6 +350,11 @@ public class ADPasswordService {
 			if (response.getStatusCodeValue() == 200 && ADPasswordStatus.OK.equals(result.getStatus())) {
 				change.setStatus(ReplicationStatus.SYNCHRONIZED);
 				change.setMessage(null);
+				
+				// it sometimes takes a while before AD updates the users next password change, so we NULL it for now, and
+				// wait for an update on the person from AD to get the updated date
+				person.setNextPasswordChange(null);
+				personService.save(person);
 			}
 			else {
 				// Setting status and message of change
@@ -284,7 +405,7 @@ public class ADPasswordService {
 			if (response.getStatusCodeValue() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
 				log.warn("Unlock account failed for person with uuid " + person.getUuid() + " and samaccountName " + person.getSamaccountName() + " with message: " + result.getMessage() + " (" +  result.getStatus() +")");
 			}
-			
+
 			return result.getStatus();
 		}
 		catch (Exception ex) {
@@ -292,6 +413,25 @@ public class ADPasswordService {
 		}
 
 		return ADPasswordStatus.TECHNICAL_ERROR;
+	}
+
+	public void attemptRunPasswordExpiresSoonScript(Person person) {
+		try {
+			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL("api/passwordExpires") , HttpMethod.POST, getRequest(person), ADPasswordResponse.class);
+
+			ADPasswordResponse result = response.getBody();
+			if (result == null) {
+				log.warn("attemptRunPasswordExpiresSoonScript: No result on response");
+				return;
+			}
+
+			if (response.getStatusCodeValue() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
+				log.warn("Run password expires soon script failed for person with uuid " + person.getUuid() + " and samaccountName " + person.getSamaccountName() + " with message: " + result.getMessage() + " (" +  result.getStatus() +")");
+			}
+		}
+		catch (Exception ex) {
+			log.warn("Run password expires soon script failed for person with uuid " + person.getUuid() + " and samaccountName " + person.getSamaccountName(), ex);
+		}
 	}
 
 	@Transactional(rollbackFor = Exception.class)

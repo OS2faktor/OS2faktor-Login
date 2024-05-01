@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head th:replace="fragments/header :: header" />
+<div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
@@ -9,32 +10,18 @@
                     <h5><em class="fa fa-key"></em> &nbsp; Ingen 2-faktor enheder registreret</h5>
                 </div>
 
-                <div class="ibox-content">
+                <div th:if="${@loginService.showNemLogIn()}" class="ibox-content">
                     <p th:utext="${@cmsMessageBundle.getText('cms.login.mfa.noClients')}" />
 
-					<th:block th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
-	                    <h4>Login med NemLog-in</h4>
-	                    <p>
-	                    Du kan også vælge at bruge dit MitID eller NemID til at foretage et login
-	                    </p>
-	                    <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
-	                        <em class="fa fa-fw fa-key"></em>
-	                        &nbsp;
-	                        Log ind med NemLog-in
-	                    </a>
-                    </th:block>
-                    
-					<th:block th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">
-	                    <h4>Login med NemID</h4>
-	                    <p>
-	                    Du kan også vælge at bruge dit NemID til at foretage et login
-	                    </p>
-	                    <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
-	                        <em class="fa fa-fw fa-key"></em>
-	                        &nbsp;
-	                        Log ind med NemID
-	                    </a>
-                    </th:block>
+                    <h4>Login med MitID</h4>
+                    <p>
+                    Du kan også vælge at bruge dit MitID til at foretage et login
+                    </p>
+                    <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
+                        <em class="fa fa-fw fa-key"></em>
+                        &nbsp;
+                        Log ind med MitID
+                    </a>
                 </div>
             </div>
         </div>

@@ -6,6 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class LinkDTO {
+	private long id;
 	private String text;
 	private String link;
 	private Long domainId;

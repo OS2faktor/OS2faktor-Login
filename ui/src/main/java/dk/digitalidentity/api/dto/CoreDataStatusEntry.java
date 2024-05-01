@@ -30,6 +30,7 @@ public class CoreDataStatusEntry {
 		this.name = person.getName();
 		this.samAccountName = person.getSamaccountName();
 		this.nsisAllowed = person.isNsisAllowed();
+		this.nsisLevel = person.getNsisLevel();
 		this.approvedConditions = person.isApprovedConditions();
 		this.approvedConditionsTts = (person.getApprovedConditionsTts() != null) ? person.getApprovedConditionsTts().toString() : null;
 		this.lockedAdmin = person.isLockedAdmin();

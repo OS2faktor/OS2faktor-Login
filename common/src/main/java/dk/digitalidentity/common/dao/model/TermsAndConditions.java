@@ -8,6 +8,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.envers.Audited;
 
 import lombok.Getter;
@@ -21,11 +22,15 @@ public class TermsAndConditions {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private Long id;
+	private long id;
 
 	@Column
 	private String content;
 
 	@Column
 	private LocalDateTime mustApproveTts;
+	
+	@Column
+	@UpdateTimestamp
+	private LocalDateTime lastUpdatedTts;
 }

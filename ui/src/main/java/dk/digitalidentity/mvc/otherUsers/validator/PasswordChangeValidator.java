@@ -42,7 +42,7 @@ public class PasswordChangeValidator implements Validator {
 		}
 
 		Person person = personService.getById(form.getPersonId());
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword());
+		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true);
 
 		if (validPassword.equals(ChangePasswordResult.BAD_PASSWORD)) {
 			errors.rejectValue("password", "page.selfservice.changePassword.error.simple");

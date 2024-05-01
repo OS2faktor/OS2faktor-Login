@@ -1,62 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="da">
 <head th:replace="fragments/header :: header" />
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
-            <div class="ibox offset-md-2 col-md-8">
+            <div class="ibox">
                 <div class="ibox-title">
-                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                    <h1 class="wcag-h1-as-h5"><em class="fa fa-user"></em> &nbsp; Login</h1>
                     <div class="ibox-tools">
-						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.mfa.help')}"></em>
+						<a role="dialog" aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.mfa.help')}" style="color: #676a6c !important;"></a>
 					</div>
                 </div>
 
                 <div class="ibox-content">
-                	<p class="mb-5" th:utext="${@cmsMessageBundle.getText('cms.login.mfa.content')}">
-                	</p>
+                	<p class="mb-5" th:utext="${@cmsMessageBundle.getText('cms.login.mfa.content')}"></p>
 
 					<ul class="mb-5" style="list-style-type: none; font-size: x-large;">
 
 						<li th:each="client : ${clients}">
-							<a th:href="@{/sso/saml/mfa/} + ${client.deviceId}" style="color: black;">
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" class="fa fa-fw fa-chrome"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).ANDROID}" class="fa fa-fw fa-android"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" class="fa fa-fw fa-apple"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).WINDOWS}" class="fa fa-fw fa-windows"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" class="fa fa-fw fa-key"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).EDGE}" class="fa fa-fw fa-edge"></em>
-								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTP}" class="fa fa-fw fa-mobile"></em>
+							<a th:if="${client.isLocked()}" th:style="${'color: grey; ' + (client.prime ? 'font-weight: 700; ' : '')}" disabled="disabled">
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" aria-label="Chrome klient" class="fa fa-fw fa-chrome"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).ANDROID}" aria-label="Android klient" class="fa fa-fw fa-android"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" aria-label="IOS klient" class="fa fa-fw fa-apple"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).WINDOWS}" aria-label="Windows klient" class="fa fa-fw fa-windows"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" aria-label="Yubikey klient" class="fa fa-fw fa-key"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).EDGE}" aria-label="Edge klient" class="fa fa-fw fa-edge"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTP}" aria-label="Authenticator klient" class="fa fa-fw fa-mobile fa-rotate-90"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTPH}" aria-label="Kodeviser klient" class="fa fa-fw fa-mobile fa-rotate-90"></em>
+								&nbsp;
+								<th:block th:text="${#strings.isEmpty(client.name)} ? ${client.deviceId} : ${client.name} + ' - låst indtil ' + ${#dates.format(client.getLockedUntil(), 'yyyy-MM-dd HH:mm')}"></th:block>
+							</a>
+							<a  th:unless="${client.isLocked()}" th:href="@{/sso/saml/mfa/} + ${client.deviceId}" th:style="${'color: black; ' + (client.prime ? 'font-weight: 700; ' : '')}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'">
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" aria-label="Chrome klient" class="fa fa-fw fa-chrome"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).ANDROID}" aria-label="Android klient" class="fa fa-fw fa-android"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" aria-label="IOS klient" class="fa fa-fw fa-apple"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).WINDOWS}" aria-label="Windows klient" class="fa fa-fw fa-windows"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).YUBIKEY}" aria-label="Yubikey klient" class="fa fa-fw fa-key"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).EDGE}" aria-label="Edge klient" class="fa fa-fw fa-edge"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTP}" aria-label="Authenticator klient" class="fa fa-fw fa-mobile fa-rotate-90"></em>
+								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).TOTPH}" aria-label="Kodeviser klient" class="fa fa-fw fa-mobile fa-rotate-90"></em>
 								&nbsp;
 								<th:block th:text="${#strings.isEmpty(client.name) ? client.deviceId : client.name}"></th:block>
 							</a>
 						</li>
-
-						<li th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">
-							<a th:href="@{/sso/saml/login/nemid}" style="color: black;">
-								<em class="fa fa-fw fa-key"></em>
-								&nbsp;
-								Log ind med NemID
-							</a>
-						</li>
 						
-						<li th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
-							<a th:href="@{/sso/saml/login/nemid}" style="color: black;">
-								<em class="fa fa-fw fa-key"></em>
-								&nbsp;
-								Log ind med NemLog-in
-							</a>
-						</li>
+						<br/>
+
+						<a th:if="${@loginService.showNemLogIn()}" th:href="@{/sso/saml/login/nemid}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'" style="color: black;">
+							<em class="fa fa-fw fa-key"></em>
+							&nbsp;
+							Log ind med MitID
+						</a>
 					</ul>
 					
 					<hr/>
 
-					<a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
+					<a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b wcag-btn-danger">Afbryd login</a>
                 </div>
             </div>
         </div>
     </div>
     
 	<div th:replace="fragments/footer :: scripts" />
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+
+		/*[+
+		+]*/
+
+
+		$(document).ready(function() {
+			$('body').on('keydown', function(e) {
+				if (e.key === "Enter") {
+					$("ul>li>a").first()[0].click();
+					return false;
+				}
+			});
+		});
+
+
+		/*]]>*/
+	</script>
 </body>
 </html>

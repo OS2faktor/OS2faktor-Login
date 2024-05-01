@@ -1,16 +1,20 @@
 package dk.digitalidentity.common.service;
 
-import dk.digitalidentity.common.dao.WindowCredentialProviderClientDao;
-import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.PostConstruct;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.stereotype.Service;
+
+import dk.digitalidentity.common.dao.WindowCredentialProviderClientDao;
+import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
+
+@EnableCaching
 @Service
 public class WindowCredentialProviderClientService {
 
@@ -19,17 +23,13 @@ public class WindowCredentialProviderClientService {
 
     @Autowired
     private DomainService domainService;
-
-	@PostConstruct
+    
+    @PostConstruct
 	public void init() {
 		List<WindowCredentialProviderClient> wcps = clientDao.findAll();
 		List<Domain> domains = domainService.getAll();
 		
 		for (Domain domain : domains) {
-			if (domain.getName().equals("OS2faktor")) {
-				continue;
-			}
-
 			boolean found = wcps.stream().anyMatch(w -> w.getDomain().getId() == domain.getId());
 			
 			if (!found) {
@@ -44,8 +44,17 @@ public class WindowCredentialProviderClientService {
 		}
 	}
 
+    // never needs to be reloaded
+	@Cacheable("clientByApiKey")
     public WindowCredentialProviderClient getByApiKeyAndDisabledFalse(String apiKey) {
-        return clientDao.findByApiKeyAndDisabledFalse(apiKey);
+		WindowCredentialProviderClient client = clientDao.findByApiKeyAndDisabledFalse(apiKey);
+
+		// force load, so it can be cached after session is dead
+		if (client != null) {
+			client.getDomain().getName();
+		}
+        
+        return client;
     }
 
     public List<WindowCredentialProviderClient> getAll() {

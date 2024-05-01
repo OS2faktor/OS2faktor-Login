@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="da" xmlns:soap="">
+<head th:replace="fragments/header :: header"></head>
+<div th:replace="fragments/topbar :: topbar"></div>
+<body class="gray-bg">
+    <div class="ibox offset-md-2 col-md-8">
+        <form class="m-t" id="loginResponse" th:action="@{__${wreply}__}" method="post">
+            <th:block th:if="${wresult != null}">
+                <input type="hidden" name="wa" value="wsignin1.0" />
+                <input th:if="${wctx != null}" type="hidden" name="wctx" th:value="${wctx}" />
+                <input th:if="${wresult != null}" type="hidden" name="wresult" th:value="${wresult}" />
+                
+                <p class="hideOnSubmit">Hvis login ikke automatisk bliver viderestillet kan man benytte knappen nedenfor</p>
+                <button type="submit" class="btn btn-primary block m-b wcag-btn-primary hideOnSubmit">Log ind</button>
+            </th:block>
+
+            <th:block th:if="${faultCode != null}">
+                <soap:Fault>
+                    <Code th:text="${faultCode}"></Code>
+                    <Reason th:text="${faultReason}"></Reason>
+                </soap:Fault>
+            </th:block>
+        </form>
+    </div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+
+		$(document).ready(function() {
+			$(".hideOnSubmit").hide();
+		    $("form").submit();
+		});
+
+		/*]]>*/
+	</script>
+</body>
+</html>

@@ -6,7 +6,9 @@ import lombok.Getter;
 public enum ClaimType {
     DYNAMIC("Personligt"),
     STATIC("Fast"),
-    ROLE_CATALOGUE("OS2rollekatalog");
+    ROLE_CATALOGUE("OS2rollekatalog"),
+    ADVANCED("Avanceret"),
+    GROUP("Gruppe");
 
     private String message;
 

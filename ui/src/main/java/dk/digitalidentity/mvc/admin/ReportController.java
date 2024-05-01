@@ -1,7 +1,11 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.nio.charset.Charset;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -10,18 +14,29 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
+import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.dto.AuditLogDTO;
+import dk.digitalidentity.mvc.admin.xlsview.AdminActionReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsView;
+import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsViewStatic;
 import dk.digitalidentity.mvc.admin.xlsview.PersonsReportXlsView;
+import dk.digitalidentity.mvc.admin.xlsview.RolesReportXlsView;
 import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
@@ -46,6 +61,12 @@ public class ReportController {
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private AuditLogService auditLogService;
+	
+	@Autowired
+	private ResourceBundleMessageSource resourceBundle;
 	
 	@GetMapping("/admin/rapporter")
 	public String reports() {
@@ -66,7 +87,7 @@ public class ReportController {
 		response.setContentType("application/ms-excel");
 		response.setHeader("Content-Disposition", "attachment; filename=\"Hændelseslog.xlsx\"");
 
-		return new ModelAndView(new AuditLogReportXlsView(), model);
+		return new ModelAndView(new AuditLogReportXlsViewStatic(), model);
 	}
 	
 	@GetMapping("/ui/report/download/persons")
@@ -89,6 +110,17 @@ public class ReportController {
 	}
 	
 	@RequireAdministrator
+	@GetMapping("/ui/report/download/auditorReportAdmins")
+	public ModelAndView downloadAdminReportLogins(HttpServletRequest request, HttpServletResponse response) {
+		Map<String, Object> model = reportService.getAuditLogReportModelWithAdminActions();
+
+		response.setContentType("application/ms-excel");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport over administratorhandlinger.xlsx\"");
+		
+		return new ModelAndView(new AdminActionReportXlsView(), model);
+	}
+	
+	@RequireAdministrator
 	@GetMapping("/ui/report/download/auditorReportLogins")
 	public ResponseEntity<StreamingResponseBody> downloadAuditorReportLogins(HttpServletRequest request, HttpServletResponse response) {
 		
@@ -96,10 +128,10 @@ public class ReportController {
 			.body(out -> { 
 				var zipOutputStream = new ZipOutputStream(out);
 				
-				addFilesToZip(request, zipOutputStream, 3, "Revisorrapport over logins ", ReportType.LOGIN_HISTORY);
+				addFilesToZipCsv(request, zipOutputStream, 3, "Revisorrapport over logins ", ReportType.LOGIN_HISTORY);
 				
 				zipOutputStream.close(); 
-			} 
+			}
 		);
 	}
 	
@@ -114,42 +146,300 @@ public class ReportController {
 				addFilesToZip(request, zipOutputStream, 13, "Revisorrapport generelt ", ReportType.GENERAL_HISTORY);
 				
 				zipOutputStream.close(); 
-			} 
+			}
 		);
 	}
-	
+
+	@RequireAdministrator
+	@GetMapping("/ui/report/download/auditorReportSelection")
+	public ResponseEntity<StreamingResponseBody> downloadReportSelection(HttpServletRequest request, HttpServletResponse response, @RequestParam(name = "logAction", required = false) LogAction logActionFilter, @RequestParam(name = "message", required = false) String messageFilter) {
+
+		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"Hændelseslog.zip\"") 
+				.body(out -> { 
+					var zipOutputStream = new ZipOutputStream(out);
+					
+					addFilesToZipCsv(request, zipOutputStream, 3, "Hændelseslog ", logActionFilter, messageFilter);
+					
+					zipOutputStream.close(); 
+				}
+		);
+	}
+
+	@GetMapping("/ui/report/download/roles")
+	public ModelAndView downloadRoles(HttpServletResponse response) {
+		Map<String, Object> model;
+		Person loggedInPerson = personService.getById(securityUtil.getPersonId());
+		if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
+			model = reportService.getRolesReportModel();
+		}
+		else {
+			model = reportService.getRolesReportModelByDomain(loggedInPerson.getSupporter().getDomain());
+		}
+
+		response.setContentType("application/ms-excel");
+		response.setHeader("Content-Disposition", "attachment; filename=\"Jobfunktionsroller.xlsx\"");
+
+		return new ModelAndView(new RolesReportXlsView(), model);
+	}
+
+	private void addFilesToZipCsv(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, ReportType type) {
+		LocalDateTime now = LocalDateTime.now();
+		
+		while (month >= 0) {
+
+			// 20XX-YY-01 00:00:00
+			LocalDateTime from = now
+					.minusMonths(month)
+					.withDayOfMonth(1)
+					.withHour(0)
+					.withMinute(0)
+					.withSecond(0);
+
+			// 20XX-YY-ZZ 23:59:59
+			LocalDateTime to = now
+					.minusMonths(month)
+					.withHour(23)
+					.withMinute(59)
+					.withSecond(59);
+			to = to.withDayOfMonth(to.getMonth().length(to.toLocalDate().isLeapYear()));
+
+			String monthStr = getMonthString(from.getMonth());
+
+			month = month - 1;
+
+			try {
+				log.info("Starting rendering logs from " + from.toString() +  " to " + to.toString());
+				
+				boolean isEmpty = auditLogService.countAuditLogsByMonth(from, to, type) == 0;
+				if (!isEmpty) {
+					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear() + " " + monthStr + ".csv");
+					zipOutputStream.putNextEntry(taskfile); 
+
+					StringBuilder builder = new StringBuilder();
+
+					builder.append("\"").append("Tidspunkt").append("\";");
+					builder.append("\"").append("IP-adresse").append("\";");
+					builder.append("\"").append("Korrelations-ID").append("\";");
+					builder.append("\"").append("Handling").append("\";");
+					builder.append("\"").append("Besked").append("\";");
+					builder.append("\"").append("Personnummer").append("\";");
+					builder.append("\"").append("Person").append("\";");
+					builder.append("\"").append("Administrator").append("\"\n");
+
+					zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
+
+					Pageable page = PageRequest.of(0, 20000);
+
+					do {
+						List<AuditLogDTO> auditLogs = auditLogService.findAllJDBC(page, from, to, type);
+						if (auditLogs == null || auditLogs.size() == 0) {
+							break;
+						}
+
+						for (AuditLogDTO entry : auditLogs) {
+							builder = new StringBuilder();
+
+							builder.append("\"").append(entry.getTts()).append("\";");
+							builder.append("\"").append(entry.getIpAddress()).append("\";");
+							builder.append("\"").append(entry.getCorrelationId()).append("\";");
+							builder.append("\"").append(resourceBundle.getMessage(entry.getLogAction().getMessage(), null, Locale.ENGLISH)).append("\";");
+							builder.append("\"").append(entry.getMessage()).append("\";");
+							builder.append("\"").append(!StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX").append("\";");
+							builder.append("\"").append((entry.getPersonName() != null) ? entry.getPersonName() : "").append("\";");
+							builder.append("\"").append((entry.getPerformerName() != null) ? entry.getPerformerName() : "").append("\"\n");
+
+							zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
+						}
+						
+						// next page
+						page = page.next();
+					} while (true);					
+				}
+				
+				log.info("Done rendering logs from " + from.toString() +  " to " + to.toString());
+			}
+			catch (Exception ex) {
+				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm");
+				String formattedFrom = from.format(formatter);
+				String formattedTo = to.format(formatter);
+				log.error("Failed to add file for auditLogs from " + formattedFrom + " to " + formattedTo + " to zip. Report type: " + type, ex);
+			}			
+		}
+		
+		log.info("Done rendering logs for download");
+	}
+
+	private void addFilesToZipCsv(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, LogAction logAction, String messageFilter) {
+		LocalDateTime now = LocalDateTime.now();
+		
+		while (month >= 0) {
+
+			// 20XX-YY-01 00:00:00
+			LocalDateTime from = now
+					.minusMonths(month)
+					.withDayOfMonth(1)
+					.withHour(0)
+					.withMinute(0)
+					.withSecond(0);
+
+			// 20XX-YY-ZZ 23:59:59
+			LocalDateTime to = now
+					.minusMonths(month)
+					.withHour(23)
+					.withMinute(59)
+					.withSecond(59);
+			to = to.withDayOfMonth(to.getMonth().length(to.toLocalDate().isLeapYear()));
+
+			String monthStr = getMonthString(from.getMonth());
+
+			month = month - 1;
+
+			try {
+				log.info("Starting rendering logs from " + from.toString() +  " to " + to.toString());
+				
+				boolean isEmpty = auditLogService.countAuditLogsByMonth(from, to, logAction, messageFilter) == 0;
+				if (!isEmpty) {
+					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear() + " " + monthStr + ".csv");
+					zipOutputStream.putNextEntry(taskfile); 
+
+					StringBuilder builder = new StringBuilder();
+
+					builder.append("\"").append("Tidspunkt").append("\";");
+					builder.append("\"").append("IP-adresse").append("\";");
+					builder.append("\"").append("Korrelations-ID").append("\";");
+					builder.append("\"").append("Handling").append("\";");
+					builder.append("\"").append("Besked").append("\";");
+					builder.append("\"").append("Personnummer").append("\";");
+					builder.append("\"").append("Person").append("\";");
+					builder.append("\"").append("Administrator").append("\"\n");
+
+					zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
+
+					Pageable page = PageRequest.of(0, 20000);
+
+					do {
+						List<AuditLogDTO> auditLogs = auditLogService.findAllJDBC(page, from, to, logAction, messageFilter);
+						if (auditLogs == null || auditLogs.size() == 0) {
+							break;
+						}
+
+						for (AuditLogDTO entry : auditLogs) {
+							builder = new StringBuilder();
+
+							builder.append("\"").append(entry.getTts()).append("\";");
+							builder.append("\"").append(entry.getIpAddress()).append("\";");
+							builder.append("\"").append(entry.getCorrelationId()).append("\";");
+							builder.append("\"").append(resourceBundle.getMessage(entry.getLogAction().getMessage(), null, Locale.ENGLISH)).append("\";");
+							builder.append("\"").append(entry.getMessage()).append("\";");
+							builder.append("\"").append(!StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX").append("\";");
+							builder.append("\"").append((entry.getPersonName() != null) ? entry.getPersonName() : "").append("\";");
+							builder.append("\"").append((entry.getPerformerName() != null) ? entry.getPerformerName() : "").append("\"\n");
+
+							zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
+						}
+						
+						// next page
+						page = page.next();
+					} while (true);
+				}
+				
+				log.info("Done rendering logs from " + from.toString() +  " to " + to.toString());
+			}
+			catch (Exception ex) {
+				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm");
+				String formattedFrom = from.format(formatter);
+				String formattedTo = to.format(formatter);
+				log.error("Failed to add file for auditLogs from " + formattedFrom + " to " + formattedTo + " to zip. For filter logAction: " + logAction.toString() + " message: " + messageFilter, ex);
+			}
+		}
+		
+		log.info("Done rendering logs for download");
+	}
 
 	private void addFilesToZip(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, ReportType type) {
 		AuditLogReportXlsView view = new AuditLogReportXlsView();
 		LocalDateTime now = LocalDateTime.now();
 		
-		while (month > 0) {
-			LocalDateTime from = now.minusMonths(month);
-			LocalDateTime to = now.minusMonths(month - 1);
-			
-			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH.mm");
-			String formattedFrom = from.format(formatter);
-			String formattedTo = to.format(formatter);
-			
+		while (month >= 0) {
+
+			// 20XX-YY-01 00:00:00
+			LocalDateTime from = now
+					.minusMonths(month)
+					.withDayOfMonth(1)
+					.withHour(0)
+					.withMinute(0)
+					.withSecond(0);
+
+			// 20XX-YY-ZZ 23:59:59
+			LocalDateTime to = now
+					.minusMonths(month)
+					.withHour(23)
+					.withMinute(59)
+					.withSecond(59);
+			to = to.withDayOfMonth(to.getMonth().length(to.toLocalDate().isLeapYear()));
+
+			String monthStr = getMonthString(from.getMonth());
+
 			Map<String, Object> model = reportService.getAuditorReportModel(type, from, to);
 			
 			month = month - 1;
 
 			try {
-				boolean isEmpty = (boolean) model.get("auditLogListEmpty");
+				log.info("Starting rendering logs from " + from.toString() +  " to " + to.toString());
+				
+				boolean isEmpty = auditLogService.countAuditLogsByMonth(from, to, type) == 0;
 				if (!isEmpty) {
 					HttpServletResponse response = new HttpServletResponseOutputStreamWrapper();
 					view.render(model, request, response);
 					OutputStreamWrapper outputStream = (OutputStreamWrapper) response.getOutputStream();
-					
-					ZipEntry taskfile = new ZipEntry(fileNamePrefix + formattedFrom + " til " + formattedTo +".xlsx"); 
+
+					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear()+ " " + monthStr + ".xlsx");
 					zipOutputStream.putNextEntry(taskfile); 
-					zipOutputStream.write(outputStream.getByteArrayOutputStream().toByteArray());
+					outputStream.getByteArrayOutputStream().writeTo(zipOutputStream);
 				}
+				
+				log.info("Done rendering logs from " + from.toString() +  " to " + to.toString());
 			}
 			catch (Exception ex) {
+				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm");
+				String formattedFrom = from.format(formatter);
+				String formattedTo = to.format(formatter);
 				log.error("Failed to add file for auditLogs from " + formattedFrom + " to " + formattedTo + " to zip. Report type: " + type, ex);
-			}
+			}			
 		}
+		
+		log.info("Done rendering logs for download");
+	}
+
+	private String getMonthString(Month month) {
+		switch (month) {
+			case JANUARY:
+				return "Januar";
+			case FEBRUARY:
+				return "Februar";
+			case MARCH:
+				return "Marts";
+			case APRIL:
+				return "April";
+			case MAY:
+				return "Maj";
+			case JUNE:
+				return "Juni";
+			case JULY:
+				return "Juli";
+			case AUGUST:
+				return "August";
+			case SEPTEMBER:
+				return "September";
+			case OCTOBER:
+				return "Oktober";
+			case NOVEMBER:
+				return "November";
+			case DECEMBER:
+				return "December";
+			default:
+				throw new IllegalStateException("Unexpected value: " + month);
+		}
+
 	}
 }

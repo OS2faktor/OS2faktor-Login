@@ -4,13 +4,6 @@
 	<div th:fragment="view" data-name="groupDetailsFragment">
 		<div class="ibox-title">
 			<h5><em class="fa fa-users"></em> &nbsp; Gruppe</h5>
-			<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
-				<button th:if="${group.domain.id} == ${@domainService.getInternalDomain().id}" th:onclick="'groupService.editGroupDetail(' + ${group.id} + ')'" class="btn btn-primary">
-					<em class="fa fa-pencil"></em>
-					&nbsp;
-					Redigér
-				</button>
-			</div>
 		</div>
 
 		<div class="ibox-content">
@@ -33,43 +26,7 @@
 				<div class="form-group row">
 					<label class="col-sm-3 col-form-label">Beskrivelse</label>
 					<div class="col-sm-9">
-						<textarea type="text" rows="5" class="form-control" th:field="${group.description}" disabled="disabled"/>
-					</div>
-				</div>
-			</form>
-		</div>
-	</div>
-	<div th:fragment="edit" data-name="groupDetailsFragment">
-		<div class="ibox-title">
-			<h5><em class="fa fa-users"></em> &nbsp; Gruppe</h5>
-			<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
-				<button onclick="groupService.saveGroup()" class="btn btn-primary">
-					<em class="fa fa-floppy-o"></em>
-					&nbsp;
-					Gem
-				</button>
-				<a th:onclick="'groupService.viewGroupDetail(' + ${group.id} + ')'" class="btn btn-danger" style="color:#ffffff !important">
-					<em class="fa fa-ban"></em>
-					&nbsp;
-					Annuller
-				</a>
-			</div>
-		</div>
-
-		<div class="ibox-content">
-			<form id="editGroupForm">
-				<input type="text" class="form-control" th:field="${group.id}" style="display:none;"/>
-
-				<div class="form-group row">
-					<label class="col-sm-3 col-form-label">Navn</label>
-					<div class="col-sm-9">
-						<input type="text" class="form-control" th:field="${group.name}"/>
-					</div>
-				</div>
-				<div class="form-group row">
-					<label class="col-sm-3 col-form-label">Beskrivelse</label>
-					<div class="col-sm-9">
-						<textarea type="text" rows="5" class="form-control" th:field="${group.description}"/>
+						<textarea type="text" rows="5" class="form-control" th:field="${group.description}" disabled="disabled"></textarea>
 					</div>
 				</div>
 			</form>

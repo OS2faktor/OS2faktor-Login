@@ -107,6 +107,8 @@ HRESULT ProtectIfNecessaryAndCopyPassword(
     _Outptr_result_nullonfailure_ PWSTR *ppwzProtectedPassword
     );
 
+HRESULT UnProtectIfNecessaryAndCopyPassword(PWSTR protectedPassword, PWSTR* password);
+
 HRESULT KerbInteractiveUnlockLogonRepackNative(
     _In_reads_bytes_(cbWow) BYTE *rgbWow,
     _In_ DWORD cbWow,

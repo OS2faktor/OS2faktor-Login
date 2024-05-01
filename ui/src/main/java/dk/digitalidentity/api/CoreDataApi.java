@@ -1,11 +1,5 @@
 package dk.digitalidentity.api;
 
-import dk.digitalidentity.api.dto.CoreDataGroupLoad;
-import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
-import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
-import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
-import dk.digitalidentity.api.dto.CoreDataStatus;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +16,12 @@ import dk.digitalidentity.api.dto.CoreData;
 import dk.digitalidentity.api.dto.CoreDataDelete;
 import dk.digitalidentity.api.dto.CoreDataDeltaJfr;
 import dk.digitalidentity.api.dto.CoreDataFullJfr;
+import dk.digitalidentity.api.dto.CoreDataGroupLoad;
+import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
+import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
+import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
+import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
+import dk.digitalidentity.api.dto.CoreDataStatus;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.service.CoreDataLogService;
 import dk.digitalidentity.common.service.DomainService;
@@ -31,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RestController
 public class CoreDataApi {
+	public enum PersonRoles { ADMIN, TU_ADMIN, SUPPORTER, REGISTRANT, USER_ADMIN, KODEVISER_ADMIN }
 
 	@Autowired
 	private CoreDataService coreDataService;
@@ -46,7 +47,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.load(coreData, true);
 
-			coreDataLogService.addLog("/api/coredata/full", coreData.getDomain());
+			coreDataLogService.addLog("/api/coredata/full", coreData.getDomain(), coreData.getGlobalSubDomain());
 
 			return ResponseEntity.ok().build();
 		}
@@ -61,7 +62,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.load(coreData, false);
 
-			coreDataLogService.addLog("/api/coredata/delta", coreData.getDomain());
+			coreDataLogService.addLog("/api/coredata/delta", coreData.getDomain(), coreData.getGlobalSubDomain());
 
 			return ResponseEntity.ok().build();
 		}
@@ -78,7 +79,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.loadGroupsFull(groups);
 
-			coreDataLogService.addLog("/api/coredata/groups/load/full", groups.getDomain());
+			coreDataLogService.addLog("/api/coredata/groups/load/full", groups.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
@@ -96,7 +97,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.loadGroupsDelta(groups);
 
-			coreDataLogService.addLog("/api/coredata/groups/load/delta", groups.getDomain());
+			coreDataLogService.addLog("/api/coredata/groups/load/delta", groups.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
@@ -113,7 +114,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.loadKombitAttributesFull(kombitAttributes);
 
-			coreDataLogService.addLog("/api/coredata/kombitAttributes/load/full", kombitAttributes.getDomain());
+			coreDataLogService.addLog("/api/coredata/kombitAttributes/load/full", kombitAttributes.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
@@ -130,7 +131,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.loadNsisUsers(nsisAllowed);
 
-			coreDataLogService.addLog("/api/coredata/nsisallowed/load", nsisAllowed.getDomain());
+			coreDataLogService.addLog("/api/coredata/nsisallowed/load", nsisAllowed.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
@@ -145,7 +146,7 @@ public class CoreDataApi {
 		try {
 			coreDataService.loadTransferToNemlogin(transferToNemlogin);
 
-			coreDataLogService.addLog("/api/coredata/transfertonemlogin/load", transferToNemlogin.getDomain());
+			coreDataLogService.addLog("/api/coredata/transfertonemlogin/load", transferToNemlogin.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
@@ -167,7 +168,20 @@ public class CoreDataApi {
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
-	
+
+	@GetMapping("/api/coredata/nemloginStatus")
+	public ResponseEntity<?> getNemloginStatus(@RequestParam String domain) {
+		try {
+			CoreDataNemLoginStatus coreData = coreDataService.getNemloginStatus(domain);
+
+			return ResponseEntity.ok(coreData);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getNemloginStatus", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
 	@GetMapping("/api/coredata/status")
 	public ResponseEntity<?> getStatusByDomain(@RequestParam String domain, @RequestParam(name = "onlyNsisAllowed", defaultValue = "false") boolean onlyNsisAllowed) {
 		try {
@@ -213,6 +227,22 @@ public class CoreDataApi {
 		}
 	}
 	
+	@DeleteMapping("/api/coredata/cleanup")
+	public ResponseEntity<?> deleteFully(@RequestBody CoreDataDelete coreDataDelete) {
+		if (coreDataDelete == null) {
+			return new ResponseEntity<>("Requestbody cannot be null", HttpStatus.BAD_REQUEST);
+		}
+
+		try {
+			coreDataService.deleteDataset(coreDataDelete);
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for physical delete", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+	
 	// KOMBIT Jobfunktionsrolle operations
 
 	// OBS!!! the optional uuid that can be used to identify a user is an external uuid that must be loaded into attributes as azureId
@@ -230,7 +260,7 @@ public class CoreDataApi {
 
 			coreDataService.loadFullKombitJfr(coreData);
 			
-			coreDataLogService.addLog("/api/coredata/jfr/full", coreData.getDomain());
+			coreDataLogService.addLog("/api/coredata/jfr/full", coreData.getDomain(), null);
 			
 			return ResponseEntity.ok().build();
 		}
@@ -256,12 +286,81 @@ public class CoreDataApi {
 
 			coreDataService.loadDeltaKombitJfr(coreData);
 			
-			coreDataLogService.addLog("/api/coredata/jfr/delta", coreData.getDomain());
+			coreDataLogService.addLog("/api/coredata/jfr/delta", coreData.getDomain(), null);
 			
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for deltaLoadKombitJfr", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@GetMapping("/api/coredata/jfr")
+	public ResponseEntity<?> getJFRByDomain(@RequestParam String domain) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			CoreDataFullJfr jfrByDomain = coreDataService.getJFRByDomain(oDomain);
+			return ResponseEntity.ok(jfrByDomain);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getJFRByDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@GetMapping("/api/coredata/jfr/{cpr}")
+	public ResponseEntity<?> getJFRByCPRandDomain(@RequestParam String domain, @PathVariable("cpr") String cpr) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			CoreDataFullJfr jfrByDomainAndCpr = coreDataService.getJFRByDomainAndCpr(oDomain, cpr);
+			return ResponseEntity.ok(jfrByDomainAndCpr);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getJFRByCPRandDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+
+	@GetMapping("/api/coredata/groups")
+	public ResponseEntity<?> getGroupsByDomain(@RequestParam String domain) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			CoreDataGroupLoad groupsByDomain = coreDataService.getGroupsByDomain(oDomain);
+			return ResponseEntity.ok(groupsByDomain);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getGroupsByDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@GetMapping("/api/coredata/groups/{cpr}")
+	public ResponseEntity<?> getGroupsByDomain(@RequestParam String domain, @PathVariable("cpr") String cpr) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			CoreDataGroupLoad groupsByDomainAndCpr = coreDataService.getGroupsByDomainAndCpr(oDomain, cpr);
+			return ResponseEntity.ok(groupsByDomainAndCpr);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getGroupsByDomain", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head th:replace="fragments/header :: header (checkbox = false)" />
+<div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
@@ -10,7 +11,7 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p>Din konto er låst. Derfor kan du kun logge på selvbetjeningen og kun med <span th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">NemLog-in</span><span th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">NemID</span></p>
+                    <p th:utext="${@cmsMessageBundle.getText('cms.login.error.locked-account')}"></p>
 
                     <a th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}">
                         <label>Gå til selvbetjening</label>

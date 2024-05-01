@@ -10,6 +10,7 @@ import javax.persistence.Id;
 import javax.persistence.Table;
 import javax.validation.constraints.Size;
 
+import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -43,8 +44,9 @@ public class KombitSubsystem {
 	private NSISLevel minNsisLevel;
 
 	// used to enforce MFA on a specific it-system from KOMBIT
-	@Column
-	private boolean alwaysRequireMfa;
+	@Column(name="force_mfa_required", nullable = false)
+	@Enumerated(EnumType.STRING)
+	private ForceMFARequired forceMfaRequired;
 	
 	@Column
 	private boolean deleted;

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head th:replace="fragments/header :: header" />
+<div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
@@ -10,7 +11,7 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p>Det var desværre ikke muligt at hente de 2-faktor enheder der er registreret på din bruger, forsøg igen og hvis det stadig fejler, så kontakt din it-afdeling.</p>
+                    <p th:utext="${@cmsMessageBundle.getText('cms.myidentity.mfaclients.error')}"></p>
                     <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
                 </div>
             </div>

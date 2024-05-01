@@ -3,8 +3,10 @@ package dk.digitalidentity.service;
 import java.security.PublicKey;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.xml.crypto.dsig.CanonicalizationMethod;
 
 import org.joda.time.DateTime;
+import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.messaging.context.SAMLEndpointContext;
@@ -15,10 +17,16 @@ import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
+import org.opensaml.saml.saml2.core.impl.LogoutResponseMarshaller;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
+import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureSigningParameters;
+import org.opensaml.xmlsec.algorithm.descriptors.SignatureRSASHA256;
 import org.opensaml.xmlsec.context.SecurityParametersContext;
+import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -57,12 +65,12 @@ public class LogoutResponseService {
 		validationService.validate(request, messageContext, metadataEntityID, publicKey, logoutRequest);
 	}
 
-	public MessageContext<SAMLObject> createMessageContextWithLogoutResponse(LogoutRequest logoutRequest, String destination) throws ResponderException {
+	public MessageContext<SAMLObject> createMessageContextWithLogoutResponse(LogoutRequest logoutRequest, String destination, String binding) throws ResponderException {
 		// Create message context
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
 
 		// Create AuthnRequest
-		LogoutResponse logoutResponse = createLogoutResponse(destination, logoutRequest);
+		LogoutResponse logoutResponse = createLogoutResponse(destination, logoutRequest, SAMLConstants.SAML2_POST_BINDING_URI.equals(binding));
 		messageContext.setMessage(logoutResponse);
 
 		// Destination
@@ -84,7 +92,7 @@ public class LogoutResponseService {
 		return messageContext;
 	}
 
-	private LogoutResponse createLogoutResponse(String destination, LogoutRequest logoutRequest) {
+	private LogoutResponse createLogoutResponse(String destination, LogoutRequest logoutRequest, boolean signLogoutResponseObject) throws ResponderException {
 		LogoutResponse logoutResponse = samlHelper.buildSAMLObject(LogoutResponse.class);
 
 		RandomIdentifierGenerationStrategy randomIdentifierGenerator = new RandomIdentifierGenerationStrategy();
@@ -107,6 +115,40 @@ public class LogoutResponseService {
 		status.setStatusCode(statusCode);
 		statusCode.setValue("urn:oasis:names:tc:SAML:2.0:status:Success");
 
+		// Sign LogoutResponse, we only do this for post, for HTTP-Redirect the message is signed
+		if (signLogoutResponseObject) {
+			signLogoutResponse(logoutResponse);
+		}
+
 		return logoutResponse;
+	}
+
+	private void signLogoutResponse(LogoutResponse logoutResponse) throws ResponderException {
+		// Prepare Assertion for Signing
+		Signature signature = samlHelper.buildSAMLObject(Signature.class);
+
+		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
+
+		signature.setSigningCredential(x509Credential);
+		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
+		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		logoutResponse.setSignature(signature);
+
+		// Sign Logout Response
+		try {
+			// If the object hasnt been marshalled first it can't be signed
+			LogoutResponseMarshaller marshaller = new LogoutResponseMarshaller();
+			marshaller.marshall(logoutResponse);
+
+			Signer.signObject(signature);
+		}
+		catch (MarshallingException e) {
+			throw new ResponderException("Kunne ikke omforme Logud svar før signering", e);
+		}
+		catch (SignatureException e) {
+			throw new ResponderException("Kunne ikke signere Logud svar", e);
+		}
 	}
 }

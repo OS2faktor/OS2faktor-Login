@@ -1,7 +1,5 @@
 package dk.digitalidentity.service;
 
-import java.security.PublicKey;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -10,10 +8,12 @@ import javax.servlet.http.HttpServletRequest;
 import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.decoder.MessageDecodingException;
+import org.opensaml.messaging.decoder.servlet.BaseHttpServletRequestXMLMessageDecoder;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.messaging.context.SAMLEndpointContext;
 import org.opensaml.saml.common.messaging.context.SAMLPeerEntityContext;
 import org.opensaml.saml.common.xml.SAMLConstants;
+import org.opensaml.saml.saml2.binding.decoding.impl.HTTPPostDecoder;
 import org.opensaml.saml.saml2.binding.decoding.impl.HTTPRedirectDeflateDecoder;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -57,13 +57,14 @@ public class LogoutRequestService {
 
 	public MessageContext<SAMLObject> getMessageContext(HttpServletRequest request) throws ResponderException, RequesterException {
 		try {
-			HTTPRedirectDeflateDecoder decoder = new HTTPRedirectDeflateDecoder();
+			BaseHttpServletRequestXMLMessageDecoder<SAMLObject> decoder = "POST".equals(request.getMethod()) ? new HTTPPostDecoder() : new HTTPRedirectDeflateDecoder();
+
 			decoder.setHttpServletRequest(request);
 
 			BasicParserPool parserPool = new BasicParserPool();
 			parserPool.initialize();
-
 			decoder.setParserPool(parserPool);
+
 			decoder.initialize();
 			decoder.decode();
 
@@ -91,13 +92,14 @@ public class LogoutRequestService {
 			}
 			throw new RequesterException(errMsg);
 		}
+		
 		return (LogoutRequest) message;
 	}
 
-	public void validateLogoutRequest(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, List<PublicKey> publicKeys) throws RequesterException, ResponderException {
-		validationService.validate(request, messageContext, metadata, publicKeys);
+	public void validateLogoutRequest(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
+		validationService.validate(request, messageContext, metadata, serviceProvider);
 	}
-
+	
 	public MessageContext<SAMLObject> createMessageContextWithLogoutRequest(LogoutRequest logoutRequest, String destination, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
 		// Create message context
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();

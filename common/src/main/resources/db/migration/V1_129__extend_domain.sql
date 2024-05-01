@@ -1,0 +1,1 @@
+ALTER TABLE domains ADD standalone BOOLEAN NOT NULL DEFAULT 0;

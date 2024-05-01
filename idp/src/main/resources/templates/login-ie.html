@@ -1,0 +1,36 @@
+<html>
+<head>
+    <meta th:if="${_csrf != null}" name="_csrf" th:content="${_csrf.token}" />
+
+    <title>OS2faktor</title>
+</head>
+
+<body>
+    <div style="max-width: 1500px;">
+        <div class="row" style="padding: 20px;">
+        	<div style="margin-bottom: 20px;">
+				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
+        	</div>
+        	
+	        <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
+	            <div>
+	            	<label for="username" style="display: block;">Brugernavn:</label>
+	                <input id="username" name="username" th:value="${username}" type="text" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Brugernavn" autofocus="autofocus" />
+	            </div>
+	
+	            <div style="margin-top: 10px;">
+	            	<label for="password" style="display: block;">Kodeord:</label>
+	                <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" />
+	            </div>
+	
+	            <div th:if="${incorrectInput}">
+	                <p style="color: red;">Brugernavn eller kodeord er forkert</p>
+	            </div>
+	
+	            <button type="submit" style="width: 100px; margin-top: 10px;" class="btn btn-primary block full-width m-b wcag-btn-primary">Login</button>
+	        </form>
+        </div>
+    </div>	
+</body>
+</html>

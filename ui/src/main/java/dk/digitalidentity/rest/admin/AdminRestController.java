@@ -3,19 +3,14 @@ package dk.digitalidentity.rest.admin;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
@@ -26,8 +21,6 @@ import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.Metamodel;
 import javax.validation.Valid;
 
-import dk.digitalidentity.common.dao.model.PersonAttribute;
-import dk.digitalidentity.common.service.PersonAttributeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
@@ -47,62 +40,72 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
+import dk.digitalidentity.common.dao.model.AuditLogSearchCriteria;
+import dk.digitalidentity.common.dao.model.BadPassword;
 import dk.digitalidentity.common.dao.model.CmsMessage;
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitSubsystem;
 import dk.digitalidentity.common.dao.model.Link;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.RadiusClient;
+import dk.digitalidentity.common.dao.model.RadiusClientClaim;
 import dk.digitalidentity.common.dao.model.RadiusClientCondition;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.Supporter;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
+import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RadiusClientConditionType;
-import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.CmsMessageService;
-import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.DomainService;
+import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RadiusClientService;
 import dk.digitalidentity.common.service.SessionSettingService;
-import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.datatables.AuditLogDatatableDao;
+import dk.digitalidentity.datatables.BadPasswordDatatableDao;
 import dk.digitalidentity.datatables.PersonDatatableDao;
 import dk.digitalidentity.datatables.model.AdminPersonView;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
+import dk.digitalidentity.mvc.admin.dto.RadiusClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.RadiusClientDTO;
 import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.mvc.selfservice.NSISStatus;
+import dk.digitalidentity.rest.admin.dto.AdvancedRuleDTO;
 import dk.digitalidentity.rest.admin.dto.AuditLogViewDTO;
-import dk.digitalidentity.rest.admin.dto.GroupDTO;
 import dk.digitalidentity.rest.admin.dto.LinkDTO;
 import dk.digitalidentity.rest.admin.dto.NameDTO;
-import dk.digitalidentity.rest.admin.dto.PersonDataDTO;
 import dk.digitalidentity.rest.admin.dto.ToggleAdminDTO;
 import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.RequireAdministratorOrUserAdministrator;
 import dk.digitalidentity.security.RequireAnyAdminRole;
-import dk.digitalidentity.security.RequireCoredataEditor;
 import dk.digitalidentity.security.RequireRegistrant;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
+import dk.digitalidentity.service.AuditLogSearchCriteriaService;
+import dk.digitalidentity.service.BadPasswordService;
 import dk.digitalidentity.service.EmailTemplateSenderService;
 import dk.digitalidentity.service.LinkService;
 import dk.digitalidentity.service.MetadataService;
@@ -117,6 +120,9 @@ public class AdminRestController {
 	private AuditLogDatatableDao auditLogDatatableDao;
 
 	@Autowired
+	private BadPasswordDatatableDao badPasswordDatatableDao;
+
+	@Autowired
 	private PersonDatatableDao personDatatableDao;
 
 	@Autowired
@@ -127,9 +133,6 @@ public class AdminRestController {
 
 	@Autowired
 	private SecurityUtil securityUtil;
-
-	@Autowired
-	private CprService cprService;
 
 	@Autowired
 	private DomainService domainService;
@@ -143,6 +146,9 @@ public class AdminRestController {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 
+	@Autowired
+	private OS2faktorConfiguration os2faktorConfiguration;
+	
 	@Autowired
 	private LinkService linkService;
 	
@@ -175,9 +181,21 @@ public class AdminRestController {
 	
 	@Autowired
 	private EmailTemplateSenderService emailTemplateSenderService;
+
+	@Autowired
+	private BadPasswordService badPasswordService;
 	
 	@PersistenceContext
 	private EntityManager entityManager;
+	
+	@Autowired
+	private EmailTemplateService emailTemplateService;
+	
+	@Autowired
+	private AdvancedRuleService advancedRuleService;
+
+	@Autowired
+	private AuditLogSearchCriteriaService auditLogSearchCriteriaService;
 
 	@RequireSupporter
 	@PostMapping("/rest/admin/eventlog/{id}")
@@ -212,11 +230,11 @@ public class AdminRestController {
 			auditLogSpec = getAuditLogByDomain(domainNames);
 		}
 		
-		return convertAuditLogDataTablesModelToDTO(auditLogDatatableDao.findAll(input, auditLogSpec, getAdditionalSpecification(person.getCpr())), locale);
+		return convertAuditLogDataTablesModelToDTO(auditLogDatatableDao.findAll(input, auditLogSpec, getAdditionalSpecification(person.getId())), locale);
 	}
 		
-	private Specification<AuditLogView> getAdditionalSpecification(String value) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("cpr"), value);
+	private Specification<AuditLogView> getAdditionalSpecification(long value) {
+		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
 	}
 
 	@RequireSupporter
@@ -325,14 +343,20 @@ public class AdminRestController {
 				return personDatatableDao.findAll(input, null, byNsisStatus);
 			}
 			else {
-				if (loggedInPerson.isSupporter()) {
-					Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, loggedInPerson.getSupporter().getDomain().getName());
-					return personDatatableDao.findAll(input, byNsisStatus);
+				// If we are filtering on domains (supporter role) we should show subdomains too.
+				ArrayList<Domain> domains = new ArrayList<>();
+				Domain domain = (loggedInPerson.isSupporter()) ? loggedInPerson.getSupporter().getDomain() : loggedInPerson.getTopLevelDomain();
+
+				domains.add(domain);
+				if (domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
+					domains.addAll(domain.getChildDomains());
 				}
-				else {
-					Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, loggedInPerson.getTopLevelDomain().getName());
-					return personDatatableDao.findAll(input, byNsisStatus);
-				}
+
+				List<String> domainNames = domains.stream().map(d -> d.getParent() != null ? (d.getParent().getName() + " - " + d.getName()) : d.getName()).collect(Collectors.toList());
+				
+				Specification<AdminPersonView> byNsisStatus = getByNsisStatusAndDomain(searchList, domainNames);
+				
+				return personDatatableDao.findAll(input, byNsisStatus);
 			}
 		}
 
@@ -341,16 +365,22 @@ public class AdminRestController {
 			return personDatatableDao.findAll(input);
 		}
 		else {
-			if (loggedInPerson.isSupporter()) {
-				return personDatatableDao.findAll(input, getPersonByDomain(loggedInPerson.getSupporter().getDomain().getName()));
+			// If we are filtering on domains (supporter role) we should show subdomains too.
+			ArrayList<Domain> domains = new ArrayList<>();
+			Domain domain = (loggedInPerson.isSupporter()) ? loggedInPerson.getSupporter().getDomain() : loggedInPerson.getTopLevelDomain();
+
+			domains.add(domain);
+			if (domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
+				domains.addAll(domain.getChildDomains());
 			}
-			else {
-				return personDatatableDao.findAll(input, getPersonByDomain(loggedInPerson.getTopLevelDomain().getName()));
-			}
+
+			List<String> domainNames = domains.stream().map(d -> d.getParent() != null ? (d.getParent().getName() + " - " + d.getName()) : d.getName()).collect(Collectors.toList());
+			
+			return personDatatableDao.findAll(input, getPersonByDomain(domainNames));
 		}
 	}
 	
-	private Specification<AdminPersonView> getByNsisStatusAndDomain (List<NSISStatus> statuses, String domain) {
+	private Specification<AdminPersonView> getByNsisStatusAndDomain (List<NSISStatus> statuses, List<String> domains) {
 		Specification<AdminPersonView> specification = (root, query, criteriaBuilder) -> {
 			
 			Predicate finalPredicate = null;
@@ -359,6 +389,7 @@ public class AdminRestController {
 				Predicate currentPredicate = criteriaBuilder.equal(root.get("lockedExpired"), true);
 				finalPredicate = criteriaBuilder.and(lockedPredicate, currentPredicate);
 			}
+			
 			if (statuses.contains(NSISStatus.LOCKED_BY_MUNICIPALITY)) {
 				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
 				Predicate lockedAdminPredicate = criteriaBuilder.equal(root.get("lockedAdmin"), true);
@@ -368,10 +399,12 @@ public class AdminRestController {
 				
 				if (finalPredicate == null) {
 					finalPredicate = andPredicate;
-				} else {
+				}
+				else {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
+
 			if (statuses.contains(NSISStatus.LOCKED_BY_SELF)) {
 				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
 				Predicate lockedPersonPredicate = criteriaBuilder.equal(root.get("lockedPerson"), true);
@@ -381,55 +414,69 @@ public class AdminRestController {
 				
 				if (finalPredicate == null) {
 					finalPredicate = andPredicate;
-				} else {
+				}
+				else {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
+			
 			if (statuses.contains(NSISStatus.LOCKED_BY_STATUS)) {
 				Predicate lockedPredicate = criteriaBuilder.equal(root.get("locked"), true);
 				Predicate currentPredicate = criteriaBuilder.equal(root.get("lockedCivilState"), true);
 				Predicate andPredicate = criteriaBuilder.and(lockedPredicate, currentPredicate);
+				
 				if (finalPredicate == null) {
 					finalPredicate = andPredicate;
-				} else {
+				}
+				else {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
+			
 			if (statuses.contains(NSISStatus.NOT_ACTIVATED)) {
 				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
 				Predicate nsisAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), true);
 				Predicate nsisLevelPredicate = criteriaBuilder.equal(root.get("nsisLevel"), NSISLevel.NONE);
 				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisAllowedPredicate, nsisLevelPredicate);
+				
 				if (finalPredicate == null) {
 					finalPredicate = andPredicate;
-				} else {
+				}
+				else {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
+			
 			if (statuses.contains(NSISStatus.ACTIVE)) {
 				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
 				Predicate nsisAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), true);
 				Predicate nsisLevelPredicate = criteriaBuilder.notEqual(root.get("nsisLevel"), NSISLevel.NONE);
 				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisAllowedPredicate, nsisLevelPredicate);
+
 				if (finalPredicate == null) {
 					finalPredicate = andPredicate;
-				} else {
-					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
-			}
-			if (statuses.contains(NSISStatus.NOT_ISSUED)) {
-				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
-				Predicate nsisNotAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), false);
-				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisNotAllowedPredicate);
-				if (finalPredicate == null) {
-					finalPredicate = andPredicate;
-				} else {
+				else {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
 			
-			if (domain != null && finalPredicate != null) {
-				Predicate domainPredicate = criteriaBuilder.equal(root.get("domain"), domain);
+			if (statuses.contains(NSISStatus.NOT_ISSUED)) {
+				Predicate notLockedPredicate = criteriaBuilder.equal(root.get("locked"), false);
+				Predicate nsisNotAllowedPredicate = criteriaBuilder.equal(root.get("nsisAllowed"), false);
+				Predicate andPredicate = criteriaBuilder.and(notLockedPredicate, nsisNotAllowedPredicate);
+
+				if (finalPredicate == null) {
+					finalPredicate = andPredicate;
+				}
+				else {
+					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
+				}
+			}
+			
+			if (domains != null && finalPredicate != null) {
+				Predicate domainPredicate = criteriaBuilder.in(root.get("domain")).value(domains);
+				
 				finalPredicate = criteriaBuilder.and(finalPredicate, domainPredicate);
 			}
 
@@ -439,14 +486,14 @@ public class AdminRestController {
 	    return specification;
 	}
 
-	private Specification<AdminPersonView> getPersonByDomain(String domain) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("domain"), domain);
+	private Specification<AdminPersonView> getPersonByDomain(List<String> domains) {
+		return (root, query, criteriaBuilder) -> criteriaBuilder.in(root.get("domain")).value(domains);
 	}
 
 	@RequireSupporter
 	@PostMapping("/rest/admin/lock/{id}")
 	@ResponseBody
-	public ResponseEntity<?> adminLockAccount(@PathVariable("id") long id, @RequestParam("lock") boolean lock, @RequestParam("suspend") boolean suspend) {
+	public ResponseEntity<?> adminLockAccount(@PathVariable("id") long id, @RequestParam("lock") boolean lock, @RequestParam(name = "reason", required = false) String reason) {
 		Person admin = personService.getById(securityUtil.getPersonId());
 		if (admin == null) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -458,17 +505,17 @@ public class AdminRestController {
 		}
 
 		person.setLockedAdmin(lock);
-		
-		if (suspend) {
+
+		if (lock) {
 			personService.suspend(person);
 		}
 		
-		sendEmails(lock, suspend, person);
+		sendEmails(lock,person);
 
 		personService.save(person);
 
 		if (lock) {
-			auditLogger.deactivateByAdmin(person, admin, suspend);
+			auditLogger.deactivateByAdmin(person, admin, reason);
 		}
 		else {
 			auditLogger.reactivateByAdmin(person, admin);
@@ -477,18 +524,25 @@ public class AdminRestController {
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
 
-	private void sendEmails(boolean lock, boolean suspend, Person person) {
+	private void sendEmails(boolean lock, Person person) {
 		if (lock) {
-			if (suspend) {
-				emailTemplateSenderService.send(EmailTemplateType.PERSON_SUSPENDED, person);
-			}
-			else {
-				emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED, person);
+			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED);
+			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+				if (child.isEnabled()) {
+					String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+				}
 			}
 		}
-
+		
 		if (!lock && person.isNsisAllowed()) {
-			emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATION_REPEALED, person);
+			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATION_REPEALED);
+			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+				if (child.isEnabled()) {
+					String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
+				}
+			}
 		}
 	}
 
@@ -507,6 +561,11 @@ public class AdminRestController {
 	@PostMapping("/rest/admin/toggleAdmin/{id}")
 	@ResponseBody
 	public ResponseEntity<?> adminToggle(@PathVariable("id") long id, @RequestBody ToggleAdminDTO body) {
+		if (os2faktorConfiguration.getCoreData().isRoleApiEnabled()) {
+			log.warn("role api is enabled - rejecting access to role management");
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);			
+		}
+
 		Person admin = personService.getById(securityUtil.getPersonId());
 		if (admin == null) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -570,239 +629,24 @@ public class AdminRestController {
 				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_USER_ADMIN, body.isState());
 				personService.save(person);
 				break;
+			case Constants.ROLE_KODEVISER_ADMIN:
+				person.setKodeviserAdmin(body.isState());
+				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_KODEVISER_ADMIN, body.isState());
+				personService.save(person);
+				break;
+			case Constants.ROLE_PASSWORD_RESET_ADMIN:
+				person.setPasswordResetAdmin(body.isState());
+				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_PASSWORD_RESET_ADMIN, body.isState());
+				personService.save(person);
+				break;
+			case Constants.ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN:
+				person.setInstitutionStudentPasswordAdmin(body.isState());
+				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN, body.isState());
+				personService.save(person);
+				break;
 		}
 
 		return new ResponseEntity<>(HttpStatus.OK);
-	}
-
-	@RequireCoredataEditor
-	@PostMapping("/rest/admin/coredata/edit/id")
-	@ResponseBody
-	public ResponseEntity<PersonDataDTO> getCoreDataById(@RequestBody long id) {
-		Person person = personService.getById(id);
-		if (person == null) {
-			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-		}
-
-		PersonDataDTO personDataDTO = new PersonDataDTO(person);
-
-		return new ResponseEntity<>(personDataDTO, HttpStatus.OK);
-	}
-
-	@RequireCoredataEditor
-	@PostMapping("/rest/admin/coredata/edit/cpr")
-	@ResponseBody
-	public ResponseEntity<PersonDataDTO> getCoreDataByCpr(@RequestBody String cpr) {
-		PersonDataDTO personDataDTO = new PersonDataDTO();
-		personDataDTO.setPersonId(0);
-		personDataDTO.setAttributes(new HashMap<>());
-		personDataDTO.setDomain(domainService.getInternalDomain().getName());
-		personDataDTO.setUuid(UUID.randomUUID().toString());
-		personDataDTO.setCpr(cpr);
-		personDataDTO.setNewPerson(true);
-
-		if (commonConfiguration.getCpr().isEnabled()) {
-			if (cpr.length() == 10) {
-				try {
-					Future<CprLookupDTO> cprFuture = cprService.getByCpr(cpr);
-					CprLookupDTO dto = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
-					
-					Person admin = personService.getById(securityUtil.getPersonId());
-					auditLogger.cprLookupByAdmin(admin, cpr);
-
-					if (dto != null) {
-						personDataDTO.setName(dto.getFirstname() + " " + dto.getLastname());
-						personDataDTO.setNameProtected(dto.isAddressProtected());
-					}
-				}
-				catch (InterruptedException | ExecutionException | TimeoutException ex) {
-					log.warn("Could not fetch data from cpr within the timeout", ex);
-				}
-			}
-		}
-
-		return new ResponseEntity<>(personDataDTO, HttpStatus.OK);
-	}
-
-	@RequireCoredataEditor
-	@PostMapping("/rest/admin/coredata/edit/save")
-	@ResponseBody
-	public ResponseEntity<String> saveCoreData(@RequestBody PersonDataDTO personDTO) {
-
-		// Validate CPR-number
-		if (personDTO.getCpr().length() != 10) {
-			return new ResponseEntity<>("Personnummer er ikke gyldigt", HttpStatus.BAD_REQUEST);
-		}
-
-		if (personDTO.getName() == null || personDTO.getName().trim().length() < 2) {
-			return new ResponseEntity<>("Udfyld navn", HttpStatus.BAD_REQUEST);
-		}
-
-		// validate UUID
-		try {
-			UUID.fromString(personDTO.getUuid());
-		}
-		catch (IllegalArgumentException ex) {
-			return new ResponseEntity<>("Ugyldigt UUID", HttpStatus.BAD_REQUEST);
-		}
-
-		// Get CoreData domain (used for ui created people)
-		Domain domain = domainService.getInternalDomain();
-
-		// Determine if it's a create or update scenario
-		boolean newUser = false;
-		Person person = personService.getById(personDTO.getPersonId());
-		if (person == null) {
-			newUser = true;
-
-			person = new Person();
-			person.setNsisLevel(NSISLevel.LOW);
-			person.setNsisAllowed(true);
-			person.setCpr(personDTO.getCpr());
-		}
-		else {
-			if (!Objects.equals(person.getDomain(), domain)) {
-				return new ResponseEntity<>("Personen kommer fra et andet domæne", HttpStatus.BAD_REQUEST);
-			}
-		}
-
-		person.setUuid(personDTO.getUuid());
-		person.setName(!StringUtils.hasLength(personDTO.getName()) ? null : personDTO.getName());
-		person.setEmail(!StringUtils.hasLength(personDTO.getEmail()) ? null : personDTO.getEmail());
-		person.setDomain(domain);
-		person.setAttributes(personDTO.getAttributes());
-		person.setLockedDataset(false);
-		person.setNameProtected(personDTO.isNameProtected());
-		personService.save(person);
-
-		Person admin = personService.getById(securityUtil.getPersonId());
-		if (newUser) {
-			auditLogger.createdUser(person, admin);
-		}
-		else {
-			auditLogger.editedUser(person, admin);
-		}
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-
-	@RequireCoredataEditor
-	@PostMapping("/rest/admin/coredata/delete")
-	@ResponseBody
-	public ResponseEntity<String> deletePerson(@RequestBody long id) {
-		Person admin = personService.getById(securityUtil.getPersonId());
-		Person person = personService.getById(id);
-		if (person == null) {
-			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-		}
-		else {
-			if (!Objects.equals(domainService.getInternalDomain(), person.getDomain())) {
-				return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-			}
-		}
-
-		personService.delete(person, admin);
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-
-	@RequireAdministrator
-	@PostMapping("/rest/admin/groups/edit")
-	@ResponseBody
-	public ResponseEntity<?> editGroup(@RequestBody GroupDTO groupDTO) {
-		Group group = null;
-		if (groupDTO.getId() == 0) {
-			group = new Group();
-			group.setDomain(domainService.getInternalDomain());
-			group.setUuid(UUID.randomUUID().toString());
-		}
-		else {
-			group = groupService.getById(groupDTO.getId());
-		}
-
-		// sanity check
-		if (group == null || domainService.getInternalDomain().getId() != group.getDomain().getId()) {
-			return ResponseEntity.badRequest().build();
-		}
-
-		if (!StringUtils.hasLength(groupDTO.getName())) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen skal have et navn");
-		}
-
-		// update values
-		group.setName(groupDTO.getName());
-		group.setDescription(groupDTO.getDescription());
-		group = groupService.save(group);
-
-		return ResponseEntity.ok().body(group.getId());
-	}
-
-	@RequireAdministrator
-	@PostMapping("/rest/admin/groups/{id}/delete")
-	public ResponseEntity<String> deleteGroup(@PathVariable("id") long id) {
-		Group group = groupService.getById(id);
-		if (group == null) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen findes ikke");
-		}
-
-		if (domainService.getInternalDomain().getId() != group.getDomain().getId()) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen kommer fra en ekstern kilde (" + group.getDomain().getName() + ") og skal administeres der");
-		}
-
-		groupService.deleteById(id);
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-
-	@RequireAdministrator
-	@PostMapping("/rest/admin/groups/{id}/members/add")
-	@ResponseBody
-	public ResponseEntity<?> addGroupMember(@PathVariable("id") long groupId, @RequestBody long personId) {
-		Group group = groupService.getById(groupId);
-		if (group == null) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen eksisterer ikke");
-		}
-
-		if (domainService.getInternalDomain().getId() != group.getDomain().getId()) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen kommer fra en ekstern kilde (" + group.getDomain().getName() + ") og skal administeres der");
-		}
-
-		Person person = personService.getById(personId);
-		if (person == null) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Person eksisterer ikke");
-		}
-
-		if (!GroupService.memberOfGroup(person, Collections.singletonList(group))) {
-			group.getMemberMapping().add(new PersonGroupMapping(person, group));
-			group = groupService.save(group);
-		}
-
-		return ResponseEntity.ok().body(group.getId());
-	}
-
-	@RequireAdministrator
-	@PostMapping("/rest/admin/groups/{id}/members/remove")
-	public ResponseEntity<?> removeGroupMember(@PathVariable("id") long groupId, @RequestBody long personId) {
-		Group group = groupService.getById(groupId);
-		if (group == null) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen eksisterer ikke");
-		}
-
-		if (domainService.getInternalDomain().getId() != group.getDomain().getId()) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Gruppen kommer fra en ekstern kilde (" + group.getDomain().getName() + ") og skal administeres der");
-		}
-
-		Person person = personService.getById(personId);
-		if (person == null) {
-			return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Person eksisterer ikke");
-		}
-
-		if (GroupService.memberOfGroup(person, Collections.singletonList(group))) {
-			group.getMemberMapping().removeIf(pgm -> pgm.getPerson().getId() == person.getId());
-			group = groupService.save(group);
-		}
-
-		return ResponseEntity.ok().build();
 	}
 
 	@RequireAdministrator
@@ -813,12 +657,16 @@ public class AdminRestController {
 		if (domain == null || !StringUtils.hasLength(linkDTO.getText()) || !StringUtils.hasLength(linkDTO.getLink())) {
 			return new ResponseEntity<>("Link tekst, link adresse og domæne skal være udfyldt", HttpStatus.BAD_REQUEST);
 		}
+		
+		Link link = linkService.getById(linkDTO.getId());
+		if (link == null) {
+			link = new Link();
+		}
 
 		if (linkDTO.getDescription() != null && linkDTO.getDescription().length() > 254) {
 			linkDTO.setDescription(linkDTO.getDescription().substring(0, 250) + "...");
 		}
-
-		Link link = new Link();
+		
 		link.setLink(linkDTO.getLink());
 		link.setLinkText(linkDTO.getText());
 		link.setDomain(domain);
@@ -863,10 +711,39 @@ public class AdminRestController {
 		PasswordSetting settings = passwordSettingService.getSettings(domain);
 		PasswordConfigurationForm form = new PasswordConfigurationForm(settings);
 		
-		// only show these for parent domains
-		form.setShowAdSettings(domain.getParent() == null);
+		// only show these for parent domains (and only those that are not standalone)
+		form.setShowAdSettings(domain.getParent() == null && !domain.isStandalone());
 		
 		return ResponseEntity.ok(form);
+	}
+	
+	@PostMapping("/rest/admin/konfiguration/badpassword")
+	@ResponseBody
+	@RequireAdministrator
+	public DataTablesOutput<BadPassword> getBadPasswords(@RequestBody DataTablesInput input) {
+		return badPasswordDatatableDao.findAll(input);
+	}
+	
+	@RequireAdministrator
+	@PostMapping("/rest/admin/konfiguration/badPassword/add")
+	public ResponseEntity<?> addBadPassword(@RequestBody String badPassword) {
+		if (badPasswordService.exists(badPassword)) {
+			return new ResponseEntity<>(HttpStatus.CONFLICT);
+		}
+
+		BadPassword bp = new BadPassword();
+		bp.setPassword(badPassword);
+		badPasswordService.save(bp);
+
+		return new ResponseEntity<>(HttpStatus.OK);
+	}
+	
+	@RequireAdministrator
+	@PostMapping("/rest/admin/konfiguration/badPassword/remove/{id}")
+	public ResponseEntity<?> removeBadPassword(@PathVariable("id") long id){
+		badPasswordService.delete(id);
+
+		return new ResponseEntity<>(HttpStatus.OK);
 	}
 
 	@RequireServiceProviderAdmin
@@ -885,12 +762,52 @@ public class AdminRestController {
 	}
 
 	@RequireServiceProviderAdmin
+	@PostMapping("/admin/konfiguration/tjenesteudbydere/validateRule")
+	@ResponseBody
+	public ResponseEntity<?> editServiceProvider(@RequestBody AdvancedRuleDTO advancedRule) {
+		try {
+			// throws exception if rule is invalid
+			advancedRuleService.evaluateRule(advancedRule.getRule(), securityUtil.getPerson());
+
+			return ResponseEntity.ok("");
+		}
+		catch (Exception ex) {
+			log.warn("Failed to validate rule (" + advancedRule.getRule() + "): " + ex.getMessage());
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@RequireServiceProviderAdmin
+	@PostMapping("/admin/konfiguration/tjenesteudbydere/{id}/delete")
+	@ResponseBody
+	public ResponseEntity<?> deleteServiceProvider(@PathVariable("id") String serviceProviderId) {
+		try {
+			metadataService.deleteServiceProvider(Long.parseLong(serviceProviderId));
+
+			return new ResponseEntity<>(HttpStatus.OK);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to delete serviceprovider", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	// synchronized as it is called from UI, and takes time to execute, and we don't want to expose a resource exhaustion point
+	@RequireServiceProviderAdmin
 	@PostMapping("/admin/konfiguration/tjenesteudbydere/{id}/reload")
 	@ResponseBody
-	public ResponseEntity<?> reloadMetadata(@PathVariable("id") String serviceProviderId) {
+	public synchronized ResponseEntity<?> reloadMetadata(@PathVariable("id") String serviceProviderId) {
 		try {
 			boolean result = metadataService.setManualReload(serviceProviderId);
 
+			// not critical, but let's also try to refresh the EntityID, in case it has changed
+			try {
+				metadataService.attemptToUpdateEntityId(Long.parseLong(serviceProviderId));
+			}
+			catch (Exception ex) {
+				log.warn("Failed to refresh service provider entityId", ex);
+			}
+			
 			if (result) {
 				return ResponseEntity.ok().build();
 			}
@@ -920,9 +837,9 @@ public class AdminRestController {
 
 		if (radiusClientDTO.getId() == 0) {
 			radiusClient = new RadiusClient();
-			String password = UUID.randomUUID().toString();
-			radiusClient.setPassword(password.replace("-", ""));
+			radiusClient.setPassword(UUID.randomUUID().toString().replace("-", ""));
 			radiusClient.setConditions(new HashSet<>());
+			radiusClient.setClaims(new HashSet<>());
 		}
 		else {
 			radiusClient = radiusClientService.getById(radiusClientDTO.getId());
@@ -935,7 +852,52 @@ public class AdminRestController {
 		radiusClient.setIpAddress(radiusClientDTO.getIpAddress());
 		radiusClient.setNsisLevelRequired(radiusClientDTO.getNsisLevelRequired());
 
-		// Handle conditions
+		// add new claims or update
+		for (RadiusClaimDTO claimDto : radiusClientDTO.getClaims()) {
+			boolean found = false;
+			
+			for (RadiusClientClaim existingClaim : radiusClient.getClaims()) {				
+				if (Objects.equals(existingClaim.getPersonField(), claimDto.getPersonField())) {
+					found = true;
+					
+					// potentially update attribute key
+					if (existingClaim.getAttributeId() != claimDto.getAttributeId()) {
+						existingClaim.setAttributeId(claimDto.getAttributeId());
+					}
+
+					break;
+				}
+			}
+			
+			if (!found) {
+				RadiusClientClaim newClaim = new RadiusClientClaim();
+				newClaim.setAttributeId(claimDto.getAttributeId());
+				newClaim.setPersonField(claimDto.getPersonField());
+				newClaim.setClient(radiusClient);
+
+				radiusClient.getClaims().add(newClaim);
+			}
+		}
+		
+		// remove claims no longer present
+		for (Iterator<RadiusClientClaim> iterator = radiusClient.getClaims().iterator(); iterator.hasNext();) {
+			RadiusClientClaim existingClaim = iterator.next();
+			boolean found = false;
+
+			for (RadiusClaimDTO claimDto : radiusClientDTO.getClaims()) {
+
+				if (Objects.equals(existingClaim.getPersonField(), claimDto.getPersonField())) {
+					found = true;
+					break;
+				}
+			}
+			
+			if (!found) {
+				iterator.remove();
+			}
+		}
+		
+		// handle conditions
 		Set<RadiusClientCondition> conditions = radiusClient.getConditions();
 		Set<RadiusClientCondition> newConditions = new HashSet<>();
 
@@ -943,6 +905,7 @@ public class AdminRestController {
 		List<ConditionDTO> conditionsDomains = radiusClientDTO.getConditionsDomains();
 		for (ConditionDTO conditionsDomain : conditionsDomains) {
 			Optional<RadiusClientCondition> condition = domainConditions.stream().filter(domainCondition -> domainCondition.getDomain().getId() == conditionsDomain.getId()).findAny();
+
 			if (condition.isEmpty()) {
 				// Check if domain is a sub-domain since radius clients works on parent domain level, not sub-domains
 				Domain domain = domainService.getById(conditionsDomain.getId());
@@ -962,14 +925,17 @@ public class AdminRestController {
 		List<ConditionDTO> conditionsGroups = radiusClientDTO.getConditionsGroups();
 		for (ConditionDTO conditionsGroup : conditionsGroups) {
 			Optional<RadiusClientCondition> condition = groupConditions.stream().filter(groupCondition -> groupCondition.getGroup().getId() == conditionsGroup.getId()).findAny();
+			
 			if (condition.isEmpty()) {
 				Group group = groupService.getById(conditionsGroup.getId());
 				if (group != null) {
 					newConditions.add(new RadiusClientCondition(radiusClient, RadiusClientConditionType.GROUP, group, null));
-				} else {
+				}
+				else {
 					return new ResponseEntity<>("Den valgte gruppe findes ikke", HttpStatus.BAD_REQUEST);
 				}
-			} else {
+			}
+			else {
 				newConditions.add(condition.get());
 			}
 		}
@@ -979,7 +945,6 @@ public class AdminRestController {
 		if (conditionWithAttribute != null) {
 			newConditions.add(withAttributeConditionOpt.isPresent() ? withAttributeConditionOpt.get() : new RadiusClientCondition(radiusClient, RadiusClientConditionType.WITH_ATTRIBUTE, null, null));
 		}
-
 
 		Set<RadiusClientCondition> allConditions = radiusClient.getConditions();
 		allConditions.clear();
@@ -1006,19 +971,28 @@ public class AdminRestController {
 	}
 	
 	@RequireServiceProviderAdmin
-	@PostMapping("/admin/konfiguration/tjenesteudbydere/kombit/subsystem/{id}/mfa/{enabled}")
+	@PostMapping("/admin/konfiguration/tjenesteudbydere/kombit/subsystem/{id}/mfa/{forceMfa}")
 	@ResponseBody
-	public ResponseEntity<?> editKombitSubSystemMfa(@PathVariable("id") long id, @PathVariable("enabled") boolean enabled) {
+	public ResponseEntity<?> editKombitSubSystemMfa(@PathVariable("id") long id, @PathVariable("forceMfa") String forceMFA) {
 		KombitSubsystem subsystem = kombitSubsystemService.findById(id);
 		if (subsystem == null) {
 			log.warn("No subsystem with id " + id);
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		}
-		
-		if (!Objects.equals(enabled, subsystem.isAlwaysRequireMfa())) {
-			subsystem.setAlwaysRequireMfa(enabled);
-			kombitSubsystemService.save(subsystem);
+
+		try {
+			ForceMFARequired kombitMFARequired = ForceMFARequired.valueOf(forceMFA);
+
+			if (!Objects.equals(kombitMFARequired, subsystem.getForceMfaRequired())) {
+				subsystem.setForceMfaRequired(kombitMFARequired);
+				kombitSubsystemService.save(subsystem);
+			}
+
 		}
+		catch (IllegalArgumentException e) {
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
@@ -1058,6 +1032,27 @@ public class AdminRestController {
 		client.setTypeMessage(messageSource.getMessage(client.getType().getMessage(), null, Locale.ENGLISH));
 
 		return ResponseEntity.ok(client);
+	}
+
+	@PostMapping("/rest/admin/logs/savedSearchCriteria/add")
+	@ResponseBody
+	public ResponseEntity<?> addSearchCriteria(@RequestBody AuditLogSearchCriteria body) {		
+		auditLogSearchCriteriaService.save(body);
+
+		return ResponseEntity.ok().build();
+	}
+
+	@PostMapping("/rest/admin/logs/savedSearchCriteria/remove/{id}")
+	@ResponseBody
+	public ResponseEntity<?> deleteSearchCriteria(@PathVariable("id") long id) {
+		AuditLogSearchCriteria searchCriteria = auditLogSearchCriteriaService.getById(id);
+		if (searchCriteria == null) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		auditLogSearchCriteriaService.delete(searchCriteria);
+
+		return ResponseEntity.ok().build();
 	}
 	
 	@PostMapping("/rest/admin/savelogo")
@@ -1141,7 +1136,7 @@ public class AdminRestController {
 	}
 
 	private Specification<AdminPersonView> getPersonByGroup(long groupId) {
-		//SELECT p.* FROM view_person_admin_identities p JOIN view_persons_groups pg ON pg.person_id = p.id WHERE pg.group_id = ?;
+		// SELECT p.* FROM view_person_admin_identities p JOIN view_persons_groups pg ON pg.person_id = p.id WHERE pg.group_id = ?;
 		Specification<AdminPersonView> specification = null;
 		specification = (root, query, criteriaBuilder) -> {
 			// get model of child table

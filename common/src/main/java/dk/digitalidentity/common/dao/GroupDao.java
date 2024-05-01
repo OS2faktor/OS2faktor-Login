@@ -13,4 +13,5 @@ public interface GroupDao extends JpaRepository<Group, Long> {
     Group findByUuid(String uuid);
     List<Group> findByUuidIn(Set<String> uuids);
     List<Group> findByDomainNot(Domain domain);
+    List<Group> findByDomain(Domain domain);
 }

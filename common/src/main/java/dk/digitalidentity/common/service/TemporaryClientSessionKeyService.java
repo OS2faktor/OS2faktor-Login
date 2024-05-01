@@ -5,6 +5,7 @@ import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,5 +38,18 @@ public class TemporaryClientSessionKeyService {
 
 	public void deleteMultiple(List<TemporaryClientSessionKey> sessionKeys) {
 		windowsTemporarySessionKeyDao.deleteAll(sessionKeys);
+	}
+
+	public String getIpAddressFromRequest(HttpServletRequest request) {
+		String remoteAddr = "";
+
+		if (request != null) {
+			remoteAddr = request.getHeader("X-FORWARDED-FOR");
+			if (remoteAddr == null || "".equals(remoteAddr)) {
+				remoteAddr = request.getRemoteAddr();
+			}
+		}
+
+		return remoteAddr;
 	}
 }

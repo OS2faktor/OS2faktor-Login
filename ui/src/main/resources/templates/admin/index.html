@@ -62,6 +62,16 @@
 											</div>
 										</div>
 									</div>
+									
+									<div class="col-lg-3">
+										<div class="ibox">
+											<div class="ibox-content" style="min-height: 260px;">
+												<h5>Overført til MitID Erhverv</h5>
+												<h2>[[${transferedToNemloginCount}]] / [[${personCount}]]</h2>
+												<div id="nemloginCount"></div>
+											</div>
+										</div>
+									</div>
 
 									<div class="col-lg-3" th:each="websocketConnection : ${websocketConnections}">
 										<div class="ibox">
@@ -97,6 +107,7 @@
 		var personCount = [[${personCount}]];
 		var aprovedConditionsCount = [[${aprovedConditionsCount}]];
 		var webSocketConnectionMap = [[${websocketConnections}]];
+		var transferedToNemloginCount = [[${transferedToNemloginCount}]];
         +]*/
 
 		$(document).ready(function() {
@@ -118,6 +129,12 @@
 			});
 			
 			$("#activeCount").sparkline([aprovedConditionsCount, (personCount - aprovedConditionsCount)], {
+				type: 'pie',
+				height: '140',
+				sliceColors: ['#1ab394', '#F5F5F5']
+			});
+			
+			$("#nemloginCount").sparkline([transferedToNemloginCount, (aprovedConditionsCount - transferedToNemloginCount)], {
 				type: 'pie',
 				height: '140',
 				sliceColors: ['#1ab394', '#F5F5F5']

@@ -32,8 +32,8 @@
                         	<div class="panel panel-danger mb-0 mt-5">
 	                        	<div class="panel-heading">Fejlbesked</div>
 	                        	<th:block th:switch="${errCode}">
-	                        		<div class="panel-body" th:case="'SUBSTANTIAL'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID eller evt et NemID hvor pas-scanningen er gennemført.</div>
-	                        		<div class="panel-body" th:case="'MFA'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend NemID eller MitID for at opnå det nødvendige sikringsniveau.</div>
+	                        		<div class="panel-body" th:case="'SUBSTANTIAL'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID for at opnå det nødvendige sikringsniveau.</div>
+	                        		<div class="panel-body" th:case="'MFA'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID for at opnå det nødvendige sikringsniveau.</div>
 	                        		<div class="panel-body" th:case="'GROUP'">Adgangen til den ønskede funktion er blokeret for den valgte brugerkonto. Forsøg med en anden brugerkonto, eller kontakt din it-afdeling for at få adgangen til funktionen.</div>
 	                        		<div class="panel-body" th:case="'LIMIT'">Adgangen til den ønskede funktion er begrænset til et bestemt antal forsøg per dag. Forsøg igen i morgen, eller kontakt din it-afdeling for at få adgang til funktionen.</div>
 	                        		<div class="panel-body" th:case="'*'">Adgangen til den ønskede funktion blev blokeret. Forsøg igen med en anden loginmetode eller en anden brugerkonto.</div>
@@ -50,39 +50,20 @@
                 <div class="ibox-title">
                     <h5>
                     	<em class="fa fa-user"></em> &nbsp; 
-                    	<span th:if="${@OS2faktorConfiguration.nemIdEnabled} == true">Login med NemID</span>
-                    	<span th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">Login med NemLog-in</span>
+                    	<span>Login med MitID</span>
                     </h5>
                 </div>
 
                 <div class="ibox-content">
-                    <div th:if="${@OS2faktorConfiguration.nemIdEnabled} == true"> 
-                        <div class="panel-body" style="padding: 20px 0px 20px 0px;">
-                            <div style="text-align:center; position:relative">
-                                <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
-                                    <input type="hidden" name="response">
-    
-                                    <div th:utext="${jsElement}"></div>
-    
-                                    <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
-                                        <iframe id="nemid_iframe" name="target_iframe" title="NemID"
-                                                ontouchstart="" scrolling="no" frameborder="0"
-                                                style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div th:if="${@OS2faktorConfiguration.mitIdEnabled} == true">
+                    <div>
                         <div class="panel-body">
-                            <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">
+                            <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
                                 <div class="form-group">
                                     <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}"></span>
                                 </div>
                                 <br>
                                 <div class="form-group">
-                                    <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med NemLog-in</a>
+                                    <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med MitID</a>
                                 </div>
                             </form>
                         </div>
@@ -93,58 +74,22 @@
     </div>
 
 	<div th:replace="fragments/footer :: scripts" />
-	
-	<script type="text/javascript" th:src="@{/js/nemid.js}"></script>
 
 	<script th:inline="javascript">
         /*<![CDATA[*/
 
-		/*[+
-			var iframeSrc = [[${iframeSrc}]];
-			var iframeOrigin = [[${serverUrlPrefix}]];
-			var errorMessage = [[${errorMessage}]];
-		+]*/
-        
-		function onNemIDMessage(e) {
-			var event = e || event;
-
-			if (iframeOrigin !== event.origin) {
-				return;
-			}
-
-			var win = document.getElementById("nemid_iframe").contentWindow, postMessage = {}, message;
-			message = JSON.parse(event.data);
-
-			if (message.command === "SendParameters") {
-				var htmlParameters = document.getElementById("nemid_parameters").innerHTML;
-
-				postMessage.command = "parameters";
-				postMessage.content = htmlParameters;
-				win.postMessage(JSON.stringify(postMessage), iframeOrigin);
-			}
-
-			if (message.command === "changeResponseAndSubmit") {
-				document.postBackForm.response.value = message.content;
-				document.postBackForm.submit();
-			}
-		}
-
-		if (window.addEventListener) {
-			window.addEventListener("message", onNemIDMessage);
-		}
-		else if (window.attachEvent) {
-			window.attachEvent("onmessage", onNemIDMessage);
-		}
+       /*[+
+               var waitForUserInputBckInfo = [[${waitForUserInputBckInfo}]];
+       +]*/
 
 		$(document).ready(function() {
-			if (typeof errorMessage != "undefined" && errorMessage != null) {
-				toastr.warning(errorMessage);
-			}
+			const { search } = window.location;
+			const waitForUserInput = (new URLSearchParams(search)).get('pause');
 
-			// delay loading the NemID applet for 1 second
-		    setTimeout(function() {
-				$("#nemid_iframe").attr("src", function(i, val) { return iframeSrc; });
-		    }, 1000);
+            if (waitForUserInput !== 'true' && waitForUserInputBckInfo != true) {
+				// OS2FAK-135 (fjern mellemliggende skærmbillde) quickfix (for now)
+				window.location = '/nemlogin/saml/login';
+			}
         });
 
 		/*]]>*/

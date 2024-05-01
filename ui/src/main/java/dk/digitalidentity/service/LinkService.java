@@ -24,6 +24,10 @@ public class LinkService {
 		return linkDao.findAll();
 	}
 	
+	public Link getById(long id) {
+		return linkDao.findById(id);
+	}
+	
 	public List<Link> getAllForMe() {
 		Domain domain = securityUtil.getTopLevelDomain();
 

@@ -5,6 +5,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -17,11 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 import dk.digitalidentity.api.dto.StilData;
 import dk.digitalidentity.api.dto.StilGroup;
 import dk.digitalidentity.api.dto.StilPerson;
+import dk.digitalidentity.api.dto.StilPersonType;
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.config.modules.StilPersonCreationRoleSetting;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SchoolClass;
 import dk.digitalidentity.common.dao.model.SchoolRole;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.PersonService;
@@ -91,7 +95,8 @@ public class StilApi {
 	}
 
 	private void createAndUpdatePersonSchoolRoles(Map<String, SchoolClass> classMap, StilData stilData, Domain domain, Map<String, List<Person>> personMap, List<String> personsWithRoles) {
-
+		List<StilPersonCreationRoleSetting> stilCreateSettings = commonConfiguration.getStilPersonCreation().getRoleSettings();
+		
 		for (StilPerson currentStilPerson : stilData.getPeople()) {
 			String cpr = currentStilPerson.getCpr();
 
@@ -101,15 +106,44 @@ public class StilApi {
 			personsWithRoles.add(cpr);
 
 			List<Person> peopleWithThisCprAndDomain = personMap.get(cpr);
-			if (peopleWithThisCprAndDomain == null) {
-				// TODO: change to debug at some point, but for now let's spam our logs :)
-				log.warn("Person with cpr " + PersonService.maskCpr(cpr) + " does not exist, but was received as a StilPerson from the STIL integration.");
+
+			if (peopleWithThisCprAndDomain == null && !commonConfiguration.getStilPersonCreation().isEnabled()) {
+				log.debug("Person with cpr " + PersonService.maskCpr(cpr) + " does not exist, but was received as a StilPerson from the STIL integration.");
 				continue;
 			}
 
 			// grab ALL the stilData for this CPR and handle it together
 			List<StilPerson> stilPeopleWithThisCpr = stilData.getPeople().stream().filter(s -> s.getCpr().equals(cpr)).collect(Collectors.toList());
 
+			// create
+			boolean create = false;
+			if ((peopleWithThisCprAndDomain == null || peopleWithThisCprAndDomain.isEmpty()) && commonConfiguration.getStilPersonCreation().isEnabled() && (commonConfiguration.getStilPersonCreation().isCreateEmployees() || commonConfiguration.getStilPersonCreation().isCreateStudents())) {
+				if (stilPeopleWithThisCpr.stream().anyMatch(s -> s.getType().equals(StilPersonType.EMPLOYEE) || s.getType().equals(StilPersonType.EXTERN)) && commonConfiguration.getStilPersonCreation().isCreateEmployees()) {
+					create = true;
+				}
+				if (stilPeopleWithThisCpr.stream().anyMatch(s -> s.getType().equals(StilPersonType.STUDENT)) && commonConfiguration.getStilPersonCreation().isCreateStudents()) {
+					create = true;
+				}
+			}
+			
+			if (create) {
+				Person person = new Person();
+				person.setUuid(UUID.randomUUID().toString());
+				person.setCpr(cpr);
+				person.setName(currentStilPerson.getName());
+				person.setSamaccountName(currentStilPerson.getUserId());
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setDomain(domain);
+				person.setNsisAllowed(isNsisAllowed(stilPeopleWithThisCpr, stilCreateSettings));
+				person.setTransferToNemlogin(isTransferToNemLogin(stilPeopleWithThisCpr, stilCreateSettings));
+				person.setSchoolRoles(new ArrayList<>());
+				
+				person = personService.save(person);
+				peopleWithThisCprAndDomain = new ArrayList<>();
+				peopleWithThisCprAndDomain.add(person);
+			}
+			
+			// update
 			for (Person person : peopleWithThisCprAndDomain) {
 
 				if (person.getSchoolRoles().isEmpty() && stilPeopleWithThisCpr.isEmpty()) {
@@ -189,6 +223,21 @@ public class StilApi {
 							break;
 						}
 					}
+					
+					// update person fields regarding NSIS/MitID Erhverv IF (and only if) the personCreate feature is enabled
+					if (!create && commonConfiguration.getStilPersonCreation().isEnabled()) {
+						boolean nsisAllowed = isNsisAllowed(stilPeopleWithThisCpr, stilCreateSettings);
+						if (!Objects.equals(person.isNsisAllowed(), nsisAllowed)) {
+							person.setNsisAllowed(nsisAllowed);
+							changes = true;
+						}
+						
+						boolean transferToNemLogin = isTransferToNemLogin(stilPeopleWithThisCpr, stilCreateSettings);
+						if (!Objects.equals(person.isTransferToNemlogin(), transferToNemLogin)) {
+							person.setTransferToNemlogin(transferToNemLogin);
+							changes = true;
+						}
+					}
 
 					if (changes) {
 						personService.save(person);
@@ -196,6 +245,32 @@ public class StilApi {
 				}
 			}
 		}
+	}
+
+	private boolean isNsisAllowed(List<StilPerson> stilPeopleWithThisCpr, List<StilPersonCreationRoleSetting> stilCreateSettings) {
+		for (StilPerson person : stilPeopleWithThisCpr) {
+			StilPersonCreationRoleSetting roleSetting = stilCreateSettings.stream().filter(s -> s.getRole().equals(person.getRole())).findFirst().orElse(null);
+			if (roleSetting != null) {
+				if (roleSetting.isNsisAllowed()) {
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	private boolean isTransferToNemLogin(List<StilPerson> stilPeopleWithThisCpr, List<StilPersonCreationRoleSetting> stilCreateSettings) {
+		for (StilPerson person : stilPeopleWithThisCpr) {
+			StilPersonCreationRoleSetting roleSetting = stilCreateSettings.stream().filter(s -> s.getRole().equals(person.getRole())).findFirst().orElse(null);
+			if (roleSetting != null) {
+				if (roleSetting.isTransferToNemLogin()) {
+					return true;
+				}
+			}
+		}
+		
+		return false;
 	}
 
 	private void deleteNonExistingClasses(StilData stilData, List<SchoolClass> classes) {

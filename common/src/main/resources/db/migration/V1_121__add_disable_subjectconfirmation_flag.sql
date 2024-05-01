@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_configuration ADD COLUMN disable_subject_confirmation BOOLEAN DEFAULT 0;

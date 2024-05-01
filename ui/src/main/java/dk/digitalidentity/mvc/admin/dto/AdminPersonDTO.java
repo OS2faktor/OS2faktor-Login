@@ -15,9 +15,14 @@ public class AdminPersonDTO {
 	private String email;
 	private String name;
 	private NSISStatus nsisStatus;
+	private String status = "Unknown";
+	private boolean mitidPrivatCredential;
+	private boolean qualifiedSignature;
+	private String mitidErhvervRid;
 
 	private Long personId;
 	private boolean nameProtected;
 	private Map<String, String> attributes;
+	private String nemloginUserUuid;
 	private List<SchoolRole> schoolRoles;
 }

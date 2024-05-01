@@ -117,7 +117,12 @@ public class StatisticsService {
 	
 	@Cacheable("ApprovedConditionsCount")
 	public long getAprovedConditionCount() {
-		return personDao.countByapprovedConditionsTrue();
+		return personDao.countByApprovedConditionsTrue();
+	}
+	
+	@Cacheable("TransferedToNemloginCount")
+	public long getTransferedToNemloginCount() {
+		return personDao.countByNemloginUserUuidNotNull();
 	}
 
 	@Cacheable("PersonCount")
@@ -137,7 +142,8 @@ public class StatisticsService {
 		@CacheEvict(value = "lastHourLogins", allEntries = true),
 		@CacheEvict(value = "totalLastHourLogins", allEntries = true),
 		@CacheEvict(value = "ApprovedConditionsCount", allEntries = true),
-		@CacheEvict(value = "PersonCount", allEntries = true)
+		@CacheEvict(value = "PersonCount", allEntries = true),
+		@CacheEvict(value = "TransferedToNemloginCount", allEntries = true)
 	})
 	public void cleanupHourly() {
 

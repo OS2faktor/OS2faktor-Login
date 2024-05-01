@@ -1,14 +1,14 @@
 package dk.digitalidentity.common.service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -16,13 +16,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -39,121 +40,15 @@ public class CprService {
 	
 	@Autowired
 	private AuditLogger auditLogger;
+	
+	@Autowired
+	private NemloginQueueService nemloginQueueService;
 
 	private CprService self;
 
 	@Autowired
 	public CprService(@Lazy CprService self) {
 		this.self = self;
-	}
-
-	@Transactional
-	public void syncNamesAndCivilstandFromCpr() throws Exception {
-		if (!configuration.getCpr().isEnabled()) {
-			log.warn("Called method syncNamesAndCivilstandFromCpr, but cpr is disabled");
-			return;
-		}
-
-		auditLogger.updateFromCprJob();
-
-		// change list of people to a map mapped by cpr (TODO: make the filtered lookup in the DB instead)
-		List<Person> all = personService.getAll().stream().filter(p -> p.isNsisAllowed() && !p.isLockedDataset()).collect(Collectors.toList());
-		HashMap<String, List<Person>> personMap = new HashMap<>();
-		for (Person person : all) {
-			if (!personMap.containsKey(person.getCpr())) {
-				personMap.put(person.getCpr(), new ArrayList<Person>());
-			}
-
-			personMap.get(person.getCpr()).add(person);
-		}
-
-		// run through all unique CPR numbers and call CPR to check for changes
-		int failedAttempts = 0;
-
-		List<Person> toBeSaved = new ArrayList<>();
-		for (String cpr : personMap.keySet()) {
-			if (failedAttempts >= 3) {
-				log.error("Got 3 timeouts in a row - aborting further lookup");
-				break;
-			}
-
-			if (cpr.length() == 10) {
-				try {
-					// Fetch information from CPR
-					Future<CprLookupDTO> cprFuture = self.getByCpr(cpr);
-					CprLookupDTO dto = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
-
-					if (dto == null) {
-						log.warn("Cpr response was empty");
-						failedAttempts++;
-						continue;
-					}
-					
-					if (dto.isDoesNotExist()) {
-						continue;
-					}
-					
-					// Change name and nameProtection for updated people
-					List<Person> people = personMap.get(cpr);
-					for (Person person : people) {
-						boolean change = false;
-
-						// Dødsfald og bortkomst (samme statusfelt i den service vi kalder)
-						if (!Objects.equals(person.isLockedDead(), dto.isDead())) {
-							person.setLockedDead(dto.isDead());
-
-							if (dto.isDead()) {
-								auditLogger.personDead(person);
-							}
-
-							change = true;
-						}
-
-						// Umyndiggørelse
-						if (!Objects.equals(person.isLockedDisenfranchised(), dto.isDisenfranchised())) {
-							person.setLockedDisenfranchised(dto.isDisenfranchised());
-
-							if (dto.isDisenfranchised()) {
-								auditLogger.personDisenfranchised(person);
-							}
-
-							change = true;
-						}
-						
-						// Extra check
-						if (StringUtils.hasLength(dto.getFirstname()) && StringUtils.hasLength(dto.getLastname())) {
-							String updatedName = dto.getFirstname() + " " + dto.getLastname();
-							
-							if (!Objects.equals(person.getName(), updatedName)) {
-								person.setName(updatedName);
-								auditLogger.updateNameFromCpr(person);
-								change = true;
-							}
-							
-							if (!Objects.equals(person.isNameProtected(), dto.isAddressProtected())) {
-								person.setNameProtected(dto.isAddressProtected());
-								change = true;
-							}
-						}
-						
-						if (change) {
-							toBeSaved.add(person);
-						}
-					}
-
-				} catch (TimeoutException ex) {
-					log.warn("Could not fetch data from cpr within the timeout for person", ex);
-					failedAttempts++;
-					continue;
-				}
-
-				failedAttempts = 0;
-			}
-		}
-
-		if (toBeSaved.size() > 0) {
-			personService.saveAll(toBeSaved);
-		}
 	}
 	
 	public boolean checkIsDead(Person person) {
@@ -192,20 +87,25 @@ public class CprService {
 		}
 		
 		auditLogger.checkPersonIsDead(person, dto.isDead());
-		
+
+		// update name of changed
+		if (updateName(person, dto)) {
+			personService.save(person);
+		}
+
 		return dto.isDead();
 	}
 
 	@Async
 	public Future<CprLookupDTO> getByCpr(String cpr) {
 		if (!configuration.getCpr().isEnabled()) {
-			log.warn("Called method checkIsDead, but cpr is disabled");
+			log.warn("Called method getByCpr, but cpr is disabled");
 			return null;
 		}
 		
 		RestTemplate restTemplate = new RestTemplate();
 		// no reason to lookup invalid cpr numbers
-		if (!validCpr(cpr)) {
+		if (!validCpr(cpr) || isFictionalCpr(cpr)) {
 			return null;
 		}
 
@@ -250,7 +150,7 @@ public class CprService {
 		return cpr;
 	}
 	
-	private boolean validCpr(String cpr) {
+	public boolean validCpr(String cpr) {
 		if (cpr == null || cpr.length() != 10) {
 			return false;
 		}
@@ -273,5 +173,53 @@ public class CprService {
 		}
 
 		return true;
+	}
+	
+	public boolean isFictionalCpr(String cpr) {
+		try {
+			LocalDate.parse(cpr.substring(0, 6), DateTimeFormatter.ofPattern("ddMMyy"));
+		}
+		catch (DateTimeParseException ex) {
+			return true;
+		}
+
+		return false;
+	}
+	
+	public boolean updateName(Person person, CprLookupDTO dto) {
+		boolean change = false;
+		
+		if (StringUtils.hasLength(dto.getFirstname()) && StringUtils.hasLength(dto.getLastname())) {
+			String updatedName = dto.getFirstname() + " " + dto.getLastname();
+			
+			if (!Objects.equals(person.getName(), updatedName)) {
+				person.setName(updatedName);
+				
+				auditLogger.updateNameFromCpr(person);
+
+				if (StringUtils.hasLength(person.getNemloginUserUuid())) {
+					NemloginQueue queue = new NemloginQueue();
+					queue.setAction(NemloginAction.UPDATE_PROFILE_ONLY);
+					queue.setPerson(person);
+					queue.setTts(LocalDateTime.now());
+
+					nemloginQueueService.save(queue);
+				}
+				
+				change = true;
+			}
+			
+			if (!Objects.equals(person.isNameProtected(), dto.isAddressProtected())) {
+				person.setNameProtected(dto.isAddressProtected());
+				change = true;
+			}
+			
+			if (!person.isCprNameUpdated()) {
+				person.setCprNameUpdated(true);
+				change = true;
+			}
+		}
+
+		return change;
 	}
 }

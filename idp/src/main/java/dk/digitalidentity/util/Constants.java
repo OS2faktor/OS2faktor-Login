@@ -19,6 +19,7 @@ public class Constants {
     public static final String ENTITY_IDS = "ENTITY_IDS";
     public static final String AD_PERSON_ID = "AD_PERSON_ID";
     public static final String AUTHENTICATED_WITH_AD_PASSWORD = "AUTHENTICATED_WITH_AD_PASSWORD";
+    public static final String REQUESTED_USERNAME = "REQUESTED_USERNAME";
 
     public static final String PASSWORD_AUTHENTIFICATION_LEVEL = "PASSWORD_AUTHENTIFICATION_LEVEL";
     public static final String PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP = "PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP";
@@ -28,7 +29,7 @@ public class Constants {
     public static final String PASSWORD_EXPIRY_FLOW = "PASSWORD_EXPIRY_FLOW";
     public static final String PASSWORD_FORCE_CHANGE_FLOW = "PASSWORD_FORCE_CHANGE_FLOW";
     public static final String PASSWORD_CHANGE_FAILURE_REASON = "PASSWORD_CHANGE_FAILURE_REASON";
-
+    public static final String LOGIN_REQUEST = "SP_LOGIN_REQUEST";
     public static final String APPROVE_CONDITIONS_FLOW = "APPROVE_CONDITIONS_FLOW";
     public static final String DECLINE_USER_ACTIVATION = "DECLINE_USER_ACTIVATION";
 
@@ -54,7 +55,8 @@ public class Constants {
     public static final String LOGIN_SELECTED_CLAIMS = "LOGIN_SELECTED_CLAIMS";
 
     // Common Attributes
-    public static final String ATTRIBUTE_VALUE_FORMAT = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic";
+    public static final String ATTRIBUTE_VALUE_FORMAT_BASIC = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic";
+    public static final String ATTRIBUTE_VALUE_FORMAT_URI = "urn:oasis:names:tc:SAML:2.0:attrname-format:uri";
     public static final String SPEC_VERSION = "https://data.gov.dk/model/core/specVersion";
     public static final String SPEC_VERSION_OIOSAML30 = "OIO-SAML-3.0";
 

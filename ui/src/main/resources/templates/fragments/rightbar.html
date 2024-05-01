@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body>
-	<div th:fragment="selfservice" class="col-lg-3">
+	<div th:fragment="selfservice">
 		<div class="ibox">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
@@ -14,7 +14,11 @@
 				<div class="row">
 					<ul>
 						<li>
-							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Glemt kodeord eller låst ude?</a>
+							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift kodeord</a>
+						</li>
+						
+						<li>
+							<a th:href="${@commonConfiguration.getSelfService().getBaseUrl() + '/selvbetjening/unlockAccount'}">Lås windows konto op</a>
 						</li>
 
 						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantialCredentials()}">
@@ -72,7 +76,7 @@
 	</div>
 	
 	<div th:fragment="admin" class="col-lg-3">
-		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER')">
+		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_KODEVISER_ADMIN')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
 			</div>
@@ -80,11 +84,13 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/logs}">Se hændelseslog</a></li>
-						<li><a th:href="@{/admin/identiteter}">Se brugere</a></li>
-						<li><a th:href="@{/admin/rapporter}">Hent rapporter</a></li>
-						<li><a th:href="@{/admin/infoboks}">Infoboks</a></li>
-						<li><a th:href="@{/admin/password_change_queue}">Log over kodeordsskifte</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/logs}">Se hændelseslog</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/identiteter}">Se brugere</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/rapporter}">Hent rapporter</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/infoboks}">Infoboks</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/password_change_queue}">Log over kodeordsskifte</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/nemlogin_queue}">MitID Erhverv fejlsøgning</a></li>
+						<li sec:authorize="hasRole('ROLE_KODEVISER_ADMIN')"><a th:href="@{/admin/konfiguration/kodeviser}">Kodeviser administration</a></li>
 					</ul>
 				</div>
 			</div>
@@ -99,8 +105,12 @@
 				<div class="row">
 					<ul>
 						<li><a th:href="@{/admin/cms/list}">Rediger tekster</a></li>
+						<li><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
+						<li><a th:href="@{/admin/konfiguration/privacypolicy}">Opsæt privatlivspolitik</a></li>
+						<li><a th:href="@{/admin/konfiguration/tuvilkaar}">Opsæt tjenesteudbydervilkår</a></li>
 						<li><a th:href="@{/admin/cms/logo}">Rediger logo</a></li>
-						<li><a th:href="@{/admin/emailtemplates}">Emailskabeloner</a></li>
+						<li><a th:href="@{/admin/emailtemplates}">Emailskabeloner (brugere)</a></li>
+						<li><a th:href="@{/admin/emailtemplatesLogwatch}">Emailskabeloner (logovervågning)</a></li>
 					</ul>
 				</div>
 			</div>
@@ -115,9 +125,9 @@
 				<div class="row">
 					<ul>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/password}">Opsæt kodeordsregler</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/badpassword}">Opsæt svage kodeord</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/sessioner}">Opsæt sessionsudløb</a></li>
-						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
-						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/privacypolicy}">Opsæt privatlivspolitik</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/knownNetworks}">Opsæt kendte netværk</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_USER_ADMIN')"><a th:href="@{/admin/konfiguration/administratorer}">Administratorer</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/features}">Teknisk opsætning</a></li>
@@ -136,7 +146,6 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/konfiguration/grupper/0/rediger}">Opret ny gruppe</a></li>
 						<li><a th:href="@{/admin/konfiguration/grupper}">Se grupper</a></li>
 					</ul>
 				</div>
@@ -154,6 +163,7 @@
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere/0/edit}">Opret ny tjenesteudbyder</a></li>
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere}">Se Tjenesteudbydere</a></li>
 						<li><a th:href="@{/admin/konfiguration/person/attributes}">Administrér bruger attributter</a></li>
+						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere/metadata}">Metadata oplysninger</a></li>
 						
 						<th:block th:if="${@commonConfiguration.radiusConfiguration.enabled == true}">
 						<li><a th:href="@{/admin/konfiguration/radiusklienter/0/edit}">Opret ny RADIUS klient</a></li>

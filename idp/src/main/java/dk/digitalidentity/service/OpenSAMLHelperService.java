@@ -50,7 +50,7 @@ public class OpenSAMLHelperService {
 			object = (T) builderFactory.getBuilder(defaultElementName).buildObject(defaultElementName);
 		}
 		catch (IllegalAccessException | NoSuchFieldException e) {
-			throw new IllegalArgumentException("Could not create SAML object");
+			throw new IllegalArgumentException("Could not create SAML object", e);
 		}
 
 		return object;
@@ -191,7 +191,7 @@ public class OpenSAMLHelperService {
         return registry;
     }
 
-	private static Element marshallObject(XMLObject object) throws MarshallingException {
+	public static Element marshallObject(XMLObject object) throws MarshallingException {
 		if (object.getDOM() == null) {
 			Marshaller m = getMarshaller(object);
 

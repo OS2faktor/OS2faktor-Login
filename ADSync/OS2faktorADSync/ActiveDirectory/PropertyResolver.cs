@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Configuration;
 
 namespace OS2faktorADSync
 {
@@ -24,7 +25,9 @@ namespace OS2faktorADSync
         public string RoleDomainProperty { get; set; }
         public string RoleCvrProperty { get; set; }
         public string DescriptionProperty { get; set; }
-        public string RidProperty { get; set; }
+        public string PwdLastSetProperty { get; set; }
+        public string MitIDUuidProperty { get; set; }
+        public string EanProperty { get; set; }
 
         public PropertyResolver()
         {
@@ -36,7 +39,7 @@ namespace OS2faktorADSync
             EmailProperty = "mail";
             SAMAccountNameProperty = "sAMAccountName";
             DeletedProperty = "isdeleted";
-            ObjectGuidProperty = "objectGUID";
+            ObjectGuidProperty = Settings.GetStringValue("ActiveDirectory.Property.Guid");
             AccountExpireProperty = "accountExpires";
             UserAccountControlProperty = "useraccountcontrol";
             MemberOfProperty = "MemberOf";
@@ -45,13 +48,14 @@ namespace OS2faktorADSync
             RoleDomainProperty = Settings.GetStringValue("Kombit.RoleDomainAttribute");
             RoleCvrProperty = Settings.GetStringValue("Kombit.RoleCvrAttribute");
             DescriptionProperty = "description";
-            RidProperty = Settings.GetStringValue("ActiveDirectory.Property.Rid");
+            PwdLastSetProperty = "pwdlastset";
+            MitIDUuidProperty = Settings.GetStringValue("ActiveDirectory.Property.MitIDErhvervUuid");
+            EanProperty = Settings.GetStringValue("ActiveDirectory.Property.Ean");
 
             var allProperties = new List<string>();
             allProperties.AddRange(
                 new string[]
                 {
-                    CprProperty,
                     DistinguishedNameProperty,
                     ChosenNameProperty,
                     FirstnameProperty,
@@ -59,15 +63,37 @@ namespace OS2faktorADSync
                     EmailProperty,
                     SAMAccountNameProperty,
                     DeletedProperty,
-                    ObjectGuidProperty,
                     AccountExpireProperty,
                     UserAccountControlProperty,
-                    MemberOfProperty
+                    MemberOfProperty,
+                    PwdLastSetProperty
                 });
 
-            if (!string.IsNullOrEmpty(RidProperty))
+            // objectGuids
+            if (!string.IsNullOrEmpty(ObjectGuidProperty) && !"objectGUID".Equals(ObjectGuidProperty))
             {
-                allProperties.Add(RidProperty);
+                allProperties.Add(ObjectGuidProperty);
+                allProperties.Add("objectGUID");
+            }
+            else
+            {
+                allProperties.Add("objectGUID");
+                ObjectGuidProperty = "objectGUID";
+            }
+
+            if (!string.IsNullOrEmpty(MitIDUuidProperty))
+            {
+                allProperties.Add(MitIDUuidProperty);
+            }
+
+            if (!string.IsNullOrEmpty(CprProperty))
+            {
+                allProperties.Add(CprProperty);
+            }
+
+            if (!string.IsNullOrEmpty(EanProperty))
+            {
+                allProperties.Add(EanProperty);
             }
 
             // Resolve attributes fields, Value is eqial to AD attributes that needs to be read.

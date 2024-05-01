@@ -7,9 +7,11 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
@@ -21,6 +23,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.transaction.Transactional;
 
+import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
@@ -103,7 +106,8 @@ public class MFAService {
 			return response.getBody();
 		}
 		catch (Exception ex) {
-			log.error("Failed to get details for client: " + deviceId, ex);
+			// we don't really care, except for debugging purposes
+			log.warn("Failed to get details for client: " + deviceId + " / " + ex.getMessage());
 		}
 
 		return null;
@@ -117,20 +121,37 @@ public class MFAService {
 
 		try {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/nsis/clients?ssn=" + encodeSsn(cpr);
-
 			ResponseEntity<List<MfaClient>> response = restTemplate.exchange(url, HttpMethod.GET, entity, new ParameterizedTypeReference<List<MfaClient>>() { });
 			List<MfaClient> mfaClients = response.getBody();
 			List<String> mfaClientsDeviceIds = response.getBody().stream().map(m -> m.getDeviceId()).collect(Collectors.toList());
 
-			List<LocalRegisteredMfaClient> localClients = localRegisteredMfaClientService.getByCpr(cpr);			
+			List<LocalRegisteredMfaClient> localClients = localRegisteredMfaClientService.getByCpr(cpr);
 			for (LocalRegisteredMfaClient localClient : localClients) {
 				if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
+					// local clients might still be locked, so lookup details on backup
+					MFAClientDetails mfaClientDetails = getClientDetails(localClient.getDeviceId());
+					if (mfaClientDetails == null) {
+						continue;
+					}
+					
 					MfaClient client = new MfaClient();
 					client.setDeviceId(localClient.getDeviceId());
 					client.setName(localClient.getName());
 					client.setNsisLevel(localClient.getNsisLevel());
 					client.setType(localClient.getType());
 					client.setLocalClient(true);
+					client.setPrime(false);
+					client.setLocked(false);
+
+					client.setLocked(mfaClientDetails.isLocked());
+					if (client.isLocked()) {
+						client.setLockedUntil(mfaClientDetails.getLockedUntil());
+					}
+
+					if (localClient.isPrime()) {
+						client.setPrime(true);
+						mfaClients.forEach(c -> c.setPrime(false));
+					}
 					
 					mfaClients.add(client);
 				}
@@ -170,7 +191,7 @@ public class MFAService {
 			return null;
 		}
 		catch (Exception ex) {
-			log.error("Failed to get mfa client: " + ex);
+			log.error("Failed to get mfa client", ex);
 		}
 
 		return null;
@@ -242,44 +263,102 @@ public class MFAService {
 
 		for (MfaClient client : clients) {
 			try {
-				String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + client.getDeviceId() + "/authenticate?emitChallenge=false";
+				// TODO: emitChallenge=false undertrykker kontrolkoden, men nyeste logik i app'en undertrykker visning af 2 ens kontrolkoder. Det skal den så ikke hvis dette
+				// skal virke. Så app'en skal tillade kontrolkoder der er blanke altid, og kun undertrykke dubletter med faktiske kontrolkoder. Dette skal være kommenteret
+				// ud til ændringen er lavet i app'en
+				String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + client.getDeviceId() + "/authenticate"; // ?emitChallenge=false";
 
 				ResponseEntity<MfaAuthenticationResponse> result = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 				response.add(result.getBody());
 			}
+			catch (HttpClientErrorException ex) {
+				if (HttpStatus.GONE.equals(ex.getStatusCode())) {
+					// The access to the client has been removed, this is due to the client being disabled/reset
+					// If we have this client stored as a local client it should be removed before continuing
+					LocalRegisteredMfaClient localClient = localRegisteredMfaClientService.getByDeviceId(client.getDeviceId());
+					if (localClient != null) {
+						localRegisteredMfaClientService.delete(localClient);
+						log.warn("Failed initialise authentication with deviceId " + client.getDeviceId() + ", Device disabled in OS2faktor. Deleting matching local client");
+					}
+					else {
+						log.warn("Failed initialise authentication with deviceId " + client.getDeviceId() + ", Device disabled in OS2faktor");
+					}
+				}
+				else if (HttpStatus.FORBIDDEN.equals(ex.getStatusCode())) {
+					// This can happen if a users MFA client is locked parallel to a login-flow requiring MFA in the IdP
+					log.warn("Failed initialise authentication with cpr, StatusCode Forbidden");
+				}
+				else if (HttpStatus.NOT_FOUND.equals(ex.getStatusCode())) {
+					// This can happen if a users MFA client is locked parallel to a login-flow requiring MFA in the IdP
+					log.warn("Failed initialise authentication with cpr, StatusCode NotFound");
+				}
+				else {
+					log.error("Failed initialise authentication with cpr", ex);
+				}
+			}
 			catch (Exception ex) {
-				log.error("Failed initialise authentication: " + ex);
+				log.error("Failed initialise authentication with cpr", ex);
 			}			
 		}
 		
 		return response;
 	}
 
-	public MfaAuthenticationResponse authenticate(String deviceId) {
+	public MfaAuthenticationResponseDTO authenticate(String deviceId) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
 		HttpEntity<String> entity = new HttpEntity<>(headers);
+		MfaAuthenticationResponseDTO dto = new MfaAuthenticationResponseDTO();
 
 		try {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + deviceId + "/authenticate";
 
 			ResponseEntity<MfaAuthenticationResponse> response = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
-			return response.getBody();
+			dto.setMfaAuthenticationResponse(response.getBody());
+			dto.setSuccess(true);
 		}
 		catch (HttpClientErrorException ex) {
-			if (HttpStatus.FORBIDDEN.equals(ex.getStatusCode())) {
-				// This can happen if a users MFA client is locked parallel to a login-flow requiring MFA in the IdP
-				log.warn("Failed initialise authentication, StatusCode Forbidden: " + ex);
-			} else {
-				log.error("Failed initialise authentication: " + ex);
+			dto.setSuccess(false);
+			dto.setFailureMessage(ex.getMessage());
+
+			if (HttpStatus.GONE.equals(ex.getStatusCode())) {
+				// The access to the client has been removed, this is due to the client being disabled/reset
+				// If we have this client stored as a local client it should be removed before continuing
+				LocalRegisteredMfaClient localClient = localRegisteredMfaClientService.getByDeviceId(deviceId);
+				if (localClient != null) {
+					localRegisteredMfaClientService.delete(localClient);
+					log.warn("Failed initialise authentication with deviceId " + deviceId + ", Device disabled in OS2faktor. Deleting matching local client");
+				}
+				else {
+					log.warn("Failed initialise authentication with deviceId " + deviceId + ", Device disabled in OS2faktor");
+				}
 			}
-			return null;
+			else if (HttpStatus.FORBIDDEN.equals(ex.getStatusCode())) {
+				// This can happen if a users MFA client is locked parallel to a login-flow requiring MFA in the IdP
+				log.warn("Failed initialise authentication with deviceId " + deviceId + ", StatusCode Forbidden");
+			}
+			else if (HttpStatus.NOT_FOUND.equals(ex.getStatusCode())) {
+				// Not Found can happen if a device does not exist in MFA or if a phone app is disabled in the AWS notification system
+				// The access to the client has been removed, if we have this client stored as a local client it should be removed before continuing
+				LocalRegisteredMfaClient localClient = localRegisteredMfaClientService.getByDeviceId(deviceId);
+				if (localClient != null) {
+					localRegisteredMfaClientService.delete(localClient);
+					log.warn("Failed initialise authentication with deviceId " + deviceId + ", Device not found in OS2faktor. Deleting matching local client");
+				}
+				else {
+					log.warn("Failed initialise authentication with deviceId " + deviceId + ", StatusCode NotFound");
+				}
+			}
+			else {
+				log.error("Failed initialise authentication with deviceId " + deviceId, ex);
+			}
 		}
 		catch (Exception ex) {
-			log.error("Failed initialise authentication: " + ex);
-			return null;
-		}		
+			log.error("Failed initialise authentication with deviceId " + deviceId, ex);
+		}
+		
+		return dto;
 	}
 
 	public boolean isAuthenticated(String subscriptionKey, Person person) {
@@ -300,7 +379,8 @@ public class MFAService {
 		} catch (HttpClientErrorException ex) {
 			if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
 				log.warn("Failed to get mfa auth status for person with uuid " + person.getUuid() + ", and subscriptionKey = " + subscriptionKey, ex);
-			} else {
+			}
+			else {
 				log.error("Failed to get mfa auth status for person with uuid " + person.getUuid() + ", and subscriptionKey = " + subscriptionKey, ex);
 			}
 			
@@ -327,7 +407,7 @@ public class MFAService {
 			return response.getBody();
 		}
 		catch (Exception ex) {
-			log.error("Failed to get mfa auth status for person with uuid " + person.getUuid() + ": " + ex);
+			log.error("Failed to get mfa auth status for person with uuid " + person.getUuid(), ex);
 			return null;
 		}
 	}
@@ -341,11 +421,11 @@ public class MFAService {
 		StopWatch stopWatch = new StopWatch();
 		stopWatch.start();
 		
-		log.info("Performing a synchronization of all MFA clients from OS2faktor datbase into cached clients table");
+		log.info("Performing a synchronization of all MFA clients from OS2faktor database into cached clients table");
 		
 		// find all active persons and put into a cpr-based map
 		Map<String, List<Person>> personMap = new HashMap<>();
-		for (Person person : personService.getAll().stream().filter(p -> !p.isLocked()).collect(Collectors.toList())) {
+		for (Person person : personService.getAll().stream().collect(Collectors.toList())) {
 			try {
 				String encodedSsn = encryptAndEncodeSsn(person.getCpr());
 				
@@ -360,25 +440,100 @@ public class MFAService {
 			}
 		}
 		
+		List<MfaClient> allLocallyRegisteredMfaClients = lookupLocalMfaClientsInDB();
+		Map<String, List<MfaClient>> allLocallyRegisteredMfaClientsBySsn = allLocallyRegisteredMfaClients.stream().collect(Collectors.groupingBy(MfaClient::getSsn));
+		
+		List<MfaClient> allRegisteredMfaClients = lookupMfaClientsInDB();
+		Map<String, List<MfaClient>> allRegisteredMfaClientsBySsn = allRegisteredMfaClients.stream().collect(Collectors.groupingBy(MfaClient::getSsn));
+
+		List<LocalRegisteredMfaClient> locallyRegisteredClients = localRegisteredMfaClientService.getAll();
+		Map<String, List<LocalRegisteredMfaClient>> locallyRegisteredClientsBySsn = locallyRegisteredClients.stream().collect(Collectors.groupingBy(LocalRegisteredMfaClient::getCpr));
+
 		for (String encodedSsn : personMap.keySet()) {
 			List<Person> persons = personMap.get(encodedSsn);
 			
-			maintainCachedClients(persons, lookupMfaClientsInDB(encodedSsn));
+			List<MfaClient> mfaClients = new ArrayList<>();
+			Set<String> mfaClientsDeviceIds = new HashSet<>();
+			
+			// globally stored in OS2faktor MFA
+			List<MfaClient> storedMfaClients = allRegisteredMfaClientsBySsn.get(encodedSsn);
+			if (storedMfaClients != null) {
+				for (MfaClient localClient : storedMfaClients) {
+					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
+						MfaClient client = new MfaClient();
+						client.setDeviceId(localClient.getDeviceId());
+						client.setName(localClient.getName());
+						client.setNsisLevel(localClient.getNsisLevel());
+						client.setType(localClient.getType());
+						client.setLocalClient(true);
+						client.setSerialnumber(localClient.getSerialnumber());
+						client.setLastUsed(localClient.getLastUsed());
+						
+						mfaClients.add(client);
+						mfaClientsDeviceIds.add(localClient.getDeviceId());
+					}
+				}
+			}
+
+			// locally stored in OS2faktor MFA
+			List<MfaClient> locallyStoredMfaClients = allLocallyRegisteredMfaClientsBySsn.get(encodedSsn);
+			if (locallyStoredMfaClients != null) {
+				for (MfaClient localClient : locallyStoredMfaClients) {
+					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
+						MfaClient client = new MfaClient();
+						client.setDeviceId(localClient.getDeviceId());
+						client.setName(localClient.getName());
+						client.setNsisLevel(localClient.getNsisLevel());
+						client.setType(localClient.getType());
+						client.setLocalClient(true);
+						client.setSerialnumber(localClient.getSerialnumber());
+
+						mfaClients.add(client);
+						mfaClientsDeviceIds.add(localClient.getDeviceId());
+					}
+				}
+			}
+			
+			// locally stored in OS2faktor Login
+			List<LocalRegisteredMfaClient> localClients = locallyRegisteredClientsBySsn.get(persons.get(0).getCpr());
+			if (localClients != null) {
+				for (LocalRegisteredMfaClient localClient : localClients) {
+					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
+						MfaClient client = new MfaClient();
+						client.setDeviceId(localClient.getDeviceId());
+						client.setName(localClient.getName());
+						client.setNsisLevel(localClient.getNsisLevel());
+						client.setType(localClient.getType());
+						client.setLocalClient(true);
+						
+						mfaClients.add(client);
+						mfaClientsDeviceIds.add(localClient.getDeviceId());
+					}
+				}
+			}
+
+			maintainCachedClients(persons, mfaClients);
 		}
 		
 		stopWatch.stop();
 		log.info("completed in: " + stopWatch.toString());
 	}
 
-	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, c.nsis_level FROM clients c JOIN users u ON u.id = c.user_id WHERE u.ssn = ? AND disabled = 0;";
-
-	private List<MfaClient> lookupMfaClientsInDB(String encodedSsn) {
+	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
+	private List<MfaClient> lookupMfaClientsInDB() {
 		return jdbcTemplate.query(
 				selectClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("client_type"), rs.getString("nsis_level")),
-				encodedSsn);
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used")));
 	}
 
+	private static final String selectLocalClientsSql = "SELECT c.name, c.device_id, c.client_type, td.serialnumber, lc.nsis_level, lc.ssn FROM local_clients lc JOIN clients c ON c.device_id = lc.device_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE c.disabled = 0 AND lc.cvr = ?;";
+	private List<MfaClient> lookupLocalMfaClientsInDB() {
+		return jdbcTemplate.query(
+				selectLocalClientsSql,
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null),
+				configuration.getCustomer().getCvr());
+	}
+	
 	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
 		maintainCachedClients(personService.getByCpr(cpr), mfaClients);
 	}	
@@ -422,11 +577,21 @@ public class MFAService {
 							changes = true;
 							cachedClientToUpdate.setName(mfaClient.getName());
 						}
+						
+						if (!Objects.equals(mfaClient.getSerialnumber(), cachedClientToUpdate.getSerialnumber())) {
+							changes = true;
+							cachedClientToUpdate.setSerialnumber(mfaClient.getSerialnumber());
+						}
 
 						// NSISLevel cannot currently change in OS2faktor MFA, but let's support it here
 						if (!Objects.equals(mfaClient.getNsisLevel(), cachedClientToUpdate.getNsisLevel())) {
 							changes = true;
 							cachedClientToUpdate.setNsisLevel(mfaClient.getNsisLevel());
+						}
+
+						if (!Objects.equals(mfaClient.getLastUsed(), cachedClientToUpdate.getLastUsed())) {
+							changes = true;
+							cachedClientToUpdate.setLastUsed(mfaClient.getLastUsed());
 						}
 					}
 				}
@@ -458,6 +623,8 @@ public class MFAService {
 			cachedClient.setType(client.getType());
 			cachedClient.setNsisLevel(client.getNsisLevel());
 			cachedClient.setPerson(person);
+			cachedClient.setSerialnumber(client.getSerialnumber());
+			cachedClient.setLastUsed(client.getLastUsed());
 
 			newCachedMFAClients.add(cachedClient);
 		}

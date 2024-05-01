@@ -23,7 +23,7 @@
 #include "dll.h"
 #include "resource.h"
 
-class Credential : public ICredentialProviderCredential2, ICredentialProviderCredentialWithFieldOptions
+class Credential : public ICredentialProviderCredential, ICredentialProviderCredentialWithFieldOptions
 {
 public:
     // IUnknown
@@ -47,7 +47,7 @@ public:
         static const QITAB qit[] =
         {
             QITABENT(Credential, ICredentialProviderCredential), // IID_ICredentialProviderCredential
-            QITABENT(Credential, ICredentialProviderCredential2), // IID_ICredentialProviderCredential2
+            //QITABENT(Credential, ICredentialProviderCredential2), // IID_ICredentialProviderCredential2
             QITABENT(Credential, ICredentialProviderCredentialWithFieldOptions), //IID_ICredentialProviderCredentialWithFieldOptions
             {0},
         };
@@ -87,50 +87,30 @@ public:
                                 _Out_ CREDENTIAL_PROVIDER_STATUS_ICON *pcpsiOptionalStatusIcon);
 
 
-    // ICredentialProviderCredential2
-    IFACEMETHODIMP GetUserSid(_Outptr_result_nullonfailure_ PWSTR *ppszSid);
-
     // ICredentialProviderCredentialWithFieldOptions
     IFACEMETHODIMP GetFieldOptions(DWORD dwFieldID,
                                    _Out_ CREDENTIAL_PROVIDER_CREDENTIAL_FIELD_OPTIONS *pcpcfo);
 
-  void _StartCreateSessionProcess(PWSTR username, PWSTR password);
-
-  void _StartChangePasswordProcess(PWSTR username, PWSTR oldPassword, PWSTR newPassword);
-
   void _StartResetPasswordProcess();
-
-  HRESULT _ConvertUPNToSAMAccountName(PWSTR upn, _Outref_result_nullonfailure_ PWSTR &sAMAccountName);
-
-  HRESULT _FetchAndSaveUPN(PWSTR username);
 
   public:
     HRESULT Initialize(CREDENTIAL_PROVIDER_USAGE_SCENARIO cpus,
                        _In_ CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR const *rgcpfd,
                        _In_ FIELD_STATE_PAIR const *rgfsp,
-                       _In_opt_ ICredentialProviderUser *pcpUser);
+                       _In_opt_ ICredentialProviderUser *pcpUser,
+                       _In_opt_ PCWSTR domain,
+                       _In_opt_ PCWSTR username,
+                       _In_opt_ PCWSTR password);
     Credential();
 
   private:
 
     virtual ~Credential();
     long                                    _cRef;
-    CREDENTIAL_PROVIDER_USAGE_SCENARIO      _cpus;                                          // The usage scenario for which we were enumerated.
-    CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR    _rgCredProvFieldDescriptors[FI_NUM_FIELDS];    // An array holding the type and name of each field in the tile.
-    FIELD_STATE_PAIR                        _rgFieldStatePairs[FI_NUM_FIELDS];             // An array holding the state of each field in the tile.
-    PWSTR                                   _rgFieldStrings[FI_NUM_FIELDS];                // An array holding the string value of each field. This is different from the name of the field held in _rgCredProvFieldDescriptors.
-    PWSTR                                   _pszUserSid;
-    PWSTR                                   _pszQualifiedUserName;                          // The user name that's used to pack the authentication buffer
-    ICredentialProviderCredentialEvents2*    _pCredProvCredentialEvents;                    // Used to update fields.
-                                                                                            // CredentialEvents2 for Begin and EndFieldUpdates.
-    BOOL                                    _fChecked;                                      // Tracks the state of our checkbox.
-    DWORD                                   _dwComboIndex;                                  // Tracks the current index of our combobox.
-    bool                                    _fShowControls;                                 // Tracks the state of our show/hide controls link.
-    bool                                    _fIsLocalUser;                                  // If the cred prov is assosiating with a local user tile
+    CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR    _rgCredProvFieldDescriptors[FI_NUM_FIELDS];     // An array holding the type and name of each field in the tile.
+    FIELD_STATE_PAIR                        _rgFieldStatePairs[FI_NUM_FIELDS];              // An array holding the state of each field in the tile.
+    PWSTR                                   _rgFieldStrings[FI_NUM_FIELDS];                 // An array holding the string value of each field. This is different from the name of the field held in _rgCredProvFieldDescriptors.
+    ICredentialProviderCredentialEvents2*   _pCredProvCredentialEvents;                     // Used to update fields.
     bool                                    _IsLoggingEnabled;                              // Tracks if logging is enabled
-    bool                                    _IsUPNCacheEnabled;                             // Tracks if the WCP is caching UPNs for off-domain login
-    bool                                    _IsAnonUser;                                    // Tracks if the credential is for anonymous login
-    bool                                    _IsStatusPasswordMustChange;                    // Tracks if the user must change their password before logging in
-    bool                                    _IsPasswordChangeBeforeLoginSuccess;            // Tracks if the user successfully changed their password before logging in
     HKEY                                    _hKey;                                          // HKEY for configuration
 };

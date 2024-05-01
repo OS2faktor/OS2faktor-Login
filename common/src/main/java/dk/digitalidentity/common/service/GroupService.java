@@ -1,6 +1,7 @@
 package dk.digitalidentity.common.service;
 
 import dk.digitalidentity.common.dao.GroupDao;
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
@@ -8,6 +9,7 @@ import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,6 +54,17 @@ public class GroupService {
 
 	public void deleteById(long id) {
 		groupDao.deleteById(id);
+	}
+
+	public List<Group> getByDomain(Domain domain) {
+		return groupDao.findByDomain(domain);
+	}
+
+	public static boolean memberOfGroup(Person person, Group group) {
+		Set<Long> groupIds = new HashSet<>();
+		groupIds.add(group.getId());
+
+		return memberOf(person, groupIds);
 	}
 
 	public static boolean memberOfGroup(Person person, List<Group> groups) {

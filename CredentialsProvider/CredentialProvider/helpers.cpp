@@ -655,6 +655,135 @@ HRESULT ProtectIfNecessaryAndCopyPassword(
     return hr;
 }
 
+
+
+static HRESULT GetProtectedString(
+    _In_ PWSTR protectedPassword,
+    _Outptr_result_nullonfailure_ PWSTR* passwordOut
+)
+{
+    *passwordOut = nullptr;
+
+    // CredProtect takes a non-const string.
+    // So, make a copy that we know isn't const.
+    PWSTR protectedPasswordCopy;
+    HRESULT hr = SHStrDupW(protectedPassword, &protectedPasswordCopy);
+    if (SUCCEEDED(hr))
+    {
+        // The first call to CredProtect determines the length of the encrypted string.
+        // Because we pass a NULL output buffer, we expect the call to fail.
+        //
+        // Note that the third parameter to CredProtect, the number of characters of pwzToProtectCopy
+        // to encrypt, must include the NULL terminator!
+        DWORD cchProtected = 0;
+        if (!CredUnprotectW(FALSE, protectedPasswordCopy, (DWORD)wcslen(protectedPasswordCopy) + 1, nullptr, &cchProtected))
+        {
+            DWORD dwErr = GetLastError();
+
+            if ((ERROR_INSUFFICIENT_BUFFER == dwErr) && (0 < cchProtected))
+            {
+                // Allocate a buffer long enough for the encrypted string.
+                PWSTR password = (PWSTR)CoTaskMemAlloc(cchProtected * sizeof(wchar_t));
+                if (password)
+                {
+                    // The second call to CredProtect actually decrypts the string.
+                    if (CredUnprotectW(FALSE, protectedPasswordCopy, (DWORD)wcslen(protectedPasswordCopy) + 1, password, &cchProtected))
+                    {
+                        *passwordOut = password;
+                        hr = S_OK;
+                    }
+                    else
+                    {
+                        SecureZeroMemory(password, cchProtected * sizeof(wchar_t));
+                        CoTaskMemFree(password);
+
+                        dwErr = GetLastError();
+                        hr = HRESULT_FROM_WIN32(dwErr);
+                    }
+                }
+                else
+                {
+                    hr = E_OUTOFMEMORY;
+                }
+            }
+            else
+            {
+                hr = HRESULT_FROM_WIN32(dwErr);
+            }
+        }
+        else
+        {
+            hr = E_UNEXPECTED;
+        }
+
+        SecureZeroMemory(protectedPasswordCopy, wcslen(protectedPasswordCopy) * sizeof(*protectedPasswordCopy));
+        CoTaskMemFree(protectedPasswordCopy);
+    }
+
+    return hr;
+}
+
+HRESULT UnProtectIfNecessaryAndCopyPassword(
+    _In_ PWSTR protectedPassword,
+    _Outptr_result_nullonfailure_ PWSTR* password
+)
+{
+    *password = nullptr;
+
+    HRESULT hr;
+
+    // ProtectAndCopyString is intended for non-empty strings only.  Empty passwords
+    // do not need to be encrypted.
+    if (protectedPassword && *protectedPassword)
+    {
+        // CredIsProtected takes a non-const string.
+        // So, take a copy that we know isn't const.
+        PWSTR protectedPasswordCopy;
+        hr = SHStrDupW(protectedPassword, &protectedPasswordCopy);
+        if (SUCCEEDED(hr))
+        {
+            bool credAlreadyEncrypted = false;
+            CRED_PROTECTION_TYPE protectionType;
+
+            // If the password is already encrypted, we should not encrypt it again.
+            // An encrypted password may be received through SetSerialization in the
+            // CPUS_LOGON scenario during a Terminal Services connection, for instance.
+            if (CredIsProtectedW(protectedPasswordCopy, &protectionType))
+            {
+                if (CredUnprotected != protectionType)
+                {
+                    credAlreadyEncrypted = true;
+                }
+            }
+
+
+
+            // Passwords should not be encrypted in the CPUS_CREDUI scenario.  We
+            // cannot know if our caller expects or can handle an encryped password.
+            if (credAlreadyEncrypted)
+            {
+
+                hr = GetProtectedString(protectedPasswordCopy, password);
+            }
+            else
+            {
+                hr = SHStrDupW(protectedPasswordCopy, password);
+            }
+
+            SecureZeroMemory(protectedPasswordCopy, wcslen(protectedPasswordCopy) * sizeof(*protectedPasswordCopy));
+            CoTaskMemFree(protectedPasswordCopy);
+        }
+    }
+    else
+    {
+        hr = SHStrDupW(L"", password);
+    }
+
+    return hr;
+}
+
+
+
 //
 // Unpack a KERB_INTERACTIVE_UNLOCK_LOGON *in place*.  That is, reset the Buffers from being offsets to
 // being real pointers.  This means, of course, that passing the resultant struct across any sort of

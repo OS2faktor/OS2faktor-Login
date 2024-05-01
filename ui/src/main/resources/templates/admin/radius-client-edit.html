@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.radius-client-edit')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.radius-client-edit')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -64,6 +64,7 @@
 								</form>
 							</div>
 						</div>
+						
 						<div class="ibox" id="iboxConditionalAccess">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp;Begrænset adgang</h5>
@@ -140,17 +141,60 @@
 								</div>
 							</div>
 						</div>
+						
+						<div class="ibox" id="iboxClaims">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Attributter</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group">
+									<div class="form-group row" >
+										<div class="col-sm-12">
+											<p>Angiv attributter på brugerene, som skal medsendes under et RADIUS login</p>
+										</div>
+									</div>
+
+									<div class="table-responsive conditionDomainTable">
+										<table id="claimsTable" class="table table-striped table-bordered table-hover" >
+											<thead>
+												<tr>
+													<th style="width: 60px;">Valgt</th>
+													<th style="width: 300px;">Attribut på bruger</th>
+													<th>RADIUS attribut-id</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="attribute : ${attributeValueMap}">
+													<td style="display: none" class="claimKey" th:text="${attribute.key}" />
+													<td style="text-align: center;">
+														<label>
+															<input type="checkbox" class="i-checks" onchange="claimsService.onChange(this);" th:checked="${radiusClient.hasClaim(attribute.key)}" />
+														</label>
+													</td>
+													<td th:text="${attribute.value}" />
+													<td>
+														<input type="text" class="claimValue form-control" th:style="${radiusClient.hasClaim(attribute.key)} ? '' : 'display: none;'" th:value="${radiusClient.getClaimValue(attribute.key)}" />
+													</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.radius-client-edit')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.radius-client-edit')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
 	
 </body>
 <script th:inline="javascript">
@@ -175,12 +219,17 @@
 
 		var radiusClientService;
 		var conditionsService;
+		var claimsService;
+		
 		$(document).ready(function() {
 			radiusClientService = new RadiusClientService();
 			radiusClientService.init();
 
 			conditionsService = new ConditionsService();
 			conditionsService.init();
+
+			claimsService = new ClaimsService();
+			claimsService.init();
 
 			const queryString = window.location.search;
 			const urlParams = new URLSearchParams(queryString);
@@ -191,6 +240,23 @@
 			}
 		});
 
+		function ClaimsService() {
+			this.init = function() {
+			}
+		
+			this.onChange = function(e) {
+				var checkBox = $(e);
+				
+				if (checkBox.is(":checked")) {
+					checkBox.closest('tr').children("td").children("input").show();
+				}
+				else {
+					checkBox.closest('tr').children("td").children("input").hide();
+				}
+			}
+		}
+		
+		
 		function RadiusClientService() {
 			this.init = function() {
 			}
@@ -217,7 +283,19 @@
 							data.ipAddress = $('#ipAddress').val();
 							data.nsisLevelRequired = $('#nsisLevelRequiredSelect option:selected').val();
 
-							// Handle conditions
+							// handle claims
+							data.claims = [];
+							$("#claimsTable input:checked").each(function() {
+								var parent = $(this).closest('tr');
+								
+								var claim = {};
+								claim.personField = $(parent).find("td.claimKey").text();
+								claim.attributeId = $(parent).find("input.claimValue").val();
+								
+								data.claims.push(claim);
+							});
+							
+							// handle conditions
 							var conditionsDomains = [];
 							$('.conditionDomainCheckbox').each(function(index, element) {
 								if ($(element).prop("checked")) {	
@@ -238,7 +316,6 @@
 
 							data.conditionsDomains = conditionsDomains;
 							data.conditionsGroups = conditionsGroups;
-
 
 							$.ajax({
 								url: rCUrl + id + "/edit",

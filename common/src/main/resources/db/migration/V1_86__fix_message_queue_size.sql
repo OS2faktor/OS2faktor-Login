@@ -1,0 +1,1 @@
+ALTER TABLE message_queue MODIFY COLUMN message MEDIUMTEXT NOT NULL;

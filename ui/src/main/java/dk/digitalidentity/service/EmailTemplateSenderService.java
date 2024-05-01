@@ -1,28 +1,22 @@
 package dk.digitalidentity.service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import javax.annotation.Nullable;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.EmailService;
 import dk.digitalidentity.common.service.EmailTemplateService;
-import dk.digitalidentity.common.service.dto.InlineImageDTO;
-import dk.digitalidentity.service.dto.TransformInlineImageDTO;
-import lombok.extern.slf4j.Slf4j;
+import dk.digitalidentity.common.service.MessageQueueService;
+import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
+import dk.digitalidentity.service.EboksService.SendStatus;
 
-@Slf4j
 @Service
 public class EmailTemplateSenderService {
-
+	
 	@Autowired
 	private EmailTemplateService emailTemplateService;
 	
@@ -32,63 +26,57 @@ public class EmailTemplateSenderService {
 	@Autowired
 	private EboksService eboksService;
 	
-	public void send(EmailTemplateType type, Person recipient) {
-		EmailTemplate template = emailTemplateService.findByTemplateType(type);
-		if (!template.isEnabled()) {
+	@Autowired
+	private MessageQueueService messageQueueService;
+	
+	public void send(@Nullable String email, @Nullable String cpr, Person recipient, String subject, String message, EmailTemplateChild child, long delayMinutes) {
+		send(email, cpr, recipient, subject, message, child, false, delayMinutes);
+	}
+	
+	public void send(@Nullable String email, @Nullable String cpr, Person recipient, String subject, String message, EmailTemplateChild child, boolean bypassQueue) {
+		send(email, cpr, recipient, subject, message, child, bypassQueue, 0);
+	}
+
+	public void send(@Nullable String email, @Nullable String cpr, Person recipient, String subject, String message, EmailTemplateChild child, boolean bypassQueue, long delayMinutes) {
+		// enable/disable are only for non-system-mails (those with a domain associated)
+		if (!child.isEnabled() && child.getDomain() != null) {
 			return;
 		}
-		
-		if (template.isEboks()) {
-			String message = template.getMessage().replace(EmailTemplateService.RECIPIENT_PLACEHOLDER, recipient.getName());
-			boolean success = eboksService.sendMessage(recipient.getCpr(), template.getTitle(), message);
-			if (!success) {
-				log.warn("Tried to send eboks message from email template of type " + type.toString() + " to person with uuid " + recipient.getUuid() + " but the eboksService.sendMessage failed.");
-			}
+
+		// non-system-mails are always send as email (those without a domain associated)
+		if ((child.isEmail() || child.getDomain() == null) && StringUtils.hasLength(email)) {
+			sendEmail(email, subject, message, child, bypassQueue, recipient);
 		}
 		
-		if (template.isEmail()) {
-			if (recipient.getEmail() == null || recipient.getEmail().isEmpty()) {
-				log.warn("Tried to send email template of type " + type.toString() + " to person with uuid " + recipient.getUuid() + " but the person's email was null.");
-			} else {
-				String message = template.getMessage().replace(EmailTemplateService.RECIPIENT_PLACEHOLDER, recipient.getName());
-				TransformInlineImageDTO inlineImagesDto = transformImages(message);
-				
-				boolean success = emailService.sendMessage(recipient.getEmail(), template.getTitle(), inlineImagesDto.getMessage(), inlineImagesDto.getInlineImages());
-				if (!success) {
-					log.warn("Tried to send email template of type " + type.toString() + " to person with uuid " + recipient.getUuid() + " but the person's email was null.");
-				}
+		if (child.isEboks()) {
+			sendEboks(subject, message, child, bypassQueue, cpr, recipient);
+		}		
+	}
+	
+	private void sendEboks(String subject, String message, EmailTemplateChild child, boolean bypassQueue, String cpr, Person recipient) {
+		if (bypassQueue) {
+			SendStatus status = eboksService.sendMessage(cpr, subject, message, recipient);
+
+			if (status != SendStatus.SEND) {
+				messageQueueService.queueEboks(recipient, child.getTitle(), message);
 			}
+		}
+		else {
+			messageQueueService.queueEboks(recipient, child.getTitle(), message);
 		}
 	}
 	
-	private TransformInlineImageDTO transformImages(String message) {
-		TransformInlineImageDTO dto = new TransformInlineImageDTO();
-		List<InlineImageDTO> inlineImages = new ArrayList<>();
-		Document doc = Jsoup.parse(message);
-
-		for (Element img : doc.select("img")) {
-			String src = img.attr("src");
-			if (src == null || src == "") {
-				continue;
-			}
-
-			InlineImageDTO inlineImageDto = new InlineImageDTO();
-			inlineImageDto.setBase64(src.contains("base64"));
+	private void sendEmail(String email, String subject, String message, EmailTemplateChild child, boolean bypassQueue, Person recipient) {
+		if (bypassQueue) {
+			TransformInlineImageDTO inlineImagesDto = emailTemplateService.transformImages(message);
+			boolean success = emailService.sendMessage(email, subject, inlineImagesDto.getMessage(), inlineImagesDto.getInlineImages(), recipient);
 			
-			if (!inlineImageDto.isBase64()) {
-				continue;
-			}
-			
-			String cID = UUID.randomUUID().toString();
-			inlineImageDto.setCid(cID);
-			inlineImageDto.setSrc(src);
-			inlineImages.add(inlineImageDto);
-			img.attr("src", "cid:" + cID);
+			if (!success) {
+				messageQueueService.queueEmail(recipient, child.getTitle(), message);
+			}			
 		}
-
-		dto.setInlineImages(inlineImages);
-		dto.setMessage(doc.html());
-		
-		return dto;		
+		else {
+			messageQueueService.queueEmail(recipient, child.getTitle(), message);
+		}
 	}
 }

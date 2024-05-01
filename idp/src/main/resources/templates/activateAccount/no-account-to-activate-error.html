@@ -14,7 +14,7 @@
 						</div>
 			
 						<div class="ibox-content">
-							<p>Du har ikke nogen brugerkonti, eller alle dine brugerkonti er allerede aktiveret.</p>
+							<p th:utext="${@cmsMessageBundle.getText('cms.account.no-account-to-activate')}"></p>
 							
 							<p>
 								<a type="button" th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>

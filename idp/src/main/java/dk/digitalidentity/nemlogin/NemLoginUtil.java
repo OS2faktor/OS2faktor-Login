@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.samlmodule.model.TokenUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,7 +28,10 @@ public class NemLoginUtil {
 
 	@Autowired
 	private PersonService personService;
-	
+
+	@Autowired
+	private OS2faktorConfiguration configuration;
+
 	/**
 	 * returns true if a person is currently logged in
 	 */
@@ -90,9 +94,25 @@ public class NemLoginUtil {
 		if (!(cprObj instanceof String)) {
 			return null;
 		}
+		
 		return (String) cprObj;
 	}
 
+	public String getPersonUuid() {
+		if (!isAuthenticated()) {
+			return null;
+		}
+
+		TokenUser tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
+
+		String mitIdName = tokenUser.getUsername();
+		if (mitIdName.startsWith("https://data.gov.dk/model/core/eid/person/uuid/")) {
+			mitIdName = mitIdName.substring("https://data.gov.dk/model/core/eid/person/uuid/".length());
+		}
+
+		return mitIdName;
+	}
+	
 	public List<Person> getAvailablePeople() {
 		ArrayList<Person> people = new ArrayList<>();
 		if (!isAuthenticated()) {
@@ -100,7 +120,16 @@ public class NemLoginUtil {
 		}
 
 		String cpr = getCpr();
+
 		if (!StringUtils.hasLength(cpr)) {
+			if (configuration.getMitid().isAllowCachedUuidLookup()) {
+				String uuid = getPersonUuid();
+
+				if (uuid != null) {
+					return personService.getByMitIdNameId(uuid);
+				}
+			}
+
 			return people;
 		}
 

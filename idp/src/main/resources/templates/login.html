@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="da">
 <head th:replace="fragments/header :: header (checkbox = true)" />
+<div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown" style="max-width: 1500px;">
         <div class="row">
@@ -16,9 +17,9 @@
             </div>
             <div class="ibox offset-lg-2 col-lg-8 offset-md-1 col-md-10" th:classappend="${!infobox.enabled || #strings.isEmpty(infobox.message)} ? 'col-xl-8 offset-xl-2' : 'col-xl-4 offset-xl-0'">
                 <div class="ibox-title">
-                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                    <h1 class="wcag-h1-as-h5"><em class="fa fa-user"></em> &nbsp; Login</h1>
                     <div class="ibox-tools">
-						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.help')}"></em>
+                    	<a aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.help')}" style="color: #676a6c !important;"></a>
 					</div>
                 </div>
 
@@ -30,76 +31,55 @@
                 	
                     <div class="tabs-container">
                         <ul class="nav nav-tabs" role="tablist">
-                            <li><a th:if="(${@OS2faktorConfiguration.nemIdEnabled} == true) OR (${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn})" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
-                            <li><a th:if="${@OS2faktorConfiguration.nemIdEnabled} == true" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-2" href="#tab-2">NemID</a></li>
-                            <li><a th:if="${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn}" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">NemLog-in</a></li>
+                            <li><a th:if="${showNemLogIn}" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
+                            <li><a th:if="${showNemLogIn}" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">MitID</a></li>
                         </ul>
 
                         <div class="tab-content">
                             <div role="tabpanel" id="tab-1" class="tab-pane" th:classappend="${preferNemid} ? '' : 'active'">
                                 <div class="panel-body">
-                                    <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">
+                                    <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
                                         <div class="form-group">
                                         	<label for="username">Brugernavn:</label>
-                                            <input id="username" name="username" th:value="${username}" type="text" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Brugernavn" autofocus="autofocus" />
+                                            <input id="username" name="username" th:value="${username}" type="text" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Brugernavn" autofocus="autofocus" aria-required="true" />
                                         </div>
 
                                         <div class="form-group">
                                         	<label for="password">Kodeord:</label>
-                                            <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" />
+                                            <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" aria-required="true" />
                                         </div>
 
                                         <div class="form-group" th:if="${incorrectInput}">
-                                            <p class="text-danger">Brugernavn eller kodeord er forkert</p>
+                                            <p class="text-danger wcag-text-danger">Brugernavn eller kodeord er forkert</p>
                                         </div>
 
-                                        <button onclick="formService.save()" class="btn btn-primary block full-width m-b">Login</button>
-                                        <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
+                                        <button onclick="formService.save()" class="btn btn-primary block full-width m-b wcag-btn-primary">Login</button>
+                                        <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b wcag-btn-danger">Afbryd login</a>
 
                                         <br>
-                                        <a th:href="${changePasswordUrl}">
-                                            <small>Glemt kodeord eller låst ude?</small>
-                                        </a>
+                                        <a th:href="${changePasswordUrl}" class="wcag-small-blue">Glemt kodeord eller låst ude?</a>
 
                                         <hr/>
 
                                         <div class="form-group">
                                             <div>
-                                                <label><input id="remember" type="checkbox" class="i-checks"> &nbsp; Husk brugernavn</label>
+                                                <label><input id="remember" type="checkbox" class="i-checks" alt="checkbox"> &nbsp; Husk brugernavn</label>
                                             </div>
                                         </div>
                                     </form>
                                 </div>
                             </div>
 
-                            <div th:if="${@OS2faktorConfiguration.nemIdEnabled} == true" role="tabpanel" id="tab-2" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
-                                <div class="panel-body" style="padding: 20px 0px 20px 0px;">
-                                    <div style="text-align:center; position:relative">
-                                        <form name="postBackForm" method="post" th:action="@{/sso/saml/nemid}">
-                                            <input type="hidden" name="response">
-
-                                            <div th:utext="${jsElement}" />
-
-                                            <div id="iframeHolder" class="" style="width: 100%; height: 100%;">
-                                                <iframe id="nemid_iframe" name="target_iframe" title="NemID"
-                                                        ontouchstart="" scrolling="no" frameborder="0"
-                                                        style="width: 320px; height: 480px; border: 0px; margin: 0px; padding: 0px; overflow: hidden;"></iframe>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div th:if="${@OS2faktorConfiguration.mitIdEnabled} == true and ${showNemLogIn}" role="tabpanel" id="tab-3" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
+                            <div th:if="${showNemLogIn}" role="tabpanel" id="tab-3" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
                                 <div class="panel-body">
 
-                                    <form class="m-t" id="login" role="form" th:action="@{/sso/saml/login}" method="post">
+                                    <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
                                         <div class="form-group">
                                             <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}" />
                                         </div>
                                         <br>
                                         <div class="form-group">
-                                            <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med NemLog-in</a>
+                                            <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med MitID</a>
                                         </div>
                                     </form>
                                 </div>
@@ -112,8 +92,6 @@
     </div>
     
 	<div th:replace="fragments/footer :: scripts (checkbox = true)" />
-	
-	<script type="text/javascript" th:src="@{/js/nemid.js}"></script>
 
 <style>
     @media (max-width: 1199px) {
@@ -130,7 +108,7 @@
     }
 </style>
 <style>
-    .noinfo {
+    .noinfo {    
 
     }
 </style>
@@ -138,10 +116,9 @@
         /*<![CDATA[*/
 
 		/*[+
-			var iframeSrc = [[${iframeSrc}]];
-			var iframeOrigin = [[${serverUrlPrefix}]];
+			var requestedUsername = [[${@sessionHelper.getRequestedUsername()}]];
 		+]*/
-		
+
 		var formService;
 		$(document).ready(function() {
 			formService = new FormService();
@@ -149,27 +126,46 @@
 		});
 
 		function FormService() {
+			var submitting = false;
+			
 			this.save = function() {
 				if ($("#remember").prop('checked')) {
 					username = $('#username').val();
 					localStorage.setItem("username", username);
 				}
 				else {
-					if (localStorage.getItem("username") != null){
+					if (localStorage.getItem("username") != null) {
 						localStorage.removeItem("username");
 					}
 				}
 
 				$('#login').submit();
 			}
-			
-			this.load = function(){
+
+			this.load = function() {
+				$('#login').submit(function() {
+					if (submitting) {
+						return false;
+					}
+					
+					// set submitting = true to prevent double-post for 5 seconds
+					submitting = true;
+					window.setTimeout(function() {
+						submitting = false;
+					}, 5000);
+					
+					return true;
+				});
+
 				var localUsername = localStorage.getItem("username");
 
-				if (localUsername != null) {
+				if (localUsername != null) {					
 					$("#remember").iCheck('check');
 					$('#username').val(localUsername);
 				}
+                else if (requestedUsername != null) {
+                    $('#username').val(requestedUsername);
+                }
 
 				if ($('#username').val()) {
 				    $('#password').focus();
@@ -177,47 +173,10 @@
 			}
 		}
 
-		function onNemIDMessage(e) {
-			var event = e || event;
-
-			if (iframeOrigin !== event.origin) {
-				return;
-			}
-
-			var win = document.getElementById("nemid_iframe").contentWindow, postMessage = {}, message;
-			message = JSON.parse(event.data);
-
-			if (message.command === "SendParameters") {
-				var htmlParameters = document.getElementById("nemid_parameters").innerHTML;
-
-				postMessage.command = "parameters";
-				postMessage.content = htmlParameters;
-				win.postMessage(JSON.stringify(postMessage), iframeOrigin);
-			}
-
-			if (message.command === "changeResponseAndSubmit") {
-                if ($('#tab-2').hasClass('active')) {
-                    document.postBackForm.response.value = message.content;
-                    document.postBackForm.submit();
-                }
-			}
-		}
-
-		if (window.addEventListener) {
-			window.addEventListener("message", onNemIDMessage);
-		} else if (window.attachEvent) {
-			window.attachEvent("onmessage", onNemIDMessage);
-		}
-
         var loginService;
 		$(document).ready(function() {
 		    loginService = new LoginService();
 		    loginService.init();
-
-			// delay loading the NemID applet for 1 second
-		    setTimeout(function() {
-				$("#nemid_iframe").attr("src", function(i, val) { return iframeSrc; });
-		    }, 1000);
         });
 
         function LoginService() {

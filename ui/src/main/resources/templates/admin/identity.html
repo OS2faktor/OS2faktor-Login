@@ -56,6 +56,43 @@
 												<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.nsisStatus.message}__}"/>
 											</div>
 										</div>
+										
+										<div class="hr-line-dashed"></div>
+	
+										<div class="form-group row">
+											<label class="col-sm-2 col-form-label">MitID Erhverv</label>
+											<div class="col-sm-10">
+												<th:block th:if="${form.nemloginUserUuid != null}">
+													<table class="table">
+														<tr>
+															<td style="width: 200px;">UUID</td>
+															<td><span th:text="${form.nemloginUserUuid}"></span></td>
+														</tr>
+														<tr>
+															<td>Status</td>
+															<td><span th:text="${form.status == 'Active' ? 'Aktiv' : (form.status == 'Unknown' ? 'Ukendt' : 'Spærret')}"></span></td>
+														</tr>
+														<tr>
+															<td>Personligt MitID tilknyttet</td>
+															<td><span th:text="${form.mitidPrivatCredential ? 'Ja' : 'Nej'}"></span></td>
+														</tr>
+														<tr>
+															<td>Kvalificeret signatur</td>
+															<td><span th:text="${form.qualifiedSignature ? 'Ja' : 'Nej'}"></span></td>
+														</tr>
+														<tr>
+															<td>RID</td>
+															<td><span th:text="${form.mitidErhvervRid}"></span></td>
+														</tr>
+													</table>
+													
+													<label class="col-form-label">OBS! Ovenstående status opdateres hver nat - status inde i MitID Erhverv kan være nyere.</label>
+												</th:block>
+												<th:block th:if="${form.nemloginUserUuid == null}">
+													<label class="col-form-label">Ikke overført til MitID Erhverv</label>
+												</th:block>
+											</div>
+										</div>
 									</form>
 								</div>
 							</div>
@@ -95,6 +132,32 @@
 												<tr th:each="instance : ${form.attributes}">
 														<td th:text="${instance.key}" />
 													<td th:text="${instance.value}" />
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="col-lg-12" th:if="${#lists.size(roles) > 0}">
+							<div class="ibox ">
+								<div class="ibox-title">
+									<h5><em class="fa fa-bars"></em> &nbsp; Jobfunktionsroller</h5>
+								</div>
+
+								<div class="ibox-content">
+									<div class="table-responsive">
+										<table id="roles" class="table table-striped table-bordered table-hover" >
+											<thead>
+											<tr>
+												<th>Teknisk navn</th>
+											</tr>
+											</thead>
+
+											<tbody>
+												<tr th:each="role : ${roles}">
+													<td th:text="${role}"></td>
 												</tr>
 											</tbody>
 										</table>
@@ -241,6 +304,25 @@
 					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
 					"zeroRecords":  "Ingen data...",
 					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ rækker)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+
+			$('#roles').DataTable({
+				"bSort": false,
+				"paging": true,
+				"responsive": true,
+				'ordering': true,
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"",
 					"infoFiltered": "(ud af _MAX_ rækker)",
 					"paginate": {
 						"previous": "Forrige",

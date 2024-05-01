@@ -118,7 +118,11 @@ public class LoggingUtil {
 					attributeStringBuilder.append(", ");
 				}
 				
-				attributeStringBuilder.append(key + "=" + attributeValues.get(key));
+				String val = attributeValues.get(key);
+				if (val != null && val.length() > 100) {
+					val = val.substring(0, 100) + "...";
+				}
+				attributeStringBuilder.append(key + "=" + val);
 			}
 			logBuilder.append("Attributes:'").append(attributeStringBuilder.toString()).append("' ");
 		}

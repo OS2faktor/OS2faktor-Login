@@ -21,7 +21,9 @@ public class ClientApiSecurityFilterConfiguration {
 
 		FilterRegistrationBean<ClientApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.addUrlPatterns("/api/client/login");
+		filterRegistrationBean.addUrlPatterns("/api/client/loginWithBody");
 		filterRegistrationBean.addUrlPatterns("/api/client/changePassword");
+		filterRegistrationBean.addUrlPatterns("/api/client/changePasswordWithBody");
 
 		return filterRegistrationBean;
 	}

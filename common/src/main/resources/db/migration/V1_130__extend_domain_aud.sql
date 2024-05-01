@@ -1,0 +1,1 @@
+ALTER TABLE domains_aud ADD standalone BOOLEAN NULL;

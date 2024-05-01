@@ -54,7 +54,7 @@ public class ClientApiSecurityFilter implements Filter {
     }
 
     private static void unauthorized(HttpServletRequest request, HttpServletResponse response, String message) throws IOException {
-    	log.error(message + ", path = " + request.getServletPath());
+    	log.warn(message + ", path = " + request.getServletPath());
         response.sendError(401, message);
     }
 

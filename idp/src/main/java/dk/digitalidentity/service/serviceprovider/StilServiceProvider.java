@@ -1,23 +1,26 @@
 package dk.digitalidentity.service.serviceprovider;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.serviceprovider.StilServiceProviderConfig;
-import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -34,20 +37,10 @@ public class StilServiceProvider extends ServiceProvider {
 	@Autowired
 	private StilServiceProviderConfig stilConfig;
 	
-	@Autowired
-	private SessionHelper sessionHelper;
-	
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
-
-			String metadataContent = null;
-			try {
-				metadataContent = getMetadataContent();
-			} catch (Exception ex) {
-				throw new ResponderException("Kunne ikke hente metadata fra fil", ex);
-			}
-			resolver = getMetadataResolver(getEntityId(), null, metadataContent);
+			resolver = getMetadataResolver(getEntityId(), stilConfig.getMetadataUrl(), null);
 		}
 
 		// If last scheduled refresh failed, Refresh now to give up to date metadata
@@ -99,16 +92,8 @@ public class StilServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
+	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
 		Map<String, Object> map = new HashMap<>();
-
-		// TODO: could argue that LOW or better would be fine until STIL requires actual NSIS
-		if (NSISLevel.SUBSTANTIAL.equalOrLesser(sessionHelper.getMFALevel())) {
-			map.put("dk:gov:saml:attribute:AssuranceLevel", "3");
-		}
-		else {
-			map.put("dk:gov:saml:attribute:AssuranceLevel", "2");
-		}
 
 		if ("cpr".equals(commonConfig.getStil().getUniloginAttribute())) {
 			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
@@ -118,8 +103,8 @@ public class StilServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public boolean mfaRequired(AuthnRequest authnRequest) {
-        RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
+	public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
+        RequestedAuthnContext requestedAuthnContext = loginRequest.getAuthnRequest().getRequestedAuthnContext();
         if (requestedAuthnContext != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
                 if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
@@ -136,14 +121,14 @@ public class StilServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
+	public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
 		// TODO: eventually, but not yet
 		return NSISLevel.NONE;
 	}
 
 	@Override
 	public boolean preferNemId() {
-		return stilConfig.preferNemId();
+		return stilConfig.isPreferNemid();
 	}
 
 	@Override
@@ -155,9 +140,14 @@ public class StilServiceProvider extends ServiceProvider {
 	public String getEntityId() {
 		return stilConfig.getEntityId();
 	}
+	
+	@Override
+	public List<String> getEntityIds() {
+		return Collections.singletonList(stilConfig.getEntityId());
+	}
 
 	@Override
-	public String getName(AuthnRequest authnRequest) {
+	public String getName(LoginRequest loginRequest) {
 		return stilConfig.getName();
 	}
 
@@ -168,25 +158,21 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean encryptAssertions() {
-		return stilConfig.encryptAssertions();
+		return stilConfig.isEncryptAssertions();
 	}
 
 	@Override
 	public String getNameIdFormat() {
-		return stilConfig.getNameIdFormat();
-	}
-
-	public String getMetadataContent() throws Exception {
-		return stilConfig.getMetadataContent();
+		return stilConfig.getNameIdFormat().value;
 	}
 
 	@Override
 	public boolean enabled() {
-		return stilConfig.enabled();
+		return stilConfig.isEnabled();
 	}
 
 	@Override
-	public String getProtocol() {
+	public Protocol getProtocol() {
 		return stilConfig.getProtocol();
 	}
 
@@ -197,6 +183,27 @@ public class StilServiceProvider extends ServiceProvider {
 	
 	@Override
 	public boolean preferNIST() {
-		return stilConfig.preferNIST();
+		return stilConfig.isPreferNIST();
+	}
+	
+	@Override
+	public boolean requireOiosaml3Profile() {
+		return false;
+	}
+
+	@Override
+	public Long getPasswordExpiry() {
+		return null;
+	}
+
+	@Override
+	public Long getMfaExpiry() {
+		return null;
+	}
+
+	// STIL does not sign their logout requests correctly
+	@Override
+	public boolean validateSignatureOnLogoutRequests() {
+		return false;
 	}
 }

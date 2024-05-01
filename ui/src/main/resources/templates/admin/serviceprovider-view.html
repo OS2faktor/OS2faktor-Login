@@ -13,7 +13,7 @@
 							<div class="ibox-title">
 								<h5><em class="fa fa-gear"></em> &nbsp; Tjenesteudbyder</h5>
 								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
-									<button onclick="reloadMetadata()" class="btn btn-primary">
+									<button th:if="${serviceprovider.protocol} == 'SAML20'" onclick="reloadMetadata()" class="btn btn-primary">
 										<em class="fa fa-refresh"></em>
 										&nbsp;
 										Genopfrisk metadata
@@ -38,15 +38,15 @@
 									</div>
 									
 									<div class="form-group row">
-										<label class="col-sm-3 col-form-label">Entity ID</label>
+										<label th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'WSFED'" class="col-sm-3 col-form-label">Entity ID</label>
+										<label th:if="${serviceprovider.protocol} == 'OIDC10'" class="col-sm-3 col-form-label">Klient ID</label>
 										<div class="col-sm-9">
 											<input type="text" class="form-control" th:value="${serviceprovider.entityId}" disabled="disabled"/>
 										</div>
 									</div>
 
 									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" class="hr-line-dashed"></div>
-
-									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" class="form-group row">
+									<div th:unless="${serviceprovider.nemLogInBrokerEnabled || (serviceprovider.protocol != 'SAML20' && serviceprovider.protocol != 'WSFED')}" class="form-group row">
 										<label class="col-sm-3 col-form-label">NameID Format</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
@@ -56,7 +56,8 @@
 									</div>
 
 									<div th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}" class="form-group row">
-										<label class="col-sm-3 col-form-label">NameID Værdi</label>
+										<label th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'WSFED'" class="col-sm-3 col-form-label">NameID Værdi</label>
+										<label th:if="${serviceprovider.protocol} == 'OIDC10'" class="col-sm-3 col-form-label">Subjekt</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" disabled="disabled">
 												<option value="userId" th:selected="'userId' == ${serviceprovider.nameIdValue} or 'sAMAccountName' == ${serviceprovider.nameIdValue}">Brugernavn</option>
@@ -77,6 +78,7 @@
 
 									<div class="hr-line-dashed" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}"></div>
 
+									<th:block th:if="${serviceprovider.nsisLevelRequired != null and serviceprovider.nsisLevelRequired.toString() == 'NONE'}">
 									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}">
 										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
 										<div class="col-sm-9">
@@ -87,6 +89,7 @@
 									</div>
 
 									<div class="hr-line-dashed" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}"></div>
+									</th:block>
 
 									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}" th:if="${serviceprovider.sqlServiceProvider}">
 										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
@@ -97,8 +100,31 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed"></div>
+									<th:block th:if="${serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
+										<div class="hr-line-dashed"></div>
+										
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for kodeord</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.passwordExpiry}" type="number" class="form-control col-sm-4" min="0" max="840" disabled="disabled"/>
+													<label class="col-sm-4 col-form-label">minutter</label>
+												</div>
+											</div>
+										</div>
+										
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for 2-faktor</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.mfaExpiry}" type="number" class="form-control col-sm-4" disabled="disabled"/>
+													<label class="col-sm-4 col-form-label">minutter</label>
+												</div>
+											</div>
+										</div>
+									</th:block>
 
+									<div class="hr-line-dashed"></div>
 
 									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
 										<label class="col-sm-3 col-form-label">Gennemstil logins til NemLog-In</label>
@@ -110,7 +136,7 @@
 									</div>
 
 									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}">
-										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+										<label class="col-sm-3 col-form-label">Foretræk NemLog-in ved login</label>
 										<div class="col-sm-9">
 											<label>
 												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks" disabled="disabled">
@@ -118,7 +144,7 @@
 										</div>
 									</div>
 
-									<div class="form-group row">
+									<div th:if="${serviceprovider.protocol} == 'SAML20'" class="form-group row">
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
 										<div class="col-sm-9">
 											<label>
@@ -136,7 +162,8 @@
 										</div>
 									</div>
 									
-									<div class="form-group row">
+									<th:block th:if="${serviceprovider.nsisLevelRequired != null and serviceprovider.nsisLevelRequired.toString() == 'NONE'}">
+									<div th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'OIDC10'" class="form-group row">
 										<label class="col-sm-3 col-form-label">Anvend NIST sikringsniveauer</label>
 										<div class="col-sm-9">
 											<label>
@@ -144,11 +171,52 @@
 											</label>
 										</div>
 									</div>
+									</th:block>
+									
+									<div th:if="${serviceprovider.protocol} == 'SAML20'" class="form-group row">
+										<label class="col-sm-3 col-form-label">Anvend OIOSAML3 profilen</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.requireOiosaml3Profile}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
 								</form>
 							</div>
 						</div>
 
-						<div class="ibox">
+						<div th:if="${serviceprovider.exemptedDomains != null and #lists.size(serviceprovider.exemptedDomains) > 0}" class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Domæner undtaget for 2-faktor login</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group">
+									<div class="table-responsive mfaExemptionsDomainTable">
+										<table class="table table-striped table-bordered table-hover">
+											<thead>
+												<tr>
+													<th style="width: 60px;">Undtaget</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="domain : ${@domainService.getAll()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${domain.id}" type="checkbox" class="i-checks exemptedMfaDomainCheckbox" th:checked="${#lists.contains(serviceprovider.exemptedDomains, domain.id)}" disabled="disabled"></label>
+													</td>
+													<td th:text="${domain.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+						</div>
+
+						<div th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'WSFED'" class="ibox">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp; Metadata konfiguration</h5>
 							</div>
@@ -167,7 +235,7 @@
 
 								<div class="hr-line-dashed"></div>
 
-								<div class="form-group row" th:if="${#lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
+								<div class="form-group row" th:if="${serviceprovider.protocol == 'SAML20' && #lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
 									<label class="offset-sm-3 col-sm-3 col-form-label"><em class="fa fa-exclamation-circle"></em> Kunne ikke hente Certificater eller Endpoints fra metadata, prøv evt. igen senere</label>
 								</div>
 									
@@ -227,6 +295,29 @@
 							</div>
 						</div>
 
+						<div th:if="${serviceprovider.protocol} == 'OIDC10'" class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser (redirect URLs)</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<div class="col-sm-12">
+										<table id="redirectUrlTable" class="table table-bordered listTable">
+											<thead>
+												<tr>
+													<th>Godkendte webadresser</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr th:each="redirectURL : ${serviceprovider.redirectURLs}"><td><label class="form-control" th:text="${redirectURL}" disabled="disabled"></label></td></tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+
 						<div class="ibox" th:if="${serviceprovider.sqlServiceProvider and !#lists.isEmpty(serviceprovider.claims)}">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp;Claims</h5>
@@ -236,21 +327,22 @@
 								<div class="table-responsive">
 									<table id="claimTable" class="table table-striped table-bordered table-hover">
 										<thead>
-											<tr>
-												<th style="width: 200px;">Type</th>
-												<th>Attribut</th>
-												<th style="width: 300px;">Værdi</th>
-												<th style="width: 200px;">Send én værdi</th>
-											</tr>
+										<tr>
+											<th style="display:none;">Id</th>
+											<th style="width: 200px;">Type</th>
+											<th>Attribut</th>
+											<th style="width: 300px;">Værdi</th>
+											<th style="width: 200px;">Parameter</th>
+										</tr>
 										</thead>
-										
+
 										<tbody>
-											<tr th:each="claim : ${serviceprovider.claims}">
-							    				<td th:text="${claim.type.message}" />
-							   			 		<td th:text="${claim.attribute}" />
-							    				<td data-type="value" th:data-val="${claim.value}" th:text="${claim.value}" />
-							    				<td><em th:if="${claim.singleValueOnly}" class="fa fa-fw fa-check"></em></td>
-											</tr>
+										<tr th:each="claim : ${serviceprovider.claims}">
+											<td th:text="${claim.type.message}" />
+											<td th:text="${claim.attribute}" />
+											<td th:text="${claim.value}" />
+											<td th:text="${claim.parameter}" />
+										</tr>
 										</tbody>
 									</table>
 								</div>
@@ -315,7 +407,7 @@
 											<tr>
 												<th style="width: 400px;">Navn</th>
 												<th>EntityId</th>
-												<th style="width: 150px;">Kræv altid 2-faktor</th>
+												<th style="width: 250px;">Kræv 2-faktor login</th>
 											</tr>
 										</thead>
 										
@@ -328,7 +420,9 @@
 							    				</td>
 							   			 		<td th:text="${subsystem.entityId}" />
 							    				<td>
-													<input th:checked="${subsystem.alwaysRequireMfa}" type="checkbox" class="i-checks mfaCheckbox" th:data-id="${subsystem.id}"></input>
+													<select class="form-control m-b forceMfaRequiredSelect" th:data-id="${subsystem.id}" style="margin-bottom: 0px;">
+														<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${subsystem.forceMfaRequired}"></option>
+													</select>
 							    				</td>
 											</tr>
 										</tbody>
@@ -360,8 +454,6 @@
 		var token = $("meta[name='_csrf']").attr("content");
 
 		$(document).ready(function(){
-			var suppressToggleHandler = false;
-
 			$('.nameCancel').on('click', function() {
 				var id = $(this).data('id');
 
@@ -436,16 +528,12 @@
 				}
 			});
 			
-			$('.mfaCheckbox').on('ifChanged', function() {
-				if (suppressToggleHandler) {
-					return;
-				}
-
+			$('.forceMfaRequiredSelect').on('change', function() {
 				var id = $(this).data('id');
-				var checked = this.checked;
+				var choice = $(this).val();
 
 				$.ajax({
-					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/mfa/' + (checked ? 'true' : 'false'),
+					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/mfa/' + choice,
 					method: "POST",
 					headers: {
      			      'X-CSRF-TOKEN': token
@@ -455,12 +543,6 @@
      			   	},
      			   	error: function(jQxhr, textStatus, errorThrown) {
 						toastr.error('Opdateringen fejlede');
-
-						suppressToggleHandler = true;
-						$('.mfaCheckbox').iCheck('toggle');
-						setTimeout(function() {
-							suppressToggleHandler = false;
-						}, 250);
      			   	}
 				});				
 			});

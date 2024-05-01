@@ -4,7 +4,7 @@
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar"></div>
+			<div th:replace="fragments/topbar :: topbar (page = 'version')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -23,6 +23,8 @@
 									I anvender version <b th:text="${@OS2faktorConfiguration.version}" /> af OS2faktor Login, og den nyeste udgave af OS2faktor Login er <b th:text="${@OS2faktorConfiguration.latestVersion}" />. I kan med fordel få opdateret til den nyeste udgave, ved
                                                                         at kontakte <a href="mailto:kontakt@digital-identity.dk">Digital Identity</a> og bede dem opdatere jer til nyeste udgave.
 								</p>
+
+								<p>Se ændringshistorik <a href="https://www.os2faktor.dk/changelog.html" target="_blank">her</a>.</p>
 							</div>
 						</div>
 					</div>

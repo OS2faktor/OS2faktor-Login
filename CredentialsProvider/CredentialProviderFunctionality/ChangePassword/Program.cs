@@ -1,9 +1,8 @@
 ﻿using Microsoft.Win32;
 using Serilog;
 using System;
-using System.Collections.Generic;
-using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 
 namespace ChangePassword
@@ -15,7 +14,7 @@ namespace ChangePassword
             try
             {
                 // Open up the settings, we need these to run the program so without them it just closes
-                String settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
+                string settingsPath = @"SOFTWARE\DigitalIdentity\OS2faktorLogin";
 
                 using (RegistryKey rootKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
                 {
@@ -28,17 +27,15 @@ namespace ChangePassword
 
                         // Settings avaliable, continue process
                         string logPath = null;
-                        string domain;
                         string baseUrl;
-                        string clientID;
                         string clientApiKey;
+                        string version;
 
                         try
                         {
-                            domain = (string)settingsKey.GetValue("os2faktorUserDomain");
                             baseUrl = (string)settingsKey.GetValue("os2faktorBaseUrl");
-                            clientID = (string)settingsKey.GetValue("clientID");
                             clientApiKey = (string)settingsKey.GetValue("clientApiKey");
+                            version = (string)settingsKey.GetValue("version");
 
                             object logPathObj = settingsKey.GetValue("ChangePasswordLogPath");
                             if (logPathObj != null)
@@ -73,28 +70,33 @@ namespace ChangePassword
                         //ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
                         // Create HttpClient and set RequestHeaders
-                        Log.Verbose("Setting clientID to: " + clientID);
-                        Log.Verbose("Setting clientApiKey to: " + clientApiKey);
-                        Log.Verbose("Setting domain to: " + domain);
                         HttpClient client = new HttpClient();
-                        client.DefaultRequestHeaders.Add("clientID", clientID);
                         client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
 
-                        // Set parameters for the call domain/username/password/newPassword
-                        var parameters = new Dictionary<string, string> {
-                            { "domain", domain },
-                            { "username", args[0] },
-                            { "oldPassword", args[1] },
-                            { "newPassword", args[2] }
-                        };
+                        // {
+                        //   "username": "xxxx",
+                        //   "oldPassword": "xxxx",
+                        //   "newPassword": "xxxx",
+                        //   "version": "xxxx"
+                        // }
+                        string body = "{\"username\":\"" + args[0] + "\",\"oldPassword\":\"" + getPassword(args[1]) + "\",\"newPassword\":\"" + getPassword(args[2]) + "\"";
+                        if (version != null)
+                        {
+                            string versionParameter = version.Replace(".", "").Trim();
+                            if (!String.IsNullOrWhiteSpace(versionParameter))
+                            {
+                                body += ",\"version\":\"" + versionParameter + "\"";
+                            }
+                        }
+                        body += "}";
+                        HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
-                        var content = new FormUrlEncodedContent(parameters);
 
                         // Call the service and wait for the response
                         try
                         {
                             // Create URL from configured baseURL
-                            string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/changePassword";
+                            string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/changePasswordWithBody";
 
                             HttpResponseMessage response = await client.PostAsync(url, content);
                             if (response.IsSuccessStatusCode)
@@ -126,6 +128,14 @@ namespace ChangePassword
                     ;
                 }
             }
+        }
+
+        private static string getPassword(string encodedPassword)
+        {
+            string encodedPass = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedPassword));
+            byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
+            string nonEncPass = System.Text.Encoding.Unicode.GetString(bytes);
+            return nonEncPass;
         }
     }
 }

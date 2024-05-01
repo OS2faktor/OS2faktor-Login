@@ -3,10 +3,10 @@
 <body>
 	<div th:fragment="topbar" class="row border-bottom white-bg">
 		<nav class="navbar navbar-expand-lg navbar-static-top" role="navigation">
-			<a th:href="${@commonConfiguration.selfService.baseUrl} + '/selvbetjening'" class="navbar-brand" style="background: white; padding: 10px 25px !important;">
-				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
-				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
-			</a>
+			<span class="navbar-brand" style="background: white; padding: 10px 25px !important;">
+				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px; padding-left: 15px;">
+				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px; padding-left: 15px;">
+			</span>
 		</nav>
 	</div>
 </body>

@@ -3,11 +3,15 @@ package dk.digitalidentity.mvc.admin.xlsview;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dk.digitalidentity.common.dao.model.PersonStatistics;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
@@ -17,12 +21,15 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
+import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.PersonService;
 
 public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;
+	private Map<Long, PersonStatistics> statisticsMap;
+	private List<MitidErhvervCache> mitIDErhvervCache;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
 	private boolean enableRegistrantFeature;
@@ -32,7 +39,9 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		// Get data
 		persons = (List<Person>) model.get("persons");
+		List<PersonStatistics> statistics = (List<PersonStatistics>) model.get("statistics");
 		enableRegistrantFeature = (boolean) model.get("enableRegistrantFeature");
+		mitIDErhvervCache = (List<MitidErhvervCache>) model.get("mitIDErhvervCache");
 
 		// Setup shared resources
 		Font headerFont = workbook.createFont();
@@ -44,6 +53,8 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 		wrapStyle = workbook.createCellStyle();
 		wrapStyle.setWrapText(true);
 
+		statisticsMap = statistics.stream().collect(Collectors.toMap(PersonStatistics::getPersonId, Function.identity()));
+		
 		// Create Sheets
 		createPersonsSheet(workbook);
 	}
@@ -61,12 +72,25 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 		headers.add("NSIS status");
 		headers.add("2-faktor enheder");
 		headers.add("Administratorroller");
+		headers.add("MitID Erhverv UUID");
+		headers.add("MitID Erhverv Status");
+		headers.add("MitID Erhverv Personligt MitID");
+		headers.add("MitID Erhverv Kvalificeret Signatur");
+		headers.add("Afdeling");
+		headers.add("Seneste lokal IdP login");
+		headers.add("Seneste login på selvbetjeningen");
+		headers.add("Seneste ændring af kodeord");
+		headers.add("Senest låst op");
+		headers.add("Seneste MFA validering");
 
 		createHeaderRow(sheet, headers);
+
+		Map<String, MitidErhvervCache> mitIdErhvervMap = mitIDErhvervCache.stream().collect(Collectors.toMap(MitidErhvervCache::getUuid, Function.identity()));
 
 		int row = 1;
 		for (Person entry : persons) {
 
+			PersonStatistics personStatistics = statisticsMap.get(entry.getId());
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
 
@@ -119,7 +143,6 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			else {
 				createCell(dataRow, column++, "Erhvervsidentitet ikke tildelt", null);
 			}
-
 			
 			// MFA klienter
 			StringBuilder mfaClients = new StringBuilder();
@@ -129,6 +152,9 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 				}
 
 				mfaClients.append(mfaClient.getDeviceId() + " / " + mfaClient.getType() + " / " + mfaClient.getName() + " / " + nsisLevelToDanish(mfaClient.getNsisLevel()));
+				if (mfaClient.getLastUsed() != null) {
+					mfaClients.append("/anvendt: " + mfaClient.getLastUsed().toLocalDate().toString());
+				}
 			}
 
 			createCell(dataRow, column++, mfaClients.toString(), null);
@@ -158,6 +184,64 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			}
 
 			createCell(dataRow, column++, adminRoles.toString(), null);
+
+			// NemLogin UUID
+			createCell(dataRow, column++, entry.getNemloginUserUuid(), null);
+
+			MitidErhvervCache cache = mitIdErhvervMap.get(entry.getNemloginUserUuid());
+			if (cache != null) {
+				createCell(dataRow, column++, Objects.equals("Active", cache.getStatus()) ? "Aktiv" : "Spærret", null);
+				createCell(dataRow, column++, cache.isMitidPrivatCredential() ? "Ja" : "Nej", null);
+				createCell(dataRow, column++, cache.isQualifiedSignature() ? "Ja" : "Nej", null);				
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+				createCell(dataRow, column++, "", null);
+				createCell(dataRow, column++, "", null);
+			}
+			
+			// Department
+			createCell(dataRow, column++, entry.getDepartment(), null);
+
+			// local login
+			if (personStatistics != null && personStatistics.getLastLogin() != null) {
+				createCell(dataRow, column++, personStatistics.getLastLogin().toString(), null);
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+			}
+
+			// selfservice login
+			if (personStatistics != null && personStatistics.getLastSelfServiceLogin() != null) {
+				createCell(dataRow, column++, personStatistics.getLastSelfServiceLogin().toString(), null);
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+			}
+
+			// password change
+			if (personStatistics != null && personStatistics.getLastPasswordChange() != null) {
+				createCell(dataRow, column++, personStatistics.getLastPasswordChange().toString(), null);
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+			}
+
+			// unlock
+			if (personStatistics != null && personStatistics.getLastUnlock() != null) {
+				createCell(dataRow, column++, personStatistics.getLastUnlock().toString(), null);
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+			}
+
+			// mfa use
+			if (personStatistics != null && personStatistics.getLastMFAUse() != null) {
+				createCell(dataRow, column++, personStatistics.getLastMFAUse().toString(), null);
+			}
+			else {
+				createCell(dataRow, column++, "", null);
+			}
 		}
 	}
 

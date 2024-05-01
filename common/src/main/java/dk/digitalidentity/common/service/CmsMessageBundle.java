@@ -58,6 +58,7 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.login.mfa.noClients", getDescription("cms.login.mfa.noClients")));
 		all.add(new CmsMessageListDTO("cms.login.nsisLevelTooLow", getDescription("cms.login.nsisLevelTooLow")));
 		all.add(new CmsMessageListDTO("cms.changePassword.content", getDescription("cms.changePassword.content")));
+		all.add(new CmsMessageListDTO("cms.changePasswordParent.content", getDescription("cms.changePasswordParent.content")));
 		all.add(new CmsMessageListDTO("cms.changePassword.identification", getDescription("cms.changePassword.identification")));
 		all.add(new CmsMessageListDTO("cms.login.mfaChallenge.content.top", getDescription("cms.login.mfaChallenge.content.top")));
 		all.add(new CmsMessageListDTO("cms.myidentity.mydata.help", getDescription("cms.myidentity.mydata.help")));
@@ -83,7 +84,24 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.unlockAccount.content", getDescription("cms.unlockAccount.content")));
 		all.add(new CmsMessageListDTO("cms.account.expired", getDescription("cms.account.expired")));
 		all.add(new CmsMessageListDTO("cms.login.selectClaims.content.top", getDescription("cms.login.selectClaims.content.top")));
-
+		all.add(new CmsMessageListDTO("cms.login.error.locked-account", getDescription("cms.login.error.locked-account")));
+		all.add(new CmsMessageListDTO("cms.account.no-account-to-activate", getDescription("cms.account.no-account-to-activate")));
+		all.add(new CmsMessageListDTO("cms.changePassword.too-many-times.error", getDescription("cms.changePassword.too-many-times.error")));
+		all.add(new CmsMessageListDTO("cms.changePassword.content.error", getDescription("cms.changePassword.content.error")));
+		all.add(new CmsMessageListDTO("cms.technical-error", getDescription("cms.technical-error")));
+		all.add(new CmsMessageListDTO("cms.myidentity.mfaclients.error", getDescription("cms.myidentity.mfaclients.error")));
+		all.add(new CmsMessageListDTO("cms.account.no-account.error", getDescription("cms.account.no-account.error")));
+		all.add(new CmsMessageListDTO("cms.account.locked.failed-attempts", getDescription("cms.account.locked.failed-attempts")));
+		all.add(new CmsMessageListDTO("cms.login.selectUser.content.error", getDescription("cms.login.selectUser.content.error")));
+		all.add(new CmsMessageListDTO("cms.activate-validate-ad-password.text", getDescription("cms.activate-validate-ad-password.text")));
+		all.add(new CmsMessageListDTO("cms.activate-validate-ad-password.heading", getDescription("cms.activate-validate-ad-password.heading")));
+		all.add(new CmsMessageListDTO("cms.self-service.add.2-factor.text",getDescription("cms.self-service.add.2-factor.text")));
+		all.add(new CmsMessageListDTO("cms.self-service.add.2-factor.heading",getDescription("cms.self-service.add.2-factor.heading")));
+		
+		all.add(new CmsMessageListDTO("cms.login-error.nsis-not-allowed",getDescription("cms.login-error.nsis-not-allowed")));
+		all.add(new CmsMessageListDTO("cms.unlockAccount.insufficient-permission", getDescription("cms.unlockAccount.insufficient-permission")));
+		all.add(new CmsMessageListDTO("cms.changePassword.insufficient-permission", getDescription("cms.changePassword.insufficient-permission")));
+		
 		return all;
 	}
 	
@@ -107,17 +125,24 @@ public class CmsMessageBundle {
 				return "Den ledetekst der vises på login-siden, når man vælger fanen 'MitID'";
 			case "cms.login.mfa.noClients":
 				return "Den ledetekst der vises på siden man lander på, hvis man ikke har en 2-faktor enhed";
-
+			case "cms.login.selectUser.content.error":
+				return "Den fejlbesked der vises, når der ikke er nogle tilgængelige brugerkonti. Det kan være fordi alle brugere er låst eller der ikke er nogen brugerkontier";
+			case "cms.login.error.locked-account":
+				return "Den fejlbesked der vises, når kontoen er låst";
 			case "cms.login.nsisLevelTooLow":
 				return "Den ledetekst der vises på siden man lander på, hvis det sikringsniveau (NSIS niveau) der lå til grund for login ikke var højt nok";
-
 			case "cms.changePassword.identification":
-				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med genskabelse af glemt kodeord";
+				return "Den forklaring der vises ved siden af MitID login skærmbilledet når man skal bruge MitID i forbindelse med genskabelse af glemt kodeord";
 			case "cms.changePassword.content":
 				return "Den ledetekst der vises øverst i boksen på siden hvor man skifter kodeord";
+			case "cms.changePasswordParent.content":
+				return "Den ledetekst der vises øverst i boksen på siden hvor man skifter kodeord (for forældre til elever)";
 			case "cms.changePassword.canNotChangePasswordGroup.content":
 				return "Den fejlbesked der vises, når en person, der er i en gruppe, der ikke må skifte kodeord, forsøger at skifte kodeord";
-
+			case "cms.changePassword.too-many-times.error":
+				return "Den fejbesked der vises, når man har skiftet password for ofte på én dag.";
+			case "cms.changePassword.content.error":
+				return "Den fejlbesked der vises, når man forsøger at skifte til et ikke-tilladt password.";
 			case "cms.myidentity.mydata.help":
 				return "Den hjælpetekst der vises, når musen holdes over ?-tegnet der findes øverst i 'Brugerkonto' boksen på 'Min identitet'-siden";
 			case "cms.myidentity.mfaclients.help":
@@ -130,41 +155,60 @@ public class CmsMessageBundle {
 				return "Den hjælpetekst der vises, når musen holdes over ?-tegnet der findes øverst i 'Links' boksen på 'Min identitet'-siden";
 			case "cms.myidentity.references.help":
 				return "Den hjælpetekst der vises, når musen holdes over ?-tegnet der findes øverst i 'Referencer' boksen på 'Min identitet'-siden";
-
+			case "cms.myidentity.mfaclients.error":
+				return "Den fejlbesked der vises, når man ikke kan hente de registrerede 2-faktor enheder på en bruger";
 			case "cms.index.content":
 				return "Den ledetekst der vises på forsiden af selvbetjeningen før man er logget ind";
 			case "cms.index.forgotPasswordOrLocked":
 				return "Den tekst der står på knappen, man skal trykke på, hvis man har glemt kodeord eller er låst ude";
-
 			case "cms.activate.initiate":
 				return "Den ledetekst der vises på startsiden for det dedikerede aktiveringsflow";
 			case "cms.activate.ad-password-change":
-				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med et kodeordsskifte som er foretaget udenfor løsningen (gen-indrullering af kodeord)";
+				return "Den forklaring der vises ved siden af MitID login skærmbilledet når man skal bruge MitID i forbindelse med et kodeordsskifte som er foretaget udenfor løsningen (gen-indrullering af kodeord)";
 			case "cms.activate.during-login":
-				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med identifikationen ved det indlejrede aktiveringsflow (i forbindelse med et normalt login)";
+				return "Den forklaring der vises ved siden af MitID login skærmbilledet når man skal bruge MitID i forbindelse med identifikationen ved det indlejrede aktiveringsflow (i forbindelse med et normalt login)";
 			case "cms.activate.dedicated":
-				return "Den forklaring der vises ved siden af NemID login skærmbilledet når man skal bruge NemID i forbindelse med identifikationen ved det dedikerede aktiveringsflow";
+				return "Den forklaring der vises ved siden af MitID login skærmbilledet når man skal bruge MitID i forbindelse med identifikationen ved det dedikerede aktiveringsflow";
 			case "cms.activate.personDead":
 				return "Den fejlbesked der vises, hvis cpr opslaget under aktivering viser at personen er død";
 			case "cms.lockAccount.content":
 				return "Den tekst der vises på siden, hvor en bruger kan låse sin erhvervsidentitet.";
 			case "cms.unlockAccount.content":
 				return "Den tekst der vises på siden, hvor en bruger kan fjerne låsen på sin erhvervsidentitet.";
-						
+			case "cms.technical-error":
+				return "Den fejlbesked der vises, når der sker en teknisk fejl.";
 			case "cms.links.description":
 				return "Den tekst der vises under overskiften i boksen med links";
 			case "cms.forgotPasswordOrLocked.changePassword":
 				return "Den tekst der vises ud for skift kodeord knappen på siden hvor man vælger om man vil skifte kodeord eller låse sin AD konto op.";
 			case "cms.forgotPasswordOrLocked.unlockAD":
 				return "Den tekst der vises ud for lås AD konto op knappen på siden hvor man vælger om man vil skifte kodeord eller låse sin AD konto op.";
-
 			case "cms.password.mismatch.content":
 				return "Den tekst der vises for brugeren, hvis deres AD kodeord er kommet ud af sync med deres OS2faktor kodeord, når de forsøger at logge ind i selvbetjeningen";
-
 			case "cms.account.expired":
 				return "Den tekst der vises for brugeren, hvis deres konto er udløben, og de derfor ikke kan gennemføre et login";
+			case "cms.account.no-account-to-activate":
+				return "Den fejlbesked der vises, når man forsøger at aktivere en ugyldig- eller allerede aktiveret bruger.";
+			case "cms.account.no-account.error":
+				return "Den fejlbesked der vises, når en bruger ikke eksistere";
+			case "cms.account.locked.failed-attempts":
+				return "Den fejlbesked der vises, når man har forsøgt at logge ind for mange gange.";
 			case "cms.login.selectClaims.content.top":
 				return "Den tekst der vises for brugeren, hvis de er ved at logge på en tjenesteudbyder der kun kan modtage en værdi per claim og ikke en liste og derfor skal brugeren vælge hvilke claims de vil gøre brug af";
+			case "cms.activate-validate-ad-password.text":
+				return "Den brødtekst der vises, når man validere et eksisterende AD kodeord";
+			case "cms.activate-validate-ad-password.heading":
+				return "Overskriften for validering af eksisterende AD kodeord";
+			case "cms.self-service.add.2-factor.text":
+				return "Den vejledende tekst til tilknytning af 2 faktor-enhed";
+			case "cms.self-service.add.2-factor.heading":
+				return "Overskriften for tilknytning af 2 faktor-enhed på selvbetjeningssiden";
+			case "cms.login-error.nsis-not-allowed":
+				return "Hjælpetekst til brugeren når denne forsøger at logge på en tjeneste der kræver et NSIS sikringsniveau, men ikke er tildelt en erhvervsidentitet";			
+			case "cms.changePassword.insufficient-permission":
+				return "Teksten der vises hvis OS2faktor ikke har de fornødne rettigheder til at skifte kodeord på brugerens konto i AD";
+			case "cms.unlockAccount.insufficient-permission":
+				return "Teksten der vises hvis OS2faktor ikke har de fornødne rettigheder til at låse brugerens konto op i AD";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

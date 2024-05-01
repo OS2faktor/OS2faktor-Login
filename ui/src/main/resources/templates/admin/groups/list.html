@@ -10,19 +10,14 @@
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
-							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+							<div class="ibox-title">
 								<h5><em class="fa fa-users"></em> &nbsp; Se Grupper</h5>
 							</div>
 
 							<div class="ibox-content">
 								<p>
 									Nedenfor listes alle grupper der er opsat i løsningen.
-									De grupper der er synkroniseret fra AD kan ikke redigeres, da de er styret af AD integrationen.
-									Grupper der er oprettet direkte i OS2faktor Login kan redigeres og man kan tilføje og fjerne medlemmer ved at klikke på blyants-ikonet ud for disse.
-								</p>
-								
-								<p>
-									Anvend menupunktet "Opret ny gruppe" i højre-menuen for at oprette en ny gruppe.
+									Grupperne kan ikke redigeres da de er synkroniseret fra AD
 								</p>
 								
 								<h4>Grupper</h4>
@@ -53,15 +48,9 @@
 												<td th:text="${group.domain.name}"></td>
 												<td th:text="${group.description}"></td>
 												<td>
-													<a th:href="@{/admin/konfiguration/grupper/} + ${group.id}" th:data-id="${group.id}" style="color: black;" title="Vis/rediger gruppe">
+													<a th:href="@{/admin/konfiguration/grupper/} + ${group.id}" th:data-id="${group.id}" style="color: black;" title="Vis gruppe">
 														<em class="fa fa-fw fa-search"></em>
 													</a>
-													<th:block th:if="${group.domain.id} == ${@domainService.getInternalDomain().id}">
-														&nbsp;
-														<a th:onclick="'groupListService.deleteGroup(' + ${group.id} + ')'" style="color: black;" title="Slet gruppe">
-															<em class="fa fa-fw fa-times"></em>
-														</a>
-													</th:block>
 												</td>
 											</tr>
 										</tbody>
@@ -93,8 +82,6 @@
 		+]*/
 
 		var token = $("meta[name='_csrf']").attr("content");
-		var deleteTitle = "Slet gruppe?";
-		var deleteText = "Denne handling vil permanent slette gruppen";
 
 		var groupListService;
 		$(document).ready(function(){
@@ -118,7 +105,7 @@
 						"info":		 "Viser _START_ til _END_ af _TOTAL_ grupper",
 						"zeroRecords":  "Ingen grupper...",
 						"infoEmpty":	"Henter grupper...",
-						"infoFiltered": "(ud af _MAX_ hændelser)",
+						"infoFiltered": "(ud af _MAX_ grupper)",
 			            "paginate": {
 			                "previous": "Forrige",
 			                "next": "Næste"
@@ -136,40 +123,6 @@
 						}
 					});
 				});
-			}
-
-			this.deleteGroup = function(id) {
-
-				swal({
-					title: deleteTitle,
-					text: deleteText,
-					type: "warning",
-					confirmButtonColor: "#DD6B55",
-					showCancelButton: true,
-					confirmButtonText: buttonDelete,
-					cancelButtonText: buttonCancel,
-					closeOnConfirm: true,
-					closeOnCancel: true
-				},
-					function(isConfirm) {
-						if (isConfirm) {
-							$.ajax({
-								url: restUrl + id + "/delete",
-								method: "POST",
-								headers: {
-									'X-CSRF-TOKEN': token
-								},
-								contentType: 'application/json',
-								success: function(data, textStatus, jQxhr) {
-									window.location.reload(true);
-								},
-								error: function(jQxhr, textStatus, errorThrown) {
-									toastr.error("Fejl: " + jQxhr.responseText);
-								}
-							});
-						}
-					}
-				);
 			}
 		}
 		/*]]>*/

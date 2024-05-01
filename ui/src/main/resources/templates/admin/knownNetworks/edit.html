@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-links')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-link"></em> &nbsp; Opsæt kendte netværk</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="knownNetworksService.save()" class="btn btn-primary">
+										<em class="fa fa-save"></em>
+										&nbsp;
+										 Gem
+									</button>
+									<a th:href="@{/admin/konfiguration/knownNetworks}" class="btn btn-danger">
+										<em class="fa fa-ban"></em>
+										&nbsp;
+										Annuller
+									</a>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor kan der vedligeholdes en liste af kendte netværk. Dette kan gøres via CIDR notation (eksempel: 192.0.2.0/24).
+									På tjenesteudbydere kan man vælge at slå 2-faktor fra for login foretaget fra de kendte netværk. 
+								</p>
+								
+								<div class="form-group row">
+									<div class="table-responsive col-sm-12">
+										<table id="knownNetworksTable" class="table table-striped table-bordered table-hover listTable">
+											<thead>
+												<tr>
+													<th>Kendte netværk</th>
+												</tr>
+											</thead>
+											<tbody>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+							
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-links')" />
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer" />
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	
+	<script th:inline="javascript">
+	
+		/*<![CDATA[*/
+	
+		/*[+
+			var successUrl = [[@{/admin/konfiguration/knownNetworks}]];
+			var restUrl = [[@{/rest/admin/knownNetworks/save}]];
+			var knownNetworks = [[${knownNetworks}]];
+		+]*/
+	
+		var token = $("meta[name='_csrf']").attr("content");	
+
+		var knownNetworksService;
+		$(document).ready(function() {
+			knownNetworksService = new KnownNetworksService();
+			knownNetworksService.init();
+		});
+
+
+		function KnownNetworksService() {
+			this.init = function() {
+				$('#knownNetworks').DataTable({
+					"bSort": false,
+					"paging": false,
+					"responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>>",
+					"language": {
+						"info":         "Viser _START_ til _END_ af _TOTAL_ netværk",
+						"zeroRecords":  "Ingen netværk...",
+						"infoEmpty":    "Ingen netværk...",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+
+				knownNetworksService.loadKnownNetworks(knownNetworks);
+			}
+
+			this.save = function() {
+				list = [];
+				$('#knownNetworksTable input').each(function(index){
+					val = $(this).val();
+					if (val != '') {
+						list.push($(this).val());
+					}
+				})
+				console.log(list);
+
+				// Save
+				$.ajax({
+					url: restUrl,
+					method: "POST",
+					headers: {
+						'X-CSRF-TOKEN': token
+					},
+					contentType: 'application/json',
+					data: JSON.stringify(list),
+					success: function(data, textStatus, jQxhr) {
+						window.location.replace(successUrl);
+					},
+					error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error("Fejl: " + jQxhr.responseText);
+					}
+				});
+			}
+
+			this.loadKnownNetworks = function(attributes) {
+				// Clear table rows here
+				$('#knownNetworksTable tbody').empty();
+
+				if (attributes != null) {
+					for (var i = 0; i < attributes.length; i += 1) {
+						// Add rows to table here
+						var row = '<tr><td><input onkeypress="knownNetworksService.onChangeKnownNetworksTable()" onChange="knownNetworksService.onChangeKnownNetworksTable()" class="form-control attributeRow" value="' + attributes[i].ip + '"></td></tr>';
+						$('#knownNetworksTable > tbody:last-child').append(row);
+					}
+				}
+
+				// Add additional blank row here
+				$('#knownNetworksTable > tbody:last-child').append('<tr><td><input onkeypress="knownNetworksService.onChangeKnownNetworksTable()" onChange="knownNetworksService.onChangeKnownNetworksTable()" class="form-control" value=""></td></tr>');
+				
+				if (attributes != null) {
+					knownNetworksService.onChangeKnownNetworksTable();
+				}
+			}
+
+			this.onChangeKnownNetworksTable = function() {
+				// Delete any empty rows except the last one
+				var rows = $('#knownNetworksTable tbody tr');
+				for (let i = 0; i < (rows.length -1); i += 1) {
+					var inputs = $(rows[i]).children().children();
+					var empty = true;
+					
+					if ($(inputs[0]).val().length > 0) {
+						empty = false;
+					}
+					
+					if (empty) {
+						$(rows[i]).remove();
+					}
+				}
+				
+				// Make sure theres an empty last row
+				var lastRow = $('#knownNetworksTable tbody tr:last');
+				var lastInputs = lastRow.children().children();
+				var lastEmpty = true;
+				
+				if ($(lastInputs[0]).val().length > 0) {
+					lastEmpty = false;
+				}
+				
+				if (!lastEmpty) {
+					$('#knownNetworksTable > tbody:last-child').append('<tr><td><input onkeypress="knownNetworksService.onChangeKnownNetworksTable()" onChange="knownNetworksService.onChangeKnownNetworksTable()" class="form-control" value=""></td></tr>');
+				}
+			}
+		}
+		
+	/*]]>*/
+	</script>
+</body>
+</html>

@@ -13,8 +13,7 @@
 					        <h1 style="font-size: 40px;">Noget gik galt <em class="fa fa-frown-o"></em></h1>
 					
 					        <div class="error-desc">
-					            Der opstod en teknisk fejl. Forsøg igen, og hvis fejlen fortsat opstår,
-					            så kontakt din it-afdeling.
+							<p th:utext="${@cmsMessageBundle.getText('cms.technical.error')}"></p>
 					        </div>
 					    </div>
 	                </div>

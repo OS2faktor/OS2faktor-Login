@@ -5,6 +5,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
+import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -14,6 +15,7 @@ import javax.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,12 +28,16 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SchoolClass;
 import dk.digitalidentity.common.service.GroupService;
+import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.SchoolClassService;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.mvc.otherUsers.validator.PasswordChangeValidator;
 import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
+import dk.digitalidentity.mvc.students.dto.StudentDTO;
 import dk.digitalidentity.security.RequireChangePasswordOnOthersRole;
 import dk.digitalidentity.security.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +61,13 @@ public class ChangePasswordOnStudentsController {
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
-
+	
+	@Autowired
+	private PasswordChangeQueueService passwordChangeQueueService;
+	
+	@Autowired
+	private SchoolClassService schoolClassService;
+	
 	@InitBinder("passwordForm")
 	public void initClientBinder(WebDataBinder binder) {
 		binder.setValidator(passwordChangeFormValidator);
@@ -68,9 +80,38 @@ public class ChangePasswordOnStudentsController {
 			return "redirect:/";
 		}
 
-		model.addAttribute("people", personService.getStudentsThatPasswordCanBeChangedOnByPerson(loggedInPerson));
+		model.addAttribute("people", personService.getStudentsThatPasswordCanBeChangedOnByPerson(loggedInPerson).stream()
+				.map(p -> new StudentDTO(p, (personService.isYoungStudent(p) != null)))
+				.collect(Collectors.toList()));
 
-		return "students/password-change/list.html";
+		if (commonConfiguration.getStilStudent().isIndskolingSpecialEnabled()) {
+			model.addAttribute("classes", schoolClassService.getClassesPasswordCanBeChangedOnFromIndskoling(loggedInPerson));
+		}
+
+		return "students/password-change/list";
+	}
+	
+	@GetMapping("/andre-brugere/klasser/{id}/print")
+	public String getClassPrint(Model model, RedirectAttributes redirectAttributes, @PathVariable("id") long id) {
+		Person loggedInPerson = securityUtil.getPerson();
+		if (loggedInPerson == null) {
+			return "redirect:/";
+		}
+		
+		SchoolClass schoolClass = schoolClassService.getById(id);
+		if (schoolClass == null) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Klassen kan ikke findes");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+		
+		if (!schoolClassService.getClassesPasswordCanBeChangedOnFromIndskoling(loggedInPerson).stream().anyMatch(c -> c.getClassIdentifier().equals(schoolClass.getClassIdentifier()) && c.getInstitutionId().equals(schoolClass.getInstitutionId()))) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Du har ikke adgang til denne klasse");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+
+		model.addAttribute("words", schoolClass.getPasswordWords().stream().map(w -> w.getWord()).collect(Collectors.toList()));
+
+		return "students/print_classes";
 	}
 
 	@GetMapping("/andre-brugere/{id}/kodeord/skift")
@@ -85,6 +126,42 @@ public class ChangePasswordOnStudentsController {
 		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited));
 
 		return "students/password-change/change-password";
+	}
+	
+	@GetMapping("/andre-brugere/{id}/kodeord/se")
+	public String seePassword(Model model, RedirectAttributes redirectAttributes, @PathVariable("id") long id) {
+		Person personToBeEdited = personService.getById(id);
+		if (personToBeEdited == null) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Brugeren findes ikke");
+			return "redirect:/andre-brugere/kodeord/skift/list";			
+		}
+		
+		if (!allowedPasswordChange(personToBeEdited)) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Det er ikke tilladt at skifte kodeord på denne bruger og du kan derfor heller ikke se kodeordet");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+		
+		if (personService.isYoungStudent(personToBeEdited) == null) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Det er ikke muligt at se denne brugers kodeord");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+		
+		if (!StringUtils.hasLength(personToBeEdited.getStudentPassword())) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Der er ikke dannet et kodeord for denne bruger endnu");
+			return "redirect:/andre-brugere/kodeord/skift/list";			
+		}
+
+		try {
+			model.addAttribute("decrypted", passwordChangeQueueService.decryptPassword(personToBeEdited.getStudentPassword()));
+		}
+		catch (InvalidKeyException | NoSuchPaddingException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Kodeordet kan ikke vises");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+
+		model.addAttribute("person", personToBeEdited);
+
+		return "students/see-password";
 	}
 
 	@PostMapping("/andre-brugere/kodeord/skift")
@@ -117,7 +194,17 @@ public class ChangePasswordOnStudentsController {
 				return "redirect:/andre-brugere/kodeord/skift/list";
 			}
 
-			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePassword(personToBeEdited, form.getPassword(), false, loggedInPerson);
+			// force change password on next login
+			boolean forceChangePassword = false;
+			if (commonConfiguration.getStilStudent().isForceChangePassword()) {
+				long age = PersonService.getAge(personToBeEdited.getCpr());
+				
+				if (age > commonConfiguration.getStilStudent().getForceChangePasswordAfterAge()) {
+					forceChangePassword = true;
+				}
+			}
+
+			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePasswordByAdmin(personToBeEdited, form.getPassword(), loggedInPerson, forceChangePassword);
 
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
@@ -129,7 +216,7 @@ public class ChangePasswordOnStudentsController {
 		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
 			log.error("Exception while trying to change password on another user", e);
 
-			redirectAttributes.addFlashAttribute("flashError", "Fejl! Der opstid en teknisk fejl");
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Der opstod en teknisk fejl");
 			return "redirect:/andre-brugere/kodeord/skift/list";
 		}
 

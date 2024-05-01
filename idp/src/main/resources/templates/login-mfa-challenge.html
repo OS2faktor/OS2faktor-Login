@@ -1,15 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="da">
 <head th:replace="fragments/header :: header" />
+<div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
-            <div class="ibox offset-md-2 col-md-8">
+            <div class="ibox">
                 <div class="ibox-title">
-                    <h5><em class="fa fa-user"></em> &nbsp; Login</h5>
+                    <h1 class="wcag-h1-as-h5"><em class="fa fa-user"></em> &nbsp; Login</h1>
                 </div>
 
                 <div class="ibox-content">
+                	<!-- hidden link for screen readers. When it is clicked it goes straight to reading the challenge code -->
+                	<a class="sr-only sr-only-focusable" href="#wcag-challenge">Gå til kode</a>
                     <form id="loginForm" method="get" th:action="@{/sso/saml/mfa/} + ${deviceId} + '/completed'">
                         <div>
                             <p th:utext="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}">
@@ -23,7 +26,7 @@
                             </p>
 
                             <div class="mb-5">
-                                <h2 th:text="${challenge}" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
+                                <h2 id="wcag-challenge" th:text="${challenge}" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
                             </div>
                         </div>
 
@@ -37,11 +40,11 @@
                             </div>
                         </div>
 
-                        <div>
+                        <div th:if="${@loginService.showNemLogIn()}">
                             <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
                                 <em class="fa fa-fw fa-key"></em>
                                 &nbsp;
-                                Log ind med NemID
+                                Log ind med MitID
                             </a>
                         </div>
                     </form>
@@ -72,7 +75,24 @@
 		});
 
         function MfaService() {
+			var submitting = false;
+
             this.init = function() {
+            	// extra check to avoid double-submitting
+                $("#loginForm").submit(function() {
+					if (submitting) {
+						return false;
+					}
+					
+					// set submitting = true to prevent double-post for 5 seconds
+					submitting = true;
+					window.setTimeout(function() {
+						submitting = false;
+					}, 5000);
+					
+					return true;
+                });
+                
                 // Init polling
                 var tries = 0;
 

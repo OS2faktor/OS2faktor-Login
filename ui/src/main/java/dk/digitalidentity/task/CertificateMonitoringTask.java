@@ -19,7 +19,7 @@ public class CertificateMonitoringTask {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
-    @Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 14 * * WED")
+    @Scheduled(cron = "${task.cert.monitoring:0 #{new java.util.Random().nextInt(55)} 14 * * WED}")
 	public void monitorCertificates() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.info("Certificate monitoring started");

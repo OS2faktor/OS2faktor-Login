@@ -77,14 +77,18 @@ public class PasswordChangeQueueService {
 	}
 
 	// only to be used from the UI
-	public ADPasswordStatus attemptPasswordChange(Person person, String newPassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
-		PasswordChangeQueue change = new PasswordChangeQueue(person, encryptPassword(newPassword));
+	public ADPasswordStatus attemptPasswordChangeFromUI(Person person, String newPassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
+		PasswordChangeQueue change = new PasswordChangeQueue(person, encryptPassword(newPassword), false);
 
-		ADPasswordStatus status = adPasswordService.attemptPasswordReplication(change);
+		ADPasswordStatus status = adPasswordService.attemptPasswordReplication(person, change);
 		switch (status) {
-			// inform user through UI
+			// inform user through UI (but also save result in queue for debugging purposes)
 			case FAILURE:
 			case TECHNICAL_ERROR:
+			case INSUFFICIENT_PERMISSION:
+				// FINAL_ERROR prevent any retries on this
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
+				save(change);
 				break;
 
 			case NOOP:

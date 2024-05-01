@@ -1,0 +1,1 @@
+ALTER TABLE message_queue ADD COLUMN operator_approved BOOLEAN NOT NULL DEFAULT 0;

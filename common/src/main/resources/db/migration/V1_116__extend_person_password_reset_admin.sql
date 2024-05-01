@@ -1,0 +1,2 @@
+ALTER TABLE persons ADD COLUMN password_reset_admin BOOLEAN NOT NULL DEFAULT FALSE AFTER kodeviser_admin;
+ALTER TABLE persons_aud ADD COLUMN password_reset_admin BOOLEAN NOT NULL DEFAULT FALSE AFTER kodeviser_admin;

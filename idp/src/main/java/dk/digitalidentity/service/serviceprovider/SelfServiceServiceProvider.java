@@ -1,18 +1,23 @@
 package dk.digitalidentity.service.serviceprovider;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import lombok.SneakyThrows;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.serviceprovider.SelfServiceServiceProviderConfig;
@@ -68,17 +73,12 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameIdFormat() {
-		return config.getNameIdFormat();
+		return config.getNameIdFormat().value;
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
-		String nemIDPid = sessionHelper.getNemIDPid();
+	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
 		HashMap<String, Object> attributes = new HashMap<>();
-
-		if (nemIDPid != null) {
-			attributes.put("NemIDPid", nemIDPid);
-		}
 
 		// we need to issue a claim with AAL, to support two scenarios inside the selfservice (cases where the user is NOT logged in with
 		// an "erhvervsidentitet", but still need to perform certain operations. These are
@@ -112,6 +112,7 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.SUBSTANTIAL.toString());
 						break;
 					default:
+						attributes.put(Constants.AUTHENTICATION_ASSURANCE_LEVEL, NSISLevel.NONE.toString());
 						break;
 					}
 			}
@@ -121,14 +122,15 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public boolean mfaRequired(AuthnRequest authnRequest) {
+	public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
 		return true;
 	}
 
+	@SneakyThrows
 	@Override
-	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
+	public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
     	// if the AuthnRequest supplies a required level, always use that
-        RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
+        RequestedAuthnContext requestedAuthnContext = loginRequest.getAuthnRequest().getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
                 if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
@@ -146,7 +148,7 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean preferNemId() {
-		return config.preferNemId();
+		return config.isPreferNemid();
 	}
 
 	@Override
@@ -158,9 +160,14 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	public String getEntityId() {
 		return config.getEntityId();
 	}
+	
+	@Override
+	public List<String> getEntityIds() {
+		return Collections.singletonList(config.getEntityId());
+	}
 
 	@Override
-	public String getName(AuthnRequest authnRequest) {
+	public String getName(LoginRequest loginRequest) {
 		return config.getName();
 	}
 
@@ -171,16 +178,16 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean encryptAssertions() {
-		return config.encryptAssertions();
+		return config.isEncryptAssertions();
 	}
 
 	@Override
 	public boolean enabled() {
-		return config.enabled();
+		return config.isEnabled();
 	}
 
 	@Override
-	public String getProtocol() {
+	public Protocol getProtocol() {
 		return config.getProtocol();
 	}
 
@@ -195,6 +202,21 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	
 	@Override
 	public boolean preferNIST() {
-		return config.preferNIST();
+		return config.isPreferNIST();
+	}
+	
+	@Override
+	public boolean requireOiosaml3Profile() {
+		return false;
+	}
+
+	@Override
+	public Long getPasswordExpiry() {
+		return null;
+	}
+
+	@Override
+	public Long getMfaExpiry() {
+		return null;
 	}
 }

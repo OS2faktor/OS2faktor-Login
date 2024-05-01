@@ -4,30 +4,40 @@
 	<div th:fragment="topbar" class="row border-bottom white-bg">
 		<nav class="navbar navbar-expand-lg navbar-static-top" role="navigation">
 			<a th:href="@{/}" class="navbar-brand" style="background: white; padding: 10px 25px !important;">
-				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
-				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
 			</a>
+
+			<button class="navbar-toggler" type="button" data-toggle="collapse"
+				data-target="#navbar" aria-expanded="false"
+				aria-label="Toggle navigation">
+				<i class="fa fa-reorder"></i>
+			</button>
 
 			<div class="navbar-collapse collapse" id="navbar">
 				<ul class="nav navbar-nav mr-auto">
-					<li sec:authorize="isAuthenticated()" th:class="${page != null and #strings.startsWith(page, 'selfservice')} ? 'active' : ''">
+					<li sec:authorize="isAuthenticated() and !hasRole('ROLE_PARENT')" th:class="${page != null and #strings.startsWith(page, 'selfservice')} ? 'active' : ''">
 						<a role="button" th:href="@{/selvbetjening}">Min identitet</a>
 					</li>
 					
-					<li sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_REGISTRANT') or hasRole('ROLE_SERVICE_PROVIDER_ADMIN') or hasRole('ROLE_USER_ADMIN')" th:class="${page != null and #strings.startsWith(page, 'admin')} ? 'active' : ''">
+					<li sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_REGISTRANT') or hasRole('ROLE_SERVICE_PROVIDER_ADMIN') or hasRole('ROLE_USER_ADMIN') or hasRole('ROLE_KODEVISER_ADMIN')" th:class="${page != null and #strings.startsWith(page, 'admin')} ? 'active' : ''">
 						<a role="button" th:href="@{/admin}">Administration</a>
 					</li>
 
 					<li sec:authorize="hasRole('ROLE_CHANGE_PASSWORD_ON_OTHERS')" th:class="${page != null and #strings.startsWith(page, 'otherUsers')} ? 'active' : ''">
 						<a role="button" th:href="@{/andre-brugere/kodeord/skift/list}">Elever</a>
 					</li>
-
-					<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')" th:if="${@OS2faktorConfiguration.checkVersion() == false}">
-						<a role="button" th:href="@{/version}" style="color: #0050B5 !important;"><em class="fa fa-fw fa-warning"></em> Ny version!</a>
-					</li>
 				</ul>
 
 				<ul sec:authorize="isAuthenticated()" class="nav navbar-top-links navbar-right">
+					<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')" th:if="${@OS2faktorConfiguration.checkVersion() == false}" th:class="${page != null and #strings.startsWith(page, 'version')} ? 'active' : ''">
+						<a role="button" th:href="@{/version}" style="color: #0050B5 !important; font-size: x-small; padding-top: 20px; padding-bottom: 10p;"><em class="fa fa-fw fa-warning"></em> Ny version!</a>
+					</li>
+
+					<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')" th:unless="${@OS2faktorConfiguration.checkVersion() == false}" th:class="${page != null and #strings.startsWith(page, 'version')} ? 'active' : ''">
+						<a role="button" th:href="@{/version}" style="font-size: x-small; padding-top: 20px; padding-bottom: 10p;" th:text="'Version ' + ${@OS2faktorConfiguration.getVersion()}"></a>
+					</li>
+					
 					<li>
 						<a th:href="@{/saml/logout}">
 							<i class="fa fa-sign-out"></i> Log ud

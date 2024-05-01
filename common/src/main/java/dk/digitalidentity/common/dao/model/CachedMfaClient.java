@@ -13,14 +13,13 @@ import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 
-import org.hibernate.envers.Audited;
-
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 import lombok.Getter;
 import lombok.Setter;
 
-@Audited
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @Entity
@@ -49,6 +48,12 @@ public class CachedMfaClient {
 	@Column
 	@NotNull
 	private NSISLevel nsisLevel;
+
+	@Column
+	private String serialnumber;
+
+	@Column
+	private LocalDateTime lastUsed;
 	
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")

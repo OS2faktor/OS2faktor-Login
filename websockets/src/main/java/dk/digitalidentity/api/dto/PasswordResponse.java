@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class PasswordResponse {
-	public enum PasswordStatus { OK, FAILURE, TECHNICAL_ERROR, TIMEOUT }
+	public enum PasswordStatus { OK, FAILURE, TECHNICAL_ERROR, TIMEOUT, INSUFFICIENT_PERMISSION }
 	
 	private PasswordStatus status;
 	private String message;

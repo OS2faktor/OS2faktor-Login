@@ -2,6 +2,7 @@ package dk.digitalidentity.service;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -128,94 +129,63 @@ public class AzureAdService {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
 	private List<String> fetchAllNsisAllowedUsers(BearerToken token) throws Exception {
-        AzureAd adConfig = configuration.getAzureAd();
-        String url = adConfig.getBaseUrl() + adConfig.getApiVersion() + "/groups/" + adConfig.getNsisAllowedGroupId() + "/transitiveMembers?$select=odata.type,id";
+        log.info("Fetching all transitive members of the NsisAllowed group");
+        return getUUIDsOfTransitiveMembers(configuration.getAzureAd().getNsisAllowedGroupId(), token);
+    }
 
-        // Build request
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(Constants.Authorization, "Bearer " + token.getAccessToken());
-
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(headers);
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.GET, request, new ParameterizedTypeReference<>() { });
-
-        // Handle error and extract message if present
-        Map<String, Object> responseBody = response.getBody();
-        if (responseBody == null) {
-            throw new Exception("Response body from AzureAD was null");
-        }
-
-        if (!responseBody.containsKey("value")) {
-            LinkedHashMap<String, String> error = (LinkedHashMap<String, String>) responseBody.get("error");
-            String message = "An error occurred trying to fetch all NSISAllowedUsers";
-            if (error != null && error.containsKey("message")) {
-                message = error.get("message");
-            }
-
-            throw new Exception(message);
-        }
-
-        // Get userPrincipalName for validating password
-        ArrayList<LinkedHashMap<String, String>> value = (ArrayList<LinkedHashMap<String, String>>) responseBody.get("value");
-        if (value == null) {
-            throw new Exception("UserQuery response value was null");
-        }
-
-        // Ignore any member other than users, and map to a list of Ids
-        List<String> result = value
-                .stream()
-                .filter(map -> "#microsoft.graph.user".equals(map.get("@odata.type")))
-                .map(map -> map.get("id"))
-                .collect(Collectors.toList());
-
-        return result;
+    private List<String> fetchAllTransferToNemloginUsers(BearerToken token) throws Exception {
+        log.info("Fetching all transitive members of the TransferToNemlogin group");
+        return getUUIDsOfTransitiveMembers(configuration.getAzureAd().getTransferToNemloginGroupId(), token);
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> fetchAllTransferToNemloginUsers(BearerToken token) throws Exception {
+    private List<String> getUUIDsOfTransitiveMembers(String groupUuid, BearerToken token) throws Exception {
+        if (!StringUtils.hasLength(groupUuid)) {
+            log.info("Group UUID was null or empty, returning empty list");
+            return new ArrayList<>();
+        }
+
+
         AzureAd adConfig = configuration.getAzureAd();
-        if (!StringUtils.hasLength(adConfig.getTransferToNemloginGroupId())) {
-        	return new ArrayList<>();
-        }
-        
-        String url = adConfig.getBaseUrl() + adConfig.getApiVersion() + "/groups/" + adConfig.getTransferToNemloginGroupId() + "/transitiveMembers?$select=odata.type,id";
+        String url = adConfig.getBaseUrl() + adConfig.getApiVersion() + "/groups/" + groupUuid + "/transitiveMembers?$select=odata.type,id&$top=999";
 
-        // Build request
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(Constants.Authorization, "Bearer " + token.getAccessToken());
+        List<String> result = new ArrayList<>();
+        boolean morePages = true;
+        while (morePages) {
+            Map<String, Object> responseBody = getFromAzureAd(url, token);
 
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(headers);
-        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.GET, request, new ParameterizedTypeReference<>() { });
+            // Validation
+            if (!responseBody.containsKey("value")) {
+                LinkedHashMap<String, String> error = (LinkedHashMap<String, String>) responseBody.get("error");
+                String message = "An error occurred trying to fetch all users from group with uuid: " + groupUuid;
+                if (error != null && error.containsKey("message")) {
+                    message = error.get("message");
+                }
 
-        // Handle error and extract message if present
-        Map<String, Object> responseBody = response.getBody();
-        if (responseBody == null) {
-            throw new Exception("Response body from AzureAD was null");
-        }
-
-        if (!responseBody.containsKey("value")) {
-            LinkedHashMap<String, String> error = (LinkedHashMap<String, String>) responseBody.get("error");
-            String message = "An error occurred trying to fetch all transferToNemloginUsers";
-            if (error != null && error.containsKey("message")) {
-                message = error.get("message");
+                throw new Exception(message);
             }
 
-            throw new Exception(message);
-        }
+            // Parse data
+            ArrayList<LinkedHashMap<String, String>> value = (ArrayList<LinkedHashMap<String, String>>) responseBody.get("value");
+            if (value != null && !value.isEmpty()) {
+                // Ignore any member other than users, and map to a list of Ids
+                result.addAll(
+                        value.stream()
+                                .filter(map -> "#microsoft.graph.user".equals(map.get("@odata.type")))
+                                .map(map -> map.get("id"))
+                                .collect(Collectors.toList())
+                );
+            }
 
-        // Get userPrincipalName for validating password
-        ArrayList<LinkedHashMap<String, String>> value = (ArrayList<LinkedHashMap<String, String>>) responseBody.get("value");
-        if (value == null) {
-            throw new Exception("UserQuery response value was null");
+            // Set nextLink or stop looking
+            if (responseBody.containsKey("@odata.nextLink")) {
+                url = java.net.URLDecoder.decode((String) responseBody.get("@odata.nextLink"), StandardCharsets.UTF_8.name());
+            }
+            else {
+                morePages = false;
+            }
         }
-
-        // Ignore any member other than users, and map to a list of Ids
-        List<String> result = value
-                .stream()
-                .filter(map -> "#microsoft.graph.user".equals(map.get("@odata.type")))
-                .map(map -> map.get("id"))
-                .collect(Collectors.toList());
 
         return result;
     }

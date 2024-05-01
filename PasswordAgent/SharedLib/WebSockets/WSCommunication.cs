@@ -2,13 +2,14 @@
 using Serilog;
 using System;
 using System.Dynamic;
+using System.Threading.Tasks;
 using WebSocketSharp;
 
 namespace OS2faktor
 {
     public class WSCommunication
     {
-        private static string VERSION = "1.5.1";
+        private static string VERSION = "2.2.0";
 
         private WebSocket socket;
         private ADStub adStub;
@@ -68,39 +69,81 @@ namespace OS2faktor
                             case "AUTHENTICATE":
                                 Reply((string)message.transactionUuid, (string)message.command, settings.GetStringValue("domain"), true);
                                 break;
+                            case "IS_ALIVE":
+                                Reply((string)message.transactionUuid, (string)message.command, settings.GetStringValue("domain"), true, false);
+                                break;
                             case "VALIDATE_PASSWORD":
-                                if (settings.GetBooleanValue("allowValidatePassword"))
+                                Task.Run(() =>
                                 {
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, adStub.ValidatePassword((string)message.target, (string)message.payload));
-                                }
-                                else
-                                {
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
-                                }
+                                    if (settings.GetBooleanValue("allowValidatePassword"))
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, adStub.ValidatePassword((string)message.target, (string)message.payload));
+                                    }
+                                    else
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
+                                    }
+                                }).ConfigureAwait(false);
                                 break;
                             case "SET_PASSWORD":
-                                if (settings.GetBooleanValue("allowChangePassword"))
+                                Task.Run(() =>
                                 {
-                                    var result = adStub.ChangePassword((string)message.target, (string)message.payload);
+                                    if (settings.GetBooleanValue("allowChangePassword"))
+                                    {
+                                        var result = adStub.ChangePassword((string)message.target, (string)message.payload);
 
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, result.Message);
-                                }
-                                else
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, true, result.Message);
+                                    }
+                                    else
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
+                                    }
+                                }).ConfigureAwait(false);
+                                break;
+                            case "SET_PASSWORD_WITH_FORCED_CHANGE":
+                                Task.Run(() =>
                                 {
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
-                                }
+                                    if (settings.GetBooleanValue("allowChangePassword"))
+                                    {
+                                        var result = adStub.ChangePassword((string)message.target, (string)message.payload, true);
+
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, true, result.Message);
+                                    }
+                                    else
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
+                                    }
+                                }).ConfigureAwait(false);
                                 break;
                             case "UNLOCK_ACCOUNT":
-                                if (settings.GetBooleanValueWithDefault("allowUnlockAccount", true))
+                                Task.Run(() =>
                                 {
-                                    var result = adStub.UnlockAccount((string)message.target);
+                                    if (settings.GetBooleanValueWithDefault("allowUnlockAccount", true))
+                                    {
+                                        var result = adStub.UnlockAccount((string)message.target);
 
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, result.Message);
-                                }
-                                else
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, true, result.Message);
+                                    }
+                                    else
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
+                                    }
+                                }).ConfigureAwait(false);
+                                break;
+                            case "PASSWORD_EXPIRES_SOON":
+                                Task.Run(() =>
                                 {
-                                    Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
-                                }
+                                    if (settings.GetBooleanValue("allowRunPasswordExpiresScript"))
+                                    {
+                                        var result = adStub.RunPasswordExpiresScript((string)message.target);
+
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, result.Success, true, result.Message);
+                                    }
+                                    else
+                                    {
+                                        Reply((string)message.transactionUuid, (string)message.command, (string)message.target, false);
+                                    }
+                                }).ConfigureAwait(false);
                                 break;
                             default:
                                 logger.Error("Unknown request: " + message.command);
@@ -138,17 +181,20 @@ namespace OS2faktor
             switch (command)
             {
                 case "AUTHENTICATE":
+                case "IS_ALIVE":
                     {
                         string mac = hmacUtil.Encode(((string)message.transactionUuid + "." + (string)message.command));
                         return Equals(mac, (string)message.signature);
                     }
                 case "VALIDATE_PASSWORD":
                 case "SET_PASSWORD":
+                case "SET_PASSWORD_WITH_FORCED_CHANGE":
                     {
                         string mac = hmacUtil.Encode(((string)message.transactionUuid + "." + (string)message.command + "." + (string)message.target + "." + (string)message.payload));
                         return Equals(mac, (string)message.signature);
                     }
                 case "UNLOCK_ACCOUNT":
+                case "PASSWORD_EXPIRES_SOON":
                     {
                         string mac = hmacUtil.Encode(((string)message.transactionUuid + "." + (string)message.command + "." + (string)message.target));
                         return Equals(mac, (string)message.signature);
@@ -161,7 +207,7 @@ namespace OS2faktor
             return false;
         }
 
-        internal void Reply(string transactionUuid, string command, string target, bool valid, string message = null)
+        internal void Reply(string transactionUuid, string command, string target, bool valid, bool logResponse = true, string message = null)
         {
             dynamic response = new ExpandoObject();
             response.transactionUuid = transactionUuid;
@@ -169,6 +215,7 @@ namespace OS2faktor
             response.target = target;
             response.status = (valid) ? "true" : "false";
             response.clientVersion = VERSION;
+            response.serverName = Environment.MachineName;
             response.signature = hmacUtil.Encode(transactionUuid + "." + command + "." + target + "." + (valid ? "true" : "false"));
 
             // message is not under signature - used for debugging only
@@ -179,7 +226,10 @@ namespace OS2faktor
 
             socket.Send(JsonConvert.SerializeObject(response));
 
-            LogResponse(response);
+            if (logResponse)
+            {
+                LogResponse(response);
+            }
         }
 
         private void LogResponse(dynamic response)
@@ -189,7 +239,11 @@ namespace OS2faktor
 
         private void LogRequest(dynamic request)
         {
-            if ("AUTHENTICATE".Equals(request.command))
+            if ("IS_ALIVE".Equals(request.command))
+            {
+                ; // do not log
+            }
+            else if ("AUTHENTICATE".Equals(request.command))
             {
                 logger.Information("Request for " + request.command + " (" + request.transactionUuid + ")");
             }

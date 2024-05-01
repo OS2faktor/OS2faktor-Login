@@ -2,7 +2,6 @@ package dk.digitalidentity.controller.validator;
 
 import java.util.Objects;
 
-import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
@@ -13,7 +12,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
-import dk.digitalidentity.service.LoginService;
+import dk.digitalidentity.service.PasswordService;
 import dk.digitalidentity.service.SessionHelper;
 
 @Component
@@ -26,7 +25,7 @@ public class PasswordChangeValidator implements Validator {
 	private SessionHelper sessionHelper;
 	
 	@Autowired
-	private LoginService loginService;
+	private PasswordService passwordService;
 
 	@Override
 	public boolean supports(Class<?> aClass) {
@@ -48,7 +47,7 @@ public class PasswordChangeValidator implements Validator {
 		if (!sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
 			ValidationUtils.rejectIfEmptyOrWhitespace(errors, "oldPassword", "page.selfservice.changePassword.error.required");
 
-			if (PasswordValidationResult.INVALID.equals(loginService.validatePassword(form.getOldPassword(), person))) {
+			if (!passwordService.validatePassword(form.getOldPassword(), person).isNoErrors()) {
 				errors.rejectValue("oldPassword", "page.selfservice.changePassword.error.oldPasswordWrong");
 			}
 		}
@@ -61,7 +60,7 @@ public class PasswordChangeValidator implements Validator {
 			errors.rejectValue("confirmPassword", "page.selfservice.changePassword.error.match");
 		}
 
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword());
+		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true);
 
 		if (validPassword.equals(ChangePasswordResult.BAD_PASSWORD)) {
 			errors.rejectValue("password", "page.selfservice.changePassword.error.simple");

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<body>
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div class="grid">
+			  <div th:each="word : ${words}" class="cell"><p th:text="${word}"/></div>
+			</div>
+		</div>
+	</div>
+
+	<style>
+		.grid {
+		  display: grid;
+		  gap: 1px;
+		  grid-template-columns: repeat(3, 1fr);
+		  width: 21cm;
+          height: 29.7cm;
+		}
+		
+		.cell {
+		  padding: 5px;
+		  text-align: center;
+		  font-size: 90px;
+		}
+		
+		.cell > p {
+		  text-align: center;
+		  font-size: 90px;
+		}
+	</style>
+	
+	<div th:replace="fragments/footer :: scripts"></div>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var printService;
+		$(document).ready(function(){
+			printService = new PrintService();
+			printService.init();
+		});
+		
+		function PrintService() {
+			this.init = function() {
+				print();
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

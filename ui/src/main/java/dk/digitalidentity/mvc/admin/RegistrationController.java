@@ -1,5 +1,7 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.util.Date;
+
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
@@ -33,11 +35,10 @@ import dk.digitalidentity.mvc.admin.dto.UsernamePasswordDTO;
 import dk.digitalidentity.security.RequireRegistrant;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.EboksService;
+import dk.digitalidentity.service.EboksService.SendStatus;
 import dk.digitalidentity.service.MFAManagementService;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Date;
 
 @Slf4j
 @RequireRegistrant
@@ -129,7 +130,7 @@ public class RegistrationController {
 		}
 		
 		String password = usernameAndPasswordHelper.generatePassword(person.getDomain());
-		String userId = usernameAndPasswordHelper.getUserId(person);
+		String userId = PersonService.getUsername(person);
 
 		// no reason to confuse the user with a generated UserID if they already have one
 		String eBoksUserId = userId;
@@ -137,15 +138,16 @@ public class RegistrationController {
 			eBoksUserId = person.getSamaccountName();
 		}
 
-		boolean eboksSuccess = eboksService.sendMessage(person.getCpr(),
-				"<h4>Erhvervsidentitet aktiveret<h4>",
-				"<p>Din arbejdgiver har aktiveret din erhvervsidentitet, som du kan anvende med nedenstående brugernavn og kodeord.</p><br/>Brugernavn: " + eBoksUserId + "<br/>Kodeord: " + HtmlUtils.htmlEscape(password, "UTF-8"));
+		SendStatus status = eboksService.sendMessage(person.getCpr(),
+				"Erhvervsidentitet aktiveret",
+				"<p>Din arbejdgiver har aktiveret din erhvervsidentitet, som du kan anvende med nedenstående brugernavn og kodeord.</p><br/>Brugernavn: " + eBoksUserId + "<br/>Kodeord: " + HtmlUtils.htmlEscape(password, "UTF-8"),
+				person);
 
-		if (eboksSuccess == false) {
+		if (status != SendStatus.SEND) {
 			return ResponseEntity.status(500).body("eboks");
 		}
 
-		boolean success = activateNSISAccount(person, activationDTO.getNsisLevel(), userId, password, admin);
+		boolean success = activateNSISAccount(person, activationDTO.getNsisLevel(), password, admin);
 		if (success) {
 			person.setForceChangePassword(true);
 			auditLogger.manualActivation(activationDTO.toIdentificationDetails(resourceBundle), person, admin);
@@ -184,9 +186,8 @@ public class RegistrationController {
 
 		// freshly generated, we threw away the other set
 		String password = usernameAndPasswordHelper.generatePassword(person.getDomain());
-		String userId = usernameAndPasswordHelper.getUserId(person);
 
-		boolean success = activateNSISAccount(person, activationDTO.getNsisLevel(), userId, password, admin);
+		boolean success = activateNSISAccount(person, activationDTO.getNsisLevel(), password, admin);
 		if (success) {
 			person.setForceChangePassword(true);
 			activationDTO.setAdminSeenCredentials(true);
@@ -202,7 +203,7 @@ public class RegistrationController {
 	}
 	
 	@GetMapping("/admin/registration/mfa")
-	public String usersMFA(Model model, @RequestParam(value = "registered", required = false, defaultValue = "false") boolean registered) {
+	public String usersMFA(Model model, @RequestParam(value = "result", required = false, defaultValue = "false") boolean registered) {
 		if (registered) {
 			model.addAttribute("flashMessage", "Registrering afsluttet");
 		}
@@ -273,7 +274,7 @@ public class RegistrationController {
 		
 		auditLogger.manualMfaAssociation(activationDTO.toIdentificationDetails(resourceBundle), person, admin);
 		
-		return ResponseEntity.ok(client);
+		return ResponseEntity.ok("");
 	}
 
 	private ResponseEntity<?> handleYubikeyRegistration(ActivationDTO activationDTO, Person person, Person admin) {
@@ -287,23 +288,22 @@ public class RegistrationController {
 			auditLogger.manualYubiKeyInitalization(activationDTO.toIdentificationDetails(resourceBundle), person, admin);
 
 			// I'll want some sort of indicator on why I ended up here, right?
-			return ResponseEntity.ok(result + "?redirect=" + commonConfiguration.getSelfService().getBaseUrl() + "/admin/registration/mfa%3Fregistered=true");
+			return ResponseEntity.ok(result + "?redirect=" + commonConfiguration.getSelfService().getBaseUrl() + "/admin/registration/mfa");
 		}
 	}
 
-	private boolean activateNSISAccount(Person person, NSISLevel level, String userId, String password, Person admin) {
+	private boolean activateNSISAccount(Person person, NSISLevel level, String password, Person admin) {
 		if (cprService.checkIsDead(person)) {
 			log.error("Could not issue identity to " + person.getId() + " because cpr says the person is dead!");
 			return false;
 		}
 		
 		person.setNsisLevel(level);
-		person.setUserId(userId);
 
 		try {
 			// change password, bypassing validation and AD replication
 			// we can ignore the return value because we bypass replication
-			personService.changePassword(person, password, true, admin);
+			personService.changePassword(person, password, true, admin, null, false);
 		}
 		catch (Exception ex) {
 			// this can only fail if there are programming errors, e.g. bad algorithms
@@ -378,11 +378,12 @@ public class RegistrationController {
 		String password = usernameAndPasswordHelper.generatePassword(person.getDomain());
 
 		if ("step1".equals(step)) {
-			boolean eboksSuccess = eboksService.sendMessage(person.getCpr(),
-					"<h4>Nyt kodeord tildelt<h4>",
-					"<p>Du har fået tildelt et nyt kodeord til brugerkontoen nedenfor</p><br/>Brugernavn: " + PersonService.getUsername(person) + "<br/>Kodeord: " + HtmlUtils.htmlEscape(password, "UTF-8"));
+			SendStatus status = eboksService.sendMessage(person.getCpr(),
+					"Nyt kodeord tildelt",
+					"<p>Du har fået tildelt et nyt kodeord til brugerkontoen nedenfor</p><br/>Brugernavn: " + PersonService.getUsername(person) + "<br/>Kodeord: " + HtmlUtils.htmlEscape(password, "UTF-8"),
+					person);
 	
-			if (eboksSuccess == false) {
+			if (status != SendStatus.SEND) {
 				return ResponseEntity.status(500).body("eboks");
 			}
 		}
@@ -393,7 +394,7 @@ public class RegistrationController {
 		try {
 			// note that we are not replicating to AD because this password will be send through e-boks,
 			// but once they change it in the UI, it should replicate to AD if needed
-			personService.changePassword(person, password, true, admin);
+			personService.changePassword(person, password, true, admin, null, false);
 
 			person.setForceChangePassword(true);
 			if ("step2".equals(step)) {

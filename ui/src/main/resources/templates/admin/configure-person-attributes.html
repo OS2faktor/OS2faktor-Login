@@ -10,19 +10,70 @@
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
-							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+							<div class="ibox-title">
 								<h5><em class="fa fa-users"></em> &nbsp; Attributter</h5>
 							</div>
 
 							<div class="ibox-content">
 								<p>
-									Nedenfor listes alle de attributter som brugere har fået tildelt enten via os2faktor brugergrænsefladen eller API indlæsning.
-									Det er muligt at give hver attribut et præsentationsnavn så det er nemmere at gøre brug af, blandt andet til opsætning af tjenesteudbyder claims.
+									Nedenfor listes alle de attributter som er tilgængelige på brugere, og kan anvendes til claims til tjenesteudbydere. Listen er indelt
+									i 2 sektioner, hvor der først er de faste attributter som OS2faktor er født med, og så de ekstra attributter som er indlæst fra
+									kommunens kildesystem. For ekstra attributter kan man opsætte et pænt præsentationsnavn, der vil blive anvendt i brugergrænsefladen
+									i OS2faktor, når man administrerer tjenesteudbydere. Bemærk at det faktiske attributnavn (første kolonne) er det som skal anvendes
+									når man laver avancerede claimregler på en tjenesteudbyder.
 								</p>
-								
-								<h4>Attributter</h4>
+																
+								<h4>Faste attributter</h4>
 								<div class="table-responsive">
-									<table id="attributes" class="table table-striped table-bordered table-hover">
+									<table id="attributes1" class="table table-striped table-bordered table-hover">
+										<thead>
+											<tr>
+												<th>Attribut</th>
+												<th style="width: 400px;">Præsentationsnavn</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr>
+												<td>alias</td>
+												<td>Kaldenavn</td>
+											</tr>
+											<tr>
+												<td>cpr</td>
+												<td>Personnummer</td>
+											</tr>
+											<tr>
+												<td>email</td>
+												<td>E-mail</td>
+											</tr>
+											<tr>
+												<td>firstname</td>
+												<td>Fornavn</td>
+											</tr>
+											<tr>
+												<td>lastname</td>
+												<td>Efternavn</td>
+											</tr>
+											<tr>
+												<td>name</td>
+												<td>Navn</td>
+											</tr>
+											<tr>
+												<td>userId</td>
+												<td>Brugernavn</td>
+											</tr>
+											<tr>
+												<td>uuid</td>
+												<td>UUID</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+
+								<th:block th:if="${#lists.size(attributes) > 0}">
+								<h4>Ekstra attributter</h4>
+								<div class="table-responsive">
+									<table id="attributes2" class="table table-striped table-bordered table-hover">
 										<thead>
 											<tr>
 												<th>Attribut</th>
@@ -32,7 +83,7 @@
 										
 										<tbody>
 											<tr th:each="attribute : ${attributes}">
-												<td th:text="${attribute.name}" />
+												<td th:text="${attribute.name}"></td>
 							    				<td>
 							    					<em class="fa fa-fw fa-pencil namePencil" th:id="'namePencil-' + ${attribute.id}" th:data-id="${attribute.id}"></em>
 							    					<em class="fa fa-fw fa-times nameCancel" style="display: none;" th:id="'nameCancel-' + ${attribute.id}" th:data-id="${attribute.id}"></em>
@@ -42,27 +93,27 @@
 										</tbody>
 									</table>
 								</div>
+								</th:block>
+								
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true)"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
 			
 		/*[+
 		var baseUrl = [[@{/}]];
-		var coreDataEditable = [[${coreDataEditable}]];
-		var configDomain = [[${configDomain}]]
 		+]*/
 		
 		var token = $("meta[name='_csrf']").attr("content");
@@ -144,7 +195,7 @@
 			}
 
 			this.initDataTable = function() {
-				table = $('#attributes').DataTable({
+				$('#attributes1').DataTable({
 					"destroy": true,
 					"ordering": true,
 					"info": true,
@@ -169,15 +220,31 @@
 						}
 					}
 				});
-
-				$.each($('.input-filter', table.table().footer()), function() {
-					var column = table.column($(this).index());
-		
-					$('input', this).on('keyup change', function () {
-						if (column.search() !== this.value) {
-							column.search(this.value).draw();
+				
+				$('#attributes2').DataTable({
+					"destroy": true,
+					"ordering": true,
+					"info": true,
+					"pageLength": 10,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"drawCallback": function (settings) {
+						$('[data-toggle="popover"]').popover();
+					},
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ attributter",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ attributter)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
 						}
-					});
+					}
 				});
 			}
 

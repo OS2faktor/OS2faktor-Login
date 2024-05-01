@@ -17,14 +17,11 @@ import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 
-import org.hibernate.envers.Audited;
-
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import lombok.Getter;
 import lombok.Setter;
 
-@Audited
 @Entity
 @Table(name = "school_roles")
 @Setter

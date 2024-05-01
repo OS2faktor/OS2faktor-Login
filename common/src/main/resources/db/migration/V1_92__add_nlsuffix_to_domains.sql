@@ -1,0 +1,1 @@
+ALTER TABLE domains ADD COLUMN nem_login_user_suffix VARCHAR(64) NULL;

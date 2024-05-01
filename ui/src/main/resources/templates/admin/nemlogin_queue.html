@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.nemlogin-queue')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-stack-overflow"></em> &nbsp; Log over fejlede MitID Erhverv overførsler</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor er hhv en liste over overførsler til MitID Erhverv som er fejlet, samt en liste over brugere som ikke er synkroniseret
+									korrekt med MitID Erhverv.
+								</p>
+								
+								<p>
+									For listen med fejlede overførsler kan man forsøge at afvikle overførslen igen, og for listen med ikke-synkroniserede brugere,
+									kan man få OS2faktor til at samkøre data fra MitID Erhverv med data fra OS2faktor.
+								</p>
+
+								<div class="tabs-container">
+									<ul class="nav nav-tabs" role="tablist">
+										<li>
+											<a class="nav-link active" data-toggle="tab" href="#tab1">Fejlede overførsler</a>
+										</li>
+										<li>
+											<a class="nav-link" data-toggle="tab" href="#tab2">Ikke synkroniserede data</a>
+										</li>
+									</ul>
+									
+									<div class="tab-content">
+										<div role="tabpanel" id="tab1" class="tab-pane active">
+											<div class="panel-body">
+												<div class="table-responsive">
+													<table id="nemloginQueue" class="table table-striped table-bordered table-hover" >
+														<thead>
+														<tr>
+															<th style="width: 130px;">Tidspunkt</th>
+															<th style="width: 180px;">Person</th>
+															<th style="width: 100px;">Handling</th>
+															<th>FejlBesked</th>
+															<th style="width: 50px;">Genkør</th>
+														</tr>
+														</thead>
+
+														<tbody>
+														<tr th:each="entry : ${failedNemLoginQueue}">
+															<td><span th:text="${#temporals.format(entry.tts, 'yyyy-MM-dd  HH:mm')}"></span></td>
+															<td><span th:text="${entry.person?.name}"></span></td>
+															<td><span th:text="${entry.action.message}"></span></td>
+															<td><span th:text="${entry.failureReason}"></span></td>
+															<td><a href="#" onclick="onBtnClick(this)" th:attrappend="queueId=${entry.id}, action=${entry.action}"><em style="color: #212529" class="fa fa-fw fa-refresh"></em></a></td>
+														</tr>
+														</tbody>
+													</table>
+												</div>
+											</div>
+										</div>
+										
+										<div role="tabpanel" id="tab2" class="tab-pane">
+											<div class="panel-body">
+												<div class="table-responsive">
+													<table id="mitIdErrors" class="table table-striped table-bordered table-hover" >
+														<thead>
+														<tr>
+															<th style="width: 130px;">Tidspunkt</th>
+															<th style="width: 180px;">Person</th>
+															<th>Synkroniseringsproblem</th>
+															<th style="width: 100px;">Synkroniser</th>
+														</tr>
+														</thead>
+
+														<tbody>
+														<tr th:each="entry : ${mitIdErrors}">
+															<td><span th:text="${#temporals.format(entry.tts, 'yyyy-MM-dd  HH:mm')}"></span></td>
+															<td><span th:text="${entry.person?.name}"></span></td>
+															<td><span th:text="#{__${entry.errorType.message}__}"></span></td>
+															<td><a href="#" onclick="onFixBtnClick(this)" th:attrappend="data-id=${entry.id}"><em style="color: #212529" class="fa fa-fw fa-refresh"></em></a></td>
+														</tr>
+														</tbody>
+													</table>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+                    <div class="modal inmodal fade" id="rerunModal" tabindex="-1" role="dialog" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h4 class="modal-title">Genkør ordre</h4>
+                                </div>
+
+                                <div class="modal-body">
+                                	<p>
+                                		Hvis du ønsker at genkøre denne ordre, så tryk på knappen "Genkør" nedenfor.
+                                	</p>
+                                	
+                                	<div id="ridField">
+	                                    <p>Indtast RID, hvis der ønskes genkørt med et bestemt RID nummer, ellers lad feltet være tomt</p>
+	
+	                                    <div class="form-group">
+	                                        <div class="input-group" style="margin: 10px 0px 10px 0px;">
+	                                            <input class="form-control" placeholder="Indtast ønsket RID" id="ridNumber">
+	                                        </div>                                        
+	                                    </div>
+                                    </div>
+                                </div>
+                
+                                <div class="modal-footer">
+                                    <button type="button" onclick="rerun();" class="btn btn-primary" style="width: 200px;">Genkør</button>
+                                    <button type="button" onclick="modalService.closeModal();" class="btn btn-danger" style="width: 200px;">Annuller</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.nemlogin-queue')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)"></div>
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+        var modalService;
+		var queueId = 0;
+		var action = "";
+		var token = $("meta[name='_csrf']").attr("content");
+		var uuid = "";
+		var personId = 0;
+		var errorType;
+		var mitIdErrorTableInitialized = false;
+
+		$(document).ready(function() {
+            modalService = new ModalService();
+
+			$('#nemloginQueue').DataTable({
+				"bSort": false,
+				"paging": true,
+				"responsive": true,
+				"pageLength": 10,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+				"language": {
+					"search":	   "Søg",
+					"lengthMenu":   "_MENU_ rækker per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+					"zeroRecords":  "Ingen data...",
+					"infoEmpty":	"Henter data...",
+					"infoFiltered": "(ud af _MAX_ rækker)",
+					"paginate": {
+						"previous": "Forrige",
+						"next": "Næste"
+					}
+				}
+			});
+
+			$('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+				var target = $(e.target).attr("href");
+				localStorage.setItem("mitid-active-tab", target);
+
+				if (mitIdErrorTableInitialized) {
+					return;
+				}
+
+				if (target == '#tab2') {
+					mitIdErrorTableInitialized = true;
+					
+					$('#mitIdErrors').DataTable({
+						"bSort": false,
+						"paging": true,
+						"responsive": true,
+						"pageLength": 10,
+						"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+						"language": {
+							"search":	   "Søg",
+							"lengthMenu":   "_MENU_ rækker per side",
+							"info":		 "Viser _START_ til _END_ af _TOTAL_ rækker",
+							"zeroRecords":  "Ingen data...",
+							"infoEmpty":	"Henter data...",
+							"infoFiltered": "(ud af _MAX_ rækker)",
+							"paginate": {
+								"previous": "Forrige",
+								"next": "Næste"
+							}
+						}
+					});
+				}
+			});
+			
+			// restore last selected tab
+			var selectedTab = localStorage.getItem("mitid-active-tab");
+			if (selectedTab != null) {
+				$('a[data-toggle="tab"][href="' + selectedTab + '"]').tab('show');
+			}
+		});
+
+        function onBtnClick(row) {
+			queueId = $(row).attr("queueId");
+			action = $(row).attr("action");
+
+			modalService.openModal();
+        }
+        
+        function rerun() {
+            var d = {
+				queueId: queueId,
+                rid: $('#ridNumber').val()
+            }
+            
+			restCall(d);
+        };
+        
+        function restCall(d) {
+            $.ajax({
+                type: "POST",
+                url:"/admin/nemlogin_queue/retryAction",
+                contentType: 'application/json',
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+                data:JSON.stringify(d),
+                success: function(){
+                    modalService.closeModal();
+                    window.location.reload();
+                },
+                error: function(jQxhr, textStatus, errorThrown) {
+                    toastr.error("Der opstod en fejl: " + jQxhr.responseText);
+                }
+            });
+        }
+
+        function ModalService() {
+			this.openModal = function(elem) {
+				if (action == "CREATE") {
+					$('#ridField').show();
+				}
+				else {
+					$('#ridField').hide();
+				}
+
+				$('#rerunModal').modal({backdrop: 'static', keyboard: false});
+				$("#rerunModal").modal("show");
+			}
+			
+			this.closeModal = function() {
+				$("#rerunModal").modal("hide");
+			}
+		}
+
+		function onFixBtnClick(row) {
+			var id = $(row).data("id");
+
+			swal({
+				title: 'Synkroniser',
+				text: 'Flet lokale data med MitID Erhverv?',
+				showCancelButton: true,
+				confirmButtonColor: "#1ab394",
+				confirmButtonText: 'Ja',
+				cancelButtonText: 'Annuller',
+				closeOnConfirm: true,
+				closeOnCancel: true
+			 },
+			 function (isConfirm) {
+				if (isConfirm) {
+					$.ajax({
+						type: "POST",
+						url:"/admin/nemlogin_queue/fixAction/" + id,
+						contentType: 'application/json',
+						headers: {
+							'X-CSRF-TOKEN': token
+						},
+						success: function() {
+							window.location.reload();
+						},
+						error: function(jQxhr, textStatus, errorThrown) {
+							toastr.error("Der opstod en fejl: " + jQxhr.responseText);
+						}
+					});
+				}
+			 });
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

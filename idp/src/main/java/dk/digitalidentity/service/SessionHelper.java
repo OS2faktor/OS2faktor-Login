@@ -24,6 +24,9 @@ import javax.servlet.http.HttpSession;
 
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.controller.dto.LoginRequestDTO;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.io.UnmarshallingException;
@@ -69,20 +72,19 @@ public class SessionHelper {
 	
 	@Autowired
 	private AuditLogger auditLogger;
-	
-	public void saveIncomingAuthnRequest(AuthnRequest authnRequest, String relayState) throws ResponderException {
-		setAuthnRequest(authnRequest);
-		setRelayState(relayState);
-	}
 
 	public NSISLevel getLoginState() {
+		return getLoginState(null, null);
+	}
+
+	public NSISLevel getLoginState(ServiceProvider serviceProvider, LoginRequest loginRequest) {
 		Person person = getPerson();
 		if (person == null) {
 			return null;
 		}
 
-		NSISLevel passwordLevel = getPasswordLevel();
-		NSISLevel mfaLevel = getMFALevel();
+		NSISLevel passwordLevel = getPasswordLevel(serviceProvider, loginRequest);
+		NSISLevel mfaLevel = getMFALevel(serviceProvider, loginRequest);
 		NSISLevel personLevel = person.getNsisLevel();
 
 		log.debug("passwordLevel = " + passwordLevel);
@@ -115,6 +117,10 @@ public class SessionHelper {
 	}
 	
 	public void clearSession() {
+		clearSession(true);
+	}
+	
+	public void clearSession(boolean clearPasswordChangeSuccessRedirect) {
 		if (log.isDebugEnabled()) {
 			log.debug("Clearing session");
 		}
@@ -126,12 +132,19 @@ public class SessionHelper {
 		setServiceProviderSessions(null);
 		setAuthenticatedWithADPassword(false);
 		setAuthenticatedWithNemIdOrMitId(false);
-		setPasswordChangeSuccessRedirect(null);
 		setPasswordChangeFailureReason(null);
 		setInDedicatedActivateAccountFlow(false);
+		
+		if (clearPasswordChangeSuccessRedirect) {
+			setPasswordChangeSuccessRedirect(null);
+		}
 	}
 
 	public NSISLevel getPasswordLevel() {
+		return getPasswordLevel(null, null);
+	}
+
+	public NSISLevel getPasswordLevel(ServiceProvider serviceProvider, LoginRequest loginRequest) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
@@ -143,6 +156,14 @@ public class SessionHelper {
 
 		if (attribute != null && timestamp != null && person != null) {
 			Long passwordExpiry = sessionService.getSettings(person.getDomain()).getPasswordExpiry();
+			if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
+				NSISLevel nsisLevel = serviceProvider.nsisLevelRequired(loginRequest);
+				if (nsisLevel == null || Objects.equals(NSISLevel.NONE, nsisLevel)) {
+					// No NSIS level required so we can use the SP's session times
+					passwordExpiry = Math.min(serviceProvider.getPasswordExpiry(), passwordExpiry);
+				}
+			}
+
 			if (LocalDateTime.now().minusMinutes(passwordExpiry).isAfter(timestamp)) {
 				auditLogger.sessionExpired(person);
 				setPasswordLevelTimestamp(null);
@@ -209,6 +230,10 @@ public class SessionHelper {
 	}
 
 	public NSISLevel getMFALevel() {
+		return getMFALevel(null, null);
+	}
+
+	public NSISLevel getMFALevel(ServiceProvider serviceProvider, LoginRequest loginRequest) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
@@ -220,6 +245,14 @@ public class SessionHelper {
 
 		if (attribute != null && timestamp != null && person != null) {
 			Long mfaExpiry = sessionService.getSettings(person.getDomain()).getMfaExpiry();
+			if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
+				NSISLevel nsisLevel = serviceProvider.nsisLevelRequired(loginRequest);
+				if (nsisLevel == null || Objects.equals(NSISLevel.NONE, nsisLevel)) {
+					// No NSIS level required so we can use the SP's session times
+					mfaExpiry = Math.min(serviceProvider.getMfaExpiry(), mfaExpiry);
+				}
+			}
+
 			if (LocalDateTime.now().minusMinutes(mfaExpiry).isAfter(timestamp)) {
 				setMFALevelTimestamp(null);
 				setMFALevel(null);
@@ -388,6 +421,14 @@ public class SessionHelper {
 		httpServletRequest.getSession().setAttribute(Constants.SERVICE_PROVIDER, serviceProviders);
 	}
 
+	public void setIPAddress(String ipAddress) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		httpServletRequest.getSession().setAttribute(Constants.IP_ADDRESS, ipAddress);
+	}
 
 	public boolean handleValidateIP() {
 		HttpServletRequest httpServletRequest = getServletRequest();
@@ -429,7 +470,7 @@ public class SessionHelper {
 		}
 	}
 
-	public AuthnRequest getAuthnRequest() throws ResponderException {		
+	private AuthnRequest getAuthnRequest() throws ResponderException {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
@@ -450,7 +491,7 @@ public class SessionHelper {
 		}
 	}
 
-	public void setAuthnRequest(AuthnRequest authnRequest) throws ResponderException {
+	private void setAuthnRequest(AuthnRequest authnRequest) throws ResponderException {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return;
@@ -468,6 +509,38 @@ public class SessionHelper {
 		catch (MarshallingException ex) {
 			throw new ResponderException("Kunne ikke omforme login forespørgsel (AuthnRequest)", ex);
 		}
+	}
+
+	public void setLoginRequest(LoginRequest loginRequest) throws ResponderException {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (loginRequest == null) {
+			httpServletRequest.getSession().setAttribute(Constants.LOGIN_REQUEST, null);
+			setAuthnRequest(null);
+			return;
+		}
+		
+		// TODO maybe refactor this at some point, the LoginRequest/LoginRequestDTO is an inelegant solution
+		setAuthnRequest(loginRequest.getAuthnRequest());
+		setRelayState(loginRequest.getRelayState());
+		httpServletRequest.getSession().setAttribute(Constants.LOGIN_REQUEST, new LoginRequestDTO(loginRequest));
+	}
+
+	public LoginRequest getLoginRequest() throws ResponderException {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return null;
+		}
+
+		Object loginRequestObj = httpServletRequest.getSession().getAttribute(Constants.LOGIN_REQUEST);
+		if (loginRequestObj == null) {
+			return null;
+		}
+		
+		return new LoginRequest((LoginRequestDTO) loginRequestObj, getAuthnRequest(), httpServletRequest.getHeader("User-Agent"));
 	}
 
 	public String getRelayState() {
@@ -788,22 +861,27 @@ public class SessionHelper {
 		}
 	}
 
-	public String getNemIDPid() {
+	public String getRequestedUsername() {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
 		}
 
-		return (String) httpServletRequest.getSession().getAttribute(Constants.NEMID_PID);
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.REQUESTED_USERNAME);
+		if (attribute == null) {
+			return null;
+		}
+
+		return (String) attribute;
 	}
 
-	public void setNemIDPid(String pid) {
+	public void setRequestedUsername(String requestedUsername) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.NEMID_PID, pid);
+		httpServletRequest.getSession().setAttribute(Constants.REQUESTED_USERNAME, requestedUsername);
 	}
 
 	public String getMitIDNameID() {
@@ -856,6 +934,10 @@ public class SessionHelper {
 		}
 
 		List<Long> attribute = (List<Long>) httpServletRequest.getSession().getAttribute(Constants.AVAILABLE_PEOPLE);
+		if (attribute == null) {
+			return new ArrayList<>();
+		}
+
 		return attribute.stream().map(l -> personService.getById(l)).collect(Collectors.toList());
 	}
 
@@ -1291,7 +1373,7 @@ public class SessionHelper {
 	public void logout(LogoutRequest logoutRequest) throws ResponderException {
 		// Delete everything not needed for logout procedure
 		// We need Person and ServiceProviderSessions
-		setAuthnRequest(null);
+		setLoginRequest(null);
 
 		// Password
 		setPasswordLevel(null);
@@ -1310,12 +1392,12 @@ public class SessionHelper {
 		setAuthenticatedWithADPassword(false);
 		setAuthenticatedWithNemIdOrMitId(false);
 		setADPerson(null);
-		setNemIDPid(null);
 		setAvailablePeople(new ArrayList<>()); // This does not handle null case
 		setInActivateAccountFlow(false);
 		setInPasswordChangeFlow(false);
 		setInPasswordExpiryFlow(false);
 		setInApproveConditionsFlow(false);
+		setRequestedUsername(null);
 
 		// Save LogoutRequest to session if one is provided
 		if (logoutRequest != null) {
@@ -1340,7 +1422,7 @@ public class SessionHelper {
 		}
 	}
 
-	private HttpServletRequest getServletRequest() {
+	public HttpServletRequest getServletRequest() {
 		RequestAttributes attribs = RequestContextHolder.getRequestAttributes();
 
 		if (attribs instanceof ServletRequestAttributes) {
@@ -1368,7 +1450,6 @@ public class SessionHelper {
 		List<String> doNotPrint = List.of(
 				Constants.PASSWORD,
 				"org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository.CSRF_TOKEN",
-				"dk.os2faktor.nemid.challenge",
 				"SPRING_SECURITY_SAVED_REQUEST",
 				"SPRING_SECURITY_CONTEXT"
 		);

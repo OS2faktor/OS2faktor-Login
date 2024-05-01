@@ -12,6 +12,8 @@ import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.service.mfa.model.HardwareTokenDTO;
+import dk.digitalidentity.service.dto.MfaRenameRequestDTO;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -34,6 +36,31 @@ public class MFAManagementService {
 		url += endpoint;
 
 		return url;
+	}
+
+	public boolean renameMfaClient(String deviceId, String name) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		
+		MfaRenameRequestDTO request = new MfaRenameRequestDTO();
+		request.setDeviceId(deviceId);
+		request.setName(name);
+		HttpEntity<MfaRenameRequestDTO> entity = new HttpEntity<>(request, headers);
+
+		try {
+			ResponseEntity<Object> response = restTemplate.exchange(getURL("/api/login/renameClient"), HttpMethod.POST, entity, Object.class);
+			if (response.getStatusCodeValue() == 200) {
+				return true;
+			}
+			
+			log.error("Failed to rename client to '" + name + "' for deviceId = " + deviceId + " with statusCode = " + response.getStatusCodeValue());
+		}
+		catch (Exception ex) {
+			log.error("Failed to call MFA Login endpoint /api/login/renameClient", ex);
+		}
+
+		return false;
 	}
 
 	public boolean deleteMfaClient(String deviceId) {
@@ -98,4 +125,44 @@ public class MFAManagementService {
 		return null;
 	}
 
+
+	public HardwareTokenDTO getHardwareToken(String serial) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		HttpEntity<String> entity = new HttpEntity<>(headers);
+
+		try {
+			String url = configuration.getMfa().getBaseUrl() + "/api/login/kodeviser/device?serial=" + serial;
+
+			ResponseEntity<HardwareTokenDTO> response = restTemplate.exchange(url, HttpMethod.GET, entity, HardwareTokenDTO.class);
+
+			return response.getBody();
+		}
+		catch (Exception ex) {
+			log.error("Failed to get hardware token", ex);
+		}
+
+		return null;
+	}
+
+	public boolean deregisterHardwareToken(String serial) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		HttpEntity<String> entity = new HttpEntity<>(headers);
+
+		try {
+			String url = configuration.getMfa().getBaseUrl() + "/api/login/kodeviser/deregister?serial=" + serial;
+
+			ResponseEntity<?> response = restTemplate.exchange(url, HttpMethod.GET, entity, Object.class);
+
+			return (response.getStatusCode() == HttpStatus.OK);
+		}
+		catch (Exception ex) {
+			log.error("Failed to deregister hardware token", ex);
+		}
+
+		return false;
+	}
 }

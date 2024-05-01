@@ -8,4 +8,5 @@ import dk.digitalidentity.common.dao.model.Link;
 
 public interface LinkDao extends JpaRepository<Link, Long> {
 	List<Link> findAll();
+	Link findById(long id);
 }

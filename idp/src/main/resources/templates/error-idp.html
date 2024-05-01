@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header" />
+<div th:replace="fragments/topbar :: topbar"></div>
+<body class="gray-bg">
+    <div class="loginColumns animated fadeInDown" style="max-width: none;">
+        <div class="row">
+            <div class="ibox offset-md-2 col-md-8">
+                <div class="ibox-title">
+                    <h5>
+                    	<em class="fa fa fa-frown-o"></em> &nbsp;
+                    	<span>Login fejlede</span>
+                    </h5>
+                </div>
+
+                <div class="ibox-content">
+					<p>
+						Der opstod en fejl under login. Nedenfor er angivet nogle oplysninger om hvad der gik galt.
+					</p>
+
+					<table class="table table-striped">
+						<tbody>
+							<tr style="width: 200px;">
+								<td><b>Kilde</b></td>
+								<td th:text="${origin}" />
+							</tr>
+							<tr>
+								<td><b>Fejlbesked</b></td>
+								<td th:text="${errorMessage}" />
+							</tr>
+							<tr th:if="${errorCode != null}">
+								<td><b>Fejlkode</b></td>
+								<td th:text="${errorCode}" />
+							</tr>
+							<tr th:if="${helpMessage != null}">
+								<td><b>Hjælp</b></td>
+								<td th:utext="${helpMessage}" />
+							</tr>
+						</tbody>
+					</table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+	<div th:replace="fragments/footer :: scripts" />
+</body>
+</html>

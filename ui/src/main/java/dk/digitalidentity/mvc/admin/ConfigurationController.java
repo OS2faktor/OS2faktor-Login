@@ -2,6 +2,7 @@ package dk.digitalidentity.mvc.admin;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -11,9 +12,11 @@ import java.util.stream.Collectors;
 
 import javax.validation.Valid;
 
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,17 +26,18 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.config.FeatureDocumentation;
-import dk.digitalidentity.common.config.RoleSettingDTO;
-import dk.digitalidentity.common.config.RoleSettingType;
+import dk.digitalidentity.common.config.modules.school.StudentPwdRoleSettingConfiguration;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
 import dk.digitalidentity.common.dao.model.SessionSetting;
+import dk.digitalidentity.common.dao.model.TUTermsAndConditions;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
 import dk.digitalidentity.common.dao.model.enums.LogWatchSettingKey;
+import dk.digitalidentity.common.dao.model.enums.RoleSettingType;
 import dk.digitalidentity.common.dao.model.enums.SchoolClassType;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.DomainService;
@@ -43,15 +47,19 @@ import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.SessionSettingService;
+import dk.digitalidentity.common.service.TUTermsAndConditionsService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.common.service.WindowCredentialProviderClientService;
+import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.mvc.admin.dto.AdministratorDTO;
+import dk.digitalidentity.mvc.admin.dto.DomainDTO;
 import dk.digitalidentity.mvc.admin.dto.FeatureDTO;
 import dk.digitalidentity.mvc.admin.dto.LogWatchSettingsDto;
 import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.PrivacyPolicyDTO;
 import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
+import dk.digitalidentity.mvc.admin.dto.TUTermsAndConditionsDTO;
 import dk.digitalidentity.mvc.admin.dto.TermsAndConditionsDTO;
 import dk.digitalidentity.mvc.admin.dto.WindowCredentialProviderClientDTO;
 import dk.digitalidentity.security.RequireAdministrator;
@@ -71,6 +79,9 @@ public class ConfigurationController {
 
 	@Autowired
 	private TermsAndConditionsService termsAndConditionsService;
+
+	@Autowired
+	private TUTermsAndConditionsService tuTermsAndConditionsService;
 
 	@Autowired
 	private PersonService personService;
@@ -175,6 +186,12 @@ public class ConfigurationController {
 	}
 	
 	@RequireAdministrator
+	@GetMapping("/admin/konfiguration/badpassword")
+	public String getbadPasswords(Model model) {
+		return "admin/configure-bad-password";
+	}
+
+	@RequireAdministrator
 	@GetMapping("/admin/konfiguration/links")
 	public String getLinksConfiguration(Model model) {
 		List<Domain> domains = domainService.getAllParents();
@@ -250,8 +267,53 @@ public class ConfigurationController {
 	}
 
 	@RequireAdministrator
+	@GetMapping("/admin/konfiguration/tuvilkaar")
+	public String getTUTermsConfiguration(Model model) {
+		String tts = tuTermsAndConditionsService.getTermsAndConditions().getLastUpdatedTts() != null ? tuTermsAndConditionsService.getTermsAndConditions().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
+		
+		TUTermsAndConditions termsAndConditions = tuTermsAndConditionsService.getTermsAndConditions();
+		if (termsAndConditions == null) {
+			log.error("Failed to extract current terms and conditions!");
+			return "redirect:/admin";
+		}
+
+		TUTermsAndConditionsDTO termsAndConditionsDTO = new TUTermsAndConditionsDTO();
+		termsAndConditionsDTO.setContent(termsAndConditions.getContent());
+
+		model.addAttribute("termsAndConditions", termsAndConditionsDTO);
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
+
+		return "admin/configure-tuterms";
+	}
+
+	@RequireAdministrator
+	@PostMapping("/admin/konfiguration/tuvilkaar")
+	public String saveTUTermsConfiguration(Model model, TUTermsAndConditionsDTO termsAndConditionsDTO, RedirectAttributes redirectAttributes) {
+		TUTermsAndConditions terms = tuTermsAndConditionsService.getTermsAndConditions();
+		if (terms == null) {
+			terms = new TUTermsAndConditions();
+		}
+
+		Person admin = personService.getById(securityUtil.getPersonId());
+		if (admin == null) {
+			log.error("Could not find admin");
+			return "error";
+		}
+
+		terms.setContent(termsAndConditionsDTO.getContent());
+
+		tuTermsAndConditionsService.save(terms);
+		auditLogger.changeTUTerms(terms, admin);
+
+		redirectAttributes.addFlashAttribute("flashMessage", "Tjenesteudbydersvilkår opdateret");
+
+		return "redirect:/admin";
+	}
+	
+	@RequireAdministrator
 	@GetMapping("/admin/konfiguration/vilkaar")
 	public String getTermsConfiguration(Model model) {
+		String tts = termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts() != null ? termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
 		TermsAndConditions termsAndConditions = termsAndConditionsService.getTermsAndConditions();
 		if (termsAndConditions == null) {
 			log.error("Failed to extract current terms and conditions!");
@@ -262,6 +324,7 @@ public class ConfigurationController {
 		termsAndConditionsDTO.setContent(termsAndConditions.getContent());
 
 		model.addAttribute("termsAndConditions", termsAndConditionsDTO);
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
 
 		return "admin/configure-terms";
 	}
@@ -287,7 +350,7 @@ public class ConfigurationController {
 		}
 
 		termsAndConditionsService.save(terms);
-		auditLogger.changeTerms(terms, admin);
+		auditLogger.changeTerms(terms, admin, termsAndConditionsDTO.isMustApprove());
 
 		redirectAttributes.addFlashAttribute("flashMessage", "Anvendelsesvilkår opdateret");
 
@@ -297,6 +360,7 @@ public class ConfigurationController {
 	@RequireAdministrator
 	@GetMapping("/admin/konfiguration/privacypolicy")
 	public String getPrivacyPolicy(Model model) {
+		String tts = privacyPolicyService.getPrivacyPolicy().getLastUpdatedTts() != null ? privacyPolicyService.getPrivacyPolicy().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
 		var privacyPolicy = privacyPolicyService.getPrivacyPolicy();
 		if (privacyPolicy == null) {
 			log.error("Failed to extract current privacy policy!");
@@ -307,6 +371,7 @@ public class ConfigurationController {
 		privacyPolicyDTO.setContent(privacyPolicy.getContent());
 
 		model.addAttribute("privacyPolicy", privacyPolicyDTO);
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
 
 		return "admin/configure-privacypolicy";
 	}
@@ -335,7 +400,7 @@ public class ConfigurationController {
 	}
 
 	@RequireAdministratorOrUserAdministrator
-	@GetMapping("/admin/konfiguration/administratorer")
+	@GetMapping({ "/admin/konfiguration/administratorer" })
 	public String getAdministrators(Model model) {
 		long loggedInPersonId = securityUtil.getPersonId();
 		
@@ -344,17 +409,22 @@ public class ConfigurationController {
 				.collect(Collectors.toList());
 
 		model.addAttribute("admins", admins);
+		model.addAttribute("kodevisereEnabled", commonConfiguration.getMfa().getEnabledClients().contains(ClientType.TOTPH.toString()));
+		model.addAttribute("passwordResetEnabled", os2faktorConfiguration.getAdminFeatures().isPasswordResetEnabled());
+		model.addAttribute("stilStudentEnabled", commonConfiguration.getStilStudent().isEnabled());
 
-		List<Domain> domains = domainService.getAllParents();
+		List<DomainDTO> domains = domainService.getAllParents().stream().map(d -> new DomainDTO(d)).collect(Collectors.toList());
 		model.addAttribute("domains", domains);
 
+		model.addAttribute("readonly", os2faktorConfiguration.getCoreData().isRoleApiEnabled());
+		
 		return "admin/administrators-list";
 	}
 
 	@RequireAdministratorOrUserAdministrator
 	@GetMapping("/admin/konfiguration/administratorer/tilfoej")
 	public String addAdmin(Model model, @RequestParam("type") String type) {
-		if (!type.equals(Constants.ROLE_ADMIN) && !type.equals(Constants.ROLE_SUPPORTER) && !type.equals(Constants.ROLE_REGISTRANT) && !type.equals(Constants.ROLE_SERVICE_PROVIDER_ADMIN) && !type.equals(Constants.ROLE_USER_ADMIN)) {
+		if (!type.equals(Constants.ROLE_ADMIN) && !type.equals(Constants.ROLE_SUPPORTER) && !type.equals(Constants.ROLE_REGISTRANT) && !type.equals(Constants.ROLE_SERVICE_PROVIDER_ADMIN) && !type.equals(Constants.ROLE_USER_ADMIN) && !type.equals(Constants.ROLE_KODEVISER_ADMIN) && !type.equals(Constants.ROLE_PASSWORD_RESET_ADMIN) && !type.equals(Constants.ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN)) {
 			return "redirect:/admin/konfiguration/administratorer";
 		}
 		
@@ -375,17 +445,17 @@ public class ConfigurationController {
 		
 		model.addAttribute("features", features);
 		
-		List<RoleSettingDTO> settings = commonConfiguration.getStilStudent().getRoleSettings();
+		List<StudentPwdRoleSettingConfiguration> settings = commonConfiguration.getStilStudent().getRoleSettings();
 		model.addAttribute("roleSettings", transformFilterMessage(settings));
 		
 		return "admin/configure-features";
 	}
+	
+	private List<StudentPwdRoleSettingConfiguration> transformFilterMessage(List<StudentPwdRoleSettingConfiguration> settings) {
+		List<StudentPwdRoleSettingConfiguration> newSettingList = new ArrayList<>();
 		
-	private List<RoleSettingDTO> transformFilterMessage(List<RoleSettingDTO> settings) {
-		List<RoleSettingDTO> newSettingList = new ArrayList<>();
-		
-		for (RoleSettingDTO dto : settings) {
-			RoleSettingDTO newSetting = new RoleSettingDTO();
+		for (StudentPwdRoleSettingConfiguration dto : settings) {
+			StudentPwdRoleSettingConfiguration newSetting = new StudentPwdRoleSettingConfiguration();
 			newSetting.setRole(dto.getRole());
 			newSetting.setType(dto.getType());
 			
@@ -473,31 +543,146 @@ public class ConfigurationController {
 			log.error("Could not find admin");
 			return "error";
 		}
-		
-		if (logWatchSettingsDto.isEnabled()) {
-			String regex = "^(.+)@(.+)$";
-			Pattern pattern = Pattern.compile(regex);
-			Matcher matcher = pattern.matcher(logWatchSettingsDto.getAlarmEmail());
-			
-			if (!matcher.matches()) {
-				model.addAttribute("settings", logWatchSettingsDto);
-				model.addAttribute("emailError", true);
-				
-				return "admin/configure-logwatch";
+
+		// We only allow setting the enabled flag once, after that the enable/disable + email is read-only
+		boolean alreadyEnabled = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED);
+		if (!alreadyEnabled) {
+			if (logWatchSettingsDto.isEnabled()) {
+				String regex = "^(.+)@(.+)$";
+				Pattern pattern = Pattern.compile(regex);
+				Matcher matcher = pattern.matcher(logWatchSettingsDto.getAlarmEmail());
+
+				if (!matcher.matches()) {
+					model.addAttribute("settings", logWatchSettingsDto);
+					model.addAttribute("emailError", true);
+
+					return "admin/configure-logwatch";
+				}
 			}
+
+			logWatchSettingService.setBooleanValue(LogWatchSettingKey.LOG_WATCH_ENABLED, logWatchSettingsDto.isEnabled());
+			logWatchSettingService.setStringValue(LogWatchSettingKey.ALARM_EMAIL, logWatchSettingsDto.getAlarmEmail());
 		}
 		
-		logWatchSettingService.setBooleanValue(LogWatchSettingKey.LOG_WATCH_ENABLED, logWatchSettingsDto.isEnabled());
-		logWatchSettingService.setStringValue(LogWatchSettingKey.ALARM_EMAIL, logWatchSettingsDto.getAlarmEmail());
+		if (logWatchSettingsDto.isTooManyWrongPasswordsNonWhitelistEnabled()) {
+			// 1 is minimum
+			if (logWatchSettingsDto.getTooManyWrongPasswordsNonWhitelistLimit() < 1) {
+				logWatchSettingsDto.setTooManyWrongPasswordsNonWhitelistLimit(1);	
+			}
+			
+			// sanatize whitelist
+			String whitelist = logWatchSettingsDto.getWhitelist();
+			if (whitelist != null) {
+				whitelist = whitelist.trim();
+			}
+
+			if (!StringUtils.hasLength(whitelist)) {
+				logWatchSettingsDto.setWhitelist("");
+			}
+			else {
+				String[] tokens = whitelist.split(",");
+				List<String> whitelistElements = new ArrayList<>();
+				
+				for (String token : tokens) {
+					token = token.trim();
+					if (!StringUtils.hasLength(token)) {
+						continue;
+					}
+					
+					String[] ipBlocks = token.split("\\.");
+					if (ipBlocks.length != 4) {
+						continue;
+					}
+					
+					boolean badValue = false;
+					for (int i = 0; i < 3; i++) {
+						try {
+							int val = Integer.parseInt(ipBlocks[i]);
+							if (val < 0 || val > 255) {
+								badValue = true;
+								break;
+							}
+						}
+						catch (Exception ignored) {
+							;
+						}
+					}
+					
+					String[] lastBlockTokens = ipBlocks[3].split("/");
+					if (lastBlockTokens.length > 2) {
+						continue;
+					}
+					else if (lastBlockTokens.length == 2) {
+						try {
+							int val = Integer.parseInt(lastBlockTokens[0]);
+							if (val < 0 || val > 255) {
+								badValue = true;
+							}
+						}
+						catch (Exception ignored) {
+							;
+						}
+
+						try {
+							int val = Integer.parseInt(lastBlockTokens[1]);
+							// allow between /16 and /32  (anything lower than /16 would be crazy ;))
+							if (val < 16 || val > 32) {
+								badValue = true;
+							}
+						}
+						catch (Exception ignored) {
+							;
+						}
+					}
+					else {
+						try {
+							int val = Integer.parseInt(ipBlocks[3]);
+							if (val < 0 || val > 255) {
+								badValue = true;
+							}
+							else {
+								// add a /32 to conform to input requirements
+								token = token + "/32";
+							}
+						}
+						catch (Exception ignored) {
+							;
+						}
+					}
+					
+					if (badValue) {
+						continue;
+					}
+					
+					whitelistElements.add(token);
+				}
+				
+				if (whitelistElements.size() == 0) {
+					logWatchSettingsDto.setWhitelist("");					
+				}
+				else {
+					logWatchSettingsDto.setWhitelist(Strings.join(whitelistElements, ','));
+				}
+			}
+		}
+		else {
+			// reset to default if we disable
+			logWatchSettingsDto.setWhitelist("");
+			logWatchSettingsDto.setTooManyWrongPasswordsNonWhitelistLimit(10);
+		}
+		
+		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST_LIMIT, logWatchSettingsDto.getTooManyWrongPasswordsNonWhitelistLimit());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST_ENABLED, logWatchSettingsDto.isTooManyWrongPasswordsNonWhitelistEnabled());
+		logWatchSettingService.setStringValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST, logWatchSettingsDto.getWhitelist());
 		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_ENABLED, logWatchSettingsDto.isTwoCountriesOneHourEnabled());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED, logWatchSettingsDto.isTwoCountriesOneHourSweeden());
+		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED, logWatchSettingsDto.isTwoCountriesOneHourGermany());
 		logWatchSettingService.setBooleanValue(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED, logWatchSettingsDto.isPersonDeadOrIncapacitatedEnabled());
-		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_ENABLED, logWatchSettingsDto.isTooManyAccountsLockedByAdminTodayEnabled());
-		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_LIMIT, logWatchSettingsDto.getTooManyAccountsLockedByAdminTodayLimit());
 		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_ENABLED, logWatchSettingsDto.isTooManyTimeLockedAccountsEnabled());
 		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, logWatchSettingsDto.getTooManyTimeLockedAccountsLimit());
 		logWatchSettingService.setBooleanValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_ENABLED, logWatchSettingsDto.isTooManyWrongPasswordsEnabled());
 		logWatchSettingService.setLongValue(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, logWatchSettingsDto.getTooManyWrongPasswordsLimit());
-				
+		
 		redirectAttributes.addFlashAttribute("flashMessage", "Indstillinger for overvågning af logs opdateret");
 		
 		return "redirect:/admin";
@@ -508,13 +693,16 @@ public class ConfigurationController {
 		settings.setEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED));
 		settings.setAlarmEmail(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL));
 		settings.setTwoCountriesOneHourEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_ENABLED));
+		settings.setTwoCountriesOneHourSweeden(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED));
+		settings.setTwoCountriesOneHourGermany(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED));
 		settings.setTooManyWrongPasswordsEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_ENABLED));
-		settings.setTooManyWrongPasswordsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, 20));
+		settings.setTooManyWrongPasswordsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, 500));
 		settings.setTooManyTimeLockedAccountsEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_ENABLED));
-		settings.setTooManyTimeLockedAccountsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, 10));
-		settings.setTooManyAccountsLockedByAdminTodayEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_ENABLED));
-		settings.setTooManyAccountsLockedByAdminTodayLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_ACCOUNTS_LOCKED_BY_ADMIN_TODAY_LIMIT, 10));
+		settings.setTooManyTimeLockedAccountsLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, 50));
 		settings.setPersonDeadOrIncapacitatedEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED));
+		settings.setTooManyWrongPasswordsNonWhitelistEnabled(logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST_ENABLED));
+		settings.setTooManyWrongPasswordsNonWhitelistLimit(logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST_LIMIT,10));
+		settings.setWhitelist(logWatchSettingService.getString(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST));
 	
 		return settings;
 	}

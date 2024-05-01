@@ -1,8 +1,17 @@
 package dk.digitalidentity.mvc.admin;
 
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -10,24 +19,37 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
+import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
+import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
-import dk.digitalidentity.config.Constants;
+import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.mvc.admin.dto.AdminPersonDTO;
 import dk.digitalidentity.mvc.selfservice.NSISStatus;
+import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
+import dk.digitalidentity.security.RequirePasswordResetAdmin;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
+import dk.digitalidentity.service.MitidErhvervCacheService;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequireSupporter
 @Controller
 public class IdentitiesController {
@@ -37,24 +59,31 @@ public class IdentitiesController {
 
 	@Autowired
 	private PersonService personService;
-
-	@Autowired
-	private SecurityUtil securityUtil;
 	
 	@Autowired
 	private LocalRegisteredMfaClientService localRegisteredMfaClientService;
-
-	@Autowired
-	private DomainService domainService;
 	
 	@Autowired
 	private ResourceBundleMessageSource resourceBundle;
 
+	@Autowired
+	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private RoleCatalogueService roleCatalogueService;
+
+	@Autowired
+	private MitidErhvervCacheService midIdErhvervCacheService;
+
+	@Autowired
+	private PasswordSettingService passwordSettingService;
+
+	@Autowired
+	private SecurityUtil securityUtil;
+	
 	@GetMapping("/admin/identiteter")
 	public String identities(Model model, Locale locale) {
 		model.addAttribute("statuses", NSISStatus.getSorted(resourceBundle, locale));
-		model.addAttribute("coreDataEditable", securityUtil.hasRole(Constants.ROLE_COREDATA_EDITOR));
-		model.addAttribute("configDomain", domainService.getInternalDomain().getName());
 		return "admin/issued-identities";
 	}
 
@@ -99,11 +128,112 @@ public class IdentitiesController {
 		
 		form.setName((person.isNameProtected() == true && StringUtils.hasLength(person.getNameAlias())) ? person.getNameAlias() : person.getName());
 		form.setNameProtected(person.isNameProtected());
+		form.setNemloginUserUuid(person.getNemloginUserUuid());
 		form.setSchoolRoles(person.getSchoolRoles());
+
+		if (StringUtils.hasLength(person.getNemloginUserUuid())) {
+			MitidErhvervCache mitIdCache = midIdErhvervCacheService.findByUuid(person.getNemloginUserUuid());
+			if (mitIdCache != null) {
+				form.setStatus(mitIdCache.getStatus());
+				form.setMitidPrivatCredential(mitIdCache.isMitidPrivatCredential());
+				form.setQualifiedSignature(mitIdCache.isQualifiedSignature());
+				form.setMitidErhvervRid(mitIdCache.getRid());
+			}
+		}
 		
 		model.addAttribute("form", form);
 
+		List<String> roles = new ArrayList<>();
+		if (commonConfiguration.getRoleCatalogue().isEnabled()) {
+			roles = roleCatalogueService.getUserRoles(person, "KOMBIT");
+		}
+		else {
+			for (KombitJfr kombitJfr : person.getKombitJfrs()) {
+				roles.add(kombitJfr.getIdentifier());
+			}
+		}
+
+		model.addAttribute("roles", roles);
+
 		return "admin/identity";
+	}
+
+	@RequirePasswordResetAdmin
+	@GetMapping("/admin/identiteter/resetPassword/{id}")
+	public String resetPassword(Model model, @PathVariable Long id) {
+		Person person = personService.getById(id);
+		if (person == null) {
+			return "redirect:/admin/identiteter";
+		}
+
+		model.addAttribute("settings", passwordSettingService.getSettings(person.getDomain()));
+		model.addAttribute("passwordForm", new PasswordChangeForm(person));
+
+		return "admin/change-password";
+	}
+
+	@RequirePasswordResetAdmin
+	@PostMapping("/admin/identiteter/resetPassword")
+	public String changePassword(Model model, RedirectAttributes redirectAttributes, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult) {
+		Person personToBeEdited = personService.getById(form.getPersonId());
+		if (personToBeEdited == null) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Ukendt bruger");
+			return "redirect:/admin/identiteter";
+		}
+		
+		if (personToBeEdited.isNsisAllowed()) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Brugeren har en erhvervsidentitet - kodeordsskifte ikke tilladt");
+			return "redirect:/admin/identiteter";			
+		}
+
+		// Check for password errors
+		if (bindingResult.hasErrors()) {
+			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+
+			return "admin/change-password";
+		}
+
+		try {
+			Person loggedInPerson = securityUtil.getPerson();
+			if (loggedInPerson == null) {
+				log.warn("Person ikke logget ind, session timeout?");
+				redirectAttributes.addFlashAttribute("flashError", "Fejl! Ukendt administrator");
+
+				return "redirect:/admin/identiteter";
+			}
+
+			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePasswordByAdmin(personToBeEdited, form.getPassword(), loggedInPerson, false);
+
+			// force change password on next login through IdP
+			personToBeEdited.setForceChangePassword(true);			
+			personService.save(personToBeEdited);
+
+			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
+				if (adPasswordStatus.equals(ADPasswordResponse.ADPasswordStatus.TECHNICAL_ERROR)) {
+					model.addAttribute("technicalError", true);
+				}
+				else if (adPasswordStatus.compareTo(ADPasswordResponse.ADPasswordStatus.FAILURE) == 0) {
+					model.addAttribute("connectionFailure", true);
+				}
+				else if (adPasswordStatus.equals(ADPasswordResponse.ADPasswordStatus.INSUFFICIENT_PERMISSION)) {
+					model.addAttribute("insufficientPermission", true);
+				}
+
+				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+
+				return "admin/change-password";
+			}
+		}
+		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
+			log.error("Exception while trying to change password on another user", e);
+
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Der opstod en teknisk fejl");
+			return "redirect:/admin/identiteter";
+		}
+
+		redirectAttributes.addFlashAttribute("flashSuccess", "Kodeord ændret");
+
+		return "redirect:/admin/identiteter";
 	}
 
 	@GetMapping("/admin/fragment/user-mfa-devices/{id}")

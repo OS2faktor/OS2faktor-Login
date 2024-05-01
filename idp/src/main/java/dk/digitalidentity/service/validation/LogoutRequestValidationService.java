@@ -1,8 +1,8 @@
 package dk.digitalidentity.service.validation;
 
-import dk.digitalidentity.util.ResponderException;
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
 
@@ -16,22 +16,26 @@ import org.opensaml.saml.common.binding.security.impl.ReceivedEndpointSecurityHa
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.security.SecurityException;
+import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.crypto.SigningUtil;
+import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 
 @Slf4j
 @Service
 public class LogoutRequestValidationService {
-
-	public void validate(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, List<PublicKey> publicKeys) throws RequesterException, ResponderException {
+	public void validate(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		log.debug("Started validation of LogoutRequest");
 
 		LogoutRequest logoutRequest = (LogoutRequest) messageContext.getMessage();
@@ -42,7 +46,9 @@ public class LogoutRequestValidationService {
 		validateDestination(request, messageContext);
 		validateLifeTime(messageContext);
 		validateIssuer(logoutRequest, metadata.getEntityID());
-		validateSignature(request, publicKeys);
+		if (serviceProvider.validateSignatureOnLogoutRequests()) {
+			validateSignature(request, logoutRequest, serviceProvider);
+		}
 		validateSessionIndex(logoutRequest);
 
 		log.debug("Completed validation of LogoutRequest");
@@ -120,21 +126,62 @@ public class LogoutRequestValidationService {
 		}
 	}
 
-	private void validateSignature(HttpServletRequest request, List<PublicKey> publicKeys) throws RequesterException {
+	private void validateSignature(HttpServletRequest request, LogoutRequest logoutRequest, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		log.debug("Validating Signature");
-
-		String queryString = request.getQueryString();
-		String signature = request.getParameter("Signature");
-		String sigAlg = request.getParameter("SigAlg");
-
+		
 		boolean validSignature = false;
-		for (PublicKey publicKey : publicKeys) {
-			if (validateSignature(queryString, Constants.SAML_REQUEST, publicKey, signature, sigAlg)) {
-				validSignature = true;
-				break;
+
+		if (request.getMethod().equals("POST")) {
+
+			// HACK!!! For some reason OpenSAML does not register ID as an ID attribute on LogoutRequest objects :(
+			logoutRequest.getDOM().setIdAttribute("ID", true);
+			
+			Signature signature = logoutRequest.getSignature();
+			if (signature == null) {
+				throw new RequesterException("Logout forespørgsel (LogoutRequest) har ingen signatur");
+			}
+			
+			List<X509Certificate> signingCerts = serviceProvider.getX509Certificate(UsageType.SIGNING);
+			if (signingCerts == null || signingCerts.size() == 0) {
+				throw new ResponderException("Unable find certificates to validate signature on LogoutRequest in metadata");
+			}
+
+			Exception lastKnownExceptionForLoggingPurposes = null;
+			for (X509Certificate signingCert : signingCerts) {
+				try {
+					SignatureValidator.validate(logoutRequest.getSignature(), new BasicX509Credential(signingCert));
+					validSignature = true;
+					
+					// break for loop we have found a valid signature/credential combo
+					break;
+				}
+				catch (Exception ex) {
+					lastKnownExceptionForLoggingPurposes = ex;
+				}
+			}
+			
+			if (!validSignature && lastKnownExceptionForLoggingPurposes != null) {
+				log.warn("Failed to validate signature", lastKnownExceptionForLoggingPurposes);
 			}
 		}
-		
+		else {
+			String queryString = request.getQueryString();
+			String signature = request.getParameter("Signature");
+			String sigAlg = request.getParameter("SigAlg");
+
+			if (!StringUtils.hasLength(signature)) {
+				throw new RequesterException("Logout forespørgsel (LogoutRequest) har ingen signatur");
+			}
+
+			List<PublicKey> signingKeys = serviceProvider.getSigningKeys();
+			for (PublicKey signingKey : signingKeys) {
+				if (validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
+					validSignature = true;
+					break;
+				}
+			}
+		}
+
 		if (!validSignature) {
 			throw new RequesterException("Logout forespørgsel (LogoutRequest) Signatur forkert");
 		}
@@ -145,15 +192,15 @@ public class LogoutRequestValidationService {
 		byte[] data = new byte[0];
 		data = parseSignedQueryString(queryString, queryParameter).getBytes(StandardCharsets.UTF_8);
 
-		// Decode signature
-		byte[] decodedSignature = Base64.getDecoder().decode(signature);
-		String jcaAlgorithmID = AlgorithmSupport.getAlgorithmID(sigAlg);
-
 		try {
+			// Decode signature
+			byte[] decodedSignature = Base64.getDecoder().decode(signature);
+			String jcaAlgorithmID = AlgorithmSupport.getAlgorithmID(sigAlg);
+
 			return SigningUtil.verify(publicKey, jcaAlgorithmID, decodedSignature, data);
 		}
-		catch (SecurityException ex) {
-			log.error("Signatur forkert på logout forespørgsel (LogoutRequest)", ex);
+		catch (Exception ex) {
+			log.warn("Signatur forkert på logout forespørgsel (LogoutRequest)", ex);
 			return false;
 		}
 	}

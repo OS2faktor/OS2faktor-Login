@@ -6,10 +6,13 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.envers.Audited;
 
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.LocalDateTime;
 
 @Audited
 @Entity(name = "privacy_policy")
@@ -23,4 +26,8 @@ public class PrivacyPolicy {
 
 	@Column
 	private String content;
+	
+	@Column(name = "last_updated_tts")
+	@UpdateTimestamp
+	private LocalDateTime lastUpdatedTts;
 }

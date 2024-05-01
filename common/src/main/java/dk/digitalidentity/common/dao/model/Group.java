@@ -17,7 +17,6 @@ import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 
 import org.hibernate.annotations.BatchSize;
-import org.hibernate.envers.Audited;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -25,7 +24,6 @@ import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import lombok.Getter;
 import lombok.Setter;
 
-@Audited
 @Getter
 @Setter
 @Entity

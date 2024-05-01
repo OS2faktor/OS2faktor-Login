@@ -5,7 +5,11 @@ import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
 
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.mfa.model.ClientType;
+import dk.digitalidentity.mvc.admin.dto.ActivationDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -20,6 +24,7 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.mvc.selfservice.dto.SelfServicePersonDTO;
+import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MFAManagementService;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +32,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Slf4j
 @Controller
+@RequireEmployee
 public class SelfServiceIndexController {
 
 	@Autowired
@@ -44,12 +50,23 @@ public class SelfServiceIndexController {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 
+	@Autowired
+	private AuditLogger auditLogger;
+
+	@Autowired
+	private ResourceBundleMessageSource resourceBundle;
+
 	@GetMapping("/selvbetjening")
-	public String index(Model model, HttpServletRequest request, @RequestParam(required = false) boolean skipChangePassword) {
+	public String index(Model model, HttpServletRequest request, @RequestParam(required = false) boolean skipChangePassword, @RequestParam(required = false) boolean result, @RequestParam(required = false) String deviceId, @RequestParam(required = false) String name) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {
 			log.warn("Tried to access system without being logged in");
 			return "redirect:/error";
+		}
+
+		// check if person has returned from registering a client and if the result was true. Then auditlog
+		if (result) {
+			checkIfAuditlog(request, deviceId, name, person);
 		}
 
 		if (skipChangePassword) {
@@ -103,6 +120,43 @@ public class SelfServiceIndexController {
 		return "selfservice/index";
 	}
 
+	private void checkIfAuditlog(HttpServletRequest request, String deviceId, String name, Person person) {
+		boolean save = false;
+		ActivationDTO activationDTO = new ActivationDTO();
+		activationDTO.setDeviceId(deviceId);
+		activationDTO.setName(name);
+		activationDTO.setNsisLevel(person.getNsisLevel());
+
+		if (request.getSession().getAttribute("inYubikeyFlow") != null) {
+			boolean inYubikeyFlow = (boolean) request.getSession().getAttribute("inYubikeyFlow");
+			if (inYubikeyFlow) {
+				save = true;
+				activationDTO.setType(ClientType.YUBIKEY);
+				request.getSession().setAttribute("inYubikeyFlow", null);
+			}
+		}
+		else if (request.getSession().getAttribute("inAuthenticatorFlow") != null) {
+			boolean inAuthenticatorFlow = (boolean) request.getSession().getAttribute("inAuthenticatorFlow");
+			if (inAuthenticatorFlow) {
+				save = true;
+				activationDTO.setType(ClientType.TOTP);
+				request.getSession().setAttribute("inAuthenticatorFlow", null);
+			}
+		}
+		else if (request.getSession().getAttribute("inTOTPHFlow") != null) {
+			boolean inTOTPHFlow = (boolean) request.getSession().getAttribute("inTOTPHFlow");
+			if (inTOTPHFlow) {
+				save = true;
+				activationDTO.setType(ClientType.TOTPH);
+				request.getSession().setAttribute("inTOTPHFlow", null);
+			}
+		}
+
+		if (save) {
+			auditLogger.manualMfaAssociation(activationDTO.toIdentificationDetails(resourceBundle), person);
+		}
+	}
+
 	@GetMapping("/selvbetjening/fragment/mfa-devices")
 	public String mfaDevices(Model model) {
 		Person person = personService.getById(securityUtil.getPersonId());
@@ -113,6 +167,7 @@ public class SelfServiceIndexController {
 		}
 
 		model.addAttribute("showDeleteAction", true);
+		model.addAttribute("showEditAction", true);
 		model.addAttribute("showPrimaryAction", false);
 		model.addAttribute("showDetailsAction", false);
 		model.addAttribute("showLocalDeleteAction", false);
@@ -130,6 +185,7 @@ public class SelfServiceIndexController {
 		}
 
 		model.addAttribute("showDeleteAction", false);
+		model.addAttribute("showEditAction", false);
 		model.addAttribute("showPrimaryAction", true);
 		model.addAttribute("showDetailsAction", false);
 		model.addAttribute("showLocalDeleteAction", false);
@@ -138,19 +194,28 @@ public class SelfServiceIndexController {
 	}
 
 	@GetMapping("/selvbetjening/tilfoej")
-	public String registerYubikeyOrAuthenticator(Model model, @RequestParam(defaultValue = "yubikey") String type, RedirectAttributes redirectAttributes) {
+	public String registerYubikeyOrAuthenticator(Model model, HttpServletRequest request, @RequestParam(defaultValue = "yubikey") String type, RedirectAttributes redirectAttributes) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {
 			log.warn("Tried to access system without being logged in");
 			return "redirect:/error";
 		}
 		
-		if (!"yubikey".equals(type) && !"authenticator".equals(type)) {
+		if ("yubikey".equals(type)) {
+			request.getSession().setAttribute("inYubikeyFlow", true);
+		}
+		else if ("authenticator".equals(type)){
+			request.getSession().setAttribute("inAuthenticatorFlow", true);
+		}
+		else if ("kodeviser".equals(type)) {
+			request.getSession().setAttribute("inTOTPHFlow", true);
+		}
+		else {
 			log.warn("Tried to add yubikey or authenticator but type was " + type);
 			return "redirect:/error";
 		}
 
-		NSISLevel nsisLevel = person.getNsisLevel() == NSISLevel.SUBSTANTIAL ? NSISLevel.SUBSTANTIAL : NSISLevel.LOW;
+		NSISLevel nsisLevel = securityUtil.getAuthenticationAssuranceLevel();
 
 		String result = mfaManagementService.authenticateUser(person.getCpr(), nsisLevel, type);
 		if (result == null) {
@@ -163,7 +228,7 @@ public class SelfServiceIndexController {
 		}
 	}
 	
-	@GetMapping("/selvbetjening/unlockADAccount")
+	@GetMapping("/selvbetjening/unlockAccount")
 	public String unlockAccount(Model model) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {

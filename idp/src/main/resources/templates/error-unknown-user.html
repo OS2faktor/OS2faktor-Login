@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+	    <div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar"></div>
+
+	        <div class="wrapper wrapper-content">
+	            <div class="row">
+	                <div class="col-lg-12">
+					    <div class="middle-box text-center animated fadeInDown" style="margin-top: 40px;">
+					        <h1 style="font-size: 40px;">Ukendt bruger<em class="fa fa-frown-o"></em></h1>
+					
+					        <div class="error-desc" th:utext="${@cmsMessageBundle.getText('cms.account.no-account.error')}">
+
+							</div>
+					    </div>
+	                </div>
+	            </div>
+	        </div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+	    </div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

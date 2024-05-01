@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.serviceprovider;
 
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -23,13 +24,13 @@ public class SelfServiceServiceProviderConfig implements ServiceProviderConfig {
     }
 
     @Override
-    public String getProtocol() {
-        return "SAML20";
+    public Protocol getProtocol() {
+        return Protocol.SAML20;
     }
 
     @Override
-    public String getNameIdFormat() {
-        return NameIdFormat.PERSISTENT.value;
+    public NameIdFormat getNameIdFormat() {
+        return NameIdFormat.PERSISTENT;
     }
 
     @Override
@@ -38,32 +39,37 @@ public class SelfServiceServiceProviderConfig implements ServiceProviderConfig {
     }
 
     @Override
-    public String getMetadataContent() throws Exception {
+    public String getMetadataContent() {
         return null;
     }
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabled() {
         return true;
     }
 
     @Override
-    public boolean preferNemId() {
+    public boolean isPreferNemid() {
         return false;
     }
 
     @Override
-    public boolean nemLogInBrokerEnabled() {
+    public boolean isNemLogInBrokerEnabled() {
         return false;
     }
 
     @Override
-    public boolean encryptAssertions() {
+    public boolean isEncryptAssertions() {
         return config.getSelfService().isEncryptAssertion();
     }
     
     @Override
-    public boolean preferNIST() {
+    public boolean isPreferNIST() {
         return false;
     }
+
+	@Override
+	public boolean isRequireOiosaml3Profile() {
+		return false;
+	}
 }

@@ -10,11 +10,8 @@
 				<div class="row">
 					<div class="col-lg-9">
 						<div class="ibox">
-							<div sec:authorize="hasRole('ROLE_COREDATA_EDITOR')" class="ibox-title">
+							<div class="ibox-title">
 								<h5><em class="fa fa-users"></em> &nbsp; Erhvervsidentiteter</h5>
-								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
-									<button onclick="modalService.openCreateModal()" class="btn btn-primary">Opret ny person</button>
-								</div>
 							</div>
 
 							<div class="ibox-content">
@@ -70,97 +67,13 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
-
-	<!-- CPR Modal -->
-	<div class="modal inmodal" id="modalCpr" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
-		<div class="modal-dialog modal-lg">
-			<div class="modal-content animated fadeIn">
-				<div class="modal-header">
-					<button type="button" class="close" data-dismiss="modal">
-						<span aria-hidden="true">×</span>
-						<span class="sr-only">Luk</span>
-					</button>
-					<h4 class="modal-title" id="modalCprTitle">Opret person</h4>
-				</div>
-				<div class="modal-body">
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">CPR-nummer</label>
-						<input class="col-sm-10 form-control" placeholder="Indtast CPR" id="modalCprInput">
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-white" data-dismiss="modal">Annuller</button>
-					<button type="button" class="btn btn-primary" onclick="modalService.editByCpr()">Søg</button>
-				</div>
-			</div>
-		</div>
-	</div>
-	<!-- End CPR Modal -->
-
-	<!-- Edit Modal -->
-	<div class="modal inmodal" id="modalEdit" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
-		<div class="modal-dialog modal-lg">
-			<div class="modal-content animated fadeIn">
-				<div class="modal-header">
-					<button type="button" class="close" data-dismiss="modal">
-						<span aria-hidden="true">×</span>
-						<span class="sr-only">Luk</span>
-					</button>
-					<h4 class="modal-title" id="modalEditTitle">Opret person</h4>
-				</div>
-				<div class="modal-body">
-					
-					<div class="form-group row" style="display:none;" >
-						<label class="col-sm-2 col-form-label">UUID</label>
-						<input class="col-sm-10 form-control" id="modalEditPersonId">
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">UUID</label>
-						<input class="col-sm-10 form-control" id="modalEditUuid">
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">Personnummer</label>
-						<input class="col-sm-10 form-control" id="modalEditCpr">
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">Navn</label>
-						<input class="col-sm-10 form-control" id="modalEditName">
-					</div>
-					<div class="form-group row">
-						<label class="col-sm-2 col-form-label">Email</label>
-						<input type="email" class="col-sm-10 form-control" id="modalEditEmail">
-					</div>
-					<div class="form-group row">
-						<div class="table-responsive">
-							<table id="attributeTable" class="table table-striped listTable">
-								<thead>
-									<tr>
-										<th>Attribut</th>
-										<th>Værdi</th>
-									</tr>
-								</thead>
-								<tbody>
-
-								</tbody>
-							</table>
-						</div>
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-white" data-dismiss="modal">Annuller</button>
-					<button type="button" class="btn btn-primary" onclick="modalService.saveEditModal()">Gem</button>
-				</div>
-			</div>
-		</div>
-	</div>
-	<!-- End Edit Modal -->
 	
 	<!-- lock Modal -->
 	<div class="modal inmodal" id="modalLock" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
@@ -174,16 +87,15 @@
 					<div class="form-group col-md-12">
 						<span th:text="#{page.admin.issuedidentities.lockText}"/>
 					</div>
-
-					<div class="form-group col-md-12 suspendRow">
-						<input th:id="suspend" type="checkbox" class="i-checks col-sm-2 form-control">
-						<label class="col-sm-10 col-form-label">Suspender også erhvervsidentiteten<span style="vertical-align: super; font-size: smaller;">*</span></label>
+					
+					<div class="form-group col-md-12" style="margin-bottom: 0px;">
+						<b>Angiv begrundelse for spærring</b>
 					</div>
 					
-					<div class="form-group col-md-12 suspendRow">
-						<span style="vertical-align: super; font-size: smaller;">*</span>
-						<span>Hvis erhvervsidentiteten suspenderes, skal brugeren gennemføre en ny aktivering af erhvervsidentiten hvis spærringen af kontoen fjernes.</span>
+					<div class="form-group col-md-12">
+						<textarea id="reason" rows="6" class="col-sm-12 form-control" style="max-width: 100%; max-height: 400px;"></textarea>
 					</div>
+					
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-white" style="width: 80px;" onclick="$(modalLock).hide();">Nej</button>
@@ -206,16 +118,6 @@
 					<div class="form-group col-md-12">
 						<span>Er du sikker på du vil låse denne konto op?</span>
 					</div>
-
-					<div class="form-group col-md-12 suspendRow">
-						<input id="suspendUnlock" type="checkbox" class="i-checks col-sm-2 form-control">
-						<label class="col-sm-10 col-form-label">Suspender erhvervsidentiteten i forbindelse med at spærringen fjernes<span style="vertical-align: super; font-size: smaller;">*</span></label>
-					</div>
-					
-					<div class="form-group col-md-12 suspendRow">
-						<span style="vertical-align: super; font-size: smaller;">*</span>
-						<span>Hvis erhvervsidentiteten suspenderes, skal brugeren gennemføre en ny aktivering af erhvervsidentiten hvis spærringen af kontoen fjernes.</span>
-					</div>
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-white" style="width: 80px;" onclick="$(modalUnlock).hide();">Nej</button>
@@ -226,16 +128,17 @@
 	</div>
 	<!-- End unlock Modal -->
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
 			
 		/*[+
 		var baseUrl = [[@{/}]];
-		var coreDataEditable = [[${coreDataEditable}]];
-		var configDomain = [[${configDomain}]]
-		var personAttributes = [[${@personAttributeService.getAll()}]]
+		var personAttributes = [[${@personAttributeService.getAll()}]];
+		var flashSuccess = [[${flashSuccess}]];
+		var flashWarning = [[${flashWarning}]];
+		var flashError = [[${flashError}]];
 		+]*/
 
 		var lockText = "Er du sikker på at du vil spærre denne konto?";
@@ -259,8 +162,17 @@
 		var modalService;
 		var defaultAttributeSelect;
 		$(document).ready(function(){
+			if (flashSuccess != undefined) {
+				toastr.success(flashSuccess);
+			}
+			if (flashWarning != undefined) {
+				toastr.warning(flashWarning);
+			}
+			if (flashError != undefined) {
+				toastr.error(flashError);
+			}
+			
 			modalService = new ModalService();
-			modalService.init();
 
 			disableDataTablesAlerts();
 			
@@ -342,13 +254,11 @@
 						"render": function (data, type, row, meta) {
 							var content =  '<a onclick="lock(' + data + ',' + row.lockedAdmin + ')" style="color: black;" title="' + ((row.lockedAdmin) ? 'Fjern spærring' : 'Spær identitet') + '"><em class="fa fa-fw ' + ((row.lockedAdmin) ? 'fa-unlock-alt' : 'fa-lock') + '"></em></a>&nbsp;' +
 							'<a href="' + baseUrl + 'admin/identiteter/' + data + '" style="color: black;" title="Vis identitet"><em class="fa fa-fw fa-search"></em></a>';
-
-							if (coreDataEditable) {
-								if (configDomain == row.domain){
-									content+= '&nbsp;<a onclick="modalService.editById(' + data + ')"><em class="fa fa-fw fa-pencil"></em></a>';
-									content+= '&nbsp;<a onclick="modalService.delete(' + data + ')"><em class="fa fa-fw fa-times"></em></a>';
-								}
+							
+							if ([[${#authorization.expression('hasRole("ROLE_PASSWORD_RESET_ADMIN")')}]] && !row.nsisAllowed) {
+								content += '&nbsp;<a href="' + baseUrl + 'admin/identiteter/resetPassword/' + data + '" style="color: black;" title="Nulstil kodeord"><em class="fa fa-fw fa-key"></em></a>';
 							}
+
 							return content;
 						}
 					}
@@ -389,9 +299,6 @@
 					}
 				});
 			});
-
-
-			
 		});
 
 		function lock(id, isLocked) {
@@ -404,15 +311,13 @@
 				}
 			}).done(function (data) {
 				if (data) {
-					$(".suspendRow").show();
 					$("#suspend").iCheck('check');
 				}
 				else {
-					$(".suspendRow").hide();
 					$("#suspend").iCheck('uncheck');
 				}
 			}).fail(function (jqXHR, textStatus, errorThrown) {
-				$(".suspendRow").hide();
+				;
 			});
 			
 			if (isLocked) {
@@ -421,254 +326,19 @@
 			} else {
 				$("#modalLock").show();
 				$("#modalLock").attr("personid", id);
+				$("#reason").val("");
 			}
 		}
 
 		function ModalService() {
-
-			this.init = function() {
-				modalService.generateAttributeKeyDropdown();
-			}
-
-			this.openCreateModal = function() {
-				$('#modalCprInput').val('');
-				$('#modalCpr').modal("show");
-				$('#modalCprInput').focus();				
-			}
-
-			this.editById = function(id=0) {
-				modalService.editModalAjax("rest/admin/coredata/edit/id", JSON.stringify(id));
-			}
-
-			this.editByCpr = function() {
-				var cpr = $('#modalCprInput').val();
-				modalService.editModalAjax("rest/admin/coredata/edit/cpr", cpr);
-			}
-
-			this.showEditModal = function(person) {
-				if (!person.newPerson) {
-					$('#modalEditTitle').text("Rediger person");
-					$('#modalEditCpr').attr("disabled", true);
-				}
-				else {
-					$('#modalEditTitle').text("Opret person")
-					$('#modalEditCpr').attr("disabled", false);
-				}
-
-				$('#modalEditPersonId').val(person.personId);
-				$('#modalEditUuid').val(person.uuid);			
-				$('#modalEditCpr').val(person.cpr);
-				$('#modalEditName').val(person.name);
-				$('#modalEditEmail').val(person.email);
-
-				modalService.loadAttributes(person.attributes);
-
-				$('#modalCpr').modal("hide");
-				$('#modalEdit').modal("show");
-			}
-
-			this.loadAttributes = function(attributes) {
-				// Clear table rows here
-				$('#attributeTable tbody').empty();
-
-				if (attributes == null) {
-					return;
-				}
-
-				var entries = Object.entries(attributes);
-				for (var i = 0; i < entries.length; i += 1) {
-					// Add rows to table here
-					var row = '<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control attributeRow" value="' + entries[i][1] + '"></td></tr>';
-					$('#attributeTable > tbody:last-child').append(row);
-					$('#attributeTable > tbody tr:last').find('td select.attributeTableKey').val(entries[i][0])
-				}
-
-				// Add additional blank row here
-				$('#attributeTable > tbody:last-child').append('<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
-				
-				modalService.onChangeAttributeTable();
-			}
-
-			this.onChangeAttributeTable = function() {
-				// Delete any empty rows except the last one
-				var rows = $('#attributeTable tbody tr');
-				for (let i = 0; i < (rows.length -1); i += 1) {
-					var inputs = $(rows[i]).children().children();
-					var empty = true;
-
-					if ($(inputs[0]).find('option:selected').val()) {
-						empty = false;
-					}
-					
-					if ($(inputs[1]).val().length > 0) {
-						empty = false;
-					}
-
-					if (empty) {
-						$(rows[i]).remove();
-					}
-				}
-
-				// Make sure theres an empty last row
-				var lastRow = $('#attributeTable tbody tr:last');
-				var lastInputs = lastRow.children().children();
-				var lastEmpty = true;
-
-				if ($(lastInputs[0]).find('option:selected').val()) {
-					lastEmpty = false;
-				}
-					
-				if ($(lastInputs[1]).val().length > 0) {
-					lastEmpty = false;
-				}
-
-				if (!lastEmpty) {
-					$('#attributeTable > tbody:last-child').append('<tr><td>' + defaultAttributeSelect + '</td><td><input onChange="modalService.onChangeAttributeTable()" class="form-control" value=""></td></tr>');
-				}
-
-				// Disable already used values
-				modalService.disableUsedAttributeKeyInDropdowns();
-
-			}
-
-			this.generateAttributeKeyDropdown = function() {
-				defaultAttributeSelect = '<select class="col-sm-12 form-control m-b attributeTableKey" onChange="modalService.onChangeAttributeTable()"><option value="">Vælg attribut</option>'
-				personAttributes.forEach(attribute => {
-					defaultAttributeSelect += '<option value="' + attribute.name + '">';
-					
-					if (!attribute.displayName) {
-						defaultAttributeSelect += attribute.name;
-					}
-					else {
-						defaultAttributeSelect += attribute.displayName + " (" + attribute.name + ")";
-					}
-					defaultAttributeSelect += '</option>';
-				});
-				defaultAttributeSelect += '</select>';
-			}
-
-			this.disableUsedAttributeKeyInDropdowns = function() {
-				// Find all used values
-				var usedValues = [];
-				$(".attributeTableKey option:selected").each(function(index, value) {
-					if ($(value).val()) {
-						usedValues.push($(value).val());
-					}
-				})
-
-				// Remove disabled flags from all values
-				$(".attributeTableKey option").removeAttr('disabled');
-
-				// Add disabled flags to all options that are in usedValues list
-				usedValues.forEach(val => {
-					$(".attributeTableKey option[value='" + val + "']").each(function(index, value) {
-						$(value).attr('disabled','disabled');
-					})
-				});
-			}
-
-			this.editModalAjax = function(endpoint, data) {
-				$.ajax({
-					method : "POST",
-					url: baseUrl + endpoint,
-					headers: {
-						"content-type": "application/json",
-						'X-CSRF-TOKEN': token
-					},
-					data: data
-				}).done(function(data) {
-					modalService.showEditModal(data);
-				}).fail(function (jqXHR, textStatus, errorThrown) {
-					if (jqXHR.status == 409) {
-						toastr.warning("Fejl! Personen findes allerede");
-					}
-					else {
-						toastr.warning("Indtast et personnummer");
-					}
-				});
-			}
-
-			this.saveEditModal = function() {
-				var endpoint = "rest/admin/coredata/edit/save/" + $('#modalEditUuid').val();
-
-				// Extract attribute key/value pairs
-				var rows = $('#attributeTable tbody tr');
-				var dict = {};
-				for (let i = 0; i < rows.length; i += 1) {
-					var inputs = $(rows[i]).children().children();
-					var filled = true;
-					if (!$(inputs[0]).find('option:selected').val()) {
-						filled = false;
-					}
-						
-					if (!$(inputs[1]).val().length > 0) {
-						filled = false;
-					}
-
-					if (filled) {
-						dict[$(inputs[0]).find('option:selected').val()] = $(inputs[1]).val();
-					}
-				}
-
-				var person = {
-					personId: $('#modalEditPersonId').val(),
-					uuid: $('#modalEditUuid').val(),
-					cpr: $('#modalEditCpr').val(),
-					name: $('#modalEditName').val(),
-					email: $('#modalEditEmail').val(),
-					attributes: dict
-				}
-
-				$.ajax({
-					method : "POST",
-					url: baseUrl + "rest/admin/coredata/edit/save",
-					headers: {
-						"content-type": "application/json",
-						'X-CSRF-TOKEN': token
-					},
-					data: JSON.stringify(person)
-				}).done(function (data) {
-					location.reload(true);
-				}).fail(function (jqXHR, textStatus, errorThrown) {
-					toastr.warning("Fejl! " + jqXHR.responseText);
-				});
-			}
-
-			this.delete = function(id) {
-				//Ask if they really want to delete this person
-				swal({
-					title: "Slet person?",
-					text: "Er du sikker på du vil slette denne person?",
-					type: "warning",
-					showCancelButton: true,
-					confirmButtonColor: "#DD6B55",
-					confirmButtonText: "Slet",
-					cancelButtonText: "Annuller",
-					closeOnConfirm: false
-				}, function () {
-					$.ajax({
-						method : "POST",
-						url: baseUrl + "rest/admin/coredata/delete",
-						headers: {
-							"content-type": "application/json",
-							'X-CSRF-TOKEN': token
-						},
-						data: JSON.stringify(id)
-					}).done(function (data) {
-						location.reload(true);
-					}).fail(function (jqXHR, textStatus, errorThrown) {
-						toastr.warning("Fejl! Kunne ikke slette personen");
-					});
-				});
-			}
 			
 			this.saveLockModal = function() {
 				var personId = $("#modalLock").attr("personid");
-				var suspend = $("#suspend").is(":checked");
+				var reason = $("#reason").val();
 				
 				$.ajax({
 					method : "POST",
-					url: baseUrl + "rest/admin/lock/" + personId + "?lock=true&suspend=" + suspend,
+					url: baseUrl + "rest/admin/lock/" + personId + "?lock=true&reason=" + encodeURIComponent(reason),
 					headers: {
 						"content-type": "application/json",
 						'X-CSRF-TOKEN': token
@@ -683,11 +353,10 @@
 			
 			this.saveUnlockModal = function() {
 				var personId = $("#modalUnlock").attr("personid");
-				var suspend = $("#suspendUnlock").is(":checked");
 				
 				$.ajax({
 					method : "POST",
-					url: baseUrl + "rest/admin/lock/" + personId + "?lock=" + false + "&suspend=" + suspend,
+					url: baseUrl + "rest/admin/lock/" + personId + "?lock=false",
 					headers: {
 						"content-type": "application/json",
 						'X-CSRF-TOKEN': token

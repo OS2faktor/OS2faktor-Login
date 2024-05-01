@@ -2,9 +2,13 @@ package dk.digitalidentity.api.dto;
 
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import dk.digitalidentity.api.CoreDataApi;
 import dk.digitalidentity.common.dao.model.Person;
 import lombok.Getter;
 import lombok.Setter;
@@ -22,11 +26,16 @@ public class CoreDataEntry {
 	private Map<String, String> attributes;
 	private String domain;
 	private String expireTimestamp;
+	private String nextPasswordChange;
 	private boolean transferToNemlogin;
-	private String rid;
+	private boolean lockedDataset;
+	private String department;
+	private Set<String> roles;
+	private String ean;
 
 	public CoreDataEntry() {
 		this.attributes = new HashMap<>();
+		this.roles = new HashSet<>();
 	}
 
 	public CoreDataEntry(Person person) {
@@ -38,10 +47,17 @@ public class CoreDataEntry {
 		this.attributes = person.getAttributes();
 		this.nsisAllowed = person.isNsisAllowed();
 		this.transferToNemlogin = person.isTransferToNemlogin();
-		this.rid = person.getRid();
+		this.lockedDataset = person.isLockedDataset();
+		this.department = person.getDepartment();
+		this.roles = new HashSet<>();
+		this.ean = person.getEan();
 
 		if (person.getExpireTimestamp() != null) {
 			this.expireTimestamp = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		}
+
+		if (person.getNextPasswordChange() != null) {
+			this.nextPasswordChange = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 		}
 
 		if (person.getDomain().getParent() != null) {
@@ -51,18 +67,38 @@ public class CoreDataEntry {
 		else {
 			this.domain = person.getDomain().getName();
 		}
+		
+		if (person.isAdmin()) {
+			this.roles.add(CoreDataApi.PersonRoles.ADMIN.toString());
+		}
+		
+		if (person.isKodeviserAdmin()) {
+			this.roles.add(CoreDataApi.PersonRoles.KODEVISER_ADMIN.toString());
+		}
+		
+		if (person.isSupporter()) {
+			this.roles.add(CoreDataApi.PersonRoles.SUPPORTER.toString());
+		}
+		
+		if (person.isUserAdmin()) {
+			this.roles.add(CoreDataApi.PersonRoles.USER_ADMIN.toString());
+		}
+		
+		if (person.isServiceProviderAdmin()) {
+			this.roles.add(CoreDataApi.PersonRoles.TU_ADMIN.toString());
+		}
+
+		if (person.isRegistrant()) {
+			this.roles.add(CoreDataApi.PersonRoles.REGISTRANT.toString());
+		}
 	}
-
-	public static boolean compare(Person person, CoreDataEntry entry) {
-		boolean cprEqual = Objects.equals(person.getCpr(), entry.getCpr());
-		boolean uuidEqual = Objects.equals(person.getUuid().toLowerCase(), entry.getUuid().toLowerCase());
-		boolean domainEqual = Objects.equals(person.getTopLevelDomain().getName().toLowerCase(), entry.getDomain().toLowerCase());
-		boolean sAMAccountNameEqual = Objects.equals(person.getLowerSamAccountName(), ((entry.getSamAccountName() != null) ? entry.getSamAccountName().toLowerCase() : null));
-
-		return cprEqual && uuidEqual && domainEqual && sAMAccountNameEqual;
-	}
-
-	public String getIdentifier() {
-		return domain.toLowerCase() + ":" + uuid.toLowerCase() + ":" + cpr + ":" + ((samAccountName != null) ? samAccountName.toLowerCase() : "<null>");
+	
+	@JsonIgnore
+	public String getLowerSamAccountName() {
+		if (samAccountName != null) {
+			return samAccountName.toLowerCase();
+		}
+		
+		return null;
 	}
 }

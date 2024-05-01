@@ -41,27 +41,20 @@ public class DomainService {
 		
 		domains.sort(Comparator.comparing(Domain::toString));
 		
-		// making sure the default domain OS2faktor is last in list
-		Domain defaultDomain = domains.stream().filter(d -> d.getName().equals("OS2faktor")).findAny().orElse(null);
+		return domains;
+	}
 
-		if (defaultDomain != null) {
-			domains.removeIf(d -> d.getName().equals("OS2faktor"));
-			domains.add(defaultDomain);
-		}
-		
+	public List<Domain> getAllEmailTemplateDomains() {
+		List<Domain> domains = domainDao.findAll();
+
+		domains.removeIf(d -> !d.getChildDomains().isEmpty());
+		domains.sort(Comparator.comparing(Domain::toString));
+
 		return domains;
 	}
 
 	public List<Domain> getAllParents() {
-		List<Domain> domains = domainDao.findAll().stream().filter(d -> d.getParent() == null).collect(Collectors.toList());
-		
-		//making sure the default domain OS2faktor is last in list
-		Domain defaultDomain = domains.stream().filter(d -> d.getName().equals("OS2faktor")).findAny().orElse(null);
-		if (defaultDomain != null) {
-			domains.remove(defaultDomain);
-			domains.add(defaultDomain);
-		}
-		return domains;
+		return domainDao.findAll().stream().filter(d -> d.getParent() == null).collect(Collectors.toList());
 	}
 
 	public void save(Domain domain) {
@@ -72,13 +65,9 @@ public class DomainService {
 		return domainDao.findByName(name);
 	}
 
-	public Domain getInternalDomain() {
-		return findByName("OS2faktor");
-	}
-	
 	public static boolean isMember(Person person, List<Domain> domains) {
 		Set<Long> domainIds = domains.stream().map(d -> d.getId()).collect(Collectors.toSet());
 		
-		return (domainIds.contains(person.getDomain().getId()));
+		return (domainIds.contains(person.getDomain().getId()) || domainIds.contains(person.getTopLevelDomain().getId()));
 	}
 }

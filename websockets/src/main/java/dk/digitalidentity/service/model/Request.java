@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 @Setter
 public class Request {
 	private String transactionUuid;     // random uuid
-	private String command;             // AUTHENTICATE | SET_PASSWORD | VALIDATE_PASSWORD | UNLOCK_ACCOUNT
+	private String command;             // AUTHENTICATE | SET_PASSWORD | VALIDATE_PASSWORD | UNLOCK_ACCOUNT | PASSWORD_EXPIRES_SOON
 	private String target;              // sAMAccountName or NULL for AUTHENTICATE messages
 	private String payload;             // password to set/validate or NULL for AUTHENTICATE messages
 	private String signature;           // keyed hmac of above
@@ -28,13 +28,16 @@ public class Request {
 	public void sign(String key) throws Exception {
 		switch (command) {
 			case "AUTHENTICATE":
+			case "IS_ALIVE":
 				this.signature = HMacUtil.hmac(transactionUuid + "." + command, key);
 				break;
 			case "SET_PASSWORD":
+			case "SET_PASSWORD_WITH_FORCED_CHANGE":
 			case "VALIDATE_PASSWORD":
 				this.signature = HMacUtil.hmac(transactionUuid + "." + command + "." + target + "." + payload, key);
 				break;
 			case "UNLOCK_ACCOUNT":
+			case "PASSWORD_EXPIRES_SOON":
 				this.signature = HMacUtil.hmac(transactionUuid + "." + command + "." + target, key);
 				break;
 			default:
@@ -45,13 +48,16 @@ public class Request {
 	public boolean validateEcho(Response message) {
 		switch (command) {
 			case "AUTHENTICATE":
+			case "IS_ALIVE":
 				if (Objects.equals(command, message.getCommand())) {
 					return true;
 				}
 				break;
 			case "SET_PASSWORD":
+			case "SET_PASSWORD_WITH_FORCED_CHANGE":
 			case "VALIDATE_PASSWORD":
 			case "UNLOCK_ACCOUNT":
+			case "PASSWORD_EXPIRES_SOON":
 				if (Objects.equals(command, message.getCommand()) &&
 					Objects.equals(target, message.getTarget())) {
 					return true;

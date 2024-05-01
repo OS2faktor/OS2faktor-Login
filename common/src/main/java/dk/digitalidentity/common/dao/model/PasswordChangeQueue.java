@@ -35,6 +35,9 @@ public class PasswordChangeQueue {
 
     @Column
     private String password;
+    
+    @Column
+    private boolean changeOnNextLogin;
 
     @Column
     @CreationTimestamp
@@ -49,12 +52,13 @@ public class PasswordChangeQueue {
     
     @Column
     private boolean externallyReplicated;
-
-    public PasswordChangeQueue(Person person, String newPassword) {
+    
+    public PasswordChangeQueue(Person person, String newPassword, boolean forceChangePasswordOnNextLogin) {
     	this.password = newPassword;
     	this.samaccountName = person.getSamaccountName();
     	this.uuid = person.getUuid();
     	this.status = ReplicationStatus.WAITING_FOR_REPLICATION;
         this.domain = person.getTopLevelDomain().getName();
+        this.changeOnNextLogin = forceChangePasswordOnNextLogin;
     }
 }

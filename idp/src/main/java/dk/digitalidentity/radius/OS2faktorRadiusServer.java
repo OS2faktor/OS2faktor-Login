@@ -9,7 +9,7 @@ import org.tinyradius.packet.RadiusPacket;
 import org.tinyradius.util.RadiusException;
 import org.tinyradius.util.RadiusServer;
 
-import dk.digitalidentity.common.config.RadiusConfiguration;
+import dk.digitalidentity.common.config.modules.RadiusConfiguration;
 import dk.digitalidentity.service.OS2faktorRadiusService;
 
 public class OS2faktorRadiusServer extends RadiusServer {

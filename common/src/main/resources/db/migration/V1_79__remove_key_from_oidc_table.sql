@@ -1,0 +1,2 @@
+ALTER TABLE oauth2_registered_client DROP CONSTRAINT fk_oauth2_registered_client_sql_service_provider_configuration;
+ALTER TABLE oauth2_registered_client DROP COLUMN sql_service_provider_configuration_id;

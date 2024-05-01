@@ -39,4 +39,8 @@ public class SqlServiceProviderConfigurationService {
 
 		return sqlServiceProviderDao.save(configuration);
 	}
+
+	public void delete(SqlServiceProviderConfiguration configuration) {
+		sqlServiceProviderDao.delete(configuration);		
+	}
 }

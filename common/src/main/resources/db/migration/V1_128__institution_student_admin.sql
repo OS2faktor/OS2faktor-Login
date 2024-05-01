@@ -1,0 +1,2 @@
+ALTER TABLE persons ADD institution_student_password_admin BOOLEAN DEFAULT 0 NOT NULL AFTER password_reset_admin;
+ALTER TABLE persons_aud ADD institution_student_password_admin BOOLEAN NULL AFTER password_reset_admin;

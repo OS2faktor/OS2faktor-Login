@@ -88,7 +88,7 @@ public class MonitorPasswordSyncTask {
 					lastNotification = LocalDateTime.now();
 					lastNotifications.put(setting.getDomain().getName(), lastNotification);
 
-					emailService.sendMessage(setting.getMonitoringEmail(), "Fejl i password replikering", "Det er ikke muligt at replikere kodeord til AD fra OS2faktor for '" + setting.getDomain().getName() + "'. En eller flere password replikeringsagenter er gået ned.");
+					emailService.sendMessage(setting.getMonitoringEmail(), "Fejl i password replikering", "Det er ikke muligt at replikere kodeord til AD fra OS2faktor for '" + setting.getDomain().getName() + "'. En eller flere password replikeringsagenter er gået ned.", null);
 				}
 			}
 		}

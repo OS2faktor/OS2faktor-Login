@@ -6,8 +6,11 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import dk.digitalidentity.common.dao.model.enums.Protocol;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -19,11 +22,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.KombitSubsystem;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
@@ -49,6 +55,9 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	@Autowired
 	private KombitSubSystemService subsystemService;
 	
+	@Autowired
+	private AdvancedRuleService advancedRuleService;
+
 	@Override
 	public boolean nemLogInBrokerEnabled() {
 		return false;
@@ -84,11 +93,11 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) {
-		return "C=DK,O=" + commonConfig.getCustomer().getCvr() + ",CN=" + person.getName() + ",Serial=" + person.getUuid();
+		return "C=DK,O=" + commonConfig.getCustomer().getCvr() + ",CN=" + person.getAliasWithFallbackToName() + ",Serial=" + person.getUuid();
 	}
 
 	@Override
-	public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
+	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
 		Map<String, Object> map = new HashMap<>();
 
 		if (commonConfig.getKombit().isOiosaml2()) {
@@ -100,19 +109,25 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		else {
 			map.put("dk:gov:saml:attribute:KombitSpecVer", "2.0");
 			map.put("https://data.gov.dk/model/core/specVersion", "OIO-SAML-3.0");
-			map.put("https://data.gov.dk/model/core/eid/professional/cvr", commonConfig.getCustomer().getCvr());
+			map.put("https://data.gov.dk/model/core/eid/professional/cvr", commonConfig.getCustomer().getCvr());			
+		
 			if (StringUtils.hasLength(person.getEmail())) {
 				map.put("https://data.gov.dk/model/core/eid/email", person.getEmail());
 			}
-	
-			// TODO: not pretty....
+			
+			// we could probably do better, but this allows us some backwards compatibility for non-NSIS users
 			if (!person.hasActivatedNSISUser()) {
 				map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
+			}
+			
+			// persistent identifier attribute (KOMBIT will forward this to SEB who needs it for NL3 mapping)
+			if (StringUtils.hasLength(person.getNemloginUserUuid())) {
+				map.put("https://data.gov.dk/model/core/eid/professional/uuid/persistent", "urn:uuid:" + person.getNemloginUserUuid());
 			}
 		}
 
 		String lookupIdentifier = "KOMBIT";
-		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+		String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
 		if (entityId != null) {
 			KombitSubsystem subsystem = getSubsystem(entityId);
 			if (StringUtils.hasLength(subsystem.getOS2rollekatalogIdentifier())) {
@@ -121,17 +136,20 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		}
 
 		String oiobpp = null;
-		switch (commonConfig.getKombit().getRoleSource()) {
-			case JFR_GROUPS:
-				oiobpp = generateFromKombitJfr(person, commonConfig.getKombit().isConvertDashToUnderscore());
-				break;
-			case OS2ROLLEKATALOG:
-				oiobpp = roleCatalogueService.getOIOBPP(person, lookupIdentifier);
-				break;
+		if (commonConfig.getRoleCatalogue().isEnabled()) {
+			oiobpp = roleCatalogueService.getOIOBPP(person, lookupIdentifier);
+		}
+		else {
+			oiobpp = generateFromKombitJfr(person, commonConfig.getKombit().isConvertDashToUnderscore());
 		}
 		
 		if (oiobpp != null) {
-			map.put("dk:gov:saml:attribute:Privileges_intermediate", oiobpp);
+			if (commonConfig.getKombit().isOiosaml2()) {
+				map.put("dk:gov:saml:attribute:Privileges_intermediate", oiobpp);
+			}
+			else {
+				map.put("https://data.gov.dk/model/core/eid/privilegesIntermediate", oiobpp);
+			}
 		}
 		
 		if (person.getKombitAttributes() != null && person.getKombitAttributes().size() > 0) {
@@ -139,35 +157,93 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 				map.put(key, person.getKombitAttributes().get(key));
 			}
 		}
+		
+		// hackish - should be implemented in a much saner/prettier way, but quickfix for now
+		if (commonConfig.getKombit().getExtraKombitClaims() != null && StringUtils.hasLength(commonConfig.getKombit().getKombitDomain())) {
+			for (String attribute : commonConfig.getKombit().getExtraKombitClaims().keySet()) {
+				String field = commonConfig.getKombit().getExtraKombitClaims().get(attribute);
+				
+				if (StringUtils.hasLength(field)) {
+		            String value = advancedRuleService.lookupField(person, field);
+	
+		            if (StringUtils.hasLength(value)) {
+		                map.put("http://" + commonConfig.getKombit().getKombitDomain() + "/" + attribute + "/1/parametric", value);
+		            }
+				}
+			}
+		}
 
 		return map;
 	}
 
 	@Override
-	public boolean mfaRequired(AuthnRequest authnRequest) {
-		// a configured "always require" on the subsystem overrides any requested level
-		String entityId = getEntityIdFromAuthnRequest(authnRequest);
-		if (entityId != null) {
-			KombitSubsystem subSystem = getSubsystem(entityId);
-
-			if (subSystem != null && subSystem.isAlwaysRequireMfa()) {
-				return true;
-			}
-		}
+	public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
 		
-		// otherwise check the requested level
-    	switch (nsisLevelRequired(authnRequest)) {
+		// always check NSIS requirements first
+    	switch (nsisLevelRequired(loginRequest)) {
 			case HIGH:
 	    	case SUBSTANTIAL:
 	    		return true;
-			default:
-				return false;
+	    	case LOW:
+	    	case NONE:
+	    		break;
 		}
+		
+    	// then check for any NIST requirements
+    	if (inspectAuthnRequestForMfaRequirement(loginRequest.getAuthnRequest())) {
+    		return true;
+		}
+
+    	// finally check for any overrides on kombit subsystems (can only be used to increase the security requirements)
+		String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
+		if (entityId != null) {
+			KombitSubsystem subSystem = getSubsystem(entityId);
+
+			if (subSystem != null) {
+				switch (subSystem.getForceMfaRequired()) {
+					case ALWAYS:
+						return true;
+					case ONLY_FOR_UNKNOWN_NETWORKS:
+						if (!trustedIP) {
+							return true;
+						}
+						break;
+					default:
+						// we do not step-down to never, so both are treated as depends
+						break;
+				}
+			}
+		}
+
+    	// no requirements for MFA, just return false
+    	return false;
+	}
+	
+	// this is the KOMBIT variant of this function (we have a different one in SqlServiceProvider)
+    private boolean inspectAuthnRequestForMfaRequirement(AuthnRequest authnRequest) {
+        RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
+        if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
+            for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
+            	
+                if ("urn:dk:gov:saml:attribute:AssuranceLevel:3".equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return true;
+                }
+                
+            	// fallback - if the IdP is misconfigured as "AD FS" this is what we get
+                else if ("http://schemas.microsoft.com/claims/multipleauthn".equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
 	}
 
 	@Override
-	public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
-    	// get AuthnRequest supplied level
+	public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
+		AuthnRequest authnRequest = loginRequest.getAuthnRequest();
+
+		// get AuthnRequest supplied level
         NSISLevel requestedLevel = NSISLevel.NONE;
         RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
@@ -204,17 +280,26 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 	@Override
 	public boolean preferNemId() {
-		return kombitConfig.preferNemId();
+		return kombitConfig.isPreferNemid();
 	}
 
 	@Override
 	public String getEntityId() {
 		return kombitConfig.getEntityId();
 	}
+	
+	@Override
+	public List<String> getEntityIds() {
+		return Collections.singletonList(kombitConfig.getEntityId());
+	}
 
 	@Override
-	public String getName(AuthnRequest authnRequest) {
-		String entityId = getEntityIdFromAuthnRequest(authnRequest);
+	public String getName(LoginRequest loginRequest) {
+		if (loginRequest == null) {
+			return kombitConfig.getName();
+		}
+
+		String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
 		if (entityId != null) {
 			KombitSubsystem subSystem = getSubsystem(entityId);
 			if (StringUtils.hasLength(subSystem.getName())) {
@@ -234,12 +319,12 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 	@Override
 	public boolean encryptAssertions() {
-		return kombitConfig.encryptAssertions();
+		return kombitConfig.isEncryptAssertions();
 	}
 
 	@Override
 	public String getNameIdFormat() {
-		return kombitConfig.getNameIdFormat();
+		return kombitConfig.getNameIdFormat().value;
 	}
 
 	public String getMetadataUrl() {
@@ -248,11 +333,11 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 	@Override
 	public boolean enabled() {
-		return kombitConfig.enabled();
+		return kombitConfig.isEnabled();
 	}
 
 	@Override
-	public String getProtocol() {
+	public Protocol getProtocol() {
 		return kombitConfig.getProtocol();
 	}
 	
@@ -262,6 +347,7 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 			subsystem = new KombitSubsystem();
 			subsystem.setEntityId(entityId);
 			subsystem.setMinNsisLevel(NSISLevel.NONE);
+			subsystem.setForceMfaRequired(ForceMFARequired.DEPENDS);
 
 			subsystem = subsystemService.save(subsystem);
 		}
@@ -305,13 +391,29 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		return Base64.getEncoder().encodeToString(oiobpp.getBytes(Charset.forName("UTF-8")));
 	}
 
+	// always return an NSIS level if available
 	@Override
 	public boolean supportsNsisLoaClaim() {
-		return true;
+		return commonConfig.getKombit().isNsis();
 	}
 	
 	@Override
 	public boolean preferNIST() {
-		return kombitConfig.preferNIST();
+		return kombitConfig.isPreferNIST();
+	}
+	
+	@Override
+	public boolean requireOiosaml3Profile() {
+		return true;
+	}
+
+	@Override
+	public Long getPasswordExpiry() {
+		return null;
+	}
+
+	@Override
+	public Long getMfaExpiry() {
+		return null;
 	}
 }

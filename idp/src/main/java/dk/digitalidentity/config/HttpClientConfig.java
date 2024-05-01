@@ -15,7 +15,7 @@ import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContexts;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,18 +24,19 @@ import org.springframework.context.annotation.Configuration;
 public class HttpClientConfig {
 
 	@Bean
-    public HttpClient httpClient() throws KeyStoreException, NoSuchAlgorithmException, KeyManagementException {
-			TrustStrategy acceptingTrustStrategy = (cert, authType) -> true;
-			SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy).build();
-			SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
-			
-			Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-					.register("https", sslsf)
-					.register("http", new PlainConnectionSocketFactory())
-					.build();
-			
-			BasicHttpClientConnectionManager connectionManager = new BasicHttpClientConnectionManager(socketFactoryRegistry);
-			
-			return HttpClients.custom().setSSLSocketFactory(sslsf).setConnectionManager(connectionManager).build();
-    }
+	public HttpClient httpClient() throws KeyStoreException, NoSuchAlgorithmException, KeyManagementException {
+		TrustStrategy acceptingTrustStrategy = (cert, authType) -> true;
+		SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy).build();
+		SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
+
+		Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
+				.register("https", sslsf)
+				.register("http", new PlainConnectionSocketFactory()).build();
+
+		PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
+		connectionManager.setDefaultMaxPerRoute(5);
+		connectionManager.setMaxTotal(5);
+
+		return HttpClients.custom().setSSLSocketFactory(sslsf).setConnectionManager(connectionManager).build();
+	}
 }

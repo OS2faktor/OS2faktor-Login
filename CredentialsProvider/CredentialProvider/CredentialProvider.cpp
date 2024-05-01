@@ -13,6 +13,7 @@
 
 #include <initguid.h>
 #include "CredentialProvider.h"
+#include "CredentialProviderFilter.h"
 #include "Credential.h"
 #include "guid.h"
 #include "loguru.hpp"
@@ -24,7 +25,11 @@ CredentialProvider::CredentialProvider() :
 	_cRef(1),
 	_pCredProviderUserArray(nullptr),
 	_IsLoggingEnabled(false),
-	_hKey(nullptr)
+	_hKey(nullptr),
+	_externalSerializedCredential(nullptr),
+	_cpus(CPUS_INVALID),
+	_fRecreateEnumeratedCredentials(false),
+	_shouldAutoSubmitSerializedCredential(false)
 {
 
 	try
@@ -66,8 +71,6 @@ CredentialProvider::~CredentialProvider()
 		LOG_F(INFO, "~CredentialProvider called");
 	}
 
-	
-
 	if (&_credentials != nullptr)
 	{
 		for (size_t i = 0; i < _credentials.size(); i++)
@@ -80,6 +83,8 @@ CredentialProvider::~CredentialProvider()
 
 	ZeroMemory(&_credentials, sizeof(_credentials));
 
+	CleanupSetSerialization();
+
 	if (_pCredProviderUserArray != nullptr)
 	{
 		_pCredProviderUserArray->Release();
@@ -91,6 +96,31 @@ CredentialProvider::~CredentialProvider()
 	if (_IsLoggingEnabled)
 	{
 		LOG_F(INFO, "~CredentialProvider done");
+	}
+}
+
+void CredentialProvider::CleanupSetSerialization()
+{
+	if (_externalSerializedCredential)
+	{
+		if (_IsLoggingEnabled)
+		{
+			LOG_F(INFO, "CleanupSetSerialization called");
+		}
+
+		KERB_INTERACTIVE_LOGON* pkil = &_externalSerializedCredential->Logon;
+		SecureZeroMemory(_externalSerializedCredential,
+			sizeof(*_externalSerializedCredential) +
+			pkil->LogonDomainName.MaximumLength +
+			pkil->UserName.MaximumLength +
+			pkil->Password.MaximumLength
+		);
+		HeapFree(GetProcessHeap(), 0, _externalSerializedCredential);
+
+		if (_IsLoggingEnabled)
+		{
+			LOG_F(INFO, "CleanupSetSerialization done");
+		}
 	}
 }
 
@@ -113,7 +143,6 @@ HRESULT CredentialProvider::SetUsageScenario(
 	{
 	case CPUS_LOGON:
 	case CPUS_UNLOCK_WORKSTATION:
-	case CPUS_CHANGE_PASSWORD:
 		// The reason why we need _fRecreateEnumeratedCredentials is because ICredentialProviderSetUserArray::SetUserArray() is called after ICredentialProvider::SetUsageScenario(),
 		// while we need the ICredentialProviderUserArray during enumeration in ICredentialProvider::GetCredentialCount()
 		if (_IsLoggingEnabled)
@@ -125,7 +154,7 @@ HRESULT CredentialProvider::SetUsageScenario(
 		_fRecreateEnumeratedCredentials = true;
 		hr = S_OK;
 		break;
-
+	case CPUS_CHANGE_PASSWORD:
 	case CPUS_CREDUI:
 		hr = E_NOTIMPL;
 		break;
@@ -137,32 +166,29 @@ HRESULT CredentialProvider::SetUsageScenario(
 	return hr;
 }
 
-// SetSerialization takes the kind of buffer that you would normally return to LogonUI for
-// an authentication attempt.  It's the opposite of ICredentialProviderCredential::GetSerialization.
-// GetSerialization is implement by a credential and serializes that credential.  Instead,
-// SetSerialization takes the serialization and uses it to create a tile.
+// SetSerialization takes the kind of buffer that you would normally return to LogonUI for an authentication attempt. 
+// It's the opposite of ICredentialProviderCredential::GetSerialization.
+// GetSerialization is implement by a credential and serializes that credential. 
+// Instead, SetSerialization takes the serialization and uses it to create a tile.
 //
-// SetSerialization is called for two main scenarios.  The first scenario is in the credui case
-// where it is prepopulating a tile with credentials that the user chose to store in the OS.
-// The second situation is in a remote logon case where the remote client may wish to
-// prepopulate a tile with a username, or in some cases, completely populate the tile and
-// use it to logon without showing any UI.
-//
-// If you wish to see an example of SetSerialization, please see either the SampleCredentialProvider
-// sample or the SampleCredUICredentialProvider sample.  [The logonUI team says, "The original sample that
-// this was built on top of didn't have SetSerialization.  And when we decided SetSerialization was
-// important enough to have in the sample, it ended up being a non-trivial amount of work to integrate
-// it into the main sample.  We felt it was more important to get these samples out to you quickly than to
-// hold them in order to do the work to integrate the SetSerialization changes from SampleCredentialProvider
-// into this sample.]
+// SetSerialization is called for two main scenarios.
+// 
+// The first scenario is in the credui case
+//	where it is prepopulating a tile with credentials that the user chose to store in the OS.
+// 
+// The second situation is in a remote logon case 
+//	where the remote client may wish to prepopulate a tile with a username, 
+//  or in some cases, completely populate the tile and use it to logon without showing any UI.
 HRESULT CredentialProvider::SetSerialization(
-	_In_ CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION const* /*pcpcs*/)
+	_In_ CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION const* pcpcs)
 {
 	if (_IsLoggingEnabled)
 	{
 		LOG_F(INFO, "SetSerialization called");
 	}
-	return E_NOTIMPL;
+
+	HRESULT hr = E_INVALIDARG;
+	return hr;
 }
 
 // Called by LogonUI to give you a callback.  Providers often use the callback if they
@@ -246,13 +272,23 @@ HRESULT CredentialProvider::GetCredentialCount(
 	{
 		LOG_F(INFO, "GetCredentialCount called");
 	}
-	*pdwDefault = CREDENTIAL_PROVIDER_NO_DEFAULT;
-	*pbAutoLogonWithDefault = FALSE;
 
+	// Default settings
+	*pdwCount = 0; // Amount of credentials we have?
+	*pdwDefault = CREDENTIAL_PROVIDER_NO_DEFAULT; // Do we have a default one?
+	*pbAutoLogonWithDefault = FALSE; // Should we autologon?
+
+	// Checking if we should recreate credentials, we set this to true when windows calls us with a usage scenario
 	if (_fRecreateEnumeratedCredentials)
 	{
 		_fRecreateEnumeratedCredentials = false;
 		_ReleaseEnumeratedCredentials();
+
+		// This will create the credentials depending on usage scenario
+		// It will create the following credential tiles:
+		//	* One for each user passed to us
+		//	* One for anonymous login (both username and password required)
+		//  * One if we have been passed a serialized credential (From RDP)
 		_CreateEnumeratedCredentials();
 	}
 
@@ -262,8 +298,19 @@ HRESULT CredentialProvider::GetCredentialCount(
 		LOG_F(INFO, "_pCredentials.size() = %d", _credentials.size());
 	}
 
-	*pdwCount = _credentials.size();
+	switch (_cpus)
+	{
+	case CPUS_LOGON:
+	case CPUS_UNLOCK_WORKSTATION:
+	{
+		*pdwCount = _credentials.size();
+		break;
+	default:
+		break;
+	}
+
 	return S_OK;
+	}
 }
 
 // Returns the credential at the index specified by dwIndex. This function is called by logonUI to enumerate
@@ -286,47 +333,13 @@ HRESULT CredentialProvider::GetCredentialAt(
 	return hr;
 }
 
-// This function will be called by LogonUI after SetUsageScenario succeeds.
-// Sets the User Array with the list of users to be enumerated on the logon screen.
-HRESULT CredentialProvider::SetUserArray(_In_ ICredentialProviderUserArray* users)
-{
-	if (_IsLoggingEnabled)
-	{
-		LOG_F(INFO, "SetUserArray called");
-	}
-	if (_pCredProviderUserArray)
-	{
-		_pCredProviderUserArray->Release();
-	}
-	_pCredProviderUserArray = users;
-	_pCredProviderUserArray->AddRef();
-	return S_OK;
-}
-
 void CredentialProvider::_CreateEnumeratedCredentials()
 {
 	if (_IsLoggingEnabled)
 	{
 		LOG_F(INFO, "_CreateEnumeratedCredentials called");
 	}
-	switch (_cpus)
-	{
-	case CPUS_LOGON:
-	{
-		_EnumerateCredentials(true);
-		break;
-	}
-	case CPUS_UNLOCK_WORKSTATION:
-	{
-		_EnumerateCredentials(false);
-		break;
-	}
-	case CPUS_CHANGE_PASSWORD:
-		_EnumerateCredentials(false);
-		break;
-	default:
-		break;
-	}
+	_EnumerateCredentials();
 }
 
 void CredentialProvider::_ReleaseEnumeratedCredentials()
@@ -339,70 +352,31 @@ void CredentialProvider::_ReleaseEnumeratedCredentials()
 	_credentials.clear();
 }
 
-HRESULT CredentialProvider::_EnumerateCredentials(bool createAnonymousLogin)
+HRESULT CredentialProvider::_EnumerateCredentials()
 {
 	if (_IsLoggingEnabled)
 	{
 		LOG_F(INFO, "_EnumerateCredentials called");
-		LOG_F(INFO, "_EnumerateCredentials: createAnonymousLogin =  %s", createAnonymousLogin ? "true" : "false");
 	}
 
 	HRESULT hr = E_UNEXPECTED;
-	if (_pCredProviderUserArray != nullptr)
+	// Create additional one for anonymous login
+	Credential* pCredential = new(std::nothrow) Credential();
+	if (pCredential != nullptr)
 	{
-		DWORD dwUserCount;
-		_pCredProviderUserArray->GetCount(&dwUserCount);
-		if (dwUserCount > 0)
+		hr = pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, nullptr, NULL, NULL, NULL);
+		if (FAILED(hr))
 		{
-			// Loop through each user and create a credential for them.
-			for (int i = 0; i < dwUserCount; i++) {
-				ICredentialProviderUser* pCredUser;
-				hr = _pCredProviderUserArray->GetAt(i, &pCredUser);
-				if (SUCCEEDED(hr))
-				{
-					Credential* pCredential = new(std::nothrow) Credential();
-					if (pCredential != nullptr)
-					{
-						hr = pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, pCredUser);
-						if (FAILED(hr))
-						{
-							pCredential->Release();
-							pCredential = nullptr;
-						}
-						else {
-							_credentials.push_back(pCredential);
-						}
-					}
-					else
-					{
-						hr = E_OUTOFMEMORY;
-					}
-					pCredUser->Release();
-				}
-			}
+			pCredential->Release();
+			pCredential = nullptr;
 		}
-
-		if (createAnonymousLogin)
-		{
-			// Create additional one for anonymous login
-			Credential* pCredential = new(std::nothrow) Credential();
-			if (pCredential != nullptr)
-			{
-				hr = pCredential->Initialize(_cpus, s_rgCredProvFieldDescriptors, s_rgFieldStatePairs, nullptr);
-				if (FAILED(hr))
-				{
-					pCredential->Release();
-					pCredential = nullptr;
-				}
-				else {
-					_credentials.push_back(pCredential);
-				}
-			}
-			else
-			{
-				hr = E_OUTOFMEMORY;
-			}
+		else {
+			_credentials.push_back(pCredential);
 		}
+	}
+	else
+	{
+		hr = E_OUTOFMEMORY;
 	}
 	return hr;
 }
@@ -421,5 +395,6 @@ HRESULT OS2faktorProvider_CreateInstance(_In_ REFIID riid, _Outptr_ void** ppv)
 	{
 		hr = E_OUTOFMEMORY;
 	}
+
 	return hr;
 }

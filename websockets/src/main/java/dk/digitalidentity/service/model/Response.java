@@ -18,15 +18,20 @@ public class Response {
 	private String target;            // echo target from request (except for AUTHENTICATE, where it contains the domain)
 	private String status;            // true on success, false otherwise
 	private String message;           // optional message (not under signature - status is the field to check against, message is for debugging)
-	private String clientVersion;     // version of client
-	private String signature;         // keyed hmac on above     
+	private String signature;         // keyed hmac on above
+
+	private String serverName;        // optional field - not under signature, just for logging
+	private String clientVersion;     // optional field - not under signature, just for logging
 
 	public boolean verify(String key) {
 		switch (command) {
 			case "AUTHENTICATE":
+			case "IS_ALIVE":
 			case "SET_PASSWORD":
+			case "SET_PASSWORD_WITH_FORCED_CHANGE":
 			case "VALIDATE_PASSWORD":
 			case "UNLOCK_ACCOUNT":
+			case "PASSWORD_EXPIRES_SOON":
 				try {
 					return Objects.equals(this.signature, HMacUtil.hmac(transactionUuid + "." + command + "." + target + "." + status, key));
 				}

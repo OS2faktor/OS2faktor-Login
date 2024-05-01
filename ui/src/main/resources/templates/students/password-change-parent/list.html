@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true)"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'otherUsers.change-password-parent-list')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-10 offset-1">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Elever</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle de børn som du kan skifte kodeord på.
+								</p>
+								
+								<h4>Elever</h4>
+								<div class="table-responsive">
+									<table id="persons" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th>Barn</th>
+												<th style="width: 200px;">Brugernavn</th>
+												<th style="width: 250px;">Skole</th>
+												<th style="width: 150px;">Klasse / hold</th>
+												<th style="width: 80px;">Handling</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr th:each="person : ${children}">
+												<td th:text="${person.name}" />
+												<td th:text="${person.samaccountName}" />
+												<td>
+													<ul style="list-style-type: none; padding: 0px; margin: 0px;">
+														<th:block th:each="role : ${person.schoolRoles}">
+															<li th:text="${role.institutionName}"></li>
+														</th:block>
+													</ul>
+												</td>
+												<td>
+													<ul style="list-style-type: none; padding: 0px; margin: 0px;">
+														<th:block th:each="role : ${person.schoolRoles}">
+															<th:block th:each="class : ${role.schoolClasses}">
+																<li th:text="${class.schoolClass.name}"></li>
+															</th:block>
+														</th:block>
+													</ul>
+												</td>
+												<td>
+													<a th:href="@{/elevkode/skiftkodeord/{id}(id=${person.id})}" style="color: black;" title="Skift kodeord"><em class="fa fa-fw fa-key"></em></a>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (datatables = true)"></div>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var baseUrl = [[@{/}]];
+		var flashSuccess = [[${flashSuccess}]];
+		var flashWarning = [[${flashWarning}]];
+		var flashError = [[${flashError}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var changePasswordListService;
+		$(document).ready(function(){
+			changePasswordListService = new ChangePasswordListService();
+			changePasswordListService.initializeDatatable();
+
+			if (flashSuccess != undefined) {
+				toastr.success(flashSuccess);
+			}
+			if (flashWarning != undefined) {
+				toastr.warning(flashWarning);
+			}
+			if (flashError != undefined) {
+				toastr.error(flashError);
+			}
+		});
+
+		function ChangePasswordListService() {
+
+			this.initializeDatatable = function() {
+				table = $('#persons').DataTable({
+					"destroy": true,
+					"columns": [
+						{
+							"orderable": false
+						},
+						{
+							"orderable": false
+						},
+						{
+							"orderable": false
+						},
+						{
+							"orderable": false
+						},
+						{
+							"searchable": false,
+							"orderable": false,
+						}
+					],
+					"ordering": true,
+					"info": true,
+					"pageLength": 10,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ brugere",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ brugere)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+			}
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

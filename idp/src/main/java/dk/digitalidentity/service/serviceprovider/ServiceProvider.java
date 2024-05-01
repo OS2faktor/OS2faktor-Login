@@ -6,8 +6,10 @@ import java.security.PublicKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -17,7 +19,6 @@ import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.ResourceBackedMetadataResolver;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
@@ -25,9 +26,12 @@ import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.opensaml.security.credential.UsageType;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import dk.digitalidentity.util.StringResource;
@@ -51,13 +55,21 @@ public abstract class ServiceProvider {
         return certificates.stream().map(c -> c.getPublicKey()).collect(Collectors.toList());
     }
     
-    public X509Certificate getEncryptionCertificate() throws RequesterException, ResponderException {
+    public X509Certificate getEncryptionCertificate() throws ResponderException, RequesterException {
     	List<X509Certificate> certificates = getX509Certificate(UsageType.ENCRYPTION);
         if (certificates.size() == 0) {
-        	throw new RequesterException("Kunne ikke finde tjenesteudbyderens 'X509Certificate' af typen ENCRYPTION");
+        	log.warn("Kunne ikke finde tjenesteudbyderens 'X509Certificate' af typen ENCRYPTION");
+        	return null;
         }
- 
-        return certificates.get(0);
+
+		// Sort the certificates, so we don't accidentally pick certificates that are expired if any non-expired exists
+		List<X509Certificate> sorted = certificates
+				.stream()
+				.sorted((o1, o2) -> Objects.compare(o2.getNotAfter(), o1.getNotAfter(), Date::compareTo))
+				.collect(Collectors.toList());
+
+		// Return certificate with longest shelf-life
+		return sorted.get(0);
     }
 
     public SingleLogoutService getLogoutEndpoint() throws ResponderException, RequesterException {
@@ -109,7 +121,7 @@ public abstract class ServiceProvider {
         return match.get();
     }
 
-    private List<X509Certificate> getX509Certificate(UsageType usageType) throws ResponderException, RequesterException {
+    public List<X509Certificate> getX509Certificate(UsageType usageType) throws ResponderException, RequesterException {
     	List<X509Certificate> certificates = new ArrayList<>();
     	
         SPSSODescriptor ssoDescriptor = getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
@@ -141,6 +153,7 @@ public abstract class ServiceProvider {
         try {
             HTTPMetadataResolver resolver = new HTTPMetadataResolver(httpClient, metadataURL);
             resolver.setId(entityId);
+            
             resolver.setMinRefreshDelay(3 * 60 * 60 * 1000);
             resolver.setMaxRefreshDelay(3 * 60 * 60 * 1000);
 
@@ -173,7 +186,8 @@ public abstract class ServiceProvider {
 		try {
 			if (metadataURL != null && !metadataURL.isEmpty()) {
 				return getMetadataResolver(entityId, metadataURL);
-			} else if (metadataContent != null && !metadataContent.isEmpty()) {
+			}
+			else if (metadataContent != null && !metadataContent.isEmpty()) {
 				ResourceBackedMetadataResolver resolver = new ResourceBackedMetadataResolver(new StringResource(metadataContent, entityId));
 				resolver.setId(entityId);
 
@@ -182,40 +196,86 @@ public abstract class ServiceProvider {
 				resolver.setParserPool(parserPool);
 				try {
 					parserPool.initialize();
-				} catch (ComponentInitializationException e) {
+				} 
+				catch (ComponentInitializationException e) {
 					throw new ResponderException("Kunne ikke initialisere HTTPMetadata læser", e);
 				}
 
 				// Initialize and save resolver for future use
 				try {
 					resolver.initialize();
-				} catch (ComponentInitializationException e) {
+				}
+				catch (ComponentInitializationException e) {
 					throw new RequesterException("Kunne ikke initialisere HTTPMetadata resolver", e);
 				}
 
 				return resolver;
-			} else {
+			}
+			else {
 				throw new ResponderException("Enten metadataURL eller metadataContent skal konfigureres.");
 			}
-		} catch (IOException e) {
+		}
+		catch (IOException e) {
 			throw new ResponderException("Kunne ikke oprette MetadataResolver", e);
 		}
 	}
 
+	public boolean hasCustomSessionSettings() {
+		return getPasswordExpiry() != null && getMfaExpiry() != null;
+	}
+
+	// SECTION: non-UI exposed setting, which is used to tweak certain SPs directly in the database
+	
+	public boolean allowUnsignedAuthnRequests() {
+		// return true if the SP does not sign their AuthnRequests
+		return false;
+	}
+	
+	public boolean validateSignatureOnLogoutRequests() {
+		// return false if an SP does not send signatures on LogoutRequests
+		return true;
+	}
+
+	public boolean disableSubjectConfirmation() { 
+		// return true if the SP does not support the SubjectConfirmation element
+		return false;
+	}
+	
+	// END-SECTION
+
     public abstract EntityDescriptor getMetadata() throws RequesterException, ResponderException;
     public abstract String getNameId(Person person) throws ResponderException;
 	public abstract String getNameIdFormat();
-    public abstract Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person);
-    public abstract boolean mfaRequired(AuthnRequest authnRequest);
-    public abstract NSISLevel nsisLevelRequired(AuthnRequest authnRequest);
+    public abstract Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates);
+    public abstract boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP);
 	public abstract boolean preferNemId();
 	public abstract boolean nemLogInBrokerEnabled();
     public abstract String getEntityId();
-	public abstract String getName(AuthnRequest authnRequest);
+	public abstract String getName(LoginRequest loginRequest);
     public abstract RequirementCheckResult personMeetsRequirements(Person person);
 	public abstract boolean encryptAssertions();
 	public abstract boolean enabled();
-	public abstract boolean supportsNsisLoaClaim();
-	public abstract String getProtocol();
+	public abstract Protocol getProtocol();
+	public abstract boolean requireOiosaml3Profile();
+	public abstract Long getPasswordExpiry();
+	public abstract Long getMfaExpiry();
+	
+	/* These settings interact with each other - setting preferNIST = true overrules the last two, and
+	 * no NSIS claim will ever be issued in that case.
+	 * 
+	 * Setting a required NSIS level will prevent logins if no NSIS level is available from the user,
+	 * and will overrule the final setting - supportsNsisLoaClaim - this setting can be enabled while
+	 * setting the required NSIS level to NONE, and it will still accept the NSIS Claim.
+	 * 
+	 * If requiredLevel is set to NONE, and supportsNsisClaim is false, no NSIS claim will be send,
+	 * even if the user has an NSIS identity
+	 */
 	public abstract boolean preferNIST();
+	public abstract boolean supportsNsisLoaClaim();
+    public abstract NSISLevel nsisLevelRequired(LoginRequest loginRequest);
+
+    /*
+     * Additional EntityIDs used for identifying requests (google workspace uses this, perhaps others in the future)
+     */
+	public abstract List<String> getEntityIds();
 }

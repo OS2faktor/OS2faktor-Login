@@ -61,6 +61,10 @@
 		<th:block th:if="${select2 == true}">
 		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/select2/select2.full.min.js}"></script>
 		</th:block>
+
+		<th:block th:if="${validate == true}">
+		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/validate/jquery.validate.min.js}"></script>
+		</th:block>
 	</div>
 	
 	<div class="footer" th:fragment="footer">

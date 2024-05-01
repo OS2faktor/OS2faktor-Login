@@ -118,7 +118,7 @@ public class HTTPRedirectDeflateDecoder extends BaseHttpServletRequestXMLMessage
                     messageContext.setMessage(samlMessage);
                     log.debug("Decoded SAML message using ' ' to '+' conversion");
             	}
-            	catch (final IOException ex) {
+            	catch (final Exception ex) { // modified from IOException to Exception to catch unthrowable XMLParserException :)
             		throw new MessageDecodingException("InputStream exception decoding SAML message", ex);
             	}
             }

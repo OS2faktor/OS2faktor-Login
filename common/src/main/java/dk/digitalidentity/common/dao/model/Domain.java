@@ -50,6 +50,12 @@ public class Domain {
 	@OneToMany(mappedBy = "parent")
 	private List<Domain> childDomains;
 
+	@Column
+	private String nemLoginUserSuffix;
+	
+	@Column
+	private boolean standalone;
+	
 	public Domain(String name) {
 		this.name = name;
 	}
@@ -81,5 +87,17 @@ public class Domain {
 		}
 
 		return getName();
+	}
+	
+	public String getNemLoginDomain() {
+		if (nemLoginUserSuffix == null) {
+			return null;
+		}
+		else if (nemLoginUserSuffix.length() == 0) {
+			// the first few municipalities ended up without a domain on their primary domain
+			return "";
+		}
+
+		return nemLoginUserSuffix.startsWith("@") ? nemLoginUserSuffix : ("@" + nemLoginUserSuffix);
 	}
 }

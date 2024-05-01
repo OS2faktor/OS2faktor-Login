@@ -1,7 +1,10 @@
 package dk.digitalidentity.common.service;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -88,5 +91,33 @@ public class PersonAttributeService {
 
 	public void deleteAll(List<PersonAttribute> entities) {
 		personAttributeSetDao.deleteAll(entities);
+	}
+	
+	public Map<String, String> getAttributeValueMappings(boolean includeStatic) {
+		Map<String, String> result = new HashMap<>();
+
+		List<PersonAttribute> allPersonAttributes = getAll();
+		if (allPersonAttributes != null && !allPersonAttributes.isEmpty()) {
+			allPersonAttributes.forEach(personAttribute -> result.put(personAttribute.getName(), (personAttribute.getDisplayName() != null) ? personAttribute.getDisplayName() : personAttribute.getName()));
+		}
+
+		if (includeStatic) {
+			result.put("userId", "Brugernavn");
+			result.put("uuid", "UUID");
+			result.put("cpr", "Personnummer");
+			result.put("name", "Navn");
+			result.put("alias", "Kaldenavn");
+			result.put("email", "E-mail");
+			result.put("firstname", "Fornavn");
+			result.put("lastname", "Efternavn");
+		}
+
+		return result.entrySet()
+		    .stream()
+		    .sorted(Map.Entry.comparingByValue())
+		    .collect(Collectors.toMap(
+		        Map.Entry::getKey,
+		        Map.Entry::getValue,
+		        (oldValue, newValue) -> oldValue, LinkedHashMap::new));
 	}
 }

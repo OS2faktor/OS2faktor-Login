@@ -1,0 +1,19 @@
+{
+	"name": "OS2faktor WCP Single Sign-on",
+	"manifest_version": 3,
+	"version": "1.0.0",
+	"minimum_chrome_version": "88",
+	"description": "Supports seamless SSO from OS2faktor WCP",
+	"permissions": [ "background", "tabs", "webRequest" ],
+	"host_permissions" : [ "https://*/sso/saml/client/login" ],
+	"background": {
+		"service_worker": "background.js"
+	},
+	"icons": {
+		"128": "images/icon_128.png"
+	},
+	"web_accessible_resources": [{
+		"resources": ["images/icon_128.png"],
+		"matches":["http://*/*", "https://*/*"]
+	}]
+ }

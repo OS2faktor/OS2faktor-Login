@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Hjælp til advancerede claimregler</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									I OS2faktor kan man opsætte såkaldte avancerede claims på en tjensteudbyder. Formålet med disse claims er at gøre det muligt at
+									flette, erstatte og ændre på eksisterende attributter på en bruger, og medsende de modificerede værdier som ét samlet claim.
+									Nedenfor er beskrevet den syntaks som er understøttet, med eksempler på hvordan man kunne opsætte et sådan claim.
+								</p>
+								
+								<h3>Understøttede operationer</h3>
+								<p>Følgende operationer er understøttet</p>
+								<ul>
+									<li><b>VALUE(a)</b> - Denne operation anvendes til at trække en værdi ud af en bruger eller en fast tekst-streng</li>
+									<li><b>JOIN(a, b, c, ...)</b> - Denne operation fletter 2 eller flere felter sammen til én værdi</li>
+									<li><b>UPPER(a)</b> - Denne operation ændrer alle tegn til at være store bogstaver</li>
+									<li><b>LOWER(a)</b> - Denne operation ændrer alle tegn til at være små bogstaver</li>
+									<li><b>REGEX_REPLACE(a, b, c)</b> - Denne operation tager kildeteksten (a) og erstatter alle forekomster af (b) med værdien (c). Man kan anvende regulære udtræk til (b)</li>
+								</ul>
+								
+								<p>
+									De enkelte operationer kan kombineres, som vist med eksempler nedenfor.
+								</p>
+								
+								<h3>VALUE</h3>
+								<p>
+									Dette er den simpleste af operationerne, og kan enten bruges til at trække en værdi fra brugeren der logger ind, eller angive en
+									fast tekst-værdi. Ekemsepler på anvendensen er
+									
+<pre>VALUE(user.userId)
+VALUE(user.name)
+VALUE('12345678')</pre>
+
+									Bemærk her at alle værdier der trækkes fra brugeren skal prefixes med <b>user.</b> foran, og alle faste værdier skal stå i situationstegn
+									med enkeltping (') og ikke med gåseøjne (").
+								</p>
+								
+								<p>
+									Listen over alle tilgængelige bruger-attributter kan tilgås <a th:href="@{/admin/konfiguration/person/attributes}">her</a>.
+								</p>
+
+								<h3>JOIN</h3>
+								<p>
+									Denne operation anvendes til at flette værdier, og kan tage så mange værdier som man ønsker som input. Eksempler på dette er vist nedenfor
+
+<pre>JOIN(user.userId, user.name)
+JOIN(user.name, VALUE(' - '), LOWER(user.email))</pre>
+
+									Bemærk her at hver værdi skal adskilles med komma, og hver værdi i sig selv skal være en lovlig operation.									
+								</p>
+
+								<h3>UPPER</h3>
+								<p>
+									Dette er en forholdsvis simpel operation, der ændrer det givne input til at være i rene store bogstaver, som vist nedenfor kan det kombineres med andre operationer
+<pre>UPPER(user.userId)
+UPPER(JOIN(user.name, VALUE(' - '), user.email))</pre>
+								</p>
+
+								<h3>LOWER</h3>
+								<p>
+									Denne operation fungerer som UPPER ovenfor, men ændrer teksten til at være i rene små bogstaver, med eksempler nedenfor
+<pre>LOWER(user.userId)
+LOWER(JOIN(user.name, VALUE(' - '), user.email))</pre>
+								</p>
+
+								<h3>REGEX_REPLACE</h3>
+								<p>
+									Denne operation tager 3 parametre, hvor den første er input værdien der skal behandles, den næste er det regulære udtræk der
+									anvendes til at udpege data der skal ændres, og den sidste parameter angiver hvad de fremsøgte værdier skal ændres til.
+									Der er givet et eksempel på anvendelsen nedenfor. Bemærk at kendskab til regulære udtryk er nødvendig for anvendelsen af denne operation.
+
+<pre>REGEX_REPLACE(VALUE(user.name), '\s', VALUE('_'))</pre>
+
+									Ovenstående eksempel tager brugerens navn, og finder alle mellemrum og erstatter disse med underscore _ karakteren.
+								</p>
+
+								<h3>Kombineret eksempel</h3>
+								<p>
+									Nedenstående eksempel er bare et eksempel, og vil næppe finde anvendelse i virkeligheden, men det viser hvordan man kan kombinere de
+									forskellige operationer i én regel
+<pre>JOIN(
+ UPPER(
+  JOIN(
+    VALUE(user.userId),
+    VALUE(' - '),
+    REGEX_REPLACE(
+      VALUE(user.name),
+      '\s',
+      VALUE('_')
+    )
+  )
+ ),
+ VALUE(' - '),
+ LOWER(VALUE(user.email))
+)</pre>
+
+									Ovenstående regel tager brugerens brugernavn og fletter med en bindestreg, og så brugerens fulde navn, hvor mellemrum er erstattet
+									med underscores - alt dette ændres til store bogstaver, hvorefter de tilføjes endnu en bindestreg, og så flettes brugerens email
+									adresse til, hvor hele emailadressen står med små bogstaver. Bemærk at man med fordel kan formatere komplekse regler som vist
+									ovenfor, så de er nemmere at læse og vedligeholde.
+								</p>
+								
+								<p>
+									Ovenstående regel vil på en bruger med navnet "Jens Jensen", brugernavnet "jns" og email adressen "JNS@kommune.dk", resultere
+									i værdien "JNS - JENS_JENSEN - jns@kommune.dk".
+								</p>
+								
+								<h3>Eksempel på claim opsat i brugergrænsefladen</h3>
+								<img th:src="@{/img/claimrule.png}" style="width: 500px;"></img>
+							</div>
+						</div>
+					</div>
+
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

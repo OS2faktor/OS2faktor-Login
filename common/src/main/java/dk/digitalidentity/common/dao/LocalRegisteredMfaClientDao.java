@@ -9,5 +9,5 @@ import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
 public interface LocalRegisteredMfaClientDao extends JpaRepository<LocalRegisteredMfaClient, Long> {
 	List<LocalRegisteredMfaClient> findByCpr(String cpr);
 
-	LocalRegisteredMfaClient findByDeviceId(String deviceId);
+	List<LocalRegisteredMfaClient> findByDeviceId(String deviceId);
 }

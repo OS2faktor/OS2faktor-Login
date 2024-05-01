@@ -1,5 +1,6 @@
 ﻿using Quartz;
 using Serilog;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace OS2faktorADSync
@@ -18,6 +19,13 @@ namespace OS2faktorADSync
             {
                 CoredataTransferToNemLogin nemloginData = ActiveDirectoryService.TransferToNemloginSync();
                 BackendService.NSISTransferToNemLoginSync(nemloginData);
+
+                // mitidErhvervUuidAttribute
+                if (ActiveDirectoryService.MitIDBackSyncEnabled)
+                {
+                    List<CoredataMitIDStatus> status = BackendService.GetMitIDStatus();
+                    ActiveDirectoryService.UpdateMitIDUUID(status);
+                }
             }
             catch (System.Exception e)
             {

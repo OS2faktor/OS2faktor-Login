@@ -22,7 +22,9 @@ public class MfaJdbcTemplateConfiguration {
 			HikariConfig config = new HikariConfig();
 			config.setConnectionTestQuery("SELECT 1");
 			config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-			config.setMinimumIdle(1);
+			// 0, otherwise we would have 100+ connections sitting idle all day
+			config.setMinimumIdle(0);
+			config.setIdleTimeout(61 * 1000);
 			config.setMaximumPoolSize(5);
 			config.setJdbcUrl(configuration.getMfaDatabase().getUrl());
 			config.setPassword(configuration.getMfaDatabase().getPassword());

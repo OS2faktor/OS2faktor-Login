@@ -23,12 +23,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.EmailService;
-import dk.digitalidentity.common.service.EmailTemplateService;
+import dk.digitalidentity.common.service.EmailTemplateChildService;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
-import dk.digitalidentity.mvc.admin.dto.EmailTemplateDTO;
+import dk.digitalidentity.mvc.admin.dto.EmailTemplateChildDTO;
 import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -37,9 +37,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequireAdministrator
 @RestController
 public class EmailTemplateRestController {
-
-	@Autowired
-	private  EmailTemplateService emailTemplateService;
 	
 	@Autowired
 	private EmailService emailService;
@@ -47,9 +44,12 @@ public class EmailTemplateRestController {
 	@Autowired
 	private SecurityUtil securityUtil;
 
+	@Autowired
+	private EmailTemplateChildService emailTemplateChildService;
+
 	@PostMapping(value = "/admin/rest/mailtemplates")
 	@ResponseBody
-	public ResponseEntity<String> updateTemplate(@RequestBody EmailTemplateDTO emailTemplateDTO, @RequestParam("tryEmail") boolean tryEmail) {
+	public ResponseEntity<String> updateTemplate(@RequestBody EmailTemplateChildDTO emailTemplateDTO, @RequestParam("tryEmail") boolean tryEmail) {
 		Person person = securityUtil.getPerson();
 		if (person == null) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -61,7 +61,7 @@ public class EmailTemplateRestController {
 			String email = person.getEmail();
 			if (email != null) {
 				List<InlineImageDTO> inlineImages = transformImages(emailTemplateDTO);
-				emailService.sendMessage(email, emailTemplateDTO.getTitle(), emailTemplateDTO.getMessage(), inlineImages);
+				emailService.sendMessage(email, emailTemplateDTO.getTitle(), emailTemplateDTO.getMessage(), inlineImages, person);
 				
 				return new ResponseEntity<>("Test email sendt til " + email, HttpStatus.OK);
 			}
@@ -69,34 +69,43 @@ public class EmailTemplateRestController {
 			return new ResponseEntity<>("Du har ingen email adresse registreret!", HttpStatus.BAD_REQUEST);
 		}
 		else {
-			EmailTemplate template = emailTemplateService.findById(emailTemplateDTO.getId());
+			EmailTemplateChild template = emailTemplateChildService.getById(emailTemplateDTO.getId());
 			if (template == null) {
 				return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 			}
 
 			template.setMessage(emailTemplateDTO.getMessage());
 			template.setTitle(emailTemplateDTO.getTitle());
-			template.setEnabled(emailTemplateDTO.isEnabled());
-			
-			if (template.getTemplateType().isEboks()) {
-				template.setEboks(emailTemplateDTO.isEboksEnabled());
-			} else {
-				template.setEboks(false);
+
+			if (template.getEmailTemplate().getTemplateType().isLogWatch()) {
+				template.setEmail(true);
+				template.setEnabled(true);
+			}
+			else {
+				template.setEnabled(emailTemplateDTO.isEnabled());
+				
+				if (template.getEmailTemplate().getTemplateType().isEboks()) {
+					template.setEboks(emailTemplateDTO.isEboksEnabled());
+				}
+				else {
+					template.setEboks(false);
+				}
+				
+				if (template.getEmailTemplate().getTemplateType().isEmail()) {
+					template.setEmail(emailTemplateDTO.isEmailEnabled());
+				}
+				else {
+					template.setEmail(false);
+				}
 			}
 			
-			if (template.getTemplateType().isEmail()) {
-				template.setEmail(emailTemplateDTO.isEmailEnabled());
-			} else {
-				template.setEmail(false);
-			}
-			
-			emailTemplateService.save(template);
+			emailTemplateChildService.save(template);
 		}
 		
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
 		
-	private List<InlineImageDTO> transformImages(EmailTemplateDTO emailTemplateDTO) {
+	private List<InlineImageDTO> transformImages(EmailTemplateChildDTO emailTemplateDTO) {
 		List<InlineImageDTO> inlineImages = new ArrayList<>();
 		String message = emailTemplateDTO.getMessage();
 		Document doc = Jsoup.parse(message);
@@ -130,7 +139,7 @@ public class EmailTemplateRestController {
 	 * summernote does not generate valid XHTML. At least the <br/> and <img/> tags are not closed,
 	 * so we need to close them, otherwise our PDF processing will fail.
 	 */
-	private void toXHTML(EmailTemplateDTO emailTemplateDTO) {
+	private void toXHTML(EmailTemplateChildDTO emailTemplateDTO) {
 		String message = emailTemplateDTO.getMessage();
 		if (message != null) {
 			try {

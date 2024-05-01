@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -31,6 +31,15 @@
 									<input type="text" class="form-control" th:field="${serviceprovider.id}" style="display:none;"/>
 
 									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Protokol</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" id="protocolSelect" th:disabled="${serviceprovider.id} != 0">
+												<option th:each="protocol : ${T(dk.digitalidentity.common.dao.model.enums.Protocol).values()}" th:value="${protocol}" th:text="${protocol.prettyName}" th:selected="${protocol.name} == ${serviceprovider.protocol}"></option>
+											</select>
+										</div>
+									</div>
+
+									<div class="form-group row">
 										<label class="col-sm-3 col-form-label">Navn</label>
 										<div class="col-sm-9">
 											<input type="text" class="form-control" th:field="${serviceprovider.name}"/>
@@ -38,7 +47,8 @@
 									</div>
 									
 									<div class="form-group row">
-										<label class="col-sm-3 col-form-label">Entity ID</label>
+										<label class="col-sm-3 col-form-label samlSpecific wsfedSpecific">Entity ID</label>
+										<label class="col-sm-3 col-form-label oidcSpecific">Klient ID</label>
 										<div class="col-sm-9">
 											<input title="EntityID kan aldrig redigeres, den hentes fra metadata" type="text" class="form-control" th:field="${serviceprovider.entityId}" disabled="disabled" t/>
 										</div>
@@ -46,7 +56,7 @@
 
 									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
 
-									<div class="form-group row disabledByBrokerFunctionality">
+									<div class="form-group row disabledByBrokerFunctionality samlSpecific wsfedSpecific">
 										<label class="col-sm-3 col-form-label">NameID Format</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="nameIdFormatSelect">
@@ -56,7 +66,8 @@
 									</div>
 
 									<div class="form-group row disabledByBrokerFunctionality">
-										<label class="col-sm-3 col-form-label">NameID Værdi</label>
+										<label class="col-sm-3 col-form-label samlSpecific wsfedSpecific">NameID Værdi</label>
+										<label class="col-sm-3 col-form-label oidcSpecific">Subjekt</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="nameIdValueDropdown" name="nameIdValue">
 												<option value="userId" th:selected="'userId' == ${serviceprovider.nameIdValue} or 'sAMAccountName' == ${serviceprovider.nameIdValue}">Brugernavn</option>
@@ -77,7 +88,7 @@
 
 									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
 
-									<div class="form-group row disabledByBrokerFunctionality">
+									<div class="form-group row disabledByBrokerFunctionality" id="selectMfaRow">
 										<label class="col-sm-3 col-form-label">Tvungen to-faktor login</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="forceMfaRequiredSelect">
@@ -86,7 +97,7 @@
 										</div>
 									</div>
 
-									<div class="hr-line-dashed disabledByBrokerFunctionality"></div>
+									<div class="hr-line-dashed disabledByBrokerFunctionality" id="selectMfaRowHr"></div>
 
 									<div class="form-group row disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">Minimum krævet NSIS niveau</label>
@@ -95,6 +106,46 @@
 												<option th:each="nsisLevel : ${T(dk.digitalidentity.common.dao.model.enums.NSISLevel).values()}" th:value="${nsisLevel}" th:text="#{__${nsisLevel.message}__}" th:selected="${nsisLevel} == ${serviceprovider.nsisLevelRequired}"></option>
 											</select>
 										</div>
+									</div>
+
+									<div id="customSessionSettings">
+										<div class="hr-line-dashed"></div>
+										
+										<div class="form-group row samlSpecific">
+											<label class="col-sm-3 col-form-label">Alternative sessionslevetider</label>
+											<div class="col-sm-9">
+												<label>
+													<input th:field="${serviceprovider.hasCustomSessionExpiry}" type="checkbox" class="i-checks">
+												</label>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for kodeord</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.passwordExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for 2-faktor</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.mfaExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+									</div>
+										
+									<div class="form-group" th:if="${incorrectInput}">
+										<ul>
+											<li class="text-danger">Begge felter skal være udfyldt</li>
+											<li class="text-danger">Sessionsudløb for kodeord må ikke være mindre end sessionsudløb for 2-faktor</li>
+										</ul>
 									</div>
 
 									<div class="hr-line-dashed"></div>
@@ -109,7 +160,7 @@
 									</div>
 
 									<div class="form-group row disabledByBrokerFunctionality">
-										<label class="col-sm-3 col-form-label">Foretræk NemID ved login</label>
+										<label class="col-sm-3 col-form-label">Foretræk NemLog-in ved login</label>
 										<div class="col-sm-9">
 											<label>
 												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks">
@@ -118,7 +169,7 @@
 									</div>
 
 
-									<div class="form-group row">
+									<div class="form-group row samlSpecific">
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
 										<div class="col-sm-9">
 											<label>
@@ -136,7 +187,7 @@
 										</div>
 									</div>
 									
-									<div class="form-group row">
+									<div class="form-group row samlSpecific oidcSpecific" id="useNISTRow">
 										<label class="col-sm-3 col-form-label">Anvend NIST sikringsniveauer</label>
 										<div class="col-sm-9">
 											<label>
@@ -144,11 +195,50 @@
 											</label>
 										</div>
 									</div>
+									
+									<div class="form-group row samlSpecific">
+										<label class="col-sm-3 col-form-label">Anvend OIOSAML3 profilen</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.requireOiosaml3Profile}" type="checkbox" class="i-checks">
+											</label>
+										</div>
+									</div>
 								</form>
 							</div>
 						</div>
+						
+						<div class="ibox" id="iBoxMfaExemptions">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp;Undtag 2-faktor login for udvalgte domæner</h5>
+							</div>
 
-						<div class="ibox">
+							<div class="ibox-content">
+								<div class="form-group">
+									<div class="table-responsive mfaExemptionsDomainTable">
+										<table id="mfaExemptionsDomainTable" class="table table-striped table-bordered table-hover">
+											<thead>
+												<tr>
+													<th style="width: 60px;">Undtaget</th>
+													<th>Navn</th>
+												</tr>
+											</thead>
+											
+											<tbody style="display: table-row-group">
+												<tr th:each="domain : ${@domainService.getAll()}">
+													<td style="text-align: center;">
+														<label><input th:attr="data-id=${domain.id}" type="checkbox" class="i-checks exemptedMfaDomainCheckbox"></label>
+													</td>
+													<td th:text="${domain.name}"></td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox samlSpecific wsfedSpecific">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp; Metadata konfiguration</h5>
 							</div>
@@ -182,6 +272,50 @@
 							</div>
 						</div>
 
+						<div class="ibox oidcSpecific">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Klientnøgle (client secret)</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button onclick="oidcService.createNewSecret()" class="btn btn-primary">Opret ny klientnøgle</button>
+								</div>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row col-sm-12">
+									<input th:if="${serviceprovider.existingSecret}" class="form-control secretHint" type="text" value="Der er allerede dannet en klientnøgle" disabled="disabled">
+									<input th:unless="${serviceprovider.existingSecret}" class="form-control secretHint" type="text" value="Ingen klientnøgle dannet endnu" disabled="disabled">
+									<h4 class="secretWarn" style="color: red; display: none;">HUSK at gemme denne klientnøgle, den vil ikke blive vist igen efter ændringerne til tjenesteudbyderen er gemt</h4>
+									<input class="form-control" type="text" th:field="${serviceprovider.clientSecret}" style="display:none;" disabled="disabled">
+								</div>
+							</div>
+						</div>
+
+						<div class="ibox oidcSpecific">
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser (redirect URLs)</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<p class="col-sm-12">Når et login er færdiggjort i OS2faktor vil brugeren sendes tilbage til en webadresse, denne webadresse er specificeret af klienten i starten af login flowet. Nedenstående liste indeholder alle de webadresser som OS2faktor vil acceptere at sende brugeren til i forbindelse med login.</p>
+								</div>
+								<div class="form-group row">
+									<div class="table-responsive col-sm-12">
+										<table id="redirectUrlTable" class="table table-striped table-bordered table-hover listTable">
+											<thead>
+												<tr>
+													<th>Godkendte webadresser</th>
+												</tr>
+											</thead>
+											<tbody>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						
 						<div class="ibox disabledByBrokerFunctionality">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp;Claims</h5>
@@ -199,18 +333,28 @@
 											<th style="width: 200px;">Type</th>
 											<th>Attribut</th>
 											<th style="width: 300px;">Værdi</th>
-											<th style="width: 200px;">Send én værdi</th>
+											<th style="width: 200px;">Parameter</th>
 											<th style="width: 80px;">Handlinger</th>
 										</tr>
 										</thead>
 
 										<tbody>
 										<tr th:each="claim : ${serviceprovider.claims}">
-											<td data-type="id" th:data-extop="${claim.externalOperation}" th:data-extoparg="${claim.externalOperationArgument}" th:text="${claim.id}" style="display:none;"/>
-											<td data-type="type" th:attr="data-enum=${claim.type}" th:text="${claim.type.message}" />
-											<td data-type="attribute" th:text="${claim.attribute}" />
-											<td data-type="value" th:data-val="${claim.value}" th:text="${claim.value}" />
-											<td data-type="singleValueOnly" th:data-value="${claim.singleValueOnly}"><em th:if="${claim.singleValueOnly}" class="fa fa-fw fa-check"></td>
+											<td data-type="hiddenfields"
+												th:data-id="${claim.id}"
+												th:data-claimtype="${claim.type}"
+												th:data-attributename="${claim.attribute}"
+												th:data-attributevalue="${claim.value}"
+												th:data-extop="${claim.externalOperation}"
+												th:data-extoparg="${claim.externalOperationArgument}"
+												th:data-singlevalueonly="${claim.singleValueOnly}"
+												th:data-groupid="${claim.groupId}"
+												style="display:none;">&nbsp;</td>
+
+											<td th:text="${claim.type.message}" />
+											<td th:text="${claim.attribute}" />
+											<td th:text="${claim.value}" />
+											<td th:text="${claim.parameter}" />
 											<td>
 												<a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim">
 													<em class="fa fa-fw fa-pencil"></em>
@@ -293,11 +437,11 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
@@ -312,6 +456,7 @@
 					</button>
 					<h4 class="modal-title" id="modalClaimTitle">Opret/rediger claim</h4>
 				</div>
+
 				<div class="modal-body">
 					<input id="modalIDField" style="display:none;">
 					<div id="wizard" style="background: #f8fafb;">
@@ -323,6 +468,8 @@
 									<li>Personligt: udsteder et claim baseret på brugerens data.</li>
 									<li>Fast: udsteder et fast claim for alle brugere. Dette claim har samme værdi uagtet brugeren der logger ind.</li>
 									<li id="roleCatalogueFeatureDescription">OS2rollekatalog: giver muligheden for at sende et claim baseret på opslag i OS2rollekatalog.</li>
+									<li>Avanceret: udsteder et claim baseret på en OS2faktor claim-sproget.</li>
+									<li id="groupFeatureDescription">Gruppe: udsteder er claim baseret på et gruppe-medlemsskab.</li>
 								</ul>
 							</p>
 							<hr>
@@ -337,7 +484,7 @@
 
 						<h1>Claim værdi</h1>
 						<div>
-							<block id="modalClaimTypeDynamic">
+							<block id="modalClaimTypeDynamic" class="modalClaimTypeSection">
 								<h3>Vælg claim værdi</h3>
 								<p>Her skal du vælge hvilken attribut fra brugernes data som skal overføres til tjenesteudbyderen.</p>
 
@@ -377,7 +524,7 @@
 								</div>
 							</block>
 							
-							<block id="modalClaimTypeStatic">
+							<block id="modalClaimTypeStatic" class="modalClaimTypeSection">
 								<h3>Vælg claim værdi</h3>
 								<p>Her skal du vælge hvilken fast værdi som du vil sende til tjenesteudbyderen for alle brugere</p>
 								<div class="form-group row">
@@ -385,10 +532,10 @@
 									<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimValueStatic"></input>
 								</div>
 							</block>
-							
-							<block id="modalClaimTypeRC">
+
+							<block id="modalClaimTypeRC" class="modalClaimTypeSection">
 								<h3>Vælg data fra OS2rollekatalog</h3>
-								<p> Her skal du vælge den type data du ønsker at hente fra OS2rollekatalog. Der kan vælges mellem
+								<p>Her skal du vælge den type data du ønsker at hente fra OS2rollekatalog. Der kan vælges mellem
 									<ul style="margin-left:20px;">
 										<li><b>Alle tildelte systemroller</b>: dette er det mest almindelige opslag på tildelte roller til en bruger</li>
 										<li><b>Alle tildelte jobfunktionsroller</b>: denne anvendes i stedet for opslag på systemroller, hvis tjenesteudbyderen skal modtage roller på jobfunktionsrollerniveau (dette er typisk ikke tilfældet)</li>
@@ -420,12 +567,48 @@
 									</div>
 								</div>
 							</block>
+							
+							<block id="modalClaimTypeAdvanced"  class="modalClaimTypeSection">
+								<h3>Angiv advanceret claim</h3>
+								<p>Her skal du angive claimet i OS2faktor claim-dialekten</p>
+
+								<div class="form-group row" style="margin-right:0px; margin-bottom: 0px;" id="modalClaimRuleAdvancedArgument">
+									<label class="col-sm-3 col-form-label">
+										Regel
+										<div style="font-size: smaller;"><a th:href="@{/admin/konfiguration/tjenesteudbydere/rulehelp}" target="_BLANK">(hvordan virker regler?)</a></div>
+									</label>
+									<textarea class="col-sm-9 form-control" style="font-family: monospace;" id="modalClaimRuleAdvancedArgumentField" rows="12"></textarea>
+								</div>
+								
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="offset-3 col-form-label" id="modalExternalOperationArgumentErrorMessage" style="color: red;"></label>
+								</div>
+							</block>
+							
+							<block id="modalClaimTypeGroup"  class="modalClaimTypeSection">
+								<h3>Angiv gruppe-baseret claim</h3>
+								<p>Her skal du vælge den gruppe brugeren skal være medlem af, samt den værdi der sendes hvis brugeren er medlem af gruppen.</p>
+
+								<div class="form-group row" style="margin-right:0px;" id="modalClaimRuleGroupGroup">
+									<label class="col-sm-3 col-form-label" id="modalClaimRuleGroupGroupLabel">Gruppe</label>
+									<select class="col-sm-9 form-control" id="modalClaimRuleGroupGroupField">
+										<option th:each="group : ${groups}" th:value="${group.id}" th:text="${group.name}"></option>
+									</select>
+								</div>
+								
+								<div class="form-group row" style="margin-right:0px;" id="modalClaimRuleGroupValue">
+									<label class="col-sm-3 col-form-label" id="modalClaimRuleGroupValueLabel">Værdi</label>
+									<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimRuleGroupValueField"></input>
+								</div>
+
+							</block>
 						</div>
 
 						<h1>Claim navn</h1>
 						<div>
 							<h3>Vælg claim navn</h3>
 							<p>Her angives navnet på det claim, som tjenesteudbyderen forventer at få overført vædien via.</p>
+
 							<div class="form-group row">
 								<label class="col-sm-3 col-form-label" id="modalAttributeLabel">Claim navn</label>
 								<input class="col-sm-9 form-control" placeholder="Indtast navnet på claimet" id="modalClaimName"></input>
@@ -438,7 +621,7 @@
 	</div>
 	<!-- End Claim Modal -->
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
 	
 </body>
 
@@ -463,6 +646,7 @@
 
 		/*[+
 		var rcEnabled = [[${@commonConfiguration.roleCatalogue.enabled}]];
+		var groupEnabled = [[${showGroups}]];
 		var nemLoginEnabled = [[${@commonConfiguration.nemlogin.brokerEnabled}]];
 		var rootUrl = [[@{/}]];
 		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
@@ -477,9 +661,14 @@
 		var conditionsDomains = [[${serviceprovider.conditionsDomains}]];
 		var conditionsGroups = [[${serviceprovider.conditionsGroups}]];
 		var attributeValueMap = [[${attributeValueMap}]];
+		var redirectUrls = [[${serviceprovider.redirectURLs}]];
+		var existingSecret = [[${serviceprovider.existingSecret}]];
+		
+		var exemptedMfaDomains = [[${serviceprovider.exemptedDomains}]];
 		+]*/
 
 		// messages
+		var isDirty = false;
 		var savetitle = "Vil du gemme ændringerne?";
 		var saveText = "Det kan tage op til 10 minutter før de gemte ændringer tager effekt";
 		var dynamicPlaceholderMsg = "Indtast person felt";
@@ -491,8 +680,16 @@
 		var metadataService;
 		var serviceProviderService;
 		var conditionsService;
+		var protocolService;
+		var oidcService;
+		var mfaExemptionService;
+
 		$(document).ready(function() {
-			
+			protocolService = new ProtocolService();	
+			protocolService.init();		
+
+			oidcService = new OidcService();
+			oidcService.init();
 
 			serviceProviderService = new ServiceProviderService();
 			serviceProviderService.init();
@@ -505,7 +702,251 @@
 
 			conditionsService = new ConditionsService();
 			conditionsService.init();
+			
+			mfaExemptionService = new MfaExemptionService();
+			mfaExemptionService.init();
+			
+			window.addEventListener('beforeunload',function(e){
+				if (isDirty) {
+					e.returnValue = '';
+				}
+			});
+			
+			// TODO: really should move this into a service class for prettier code
+			
+			// hide MFA selector if NSIS is required
+			if ($('#nsisLevelRequiredSelect').val() == 'NONE') {
+				$('#selectMfaRow').show();
+				$('#useNISTRow').show();
+				$('#selectMfaRowHr').show();
+				$('#customSessionSettings').show();
+				
+				if ($('#forceMfaRequiredSelect').val() == 'ALWAYS') {
+					$('#iBoxMfaExemptions').show();
+				}
+			}
+			else {
+				$('#useNISTRow').hide();
+				$('#selectMfaRow').hide();
+				$('#selectMfaRowHr').hide();
+				$('#iBoxMfaExemptions').hide();
+				$('#customSessionSettings').hide();
+			}
+			
+			// add event lister to NSIS select, to hide/show MFA selector
+			$('#nsisLevelRequiredSelect').on('change', function() {
+				if ($(this).find(":selected").val() == 'NONE') {
+					$('#useNISTRow').show();
+					$('#selectMfaRow').show();
+					$('#selectMfaRowHr').show();
+					$('#customSessionSettings').show();
+					
+					if ($('#forceMfaRequiredSelect').val() == 'ALWAYS') {
+						$('#iBoxMfaExemptions').show();
+					}
+				}
+				else {
+					$('#useNISTRow').hide();
+					$('#selectMfaRow').hide();
+					$('#selectMfaRowHr').hide();
+					$('#iBoxMfaExemptions').hide();
+					$('#customSessionSettings').hide();
+				}
+			});
+			
+			// hide/show MFA exemption box
+			if ($('#forceMfaRequiredSelect').val() == 'ALWAYS') {
+				$('#iBoxMfaExemptions').show();
+			}
+			else {
+				$('#iBoxMfaExemptions').hide();
+			}
+			
+			// add event lister to hide/show MFA exemption box
+			$('#forceMfaRequiredSelect').on('change', function() {
+				if ($(this).find(":selected").val() == 'ALWAYS') {
+					$('#iBoxMfaExemptions').show();
+				}
+				else {
+					$('#iBoxMfaExemptions').hide();
+				}
+			});
+
+			$('input[name="hasCustomSessionExpiry"]').on('ifChanged', function(event){
+				if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+					$(".customSession").show();
+				}
+				else {
+					$(".customSession").hide();
+				}
+			});
+			$('input[name="hasCustomSessionExpiry"]').trigger('ifChanged');
 		});
+
+		function MfaExemptionService() {
+			this.init = function() {
+				this.initTables();
+			}
+			
+			this.initTables = function() {
+				// Domain table
+				exemptedMfaDomains.forEach(element => {
+					$('.exemptedMfaDomainCheckbox[data-id="'+ element +'"]').iCheck('check');
+				});
+				mfaExemptionService.initDatatables("#mfaExemptionsDomainTable");
+
+				// Update checkboxes
+				$('#iBoxMfaExemptions').iCheck('update'); // Update all ichecks with values set by jquery
+			}
+			
+			this.initDatatables = function(id) {
+				var table = $(id).DataTable({
+	                "pageLength": 25,
+	                "bLengthChange": false,
+	                "bSort": true,
+	                "responsive": true,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+			        "language": {
+			        	"search":	   "Søg",
+						"lengthMenu":   "_MENU_ domæner per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ domæner",
+						"zeroRecords":  "Ingen domæner...",
+						"infoEmpty":	"Henter domæner...",
+						"infoFiltered": "(ud af _MAX_ domæner)",
+			            "paginate": {
+			                "previous": "Forrige",
+			                "next": "Næste"
+			            }
+			        }
+	            });
+			}
+		}
+		
+		function OidcService() {
+			this.init = function() {
+				if (!existingSecret) {
+					var secret = crypto.randomUUID();
+							
+					$('.secretHint').hide();
+					$('.secretWarn').show();
+					
+					var field = $('input[name=clientSecret]');
+					field.show();
+					field.val(secret);
+					existingSecret = true;
+				}
+			}
+
+			this.createNewSecret = function() {
+				swal({
+					title: "Opret ny klientnøgle",
+					text: "Er du sikker på at du vil danne en ny klientnøgle? Handlingen vil overskrive den eksisterende klientnøgle!\nEn eksisterende klient vil holde op med at virke indtil den er opdateret med den nye klientnøgle.",
+					icon: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: "#ed5565",
+					confirmButtonText: "Ny klientnøgle",
+					cancelButtonText: "annuller",
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						var secret = crypto.randomUUID();
+						
+						$('.secretHint').hide();
+						$('.secretWarn').show();
+
+						var field = $('input[name=clientSecret]');
+						field.show();
+						field.val(secret);
+						existingSecret = true;
+					}
+				});
+			}
+		}
+
+		function ProtocolService() {
+			this.init = function() {
+				protocolService.loadRedirectUrls(redirectUrls);
+
+				$('#protocolSelect').on('change', function() {
+					if (this.value == 'SAML20') {
+						$('.oidcSpecific').hide();
+						$('.wsfedSpecific').hide();
+						$('.samlSpecific').show();
+						$('input[name=entityId]').prop('disabled', true);
+					}
+					else if (this.value == 'OIDC10') {
+						$('.samlSpecific').hide();
+						$('.wsfedSpecific').hide();
+						$('.oidcSpecific').show();
+
+						if ($('#id').val() == 0) {
+							$('input[name=entityId]').prop('disabled', false);
+						}
+					}
+					else if (this.value == 'WSFED') {
+						$('.oidcSpecific').hide();
+						$('.samlSpecific').hide();
+						$('.wsfedSpecific').show();
+						$('input[name=entityId]').prop('disabled', true);
+					}
+				});
+				$('#protocolSelect').trigger('change');
+			}
+
+			this.loadRedirectUrls = function(attributes) {
+				// Clear table rows here
+				$('#redirectUrlTable tbody').empty();
+
+				if (attributes != null) {
+					for (var i = 0; i < attributes.length; i += 1) {
+						// Add rows to table here
+						var row = '<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control attributeRow" value="' + attributes[i] + '"></td></tr>';
+						$('#redirectUrlTable > tbody:last-child').append(row);
+						// $('#redirectUrlTable > tbody tr:last').find('td select.attributeTableKey').val(entries[i][0])
+					}
+				}
+
+				// Add additional blank row here
+				$('#redirectUrlTable > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control" value=""></td></tr>');
+				
+				if (attributes != null) {
+					protocolService.onChangeRedirectUrlTable();
+				}
+			}
+
+			this.onChangeRedirectUrlTable = function() {
+				// Delete any empty rows except the last one
+				var rows = $('#redirectUrlTable tbody tr');
+				for (let i = 0; i < (rows.length -1); i += 1) {
+					var inputs = $(rows[i]).children().children();
+					var empty = true;
+					
+					if ($(inputs[0]).val().length > 0) {
+						empty = false;
+					}
+					
+					if (empty) {
+						$(rows[i]).remove();
+					}
+				}
+				
+				// Make sure theres an empty last row
+				var lastRow = $('#redirectUrlTable tbody tr:last');
+				var lastInputs = lastRow.children().children();
+				var lastEmpty = true;
+				
+				if ($(lastInputs[0]).val().length > 0) {
+					lastEmpty = false;
+				}
+				
+				if (!lastEmpty) {
+					$('#redirectUrlTable > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control" value=""></td></tr>');
+				}
+			}
+		
+		}
 
 		function ServiceProviderService() {
 			this.init = function() {
@@ -519,15 +960,30 @@
 						$('.disabledByBrokerFunctionality').show()
 					}
 				});
+
+				// Initialize "IsDirty" checks on all changes to avoid leaving changes unsaved.
+				$("input").change(function(){
+					isDirty = true;
+				});
+				
+				$("select").change(function(){
+					isDirty = true;
+				});
+				
+				$('input.i-checks').on('ifToggled', function(event){
+					isDirty = true;
+				});
 			}
 
 			this.defaultValues = function() {
 				if (nameIdValue == null) {
 					$("#nameIdValueDropdown").val("userId").change();
 				}
+				
 				if (forceMfaRequired == null) {
 					$("#forceMfaRequiredSelect").val("DEPENDS").change();
 				}
+				
 				if (nemLogInBrokerEnabled) {
 					$('.disabledByBrokerFunctionality').hide()
 				}
@@ -567,27 +1023,41 @@
 							data.name = $('#name').val();
 							data.entityId = $('#entityId').val();
 							data.nameIdValue = $('#nameIdValueDropdown').children("option:selected").val();
+							data.clientSecret = $('input[name=clientSecret]').val();
 
 							// Handle dropdowns
 							data.nameIdFormat = $('#nameIdFormatSelect option:selected').val();
 							data.forceMfaRequired = $('#forceMfaRequiredSelect option:selected').val();
 							data.nsisLevelRequired = $('#nsisLevelRequiredSelect option:selected').val();
+							data.protocol = $('#protocolSelect option:selected').val();
 								
 							// Handle iCheck
 							data.preferNemid = $('input[name=preferNemid]').iCheck('update')[0].checked;
 							data.encryptAssertions = $('input[name=encryptAssertions]').iCheck('update')[0].checked;
 							data.enabled = $('input[name=enabled]').iCheck('update')[0].checked;
 							data.preferNIST = $('input[name=preferNIST]').iCheck('update')[0].checked;
+							data.requireOiosaml3Profile = $('input[name=requireOiosaml3Profile]').iCheck('update')[0].checked;
+							
+							if ($('#nsisLevelRequiredSelect option:selected').val() == 'NONE' && $('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+								data.passwordExpiry =  $('input[name=passwordExpiry]').val();
+								data.mfaExpiry =  $('input[name=mfaExpiry]').val();
+							} else {
+								data.passwordExpiry =  null;
+								data.mfaExpiry =  null;
+							}
+
+
 							if (nemLoginEnabled) {
 								data.nemLogInBrokerEnabled = $('input[name=nemLogInBrokerEnabled]').iCheck('update')[0].checked;
-							} else {
+							}
+							else {
 								data.nemLogInBrokerEnabled = nemLogInBrokerEnabled;
 							}
 
 							// Handle metadata
 							var selectedMetadataOption = $(".checked input[name=metadataRadios]").val();
 							
-							if(selectedMetadataOption == "file") {
+							if (selectedMetadataOption == "file") {
 								data.metadataContent = $('#metadataContent').val();
 							} 
 							else if (selectedMetadataOption == "url") {
@@ -599,20 +1069,32 @@
 
 							var claimData = [];
 							for (var i = 0; i < claims.length; i++) {
-								var claimObj = {};
+								var hiddenFields = $(claims[i]).children('td[data-type="hiddenfields"]');
 
-								claimObj.id = $(claims[i]).children('td[data-type="id"]').text();
-								claimObj.type = $(claims[i]).children('td[data-type="type"]').data('enum');
-								claimObj.attribute = $(claims[i]).children('td[data-type="attribute"]').text();
-								claimObj.value = $(claims[i]).children('td[data-type="value"]').data('val');
-								claimObj.externalOperation = $(claims[i]).children('td[data-type="id"]').data('extop');
-								claimObj.externalOperationArgument = $(claims[i]).children('td[data-type="id"]').data('extoparg');
-								claimObj.singleValueOnly = $(claims[i]).children('td[data-type="singleValueOnly"]').data('value');
+								var claimObj = {};
+								claimObj.id = $(hiddenFields).data('id');
+								claimObj.type = $(hiddenFields).data('claimtype');
+								claimObj.attribute = (hiddenFields).data('attributename');
+								claimObj.value = $(hiddenFields).data('attributevalue');
+								claimObj.externalOperation = $(hiddenFields).data('extop');
+								claimObj.externalOperationArgument = $(hiddenFields).data('extoparg');
+								claimObj.singleValueOnly = $(hiddenFields).data('singlevalueonly');
+								claimObj.groupId = $(hiddenFields).data('groupid');
 
 								claimData.push(claimObj);
 							}
 
 							data.claims = claimData;
+							
+							// Handle mfa exemptions
+							var mfaExemptionDomains = [];
+							$('.exemptedMfaDomainCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {	
+									mfaExemptionDomains.push($(element).data("id"));
+								}
+							})
+							
+							data.exemptedDomains = mfaExemptionDomains;
 
 							// Handle conditions
 							var conditionsDomains = [];
@@ -631,6 +1113,38 @@
 
 							data.conditionsDomains = conditionsDomains;
 							data.conditionsGroups = conditionsGroups;
+
+							// Handle RedirectUrls
+							var rows = $('#redirectUrlTable tbody tr');
+							var redirectURLs = [];
+							for (let i = 0; i < rows.length; i += 1) {
+								var inputs = $(rows[i]).children().children();
+								var filled = true;
+								if (!$(inputs[0]).val().length > 0) {
+									filled = false;
+								}
+
+								if (filled) {
+									redirectURLs.push($(inputs[0]).val())
+								}
+							}
+							data.redirectURLs = redirectURLs;
+
+							if (data.protocol == "OIDC10") {
+								if (data.entityId.length < 1) {
+									toastr.error("Fejl: ClientID skal være udfyldt");
+									return;
+								}
+								if (data.name.length < 1) {
+									toastr.error("Fejl: Navn skal være udfyldt");
+									return;
+								}
+								if (data.redirectURLs.length < 1) {
+									toastr.error("Fejl: Der skal være mindst 1 Redirect URL valgt");
+									return;
+								}
+							}
+							isDirty = false;
 
 							// Save
 							$.ajax({
@@ -653,7 +1167,6 @@
 				);	
 			}
 		}
-
 
 		function ConditionsService() {
 			this.init = function() {
@@ -686,28 +1199,17 @@
 					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
 			        "language": {
 			        	"search":	   "Søg",
-						"lengthMenu":   "_MENU_ hændelser per side",
+						"lengthMenu":   "_MENU_ grupper per side",
 						"info":		 "Viser _START_ til _END_ af _TOTAL_ grupper",
 						"zeroRecords":  "Ingen grupper...",
 						"infoEmpty":	"Henter grupper...",
-						"infoFiltered": "(ud af _MAX_ hændelser)",
+						"infoFiltered": "(ud af _MAX_ grupper)",
 			            "paginate": {
 			                "previous": "Forrige",
 			                "next": "Næste"
 			            }
 			        }
 	            });
-
-				// Configure searching
-				$.each($('.input-filter', table.table().footer()), function() {
-					var column = table.column($(this).index());
-		
-					$('input', this).on('keyup change', function () {
-						if (column.search() !== this.value) {
-							column.search(this.value).draw();
-						}
-					});
-				});
 			}
 		}
 
@@ -768,30 +1270,32 @@
 						switch (currentIndex) {
 							case 0:
 								var type = $('input[name=modalTypeSelect]:checked').val();
-								
+
+								$('.modalClaimTypeSection').hide();
 								if (type == 'STATIC') {
-									$('#modalClaimTypeStatic').show()
-									$('#modalClaimTypeDynamic').hide()
-									$('#modalClaimTypeRC').hide()
+									$('#modalClaimTypeStatic').show();
 								}
 								else if (type == 'DYNAMIC') {
-									$('#modalClaimTypeDynamic').show()
-									$('#modalClaimTypeStatic').hide()	
-									$('#modalClaimTypeRC').hide()
+									$('#modalClaimTypeDynamic').show();
 								}
 								else if (type == 'ROLE_CATALOGUE') {
-									$('#modalClaimTypeRC').show()
-									$('#modalClaimTypeDynamic').hide()
-									$('#modalClaimTypeStatic').hide()	
+									$('#modalClaimTypeRC').show();
+								}
+								else if (type == 'ADVANCED') {
+									$('#modalClaimTypeAdvanced').show();
+								}
+								else if (type == 'GROUP') {
+									$('#modalClaimTypeGroup').show();
 								}
 								else {
-									// If no type is selected you cant continue to next page in the wizard
+									// If no type is selected you cannot continue to next page in the wizard
 									return false;
 								}
 								break;
 							case 1:
 								if (newIndex > currentIndex) {
 									var type = $('input[name=modalTypeSelect]:checked').val();
+
 									if (type == 'STATIC' && !$("#modalClaimValueStatic").val().trim()) {
 										return false;
 									}
@@ -800,8 +1304,39 @@
 									}
 									else if (type == 'ROLE_CATALOGUE' && !$("#modalExternalOperationArgumentField").val().trim()) {
 										return false;
-									}	
-								}	
+									}
+									else if (type == 'ADVANCED') {
+										if (!$("#modalClaimRuleAdvancedArgumentField").val().trim()) {
+											return false;
+										}
+										
+										var rule = $("#modalClaimRuleAdvancedArgumentField").val().trim();
+										
+										// make a synchronious call to perform validation (TODO: can we change this to async somehow?)
+										var validationResult = $.ajax({
+											url: spUrl + "validateRule",
+											method: "POST",
+											async: false,
+											headers: {
+						     			      'X-CSRF-TOKEN': token
+						     			   	},
+						     			   	contentType: 'application/json',
+						     			   	data: JSON.stringify({ rule: rule })
+										});
+
+										if (validationResult.status != 200) {
+											$("#modalExternalOperationArgumentErrorMessage").text(validationResult.responseText);
+											return false;
+										}
+
+										$("#modalExternalOperationArgumentErrorMessage").text('');
+									}
+									else if (type == 'GROUP') {
+										if (!$("#modalClaimRuleGroupValueField").val().trim()) {
+											return false;
+										}
+									}
+								}
 								break;
 							case 2:
 								break;
@@ -831,6 +1366,35 @@
 						}
 						else if (type == 'ROLE_CATALOGUE' && !$("#modalExternalOperationArgumentField").val().trim()) {
 							return false;
+						}
+						else if (type == 'ADVANCED') {
+							if (!$("#modalClaimRuleAdvancedArgumentField").val().trim()) {
+								return false;
+							}
+							
+							var rule = $("#modalClaimRuleAdvancedArgumentField").val().trim();
+							
+							// make a synchronious call to perform validation (TODO: can we change this to async somehow?)
+							var validationResult = $.ajax({
+								url: spUrl + "validateRule",
+								method: "POST",
+								async: false,
+								headers: {
+			     			      'X-CSRF-TOKEN': token
+			     			   	},
+			     			   	contentType: 'application/json',
+			     			   	data: JSON.stringify({ rule: rule })
+							});
+
+							if (validationResult.status != 200) {
+								$("#modalExternalOperationArgumentErrorMessage").text(validationResult.responseText);
+								return false;
+							}
+						}
+						else if (type == 'GROUP') {
+							if (!$("#modalClaimRuleGroupValueField").val().trim()) {
+								return false;
+							}
 						}
 						
 						// Name has to be chosen
@@ -865,6 +1429,12 @@
 				if (!rcEnabled) {
 					$('input[value="ROLE_CATALOGUE"]').parents('label').remove();
 					$('#roleCatalogueFeatureDescription').remove();
+				}
+				
+				// Remove group option if no groups available
+				if (!groupEnabled) {
+					$('input[value="GROUP"]').parents('label').remove();
+					$('#groupFeatureDescription').remove();
 				}
 			}
 
@@ -904,6 +1474,8 @@
 				modalService.init()
 				
 				// clear input fields
+				$('#modalClaimRuleAdvancedArgumentField').val("");
+				$("#modalExternalOperationArgumentErrorMessage").text("");
 				$('#modalExternalOperationArgumentField').val("");
 				$('#modalClaimValueRCOptionalValue').val("");
 				$('#modalClaimName').val("");
@@ -912,7 +1484,6 @@
 				$('#modalExternalOperationField').val("GET_USER_ROLES");
 				$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
 				$('#modalClaimValueRCOptionalValue').hide();
-
 
 				// Set default radio / checkbox values
 				//$('input[name=modalSingleValueOnlyField]').iCheck('check');
@@ -936,29 +1507,62 @@
 
 				// Extract claim value and value displayname from wizard
 				var claimValue = "";
-				var claimValueName = "";
+				var parameterName = "";
+
 				var type = $('input[name=modalTypeSelect]:checked').val();
 				if (type == 'STATIC') {
-					var claimValue = $("#modalClaimValueStatic").val();
-					var claimValueName = $("#modalClaimValueStatic").val();
+					claimValue = $("#modalClaimValueStatic").val();
 				}
 				else if (type == 'DYNAMIC') {
-					var claimValue = $("#modalClaimValueDynamic option:selected").val();
-					var claimValueName = $("#modalClaimValueDynamic option:selected").text();
+					claimValue = $("#modalClaimValueDynamic option:selected").val();
 				}
 				else if (type == 'ROLE_CATALOGUE') {
-					var claimValue = $("#modalClaimValueRC").val();
-					var claimValueName = $("#modalClaimValueRC").val();
+					claimValue = $("#modalExternalOperationArgumentField").val();
+					parameterName = $('#modalExternalOperationField').find(":selected").text();
+				}
+				else if (type == 'ADVANCED') {
+					claimValue = $("#modalClaimRuleAdvancedArgumentField").val();
+				}
+				else if (type == 'GROUP') {
+					claimValue = $("#modalClaimRuleGroupValueField").val();
+					parameterName = $('#modalClaimRuleGroupGroupField').find(":selected").text();
+				}
+
+				// groups might be disabled, and then the lookup gives us undefined instead of 0
+				var groupId = $('#modalClaimRuleGroupGroupField option:selected').val();
+				if (groupId === undefined) {
+					groupId = '0';
 				}
 
 				var innerRow =
-					'<td data-type="id" data-extop="' + $('#modalExternalOperationField option:selected').val() + '" data-extoparg="' + $('#modalExternalOperationArgumentField').val() + '" style="display:none;">' + id + '</td>' +
-					'<td data-type="type" data-enum="' + $('.i-checks[name=modalTypeSelect]:checked').val() + '">' + $('.i-checks[name=modalTypeSelect]:checked').data('type-name') + '</td>' +
-					'<td data-type="attribute">' + $('#modalClaimName').val() + '</td>' +
-					'<td data-type="value" data-val="' + claimValue + '">' + claimValueName + '</td>' +
-					'<td data-type="singleValueOnly" data-value="' + $('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked + '">' + ($('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked ? '<em class="fa fa-fw fa-check">' : '') + '</td>' +
+					// global hidden parameters
+					'<td data-type="hiddenfields"' +
+					' data-id="' + id + '"' +
+					' data-claimtype="' + $('.i-checks[name=modalTypeSelect]:checked').val() + '"' +
+					' data-attributename="' + $('#modalClaimName').val() + '"' +
+					' data-attributevalue="' + claimValue + '"' +
+
+					// role catalogue hidden attributes
+					' data-extop="' + $('#modalExternalOperationField option:selected').val() + '"' +
+					' data-extoparg="' + $('#modalExternalOperationArgumentField').val() + '"' +
+					
+					// personal hidden attributes
+					' data-singlevalueonly="' + $('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked + '"' +
+					
+					// group claim hidden attributes
+					' data-groupid="' +  groupId + '"' +
+					
+					// hidden :)
+					' style="display:none;">&nbsp</td>' +
+
+					// shown parameters
+					'<td>' + $('.i-checks[name=modalTypeSelect]:checked').data('type-name') + '</td>' +
+					'<td>' + $('#modalClaimName').val() + '</td>' +
+					'<td>' + claimValue + '</td>' +
+					'<td>' + parameterName + '</td>' +
 					'<td><a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim"><em class="fa fa-fw fa-pencil"></em></a>&nbsp;<a onclick="modalService.delete(this)" title="Slet claim"><em class="fa fa-fw fa-times"></em></a></td>';
 
+				isDirty = true;
 				if (modalService.editedRow == null) {
 					// Create scenario
 					var newRow = '<tr>' + innerRow + '</tr>';
@@ -972,44 +1576,81 @@
 				$('#modalClaim').modal("hide");
 			}
 
-
 			this.edit = function(obj) {
 				modalService.editedRow = obj;
 				modalService.showModal();
 
-				var idColumn = $(obj).closest('tr').children("td[data-type='id']");
-				var id = $(idColumn).text();
-				var extop = $(idColumn).data('extop');
-				var extoparg = $(idColumn).data('extoparg');
+				var hiddenFields = $(obj).closest('tr').children("td[data-type='hiddenfields']");
+				var id = $(hiddenFields).data('id');
+				var claimtype = $(hiddenFields).data('claimtype');
+				var attributeName = $(hiddenFields).data('attributename');
+				var attributeValue = $(hiddenFields).data('attributevalue');
+
+				// rc fields
+				var extop = $(hiddenFields).data('extop');
+				var extoparg = $(hiddenFields).data('extoparg');
 				
+				// personal fields
+				var singleValueOnly = $(hiddenFields).data('singlevalueonly');
+				
+				// group fields
+				var groupId = $(hiddenFields).data('groupid');
+				
+				isDirty = true;
+
 				// set selected type
-				$('#modalClaim .i-checks[name=modalTypeSelect][value=' + $(obj).closest('tr').children("td[data-type='type']").data('enum') + ']').iCheck('check');
+				$('#modalClaim .i-checks[name=modalTypeSelect][value=' + claimtype + ']').iCheck('check');
 
 				// Set Value based on claim type
 				var type = $('#modalClaim input[name=modalTypeSelect]:checked').val();
 				if (type == 'STATIC') {
-					$("#modalClaimValueStatic").val($(obj).closest('tr').children("td[data-type='value']").text());
+					$("#modalClaimValueStatic").val(attributeValue);
 				}
 				else if (type == 'DYNAMIC') {
-					$("#modalClaimValueDynamic").val($(obj).closest('tr').children("td[data-type='value']").data('val'));
+					$("#modalClaimValueDynamic").val(attributeValue);
 				}
 				else if (type == 'ROLE_CATALOGUE') {
-					$("#modalClaimValueRC").val($(obj).closest('tr').children("td[data-type='value']").text());
+					$("#modalClaimValueRC").val(attributeValue);
 
 					// set selected operation
 					$('#modalExternalOperationField').val(extop);
 					$("#modalExternalOperationField").trigger("change");
 				}
+				else if (type == 'ADVANCED') {
+					$("#modalClaimRuleAdvancedArgumentField").val(attributeValue);
+				}
+				else if (type == 'GROUP') {
+					$("#modalClaimRuleGroupValueField").val(attributeValue);
+					
+					// set selected group
+					$('#modalClaimRuleGroupGroupField').val(groupId);
+				}
 
 				// copy data into fields
 				$('#modalIDField').val(id);
 				$('#modalExternalOperationArgumentField').val(extoparg);
-				$('#modalClaimName').val($(obj).closest('tr').children("td[data-type='attribute']").text());
-				$('input[name=modalSingleValueOnlyField]').iCheck($(obj).closest('tr').children("td[data-type='singleValueOnly']").data('value') ? 'check' : "uncheck");
+				$('#modalClaimName').val(attributeName);
+				$('input[name=modalSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 			}
 
 			this.delete = function(obj) {
-				$(obj).closest('tr').remove();
+				swal({
+					title: "Slet claim",
+					text: "Er du sikker på at du vil slette dette claim?",
+					icon: 'warning',
+					showCancelButton: true,
+					confirmButtonColor: "#ed5565",
+					confirmButtonText: "Slet",
+					cancelButtonText: "Annuller",
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						isDirty = true;
+						$(obj).closest('tr').remove();
+					}
+				});
 			}
 		}
 		

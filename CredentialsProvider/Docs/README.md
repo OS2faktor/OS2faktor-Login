@@ -28,13 +28,6 @@ The following values must always be changed to match the setup being used:
 3. os2faktorUserDomain - Matching the domain of the users using the computer in the domains table
 4. os2faktorBaseUrl - Matching the URL of the OS2faktorLogin IdP to use 
 
-#### Browser IDs
-
-These should be correcty set out of the box, but should be changed for some installation methods
-
-1. ChromeBrowserExtensionId - If the extension is installed from the appstore this does not need to be changed if it is loaded in any other way it's id should be different.
-2. EdgeBrowserExtensionId - Same as "ChromeBrowserExtensionId"
-
 #### Logging
 
 Logging is not enabled by default but if the following registry settings is present logging wil be put in the txt files specified

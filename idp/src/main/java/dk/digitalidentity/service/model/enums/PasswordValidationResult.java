@@ -5,8 +5,12 @@ import lombok.Getter;
 @Getter
 public enum PasswordValidationResult {
 	VALID(true),
+	VALID_CACHE(true),
+	VALID_EXPIRED(true),
 	INVALID(false),
-	VALID_EXPIRED(false);
+	LOCKED(false),
+	INSUFFICIENT_PERMISSION(false),
+	TECHNICAL_ERROR(false);
 
 	private boolean noErrors;
 

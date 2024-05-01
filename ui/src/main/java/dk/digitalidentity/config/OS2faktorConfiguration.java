@@ -5,14 +5,17 @@ import java.util.Objects;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.config.modules.AdminFeatures;
 import dk.digitalidentity.config.modules.AppManager;
 import dk.digitalidentity.config.modules.AuditLogModule;
+import dk.digitalidentity.config.modules.CertManagerApi;
 import dk.digitalidentity.config.modules.CoreData;
 import dk.digitalidentity.config.modules.EBoks;
 import dk.digitalidentity.config.modules.GeoLocate;
 import dk.digitalidentity.config.modules.IdP;
 import dk.digitalidentity.config.modules.MfaPassthrough;
 import dk.digitalidentity.config.modules.Scheduled;
+import dk.digitalidentity.config.modules.UserAdminstrationConfig;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,8 +24,8 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.ui")
 public class OS2faktorConfiguration {
-	private String version = "2022 r2";
-	private String latestVersion = "2022 r2";
+	private String version = "2024 r2";
+	private String latestVersion = "2024 r2";
 
 	private Scheduled scheduled = new Scheduled();
 	private CoreData coreData = new CoreData();
@@ -32,6 +35,9 @@ public class OS2faktorConfiguration {
 	private AuditLogModule auditLog = new AuditLogModule();
 	private MfaPassthrough mfaPassthrough = new MfaPassthrough();
 	private AppManager appManager = new AppManager();
+	private CertManagerApi certManagerApi = new CertManagerApi();
+	private AdminFeatures adminFeatures = new AdminFeatures();
+	private UserAdminstrationConfig userAdminstration = new UserAdminstrationConfig();
 	
 	private boolean landingPageEnabled = false;
 

@@ -48,11 +48,15 @@ public class TemporaryClientSessionKey {
 	private NSISLevel nsisLevel;
 
 	@Column
+	private String ipAddress;
+
+	@Column
 	private String sessionKey;
 
-	public TemporaryClientSessionKey(Person person, NSISLevel nsisLevel) {
+	public TemporaryClientSessionKey(Person person, NSISLevel nsisLevel, String ipAddress) {
 		this.person = person;
 		this.nsisLevel = nsisLevel;
+		this.ipAddress = ipAddress;
 
 		this.tts = LocalDateTime.now();
 		this.sessionKey = UUID.randomUUID().toString();

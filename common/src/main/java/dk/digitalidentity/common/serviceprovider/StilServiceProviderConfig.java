@@ -1,16 +1,11 @@
 package dk.digitalidentity.common.serviceprovider;
 
-import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
+import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 
 @Component
 public class StilServiceProviderConfig implements ServiceProviderConfig {
@@ -29,65 +24,52 @@ public class StilServiceProviderConfig implements ServiceProviderConfig {
     }
 
     @Override
-    public String getProtocol() {
-        return "SAML20";
+    public Protocol getProtocol() {
+        return Protocol.SAML20;
     }
 
     @Override
-    public String getNameIdFormat() {
-        return NameIdFormat.PERSISTENT.value;
+    public NameIdFormat getNameIdFormat() {
+        return NameIdFormat.PERSISTENT;
     }
 
     @Override
     public String getMetadataUrl() {
-        return null;
+    	return config.getStil().getMetadataUrl();
     }
 
     @Override
-    public String getMetadataContent() throws Exception {
-        return loadMetadataFromFile(config.getStil().getMetadataLocation());
+    public String getMetadataContent() {
+    	return null;
     }
 
     @Override
-    public boolean enabled() {
+    public boolean isEnabled() {
         return config.getStil().isEnabled();
     }
 
     @Override
-    public boolean preferNemId() {
+    public boolean isPreferNemid() {
         return false;
     }
 
     @Override
-    public boolean nemLogInBrokerEnabled() {
+    public boolean isNemLogInBrokerEnabled() {
         return false;
     }
 
     @Override
-    public boolean encryptAssertions() {
+    public boolean isEncryptAssertions() {
         return config.getStil().isEncryptAssertion();
-    }
-
-    private String loadMetadataFromFile(String metadataLocation) throws Exception {
-
-
-        try (InputStream is = new FileInputStream(metadataLocation)) {
-            StringBuilder builder = new StringBuilder();
-
-            try (Reader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                int c = 0;
-
-                while ((c = reader.read()) != -1) {
-                    builder.append((char) c);
-                }
-            }
-
-            return builder.toString();
-        }
     }
     
     @Override
-    public boolean preferNIST() {
-        return false;
+    public boolean isPreferNIST() {
+        return !config.getStil().isNsisEnabled();
     }
+
+	@Override
+	public boolean isRequireOiosaml3Profile() {
+		return false;
+	}
 }

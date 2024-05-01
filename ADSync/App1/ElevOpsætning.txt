@@ -1,0 +1,15 @@
+﻿Hvis man ønsker at bruge servicen til at indlæse elever, evt opdelt på indskoling, mellemtrin og udskoling, så er der lavet
+3 ekstra services, som ikke er aktiveret som default. Disse services kan aktiveres individuelt ved at køre disse kommandoer i en terminal
+
+OS2faktorADSyncElev1.exe install
+OS2faktorADSyncElev2.exe install
+OS2faktorADSyncElev3.exe install
+
+Dette opsætte windows services under "services", som kan opsættes med servicekonto og tilhørende konfiguration i de .config filer
+der hører til de respektive EXE filer.
+
+OBS! Det er ekstremt vigtigt at hhv FILTER og SUBDOMAIN er udfyldt korrekt inden man tænder for de nye services, da de ellers vil
+overskrive data indlæst for personale.
+
+Man kan med stor fordel putte personalet i et tilsvarende underdomæne, så det er muligt at opsætte regler for hvert underdomæne
+inde i OS2faktor.

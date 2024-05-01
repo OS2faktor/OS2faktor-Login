@@ -1,20 +1,5 @@
 package dk.digitalidentity.controller;
 
-import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.mfa.MFAService;
-import dk.digitalidentity.common.service.mfa.model.ClientType;
-import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
-import dk.digitalidentity.common.service.mfa.model.MfaClient;
-import dk.digitalidentity.service.AuthnRequestHelper;
-import dk.digitalidentity.service.ErrorHandlingService;
-import dk.digitalidentity.service.ErrorResponseService;
-import dk.digitalidentity.service.LoginService;
-import dk.digitalidentity.service.SessionHelper;
-import dk.digitalidentity.util.RequesterException;
-import dk.digitalidentity.util.ResponderException;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,8 +7,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.joda.time.DateTime;
-import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.opensaml.saml.saml2.core.StatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -32,14 +15,26 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.servlet.ModelAndView;
 import org.thymeleaf.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
+import dk.digitalidentity.common.service.mfa.MFAService;
+import dk.digitalidentity.common.service.mfa.model.ClientType;
+import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.service.ErrorHandlingService;
+import dk.digitalidentity.service.ErrorResponseService;
+import dk.digitalidentity.service.FlowService;
+import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
 
 @Controller
 @Slf4j
 public class MultiFactorAuthenticationController {
-
-	@Autowired
-	private AuthnRequestHelper authnRequestHelper;
 
 	@Autowired
 	private ErrorHandlingService errorHandlingService;
@@ -54,7 +49,7 @@ public class MultiFactorAuthenticationController {
 	private SessionHelper sessionHelper;
 
 	@Autowired
-	private LoginService loginService;
+	private FlowService flowService;
 	
 	@Autowired
 	private CommonConfiguration configuration;
@@ -68,9 +63,9 @@ public class MultiFactorAuthenticationController {
 		if (mfaClients == null) {
 			String message = "Kunne ikke hente 2-faktor enheder, valgt deviceId: " + deviceId;
 
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest != null) {
-				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new ResponderException(message));
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				errorResponseService.sendError(response, loginRequest, new ResponderException(message));
 				return null;
 			}
 			else {
@@ -93,49 +88,49 @@ public class MultiFactorAuthenticationController {
 		if (matchingClient == null) {
 			ResponderException error = new ResponderException("Den valgte 2-faktor enhed ikke fundet");
 
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			if (authnRequest != null) {
-				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, error);
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				errorResponseService.sendError(response, loginRequest, error);
 			}
 			else {
-				log.error("No AuthnRequest on session, SP and error endpoint unknown", error);
+				log.error("No LoginRequest on session, SP and error endpoint unknown", error);
 			}
 			return null;
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponse mfaResponse = mfaService.authenticate(matchingClient.getDeviceId());
-		if (mfaResponse == null) {
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId());
+		if (!mfaResponseDto.isSuccess()) {
 			// Handle error in initialising MFA authentication
-			log.warn("mfaResponse was null");
+			log.warn("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
 
 			Person person = sessionHelper.getPerson();
 			NSISLevel requiredNSISLevel = sessionHelper.getMFAClientRequiredNSISLevel();
 			if (person != null && requiredNSISLevel != null) {
-				return loginService.initiateMFA(model, person, requiredNSISLevel);
+				return flowService.initiateMFA(model, person, requiredNSISLevel);
 			}
 
 			// Wrong state, show error instead of silently handling it
-			AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-			ResponderException error = new ResponderException("mfaResponse was null");
-			if (authnRequest != null) {
-				errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, error);
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			ResponderException error = new ResponderException("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
+			if (loginRequest != null) {
+				errorResponseService.sendError(response, loginRequest, error);
 			}
 			else {
-				log.error("No AuthnRequest on session, SP and error endpoint unknown", error);
+				log.warn("No LoginRequest on session, SP and error endpoint unknown", error);
 			}
 
 			return null;
 		}
 
 		sessionHelper.setSelectedMFAClient(matchingClient);
-		sessionHelper.setSubscriptionKey(mfaResponse.getSubscriptionKey());
+		sessionHelper.setSubscriptionKey(mfaResponseDto.getMfaAuthenticationResponse().getSubscriptionKey());
 
 		// Show challenge page
-		model.addAttribute("pollingKey", mfaResponse.getPollingKey());
-		String redirectUrl = mfaResponse.getRedirectUrl();
+		model.addAttribute("pollingKey", mfaResponseDto.getMfaAuthenticationResponse().getPollingKey());
+		String redirectUrl = mfaResponseDto.getMfaAuthenticationResponse().getRedirectUrl();
 		if (StringUtils.isEmpty(redirectUrl)) {
-			model.addAttribute("challenge", mfaResponse.getChallenge());
+			model.addAttribute("challenge", mfaResponseDto.getMfaAuthenticationResponse().getChallenge());
 			model.addAttribute("wakeEvent", ClientType.CHROME.equals(matchingClient.getType()) || ClientType.EDGE.equals(matchingClient.getType()));
 		}
 		else {
@@ -157,9 +152,9 @@ public class MultiFactorAuthenticationController {
 			return modelAndView;
 		}
 
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
-			log.warn("No authnRequest found on session");
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
+			log.warn("No loginRequest found on session");
 			return new ModelAndView("redirect:/");
 		}
 
@@ -172,12 +167,12 @@ public class MultiFactorAuthenticationController {
 		sessionHelper.setMFAClientRequiredNSISLevel(null);
 		
 		if (subscriptionKey == null || selectedMFAClient == null || !Objects.equals(selectedMFAClient.getDeviceId(), deviceId)) {
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.RESPONDER, new RequesterException("Fejl i 2-faktor login"));
+			errorResponseService.sendError(response, loginRequest, new RequesterException("Fejl i 2-faktor login"));
 			return null;
 		}
 
 		if (!mfaService.isAuthenticated(subscriptionKey, person)) {
-			errorResponseService.sendError(response, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), StatusCode.REQUESTER, new RequesterException("2-faktor login ikke gennemført. Person uuid: " + person.getUuid()));
+			errorResponseService.sendError(response, loginRequest, new RequesterException("2-faktor login ikke gennemført. Person uuid: " + person.getUuid()));
 			auditlogger.rejectedMFA(person);
 			return null;
 		}
@@ -187,6 +182,6 @@ public class MultiFactorAuthenticationController {
 		sessionHelper.setMFALevel(selectedMFAClient.getNsisLevel());
 		sessionHelper.setAuthnInstant(new DateTime());
 
-		return loginService.initiateFlowOrCreateAssertion(model, response, request, person);
+		return flowService.initiateFlowOrSendLoginResponse(model, response, request, person);
 	}
 }

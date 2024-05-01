@@ -12,12 +12,13 @@
 #include <unknwn.h>
 #include "Dll.h"
 #include "helpers.h"
+#include "guid.h"
 
 static long g_cRef = 0;   // global dll reference count
 HINSTANCE g_hinst = NULL; // global dll hinstance
 
 extern HRESULT OS2faktorProvider_CreateInstance(__in REFIID riid, __deref_out void** ppv);
-EXTERN_C GUID CLSID_CSample;
+extern HRESULT OS2faktorProviderFilter_CreateInstance(__in REFIID riid, __deref_out void** ppv);
 
 class CClassFactory : public IClassFactory
 {
@@ -53,16 +54,20 @@ public:
     // IClassFactory
     IFACEMETHODIMP CreateInstance(__in IUnknown* pUnkOuter, __in REFIID riid, __deref_out void **ppv)
     {
-        HRESULT hr;
+        HRESULT hr = E_UNEXPECTED;
         if (!pUnkOuter)
         {
-            hr = OS2faktorProvider_CreateInstance(riid, ppv);
+            if (IID_ICredentialProvider == riid)
+                hr = OS2faktorProvider_CreateInstance(riid, ppv);
+            else if (IID_ICredentialProviderFilter == riid)
+                hr = OS2faktorProviderFilter_CreateInstance(riid, ppv);
         }
         else
         {
             *ppv = NULL;
             hr = CLASS_E_NOAGGREGATION;
         }
+
         return hr;
     }
 
@@ -92,7 +97,7 @@ HRESULT CClassFactory_CreateInstance(__in REFCLSID rclsid, __in REFIID riid, __d
 
     HRESULT hr;
 
-    if (CLSID_CSample == rclsid)
+    if (CLSID_OS2faktorCredentialProvider == rclsid)
     {
         CClassFactory* pcf = new CClassFactory();
         if (pcf)

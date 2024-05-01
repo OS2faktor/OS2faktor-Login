@@ -1,38 +1,32 @@
 package dk.digitalidentity.mvc.admin.xlsview;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.springframework.context.support.ResourceBundleMessageSource;
-import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
-import dk.digitalidentity.common.dao.model.AuditLog;
+import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
+import dk.digitalidentity.service.AuditLogReportXlsService;
 
 public class AuditLogReportXlsView extends AbstractXlsxStreamingView {
-	private List<AuditLog> auditLogs;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
-	private ResourceBundleMessageSource resourceBundle;
+	private AuditLogReportXlsService auditLogReportXlsService;
 
-	@SuppressWarnings("unchecked")
 	@Override
 	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
 
 		// Get data
-		auditLogs = (List<AuditLog>) model.get("auditLogs");
-		resourceBundle = (ResourceBundleMessageSource) model.get("resourceBundle");
+		auditLogReportXlsService = (AuditLogReportXlsService) model.get("auditLogReportXlsService");
+		ReportType type = (ReportType) model.get("type");
+		LocalDateTime from = (LocalDateTime) model.get("from");
+		LocalDateTime to = (LocalDateTime) model.get("to");
 
 		// Setup shared resources
 		Font headerFont = workbook.createFont();
@@ -45,55 +39,6 @@ public class AuditLogReportXlsView extends AbstractXlsxStreamingView {
 		wrapStyle.setWrapText(true);
 
 		// Create Sheets
-		createAuditLogSheet(workbook);
-	}
-
-	private void createAuditLogSheet(Workbook workbook) {
-		Sheet sheet = workbook.createSheet("Auditlog");
-
-		ArrayList<String> headers = new ArrayList<>();
-		headers.add("Tidspunkt");
-		headers.add("IP-adresse");
-		headers.add("Korrelations-ID");
-		headers.add("Handling");
-		headers.add("Besked");
-		headers.add("Personnummer");
-		headers.add("Person");
-		headers.add("Administrator");
-
-		createHeaderRow(sheet, headers);
-
-		int row = 1;
-		for (AuditLog entry : auditLogs) {
-			Row dataRow = sheet.createRow(row++);
-			int column = 0;
-
-			createCell(dataRow, column++, entry.getTts().toString(), null);
-			createCell(dataRow, column++, entry.getIpAddress(), null);
-			createCell(dataRow, column++, entry.getCorrelationId(), null);
-			createCell(dataRow, column++, resourceBundle.getMessage(entry.getLogAction().getMessage(), null, Locale.ENGLISH), null);
-			createCell(dataRow, column++, entry.getMessage(), null);
-			createCell(dataRow, column++, !StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX", null);
-			createCell(dataRow, column++, entry.getPersonName(), null);
-			createCell(dataRow, column++, entry.getPerformerName(), null);
-		}
-	}
-
-	private void createHeaderRow(Sheet sheet, List<String> headers) {
-		Row headerRow = sheet.createRow(0);
-
-		int column = 0;
-		for (String header : headers) {
-			createCell(headerRow, column++, header, headerStyle);
-		}
-	}
-
-	private static void createCell(Row header, int column, String value, CellStyle style) {
-		Cell cell = header.createCell(column);
-		cell.setCellValue(value);
-
-		if (style != null) {
-			cell.setCellStyle(style);
-		}
+		auditLogReportXlsService.createAuditLogSheet(workbook, from, to, type, headerStyle);
 	}
 }

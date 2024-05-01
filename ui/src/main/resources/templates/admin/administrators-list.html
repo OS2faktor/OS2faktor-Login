@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.administrators')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.administrators')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -16,10 +16,16 @@
 
 							<div class="ibox-content">
 								<p>
-									Nedenfor listes alle nuværende administratorer i løsningen, samt de rettigheder de har i løsningen. For at redigere
-									rettighederne for en eksisterende administrator, anvendes blot blyanten til højre for navnet.
+									Nedenfor listes alle nuværende administratorer i løsningen, samt de rettigheder de har i løsningen.
+									<th:block th:if="${readonly == false}">
+										For at redigere rettighederne for en eksisterende administrator, anvendes blot blyanten til højre for navnet.
+									</th:block>
+									<th:block th:if="${readonly == true}">
+										For at redigere rettighederne hvem der er administrator, skal kommunens normale rettighedsstyringssystem anvendes.
+									</th:block>
 								</p>
-								<p>
+
+								<p th:if="${readonly == false}">
 									Knapperne nederst på siden kan anvendes til at tilføje yderligere administratorer. Bemærk at en administrator
 									ikke får adgang til Administrationsmodulet før de har aktiveret deres erhvervsidentitet.
 								</p>
@@ -32,6 +38,9 @@
 										<li><b>Supporter</b>. En supporter har læseadgang til brugere, hændelseslogs og rapporter, og kan hhv spærre og låse brugere op.</li>
 										<li th:if="${@commonConfiguration.customer.enableRegistrant}"><b>Registrant</b>. En registrant er en særligt betroet medarbejder, der kan udføre den manuelle identitetssikringsproces for medarbejdere der ikke ønsker at gennemføre den selvbetjente/digitale identitetssikringsproces.</li>
 										<li><b>Brugeradministrator</b>. En brugeradministrator kan tilgå dette skærmbillede, og tildele/fjerne administrator-roller via funktionen i dette skærmbillede.</li>
+										<li th:if="${kodevisereEnabled == true}"><b>Kodeviseradministrator</b>. En kodeviseradministrator kan tilgå siden hvor man kan frigive en brugt kodeviser, så den kan bruges af en ny bruger.</li>
+										<li th:if="${passwordResetEnabled == true}"><b>Kodeordsadministrator</b>. En kodeordsadministrator kan sætte nulstille kodeordet på brugere som IKKE har en erhvervsidentitet.</li>
+										<li th:if="${stilStudentEnabled == true}"><b>Elev-kodeordsadministrator</b>. En elev-kodeordsadministrator kan administrere kodeord på elever inden for den institution, hvor personen er ansat.</li>
 									</ul>
 								</p>
 								
@@ -51,7 +60,10 @@
 										<tbody>
 											<tr th:each="admin : ${admins}">
 												<td th:text="${admin.userId}"></td>
-												<td th:text="${admin.personName}"></td>
+												<td>
+													<span th:text="${admin.personName}"></span>
+													<span th:if="${admin.nsisActivated == false}" class="text-warning">&nbsp;<em class="fa fa-warning"></em> Personen har ikke aktiveret deres erhvervsidentitet.</span>
+												</td>
 												<td>
 													<ul style="padding-left: 20px; margin-bottom: 0px;">
 														<li th:if="${admin.admin}">Administrator</li>
@@ -59,28 +71,38 @@
 														<li th:if="${admin.userAdmin}">Brugeradministrator</li>
 														<li th:if="${admin.registrant and @commonConfiguration.customer.enableRegistrant}">Registrant</li>
 														<li th:if="${admin.supporter}">Supporter</li>
+														<li th:if="${admin.kodeviserAdmin}">Kodeviser administrator</li>
+														<li th:if="${admin.passwordResetAdmin}">Kodeordsadministrator</li>
+														<li th:if="${admin.institutionStudentPasswordAdmin}">Elev-kodeordsadministrator</li>
 													</ul>
 												</td>
-												<td onclick="modalService.openModal(this);" th:attr="data-id=${admin.id}, data-name=${admin.personName}, data-self=${admin.self}, data-admin=${admin.admin}, data-serviceprovideradmin=${admin.serviceProviderAdmin}, data-useradmin=${admin.userAdmin}, data-registrant=${admin.registrant}, data-supporter=${admin.supporter}, data-domainid=${admin.domainId}"><i class="fa fa-pencil" aria-hidden="true"></i></td>
+												<td>
+													<a th:if="${readonly == false}" href="#" onclick="modalService.openModal(this);" th:attr="data-id=${admin.id}, data-name=${admin.personName}, data-self=${admin.self}, data-admin=${admin.admin}, data-serviceprovideradmin=${admin.serviceProviderAdmin}, data-useradmin=${admin.userAdmin}, data-registrant=${admin.registrant}, data-kodeviseradmin=${admin.kodeviserAdmin}, data-passwordresetadmin=${admin.passwordResetAdmin}, data-supporter=${admin.supporter}, data-domainid=${admin.domainId}, data-institutionstudentpasswordadmin=${admin.institutionStudentPasswordAdmin}" style="color: black;"><i class="fa fa-pencil" aria-hidden="true"></i></a>
+												</td>
 											</tr>
 										</tbody>
 									</table>
 								</div>
 
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 215px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
+								<th:block th:if="${readonly == false}">
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_KODEVISER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${kodevisereEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeviseradministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_PASSWORD_RESET_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${passwordResetEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeordsadministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${stilStudentEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj elev-kodeordsadministrator</a>
+								</th:block>
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.administrators')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.administrators')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 	
@@ -118,6 +140,24 @@
 							<input id="registrantCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_REGISTRANT" />
 						</div>
 					</div>
+					<div class="form-group row" th:if="${kodevisereEnabled == true}">
+						<label class="col-sm-4 col-form-label">Kodeviseradministrator</label>
+						<div class="col-sm-8">
+							<input id="kodeviserAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_KODEVISER_ADMIN" />
+						</div>
+					</div>
+					<div class="form-group row" th:if="${passwordResetEnabled == true}">
+						<label class="col-sm-4 col-form-label">Kodeordsadministrator</label>
+						<div class="col-sm-8">
+							<input id="passwordResetAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_PASSWORD_RESET_ADMIN" />
+						</div>
+					</div>
+					<div class="form-group row" th:if="${stilStudentEnabled == true}">
+						<label class="col-sm-4 col-form-label">Elev-kodeordsadministrator</label>
+						<div class="col-sm-8">
+							<input id="institutionStudentPasswordAdminCheck" type="checkbox" class="i-checks defaultRoleCheckbox" data-type="ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN" />
+						</div>
+					</div>
 					<div class="form-group row">
 						<label class="col-sm-4 col-form-label">Supporter</label>
 						<div class="col-sm-8">
@@ -139,7 +179,7 @@
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)" />
+	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
 	
 	<style>
 		.container-fluid {
@@ -159,11 +199,11 @@
 		+]*/
 		var token = $("meta[name='_csrf']").attr("content");
 		var modalService;
-		$(document).ready(function(){
-			//init 
+		$(document).ready(function() {
+			// init 
 			modalService = new ModalService();
 			
-			//Handle potential success msg
+			// Handle potential success msg
 			const { search } = window.location;
 			const addSuccess = (new URLSearchParams(search)).get('addSuccess');
 			if (addSuccess === '1') {
@@ -176,10 +216,11 @@
 			}
 
 			$('#adminsTable').DataTable({
+				"pageLength": 25,
+				"bLengthChange": false,
 				"bSort": false,
-				"paging": false,
 				"responsive": true,
-				"dom": "<'row'<'col-sm-12'tr>>",
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
 				"language": {
 					"search":	   "Søg",
 					"lengthMenu":   "_MENU_ rækker per side",
@@ -235,7 +276,10 @@
 				$('#serviceProviderAdminCheck').iCheck($(elem).data("serviceprovideradmin") ? 'check' : 'uncheck');
 				$('#userAdminCheck').iCheck($(elem).data("useradmin") ? 'check' : 'uncheck');
 				$('#registrantCheck').iCheck($(elem).data("registrant") ? 'check' : 'uncheck');
+				$('#kodeviserAdminCheck').iCheck($(elem).data("kodeviseradmin") ? 'check' : 'uncheck');
+				$('#passwordResetAdminCheck').iCheck($(elem).data("passwordresetadmin") ? 'check' : 'uncheck');
 				$('#supporterCheck').iCheck($(elem).data("supporter") ? 'check' : 'uncheck');
+				$('#institutionStudentPasswordAdminCheck').iCheck($(elem).data("institutionstudentpasswordadmin") ? 'check' : 'uncheck');
 				$("#title").text("Redigerer administratoren " + $(elem).data("name"));
 				
 				$("#domainSelect").prop( "disabled", $(elem).data("domainid") == 0 );
@@ -300,7 +344,9 @@
 				// Handle special logic for supporter checkboxes
 				$('#supporterCheck').on('ifChecked', function(event){
 					var adminID = event.currentTarget.dataset.id;
+					$('#domainSelect option[value="-1"]').attr("selected", "selected");
 					$('#domainSelect').prop("disabled", false);
+					post(adminID, -1, "ROLE_SUPPORTER", true);
 				});
 				
 				$('#supporterCheck').on('ifUnchecked', function(event){

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceproviders-list')" />
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-gears"></em> &nbsp; Metadata oplysninger</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Tjenesteudbydere der skal integrere til Identity Provideren i OS2faktor, skal anvende
+									nedenstående metadata oplysninger. Vælg det afsnit det passer til den teknologi som
+									tjenesteudbyderen anvender, og send dem listen af informationer.
+								</p>
+								
+								<h2>Certifikater</h2>
+									OS2faktor Identity Provideren er konfigureret med nedenstående certifikat(er). Hvis der er opsat flere certifikater, er det alene
+									det primære certifikat der er i anvendelse. Det sekundære er enten klargjort til fremtidig brug, eller eksisterer i en kort periode
+									efter der er skiftet til et nyt primært certifikat.
+								<p>
+
+								<p th:if="${planedRollOver == true}">
+									<b>OBS!</b> Der er planlagt et certifikatskifte til <th:block th:text="${planedRollOverTts}" />. Her vil det nuværende primære certifikat
+									blive udskiftet med det angivne sekundære certifikat. Det er vigtigt at alle tjenesteudbyder er klar til dette.
+								</p>
+								
+								<table class="table table-striped">
+									<thead>
+										<tr>
+											<th style="width: 150px;">Type</th>
+											<th>Certifikatnavn</th>
+											<th style="width: 100px;">Download</th>
+										</tr>
+									</thead>
+									
+									<tbody>
+										<tr>
+											<td>Primær</td>
+											<td th:text="${primaryCertName}"></td>
+											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/primaryCert'}">PEM</a></td>
+										</tr>
+										
+										<tr th:if="${secondaryCertName != null}">
+											<td>Sekundær</td>
+											<td th:text="${secondaryCertName}"></td>
+											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/secondaryCert'}">PEM</a></td>
+										</tr>
+									</tbody>
+								</table>
+								
+								<h2>SAML 2.0</h2>
+								<p>
+									Tjenesteudbyderen kan hente alle SAML metadata via nedenstående link. Data opdateres autoamtisk ved certifikatskifte,
+									og tjenesteudbyderen kan på den måde automatisk opdage når certifikater opdateres i OS2faktor Identity Provideren.
+								</p>
+								
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}"></a>
+								</p>
+
+								<p>
+									<b>MitID Erhverv!</b>
+									Bemærk at MitID Erhverv har svært ved at håndtere metadata der indeholder elementer som de ikke selv understøtter, så når der skal oprettes
+									en Lokal IdP inde i MitID Erhverv skal man trække nedenstående metadatafil i stedet. Det er en neddroslet udgave af metadatafilen, hvor
+									OS2faktor lader som om den kan meget mindre, så MitID Erhverv vil tillade indlæsningen af metadatafilen.
+								</p>
+								
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}"></a>
+								</p>
+								
+								<h2>OpenID Connect</h2>
+								<p>
+									Tjenesteudbyderen skal opsætte sin integration til Identity Provideren i OS2faktor ved hjælp af nedenstående oplysninger.
+									Bemærk dog at tjenesteudbyderen også skal have et KlientID og en Klientnøgle udleveret, som opsættes inde på tjenesteudbyderen
+									i OS2faktor Identity Provideren.
+								</p>
+								
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + '.well-known/openid-configuration'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + '.well-known/openid-configuration'}"></a>
+								</p>
+
+								<table class="table table-striped">
+									<thead>
+										<tr>
+											<th style="width: 300px;">Felt</th>
+											<th>Værdi</th>
+										</tr>
+									</thead>
+									
+									<tbody>
+										<tr>
+											<td>client-authentication-method</td>
+											<td>client_secret_basic</td>
+										</tr>
+										
+										<tr>
+											<td>authorization-grant-type</td>
+											<td>authorization_code</td>
+										</tr>
+										
+										<tr>
+											<td>scope</td>
+											<td>openid</td>
+										</tr>
+										
+										<tr>
+											<td>authorization-uri</td>
+											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/authorize'}"></td>
+										</tr>
+										
+										<tr>
+											<td>token-uri</td>
+											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/token'}"></td>
+										</tr>
+										
+										<tr>
+											<td>user-info-uri</td>
+											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'userinfo'}"></td>
+										</tr>
+										
+										<tr>
+											<td>jwk-set-uri</td>
+											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/jwks'}"></td>
+										</tr>
+									</tbody>
+								</table>
+								
+								<h2>WS-Federation</h2>
+								<p>
+									Nedenstående link peger på de WS-Federation metadata som en tjenesteudbyder skal anvende til opsætningen mod OS2faktor Login IdP'en.
+								</p>
+								
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}"></a>
+								</p>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceproviders-metadata')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

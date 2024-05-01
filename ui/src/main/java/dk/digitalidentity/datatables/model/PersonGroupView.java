@@ -18,13 +18,12 @@ public class PersonGroupView {
 	@Id
 	@Column
 	private long id;
-
+	
 	@JsonBackReference
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")
 	private AdminPersonView person;
-
+	
 	@Column
 	private long groupId;
-
 }

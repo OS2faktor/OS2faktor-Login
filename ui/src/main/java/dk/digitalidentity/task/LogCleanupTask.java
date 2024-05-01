@@ -20,13 +20,18 @@ public class LogCleanupTask {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
-	// nightly
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 2 * * ?")
+	// nightly - run it multiple times to ensure we delete enough data (LIMIT 25000 on each run)
+	@Scheduled(cron = "#{new java.util.Random().nextInt(59)} #{new java.util.Random().nextInt(59)} 2,3,4 * * ?")
 	public void processChanges() {
 		if (configuration.getScheduled().isEnabled()) {
-			log.debug("Cleanup of old logs started");
+			log.info("Cleanup of old logs started");
 
 			auditLogger.cleanupLogs();
+			auditLogger.cleanupTraceLogs();
+			auditLogger.cleanupLoginLogs();
+			auditLogger.deleteUnreferencedAuditlogDetails();
+			
+			log.info("Cleanup of old logs completed");
 		}
 	}
 }

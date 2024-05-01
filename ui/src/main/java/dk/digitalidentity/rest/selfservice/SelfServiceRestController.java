@@ -30,21 +30,24 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
-import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import dk.digitalidentity.datatables.AuditLogDatatableDao;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.ActivationDTO;
+import dk.digitalidentity.rest.selfservice.dto.MfaRenameRequest;
+import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MFAManagementService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RestController
+@RequireEmployee
 public class SelfServiceRestController {
 
 	@Autowired
@@ -87,6 +90,42 @@ public class SelfServiceRestController {
 		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
 	}
 
+	@PostMapping("/rest/selvbetjening/rename")
+	public ResponseEntity<String> renameClient(@RequestBody MfaRenameRequest request) {
+		String name = request.getMfaNewName();
+		if (name != null) {
+			name = name.trim();
+		}
+
+		if (!StringUtils.hasLength(name)) {
+			return ResponseEntity.badRequest().build();
+		}
+		
+		if (name.length() > 255) {
+			name = name.substring(0, 255);
+		}
+
+		Person person = personService.getById(securityUtil.getPersonId());
+		
+		if (person != null) {
+			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			MfaClient selectedClient = clients.stream().filter(c -> c.getDeviceId().equals(request.getMfaDeviceId())).findAny().orElse(null);
+
+			if (selectedClient == null) {
+				return ResponseEntity.notFound().build();
+			}
+			else {
+				boolean result = mfaManagementService.renameMfaClient(selectedClient.getDeviceId(), name);
+				
+				if (!result) {
+					return ResponseEntity.badRequest().build();
+				}
+			}
+		}
+
+		return ResponseEntity.ok().build();
+	}
+	
 	@PostMapping("/rest/selvbetjening/delete/{deviceId}")
 	public ResponseEntity<String> deleteClient(@PathVariable("deviceId") String deviceId) {
 		Person person = personService.getById(securityUtil.getPersonId());
@@ -140,13 +179,26 @@ public class SelfServiceRestController {
 				return ResponseEntity.notFound().build();
 			}
 			else {
-				boolean result = mfaManagementService.setPrimaryMfaClient(selectedClient.getDeviceId(), setPrimary);
-				
-				if (!result) {
-					return ResponseEntity.badRequest().build();
+				if (selectedClient.isLocalClient()) {
+					LocalRegisteredMfaClient localClient = localRegisteredMfaClientService.getByDeviceId(selectedClient.getDeviceId());
+					if (localClient == null) {
+						return ResponseEntity.badRequest().build();
+					}
+					
+					localRegisteredMfaClientService.setPrimaryClient(localClient, setPrimary, person.getCpr());
+
+					return ResponseEntity.ok().build();
 				}
 				else {
-					return ResponseEntity.ok().build();
+					boolean result = mfaManagementService.setPrimaryMfaClient(selectedClient.getDeviceId(), setPrimary);
+					
+					if (!result) {
+						return ResponseEntity.badRequest().build();
+					}
+					else {
+						localRegisteredMfaClientService.removeAllPrimaryClient(person.getCpr());
+						return ResponseEntity.ok().build();
+					}
 				}
 			}
 		}
@@ -162,6 +214,8 @@ public class SelfServiceRestController {
 
 			return ResponseEntity.badRequest().build();			
 		}
+
+		deviceId = ensureCorrectlyFormattedDeviceId(deviceId);
 
 		MfaClient matchingClient = mfaService.getClient(deviceId);
 		if (matchingClient == null) {
@@ -198,19 +252,19 @@ public class SelfServiceRestController {
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponse mfaResponse = mfaService.authenticate(matchingClient.getDeviceId());
-		if (mfaResponse == null) {
-			log.warn("Got a NULL response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId());
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService. authenticate(matchingClient.getDeviceId());
+		if (!mfaResponseDto.isSuccess()) {
+			log.warn("Got an excpetion from response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId() + " exception: " + mfaResponseDto.getFailureMessage());
 			return ResponseEntity.status(500).build();
 		}
 
 		// store subscription key on session, so we can verify later
-		request.getSession().setAttribute("subscriptionKey", mfaResponse.getSubscriptionKey());
+		request.getSession().setAttribute("subscriptionKey", mfaResponseDto.getMfaAuthenticationResponse().getSubscriptionKey());
 
 		// show challenge page
 		Map<String, Object> responseBody = new HashMap<>();
-		responseBody.put("pollingKey", mfaResponse.getPollingKey());
-		responseBody.put("challenge", mfaResponse.getChallenge());
+		responseBody.put("pollingKey", mfaResponseDto.getMfaAuthenticationResponse().getPollingKey());
+		responseBody.put("challenge", mfaResponseDto.getMfaAuthenticationResponse().getChallenge());
 		responseBody.put("wakeEvent", ClientType.CHROME.equals(matchingClient.getType()) || ClientType.EDGE.equals(matchingClient.getType()));
 
 		return ResponseEntity.ok(responseBody);
@@ -271,13 +325,13 @@ public class SelfServiceRestController {
 		return ResponseEntity.badRequest().build();
 	}
 	
-	@GetMapping("/rest/selvbetjening/unlockADAccount")
+	@GetMapping("/rest/selvbetjening/unlockAccount")
 	public ResponseEntity<?> findDevice() {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {
 			log.warn("No logged in person - this is unexpected!");
 
-			return ResponseEntity.badRequest().build();			
+			return ResponseEntity.badRequest().build();
 		}
 		
 		if (!StringUtils.hasLength(person.getSamaccountName())) {
@@ -285,12 +339,31 @@ public class SelfServiceRestController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		ADPasswordStatus adPasswordStatus = personService.unlockADAccount(person);
+		ADPasswordStatus adPasswordStatus = personService.unlockAccount(person);
 		
 		if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 			return ResponseEntity.badRequest().build();
 		}
 
 		return ResponseEntity.ok().build();
+	}
+
+	private static String ensureCorrectlyFormattedDeviceId(String deviceId) {
+		if (deviceId == null) {
+			return null;
+		}
+
+		// Remove any non digit characters
+		String result = deviceId.replaceAll("\\D", "");
+		if (result.length() != 12) {
+			return deviceId;
+		}
+
+		// Reconstruct string
+		String s1 = result.substring(0,3);
+		String s2 = result.substring(3,6);
+		String s3 = result.substring(6,9);
+		String s4 = result.substring(9,12);
+		return s1 + "-" + s2 + "-" + s3 + "-" + s4;
 	}
 }

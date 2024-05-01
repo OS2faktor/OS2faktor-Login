@@ -15,8 +15,7 @@
 #include "Credential.h"
 #include <vector>
 
-class CredentialProvider : public ICredentialProvider,
-                        public ICredentialProviderSetUserArray
+class CredentialProvider : public ICredentialProvider
 {
   public:
     // IUnknown
@@ -36,11 +35,11 @@ class CredentialProvider : public ICredentialProvider,
     }
 
     IFACEMETHODIMP QueryInterface(_In_ REFIID riid, _COM_Outptr_ void **ppv)
-    {
+    { 
         static const QITAB qit[] =
         {
             QITABENT(CredentialProvider, ICredentialProvider), // IID_ICredentialProvider
-            QITABENT(CredentialProvider, ICredentialProviderSetUserArray), // IID_ICredentialProviderSetUserArray
+            //QITABENT(CredentialProvider, ICredentialProviderSetUserArray), // IID_ICredentialProviderSetUserArray
             {0},
         };
         return QISearch(this, qit, riid, ppv);
@@ -62,8 +61,6 @@ class CredentialProvider : public ICredentialProvider,
     IFACEMETHODIMP GetCredentialAt(DWORD dwIndex,
                                    _Outptr_result_nullonfailure_ ICredentialProviderCredential **ppcpc);
 
-    IFACEMETHODIMP SetUserArray(_In_ ICredentialProviderUserArray *users);
-
     friend HRESULT OS2faktorProvider_CreateInstance(_In_ REFIID riid, _Outptr_ void** ppv);
 
   protected:
@@ -73,11 +70,14 @@ class CredentialProvider : public ICredentialProvider,
   private:
     void _ReleaseEnumeratedCredentials();
     void _CreateEnumeratedCredentials();
-    HRESULT _EnumerateCredentials(bool createAnonymousLogin);
+    void CleanupSetSerialization();
+    HRESULT _EnumerateCredentials();
 private:
     long                                    _cRef;            // Used for reference counting.
-    std::vector<Credential*>                 _credentials;   // V2Credentials
+    std::vector<Credential*>                _credentials;   // V2Credentials
     bool                                    _fRecreateEnumeratedCredentials;
+    bool                                    _shouldAutoSubmitSerializedCredential;
+    KERB_INTERACTIVE_UNLOCK_LOGON*          _externalSerializedCredential;
     CREDENTIAL_PROVIDER_USAGE_SCENARIO      _cpus;
     ICredentialProviderUserArray            *_pCredProviderUserArray;
     bool                                    _IsLoggingEnabled;

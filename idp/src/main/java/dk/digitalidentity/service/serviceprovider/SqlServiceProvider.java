@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,20 +18,27 @@ import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderCondition;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
-import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -43,22 +51,37 @@ public class SqlServiceProvider extends ServiceProvider {
     private SqlServiceProviderConfiguration config;
     private AbstractReloadingMetadataResolver resolver;
     private RoleCatalogueService roleCatalogueService;
+    private AdvancedRuleService advancedRuleService;
+    private AuditLogger auditLogger;
 
-    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient, RoleCatalogueService roleCatalogueService) {
+    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient, RoleCatalogueService roleCatalogueService, AdvancedRuleService advancedRuleService, AuditLogger auditLogger) {
         super.httpClient = httpClient;
 
         this.roleCatalogueService = roleCatalogueService;
         this.config = config;
+        this.advancedRuleService = advancedRuleService;
+        this.auditLogger = auditLogger;
     }
 
     @Override
     public EntityDescriptor getMetadata() throws RequesterException, ResponderException {
+
         if (resolver == null || !resolver.isInitialized()) {
+        	// perform a sane cleanup in case broken data exists
+        	try {
+	        	if (resolver != null) {
+	        		resolver.destroy();
+	        	}
+        	}
+        	catch (Exception ignored) {
+        		;
+        	}
+        	
             resolver = getMetadataResolver(getEntityId(), getMetadataUrl(), getMetadataContent());
         }
-
-        // If last scheduled refresh failed, Refresh now to give up to date metadata
-        if (!resolver.wasLastRefreshSuccess()) {
+        
+        // if never actually refreshed, perform a refresh
+        if (resolver.getLastRefresh() == null) {
             try {
                 resolver.refresh();
             }
@@ -66,7 +89,7 @@ public class SqlServiceProvider extends ServiceProvider {
                 throw new RequesterException("Kunne ikke hente Metadata fra url", ex);
             }
         }
-
+        
         // Extract EntityDescriptor by configured EntityID
         CriteriaSet criteriaSet = new CriteriaSet();
         criteriaSet.add(new EntityIdCriterion(getEntityId()));
@@ -81,7 +104,7 @@ public class SqlServiceProvider extends ServiceProvider {
 
     @Override
     public String getNameId(Person person) throws ResponderException {
-        String result = lookupField(person, config.getNameIdValue());
+        String result = advancedRuleService.lookupField(person, config.getNameIdValue());
         if (result == null) {
             throw new ResponderException("Brugeren har ikke det krævede 'Name ID' felt (" + config.getNameIdValue() + ") i databasen");
         }
@@ -103,141 +126,147 @@ public class SqlServiceProvider extends ServiceProvider {
     }
 
     @Override
-    public Map<String, Object> getAttributes(AuthnRequest authnRequest, Person person) {
-        HashMap<String, Object> attributes = new HashMap<>();
+	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
+		HashMap<String, Object> attributes = new HashMap<>();
 
-        // "Static" fields
-        Set<SqlServiceProviderStaticClaim> staticClaims = config.getStaticClaims();
-        for (SqlServiceProviderStaticClaim staticClaim : staticClaims) {
-            attributes.put(staticClaim.getField(), staticClaim.getValue());
-        }
+		// "Static" fields
+		Set<SqlServiceProviderStaticClaim> staticClaims = config.getStaticClaims();
+		for (SqlServiceProviderStaticClaim staticClaim : staticClaims) {
+			addAttribute(attributes, staticClaim.getField(), staticClaim.getValue(), includeDuplicates);
+		}
 
-        // Role Catalogue claims
-        Set<SqlServiceProviderRoleCatalogueClaim> rcClaims = config.getRcClaims();
-        for (SqlServiceProviderRoleCatalogueClaim rcClaim : rcClaims) {
-        	try {
-        		switch (rcClaim.getExternalOperation()) {
-	        		case CONDITION_MEMBER_OF_SYSTEM_ROLE: {
-	        			String systemRoleId = rcClaim.getExternalOperationArgument();
-	        			if (roleCatalogueService.hasSystemRole(person, systemRoleId)) {
-	        				attributes.put(rcClaim.getClaimName(), rcClaim.getClaimValue());
-	        			}
-	        			break;
-	        		}
-	        		case CONDITION_MEMBER_OF_USER_ROLE: {
-	        			String userRoleId = rcClaim.getExternalOperationArgument();
-	        			if (roleCatalogueService.hasUserRole(person, userRoleId)) {
-	        				attributes.put(rcClaim.getClaimName(), rcClaim.getClaimValue());
-	        			}
-	        			break;
-	        		}
-	        		case GET_SYSTEM_ROLES: {
-	        			String itSystemId = rcClaim.getExternalOperationArgument();
-	        			List<String> systemRoles = roleCatalogueService.getSystemRoles(person, itSystemId);
-	        			if (systemRoles != null && systemRoles.size() > 0) {
-        					attributes.put(rcClaim.getClaimName(), systemRoles);
-	        			}
-	        			break;
-	        		}
-	        		case GET_SYSTEM_ROLES_OIOBPP: {
-	        			String itSystemId = rcClaim.getExternalOperationArgument();
-	        			String oiobpp = roleCatalogueService.getSystemRolesAsOIOBPP(person, itSystemId);
-	        			if (oiobpp != null && oiobpp.length() > 0) {
-        					attributes.put(rcClaim.getClaimName(), oiobpp);
-	        			}
-	        			break;
-	        		}
-	        		case GET_USER_ROLES: {
-	        			String itSystemId = rcClaim.getExternalOperationArgument();
-	        			List<String> systemRoles = roleCatalogueService.getUserRoles(person, itSystemId);
-	        			if (systemRoles != null && systemRoles.size() > 0) {
-        					attributes.put(rcClaim.getClaimName(), systemRoles);
-	        			}
-	        			break;
-	        		}
-        		}
-        	}
-        	catch (Exception ex) {
-        		// maybe change this to warning in the future, but error for now so we can monitor the functionality
-        		log.error("Failed to execute role catalogue claim: " + rcClaim.getId() + " for person " + person.getId(), ex);
-        	}
-        }
-        
-        // Person specific fields
-        Set<SqlServiceProviderRequiredField> requiredFields = config.getRequiredFields();
-        for (SqlServiceProviderRequiredField requiredField : requiredFields) {
-            String attribute = lookupField(person, requiredField.getPersonField());
+		// Role Catalogue claims
+		Set<SqlServiceProviderRoleCatalogueClaim> rcClaims = config.getRcClaims();
+		for (SqlServiceProviderRoleCatalogueClaim rcClaim : rcClaims) {
+			try {
+				switch (rcClaim.getExternalOperation()) {
+					case CONDITION_MEMBER_OF_SYSTEM_ROLE: {
+						String systemRoleId = rcClaim.getExternalOperationArgument();
+						if (roleCatalogueService.hasSystemRole(person, systemRoleId)) {
+							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates);
+						}
+						break;
+					}
+					case CONDITION_MEMBER_OF_USER_ROLE: {
+						String userRoleId = rcClaim.getExternalOperationArgument();
+						if (roleCatalogueService.hasUserRole(person, userRoleId)) {
+							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates);
+						}
+						break;
+					}
+					case GET_SYSTEM_ROLES: {
+						String itSystemId = rcClaim.getExternalOperationArgument();
+						List<String> systemRoles = roleCatalogueService.getSystemRoles(person, itSystemId);
+						if (systemRoles != null && systemRoles.size() > 0) {
+							addAttributeList(attributes, rcClaim.getClaimName(), systemRoles, includeDuplicates);
+						}
+						break;
+					}
+					case GET_SYSTEM_ROLES_OIOBPP: {
+						String itSystemId = rcClaim.getExternalOperationArgument();
+						String oiobpp = roleCatalogueService.getSystemRolesAsOIOBPP(person, itSystemId);
+						if (oiobpp != null && oiobpp.length() > 0) {
+							addAttribute(attributes, rcClaim.getClaimName(), oiobpp, includeDuplicates);
+						}
+						break;
+					}
+					case GET_USER_ROLES: {
+						String itSystemId = rcClaim.getExternalOperationArgument();
+						List<String> systemRoles = roleCatalogueService.getUserRoles(person, itSystemId);
+						if (systemRoles != null && systemRoles.size() > 0) {
+							addAttributeList(attributes, rcClaim.getClaimName(), systemRoles, includeDuplicates);
+						}
+						break;
+					}
+				}
+			}
+			catch (Exception ex) {
+				// maybe change this to warning in the future, but error for now so we can monitor the functionality
+				log.error("Failed to execute role catalogue claim: " + rcClaim.getId() + " for person " + person.getId(), ex);
+			}
+		}
 
-            if (attribute != null) {
-                attributes.put(requiredField.getAttributeName(), attribute);
-            }
-        }
+		// Person specific fields
+		Set<SqlServiceProviderRequiredField> requiredFields = config.getRequiredFields();
+		for (SqlServiceProviderRequiredField requiredField : requiredFields) {
+			String attribute = advancedRuleService.lookupField(person, requiredField.getPersonField());
 
-        return attributes;
-    }
+			if (attribute != null) {
+				addAttribute(attributes, requiredField.getAttributeName(), attribute, includeDuplicates);
+			}
+		}
 
-	private String lookupField(Person person, String personField) {
-		String attribute = null;
-		
-        switch (personField) {
-            case "userId":
-            case "sAMAccountName": // TODO: this is deprecated, but we are keeping it to support existing SPs setup with this value until they are migrated
-                attribute = PersonService.getUsername(person);
-                break;
-            case "uuid":
-                attribute = person.getUuid();
-                break;
-            case "cpr":
-                attribute = person.getCpr();
-                break;
-            case "name":
-            	attribute = person.getName();
-            	break;
-            case "alias":
-            	attribute = person.getNameAlias();
-            	break;
-            case "email":
-            	attribute = person.getEmail();
-            	break;
-            case "firstname":
-            	try {
-            		int idx = person.getName().lastIndexOf(' ');
-            		
-            		if (idx > 0) {
-            			attribute = person.getName().substring(0, idx);
-            		}
-            		else {
-            			attribute = person.getName();
-            		}
-            	}
-            	catch (Exception ex) {
-            		log.error("Failed to parse name on " + person.getId(), ex);
-            		attribute = person.getName();
-            	}
-            	break;
-            case "lastname":
-            	try {
-            		int idx = person.getName().lastIndexOf(' ');
-            		
-            		if (idx > 0) {
-            			attribute = person.getName().substring(idx + 1);
-            		}
-            		else {
-            			attribute = person.getName();
-            		}
-            	}
-            	catch (Exception ex) {
-            		log.error("Failed to parse name on " + person.getId(), ex);
-            		attribute = person.getName();
-            	}
-            	break;
-            default:
-                if (person.getAttributes() != null) {
-                    attribute = person.getAttributes().get(personField);
-                }
-        }
-        
-        return attribute;
+		// Advanced claims
+		Set<SqlServiceProviderAdvancedClaim> advancedClaims = config.getAdvancedClaims();
+		for (SqlServiceProviderAdvancedClaim advancedClaim : advancedClaims) {
+			try {
+				String attribute = advancedRuleService.evaluateRule(advancedClaim.getClaimValue(), person);
+
+				if (StringUtils.hasLength(attribute)) {
+					addAttribute(attributes, advancedClaim.getClaimName(), attribute, includeDuplicates);
+				}
+			}
+			catch (Exception ex) {
+				auditLogger.failedClaimEvaluation(person, this.getName(null), advancedClaim.getClaimName(), ex.getMessage());
+			}
+		}
+
+		// Group claims
+		Set<SqlServiceProviderGroupClaim> groupClaims = config.getGroupClaims();
+		for (SqlServiceProviderGroupClaim groupClaim : groupClaims) {
+			if (GroupService.memberOfGroup(person, groupClaim.getGroup())) {
+				addAttribute(attributes, groupClaim.getClaimName(), groupClaim.getClaimValue(), includeDuplicates);
+			}
+		}
+
+		return attributes;
+	}
+
+	private void addAttribute(HashMap<String, Object> attributes, String claimKey, String newClaimVal, boolean includeDuplicates) {
+		if (!includeDuplicates) {
+			ArrayList<String> values = new ArrayList<>();
+			values.add(newClaimVal);
+			attributes.put(claimKey, values);
+			return;
+		}
+
+		// If value already exists, merge values
+		Object computed = attributes.computeIfPresent(claimKey, (key, value) -> {
+			if (value instanceof List) {
+				((List) value).add(newClaimVal);
+			}
+			return value;
+		});
+
+		// if no key was found for attribute initialize list
+		if (computed == null) {
+			ArrayList<String> values = new ArrayList<>();
+			values.add(newClaimVal);
+
+			attributes.putIfAbsent(claimKey, values);
+		}
+	}
+
+	private void addAttributeList(HashMap<String, Object> attributes, String claimKey, List<String> newClaimVal, boolean includeDuplicates) {
+		if (!includeDuplicates) {
+			ArrayList<String> values = new ArrayList<>(newClaimVal);
+			attributes.put(claimKey, values);
+			return;
+		}
+
+		// If value (List) already exists, merge values
+		Object computed = attributes.computeIfPresent(claimKey, (key, value) -> {
+			if (value instanceof List) {
+				((List) value).addAll(newClaimVal);
+			}
+			return value;
+		});
+
+		// if no key was found for attribute initialize list
+		if (computed == null) {
+			ArrayList<String> values = new ArrayList<>(newClaimVal);
+			attributes.putIfAbsent(claimKey, values);
+		}
 	}
 
 	public Set<SqlServiceProviderRequiredField> getRequiredFields() {
@@ -245,43 +274,87 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
     @Override
-    public boolean mfaRequired(AuthnRequest authnRequest) {
+    public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
+    	// check any NSIS requirements first
+    	switch (nsisLevelRequired(loginRequest)) {
+    		case HIGH:
+        	case SUBSTANTIAL:
+        		return true;
+    		default:
+    			break;
+    	}
+
+    	// then for SAML, check for any AuthnRequest supplied requirements
+		if (Protocol.SAML20.equals(getProtocol()) && inspectAuthnRequestForMfaRequirement(loginRequest.getAuthnRequest())) {
+			return true;
+		}
+
+		// finally check for any configured requirements
         switch (config.getForceMfaRequired()) {
             case ALWAYS:
-                return true;
-            case NEVER:
-                return false;
-            case DEPENDS:
-            	switch (nsisLevelRequired(authnRequest)) {
-            		case HIGH:
-	            	case SUBSTANTIAL:
-	            		return true;
-            		default:
+            	// note, domain can be null in certain situations
+            	if (domain != null) {
+            		// if the domain has been exempted, do not require MFA for the login
+            		if (this.config.getMfaExemptions().stream().anyMatch(d -> Objects.equals(d.getId(), domain.getId()))) {
             			return false;
+            		}
             	}
+                return true;
+            case ONLY_FOR_UNKNOWN_NETWORKS:
+				if (!trustedIP) {
+					return true;
+				}
+				break;
+            default:
+            	break;
         }
 
         return false;
     }
 
-    @Override
-    public NSISLevel nsisLevelRequired(AuthnRequest authnRequest) {
-    	// get AuthnRequest supplied level
-        NSISLevel requestedLevel = NSISLevel.NONE;
+    private boolean inspectAuthnRequestForMfaRequirement(AuthnRequest authnRequest) {
         RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
         if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
-                if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                    requestedLevel = NSISLevel.SUBSTANTIAL;
-                    break;
+            	
+            	// just add a series of magical checks here - various values can be supplied by various SP's, so we will extend the
+            	// list over time to reflect that MFA is required ;)
+            	
+            	// this is what AULA uses sometimes :)
+                if ("urn:dk:gov:saml:attribute:AssuranceLevel:3".equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return true;
                 }
-
-                if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
-                    requestedLevel = NSISLevel.LOW;
-                    break;
+            	// this is what AULA uses sometimes :)
+                else if ("http://schemas.microsoft.com/claims/multipleauthn".equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return true;
                 }
             }
         }
+
+        return false;
+	}
+
+    @Override
+    public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
+    	// get AuthnRequest supplied level
+        NSISLevel requestedLevel = NSISLevel.NONE;
+
+		if (Protocol.SAML20.equals(loginRequest.getProtocol())) {
+			RequestedAuthnContext requestedAuthnContext = loginRequest.getAuthnRequest().getRequestedAuthnContext();
+			if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
+				for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
+					if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
+						requestedLevel = NSISLevel.SUBSTANTIAL;
+						break;
+					}
+
+					if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
+						requestedLevel = NSISLevel.LOW;
+						break;
+					}
+				}
+			}
+		}
 
         // get configured level
         NSISLevel configuredLevel = NSISLevel.NONE;
@@ -311,12 +384,54 @@ public class SqlServiceProvider extends ServiceProvider {
     public String getEntityId() {
         return config.getEntityId();
     }
+	
+	@Override
+	public List<String> getEntityIds() {
+		if (StringUtils.hasLength(config.getAdditionalEntityIds())) {
+			List<String> entityIds = new ArrayList<String>();
+			entityIds.add(config.getEntityId());
+			
+			String[] tokens = config.getAdditionalEntityIds().split(",");
+			for (String token : tokens) {
+				entityIds.add(token);
+			}
+			
+			return entityIds;
+		}
+
+		return Collections.singletonList(config.getEntityId());
+	}
 
     @Override
-    public String getName(AuthnRequest authnRequest) {
+    public String getName(LoginRequest loginRequest) {
         return config.getName();
     }
+    
+	@Override
+	public boolean requireOiosaml3Profile() {
+		return config.isRequireOiosaml3Profile();
+	}
 
+	@Override
+	public Long getPasswordExpiry() {
+		return config.getCustomPasswordExpiry();
+	}
+
+	@Override
+	public Long getMfaExpiry() {
+		return config.getCustomMfaExpiry();
+	}
+
+	@Override
+	public boolean allowUnsignedAuthnRequests() {
+		return config.isAllowUnsignedAuthnRequests();
+	}
+
+	@Override
+	public boolean disableSubjectConfirmation() { 
+		return config.isDisableSubjectConfirmation();
+	}
+	
     @Override
     public RequirementCheckResult personMeetsRequirements(Person person) {
         if (person == null) {
@@ -377,7 +492,7 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
     @Override
-    public String getProtocol() {
+    public Protocol getProtocol() {
         return config.getProtocol();
     }
 
@@ -393,15 +508,43 @@ public class SqlServiceProvider extends ServiceProvider {
 		return this.config.getManualReloadTimestamp();
 	}
 
-	public void reloadMetadata() {
-		// this will cause the metadata to be refreshed on the next request
-		this.resolver = null;
+	public void reloadMetadata(boolean recreateResolver) {
+
+		if (recreateResolver || this.resolver == null) {
+			// first attempt to cancel/destroy any pending tasks
+			try {
+				if (this.resolver != null) {
+					this.resolver.destroy();
+				}
+			}
+			catch (Exception ignored) {
+				;
+			}
+			
+			// this will cause the metadata to be refreshed on the next request
+			this.resolver = null;
+
+			// then attempt an immediate reload of metadata
+			try {
+				this.getMetadata();
+			}
+			catch (Exception ignored) {
+				;
+			}
+		}
+		else {
+			try {
+				this.resolver.refresh();
+			}
+			catch (Exception ex) {
+				log.warn("Refresh of metadata failed for " + this.getEntityId(), ex);
+			}
+		}
 	}
 
 	@Override
 	public boolean supportsNsisLoaClaim() {
-		// TODO: extract into configuration
-		return true;
+		return false;
 	}
 	
 	@Override

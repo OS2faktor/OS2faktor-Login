@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_configuration ADD COLUMN require_oiosaml3profile BOOLEAN NOT NULL DEFAULT FALSE;

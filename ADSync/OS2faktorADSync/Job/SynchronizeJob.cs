@@ -1,5 +1,6 @@
 ﻿using Quartz;
 using Serilog;
+using System;
 using System.Threading.Tasks;
 
 namespace OS2faktorADSync
@@ -29,9 +30,10 @@ namespace OS2faktorADSync
                 try
                 {
                     var users = ActiveDirectoryService.GetFullSyncUsers(out directorySynchronizationCookie);
+
                     BackendService.FullSync(users);
                 }
-                catch (System.Exception e)
+                catch (Exception e)
                 {
                     Logger.Error(e, "Exception caught in SynchronizeJob (full)");
                 }
@@ -51,6 +53,7 @@ namespace OS2faktorADSync
                         Logger.Debug("Performing delta sync");
 
                         var users = ActiveDirectoryService.GetDeltaSyncUsers(ref directorySynchronizationCookie);
+
                         BackendService.DeltaSync(users.CreateEntries);
                         BackendService.DeltaDeleteSync(users.DeleteEntries);
                     }

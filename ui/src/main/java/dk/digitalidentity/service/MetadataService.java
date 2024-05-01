@@ -2,6 +2,8 @@ package dk.digitalidentity.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringReader;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -11,55 +13,69 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Timer;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import javax.transaction.Transactional;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.methods.HttpGet;
 import org.bouncycastle.util.encoders.Base64;
 import org.opensaml.saml.common.xml.SAMLConstants;
-import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.ResourceBackedMetadataResolver;
+import org.opensaml.saml.metadata.resolver.impl.DOMMetadataResolver;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
-import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
+import org.opensaml.saml.saml2.metadata.RoleDescriptor;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
 import org.opensaml.security.credential.UsageType;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.w3c.dom.Document;
+import org.xml.sax.InputSource;
 
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderCondition;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderMfaExemptedDomain;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RoleCatalogueOperation;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.common.serviceprovider.ServiceProviderConfig;
-import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.CertificateDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.EndpointDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
-import dk.digitalidentity.util.StringResource;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
@@ -75,9 +91,6 @@ public class MetadataService {
     private SqlServiceProviderConfigurationService configurationService;
 
     @Autowired
-    private OS2faktorConfiguration configuration;
-
-    @Autowired
     private List<ServiceProviderConfig> serviceProviderConfigs;
 
     @Autowired
@@ -86,19 +99,291 @@ public class MetadataService {
     @Autowired
     private GroupService groupService;
 
-    public List<ServiceProviderDTO> getStaticServiceProviderDTOs() throws Exception {
+    @Autowired
+    private RegisteredClientRepository registeredClientRepository;
+
+    public List<ServiceProviderDTO> getStaticServiceProviderDTOs(boolean fetchMetadata) {
         ArrayList<ServiceProviderDTO> result = new ArrayList<>();
 
         for (ServiceProviderConfig config : serviceProviderConfigs) {
-            if (!config.enabled()) {
+            if (!config.isEnabled()) {
                 continue;
             }
 
-            ArrayList<EndpointDTO> endpoints = null;
-            ArrayList<CertificateDTO> certificates = null;
+            result.add(getServiceProviderDTO(config, fetchMetadata));
+        }
+
+        return result;
+    }
+    
+    public ServiceProviderDTO getStaticServiceProviderDTOByName(String name) {
+        if (name == null || serviceProviderConfigs == null || serviceProviderConfigs.size() == 0) {
+            return null;
+        }
+
+        for (ServiceProviderConfig config : serviceProviderConfigs) {
+            if (!config.isEnabled()) {
+                continue;
+            }
+
+            if (Objects.equals(config.getName(), name)) {
+            	return getServiceProviderDTO(config, true);
+            }
+        }
+
+        return null;
+    }
+
+    public ServiceProviderDTO getMetadataDTO(ServiceProviderConfig spConfig, boolean fetchMetadata) {
+        switch (spConfig.getProtocol()) {
+            case SAML20:
+            	return getServiceProviderDTO(spConfig, fetchMetadata);
+            case OIDC10:
+                ServiceProviderDTO serviceProviderDTO = new ServiceProviderDTO(spConfig, null, null);
+
+                RegisteredClient oidcClient = registeredClientRepository.findByClientId(spConfig.getEntityId());
+                if (oidcClient == null) {
+                    log.warn("Could not find oidc client for spconfig: " + spConfig.getName());
+                    return serviceProviderDTO;
+                }
+                
+                serviceProviderDTO.setExistingSecret(StringUtils.hasText(oidcClient.getClientSecret()));
+                serviceProviderDTO.setRedirectURLs(new ArrayList<>(oidcClient.getRedirectUris()));
+
+                return serviceProviderDTO;
+			case WSFED:
+				ServiceProviderDTO wsFedServiceProviderDTO = new ServiceProviderDTO(spConfig, null, null);
+				return wsFedServiceProviderDTO;
+			default:
+                throw new IllegalStateException("Unexpected value: " + spConfig.getProtocol());
+        }
+    }
+    
+    // TODO: really should move all these methods into a ServiceProviderService - they do not belong in MetadataService
+    @Transactional(value = Transactional.TxType.REQUIRES_NEW, rollbackOn = Exception.class)
+    public SqlServiceProviderConfiguration saveConfiguration(ServiceProviderDTO serviceProviderDTO) throws Exception {
+        // Get configuration if it exists
+        SqlServiceProviderConfiguration config = configurationService.getById(Long.parseLong(serviceProviderDTO.getId()));
+
+        // Determine if create scenario
+        boolean createScenario = false;
+        if (config == null) {
+            createScenario = true;
+            config = new SqlServiceProviderConfiguration();
+            config.setStaticClaims(new HashSet<>());
+            config.setRequiredFields(new HashSet<>());
+            config.setRcClaims(new HashSet<>());
+            config.setAdvancedClaims(new HashSet<>());
+            config.setGroupClaims(new HashSet<>());
+            config.setConditions(new HashSet<>());
+            config.setMfaExemptions(new HashSet<>());
+            config.setProtocol(Protocol.valueOf(serviceProviderDTO.getProtocol()));
+        }
+
+        if (!createScenario) {
+            boolean sameProtocol = Objects.equals(config.getProtocol().name(), serviceProviderDTO.getProtocol());
+            if (!sameProtocol) {
+                throw new IllegalStateException("Cannot change protocol of a ServiceProvider");
+            }
+        }
+
+        // Update fields
+        config.setName(serviceProviderDTO.getName());
+        config.setMetadataUrl(serviceProviderDTO.getMetadataUrl());
+        config.setMetadataContent(serviceProviderDTO.getMetadataContent());
+        config.setNameIdFormat(serviceProviderDTO.getNameIdFormat());
+        config.setNameIdValue(serviceProviderDTO.getNameIdValue());
+        config.setForceMfaRequired(serviceProviderDTO.getForceMfaRequired());
+        config.setPreferNemid(serviceProviderDTO.isPreferNemid());
+        config.setPreferNIST(serviceProviderDTO.isPreferNIST());
+        config.setRequireOiosaml3Profile(serviceProviderDTO.isRequireOiosaml3Profile());
+        config.setNemLogInBrokerEnabled(serviceProviderDTO.isNemLogInBrokerEnabled());
+        config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
+        config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
+        config.setEnabled(serviceProviderDTO.isEnabled());
+
+		if (serviceProviderDTO.getPasswordExpiry() != null && serviceProviderDTO.getMfaExpiry() != null) {
+			Long passwordExpiry = serviceProviderDTO.getPasswordExpiry();
+			Long mfaExpiry = serviceProviderDTO.getMfaExpiry();
+
+			if (passwordExpiry < mfaExpiry) {
+				throw new IllegalStateException("Sessionudløb for kodeord skal være længere eller ens med sessionsudløb for 2-faktor");
+			}
+
+			config.setCustomPasswordExpiry(passwordExpiry);
+			config.setCustomMfaExpiry(mfaExpiry);
+		}
+		else {
+			config.setCustomPasswordExpiry(null);
+			config.setCustomMfaExpiry(null);
+		}
+
+        // Sets or updates Static-, Dynamic-, and RoleCatalogue-claims
+        setSPClaims(serviceProviderDTO, config);
+
+        // Sets or updates Domain and Group conditions
+        setSPConditions(serviceProviderDTO, config);
+        
+        // Sets or updates exempted mfa domains
+        setSPExemptedMfaDomains(serviceProviderDTO, config);
+
+        switch (config.getProtocol()) {
+            case SAML20:
+                // Fetch metadata, setting the entityId if in createScenario
+            	if (createScenario) {
+            		updateConfigWithEntityIdFromMetadata(config);
+            	}
+                break;
+            case OIDC10:
+                if (createScenario) {
+                    config.setEntityId(serviceProviderDTO.getEntityId());
+                }
+                createOrUpdateRegisteredClientBasedOnSP(serviceProviderDTO, config, createScenario);
+                break;
+			case WSFED:
+				// Fetch metadata, setting the entityId if in createScenario
+				if (createScenario) {
+					updateConfigWithEntityIdFromMetadata(config);
+				}
+				break;
+			default:
+                throw new IllegalStateException("Unexpected value: " + config.getProtocol());
+        }
+
+        // Save and return the new metadata.
+        return configurationService.save(config);
+    }
+    
+    @Transactional
+    public void monitorCertificates() {
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DATE, 14);
+        Date futereDate = cal.getTime();
+
+        // monitor static ServiceProviders (logging errors, because it is something we need to look at)
+        try {
+            List<ServiceProviderDTO> serviceProviderDTOs = getStaticServiceProviderDTOs(true);
+            for (ServiceProviderDTO serviceProviderDTO : serviceProviderDTOs) {
+            	if (!serviceProviderDTO.isEnabled()) {
+            		continue;
+            	}
+            	
+                List<CertificateDTO> certificates = serviceProviderDTO.getCertificates();
+
+                if (certificates != null) {
+                    for (CertificateDTO certificate : certificates) {
+                        if (certificate.getExpiryDateAsDate().before(futereDate)) {
+                            log.error(constructCertWarnMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
+                        }
+                        else {
+                            log.info(constructCertDebugMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
+                        }
+                    }
+                }
+                else {
+                    log.error("Error in Monitor Certificates task, could not fetch certificates for: " + serviceProviderDTO.getName());
+                }
+            }
+        }
+        catch (Exception ex) {
+            log.error("Error in Monitor Certificates task while checking Statically configured ServiceProviders", ex);
+        }
+
+        // Monitor SQL configured ServiceProviders, logging warn, because it is something the customer needs to look at (but flag it on the SP)
+        for (SqlServiceProviderConfiguration sqlSPConfig : configurationService.getAll()) {
+        	if (!sqlSPConfig.isEnabled() || !Objects.equals(sqlSPConfig.getProtocol(), Protocol.SAML20)) {
+        		continue;
+        	}
+        	
+        	boolean badMetadata = false;
 
             try {
-                EntityDescriptor metadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
+                EntityDescriptor metadata = getMetadata(sqlSPConfig);
+                if (metadata == null) {
+                    log.warn("Error in Monitor Certificates task, metadata was null for SQL SP: '" + sqlSPConfig.getName() + "' EntityId, URL or metadata content might be misconfigured?");
+                    badMetadata = true;
+                }
+                else {
+	                SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+	                if (spssoDescriptor == null) {
+	                	List<RoleDescriptor> descriptors = metadata.getRoleDescriptors();
+	                	if (!descriptors.isEmpty()) {
+	                		spssoDescriptor = descriptors.stream().filter(SPSSODescriptor.class::isInstance).map(d -> (SPSSODescriptor) d).findAny().orElse(null);
+	                	}
+	                }
+	                
+	                if (spssoDescriptor == null) {
+	                	log.warn("Error in Monitor Certificates task, no role descriptors in metadata for SQL SP: " + sqlSPConfig.getName());
+	                    badMetadata = true;
+	                }
+	                else {
+		                Map<UsageType, List<X509Certificate>> certMap = convertKeyDescriptorsToCert(spssoDescriptor.getKeyDescriptors());
+		
+		                for (Map.Entry<UsageType, List<X509Certificate>> entry : certMap.entrySet()) {
+		                    for (X509Certificate x509Certificate : entry.getValue()) {
+		                        if (x509Certificate.getNotAfter().before(futereDate)) {
+		                            log.warn(constructCertWarnMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()));
+		                            badMetadata = true;
+		                        }
+		                    }
+		                }
+	                }
+                }                
+            }
+            catch (Exception ex) {
+                log.error("Error in Monitor Certificates task while checking SQL configured ServiceProvider (" + sqlSPConfig.getName() + ")", ex);
+            }
+            
+            // update flag
+            if (badMetadata != sqlSPConfig.isBadMetadata()) {
+            	sqlSPConfig.setBadMetadata(badMetadata);
+            	configurationService.save(sqlSPConfig);
+            }
+        }
+    }
+    
+	public boolean setManualReload(String serviceProviderId) throws Exception {
+		try {
+			SqlServiceProviderConfiguration spConfig = configurationService.getById(Long.parseLong(serviceProviderId));
+			if (spConfig == null) {
+				return false;
+			}
+			
+			spConfig.setManualReloadTimestamp(LocalDateTime.now());
+
+			configurationService.save(spConfig);
+			return true;
+		}
+		catch (Exception ex) {
+			ServiceProviderDTO staticServiceProvider = getStaticServiceProviderDTOByName(serviceProviderId);
+
+			if (staticServiceProvider == null) {
+				return false;
+			}
+
+			// TODO: we are not actually forcing a metadata reload - we need to add a similar feature to our static SPs
+
+			return true;
+		}
+	}
+    
+    private List<String> getRegisteredEntityIDs() throws Exception {
+        List<String> entityIds = CollectionUtils.emptyIfNull(configurationService.getAll()).stream().map(SqlServiceProviderConfiguration::getEntityId).collect(Collectors.toList());
+
+        for (ServiceProviderConfig staticSPConfig : serviceProviderConfigs) {
+            entityIds.add(staticSPConfig.getEntityId());
+        }
+
+        return entityIds;
+    }
+
+    private ServiceProviderDTO getServiceProviderDTO(ServiceProviderConfig config, boolean fetchMetadata) {
+        ArrayList<EndpointDTO> endpoints = null;
+        ArrayList<CertificateDTO> certificates = null;
+
+        if (fetchMetadata) {
+            try {
+                EntityDescriptor metadata = getMetadata(config);
 
                 // process existing spSSODescriptor for additional data on view pages
                 if (metadata != null) {
@@ -127,123 +412,24 @@ public class MetadataService {
             catch (Exception ex) {
                 log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex);
             }
-
-            // Adding can fail in case of SPs using file based metadata since it can fail to find the file this is why we need an extra check.
-            try {
-                result.add(new ServiceProviderDTO(config, certificates, endpoints));
-            }
-            catch (Exception ex) {
-                log.error("Could not add ServiceProviderDTO for SP: " + config.getEntityId(), ex);
-            }
         }
 
-        return result;
+        return new ServiceProviderDTO(config, certificates, endpoints);
     }
 
-    public List<String> getRegisteredEntityIDs() throws Exception {
-        List<String> entityIds = CollectionUtils.emptyIfNull(configurationService.getAll()).stream().map(SqlServiceProviderConfiguration::getEntityId).collect(Collectors.toList());
-
-        for (ServiceProviderConfig staticSPConfig : serviceProviderConfigs) {
-            entityIds.add(staticSPConfig.getEntityId());
-        }
-
-        return entityIds;
+    private EntityDescriptor getMetadata(ServiceProviderConfig config) {
+        return getMetadata(config.getName(), config.getMetadataUrl(), config.getMetadataContent());
     }
 
-    public ServiceProviderDTO getStaticServiceProviderDTOByName(String name) throws Exception {
-        if (name == null || serviceProviderConfigs == null || serviceProviderConfigs.size() == 0) {
-            return null;
-        }
-
-        for (ServiceProviderConfig config : serviceProviderConfigs) {
-            if (!config.enabled()) {
-                continue;
-            }
-
-            if (Objects.equals(config.getName(), name)) {
-                ArrayList<EndpointDTO> endpoints = null;
-                ArrayList<CertificateDTO> certificates = null;
-
-                try {
-                    EntityDescriptor metadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
-
-                    // Process existing spSSODescriptor for additional data on view pages
-                    if (metadata != null) {
-                        SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
-
-                        if (spssoDescriptor != null) {
-                            // Process metadata
-                            endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
-                            endpoints.addAll(getLogoutEndpointDTOs(spssoDescriptor));
-
-                            // Process certificates
-                            certificates = getCertificateDTOs(spssoDescriptor);
-                        }
-                    }
-                }
-                catch (Exception ex) {
-                    log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex.getMessage());
-
-                    if (log.isDebugEnabled()) {
-                    	log.debug("Stacktrace", ex);
-                    }
-                }
-                
-                return new ServiceProviderDTO(config, certificates, endpoints);
-            }
-        }
-
-        return null;
+    private EntityDescriptor getMetadata(String serviceProviderName, String metadataUrl, String metadataContent) {
+    	if (StringUtils.hasLength(metadataContent)) {
+    		return getEntityDescriptorFromMetadataString(serviceProviderName, metadataContent);
+    	}
+    	
+    	return getEntityDescriptorFromMetadataUrl(serviceProviderName, metadataUrl);
     }
 
-    public EntityDescriptor getMetadata(SqlServiceProviderConfiguration config) throws Exception {
-        return getMetadata(config.getMetadataUrl(), config.getMetadataContent());
-    }
-    
-    public EntityDescriptor getMetadata(String metadataUrl, String metadataContent) throws Exception {
-        AbstractReloadingMetadataResolver resolver = getHttpMetadataProvider(metadataUrl, metadataContent);
-
-        try {
-        	EntityDescriptor entityDescriptor = resolver.iterator().next();
-            resolver.destroy();
-
-            return entityDescriptor;
-        } catch (Exception ex) {
-            throw new Exception("Kunne ikke hente metadata", ex);
-        }
-    }
-
-    public ServiceProviderDTO getMetadataDTO(SqlServiceProviderConfiguration spConfig, boolean fetchMetadata) {
-        ArrayList<EndpointDTO> endpoints = null;
-        ArrayList<CertificateDTO> certificates = null;
-
-        if (fetchMetadata) {
-            try {
-                EntityDescriptor metadata = getMetadata(spConfig);
-
-                // Process existing spSSODescriptor for additional data on view pages
-                if (metadata != null) {
-                    SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
-
-                    if (spssoDescriptor != null) {
-                        // process metadata
-                        endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
-                        endpoints.addAll(getLogoutEndpointDTOs(spssoDescriptor));
-
-                        // process certificates
-                        certificates = getCertificateDTOs(spssoDescriptor);
-                    }
-                }
-            } 
-            catch (Exception ex) {
-                log.warn("Could not fetch Metadata for SP config: " + spConfig.getEntityId(), ex);
-            }
-        }
-
-        return new ServiceProviderDTO(spConfig, certificates, endpoints);
-    }
-
-    public ArrayList<CertificateDTO> getCertificateDTOs(SPSSODescriptor spssoDescriptor) throws Exception {
+	private ArrayList<CertificateDTO> getCertificateDTOs(SPSSODescriptor spssoDescriptor) throws Exception {
         ArrayList<CertificateDTO> certificates = new ArrayList<>();
         Map<UsageType, List<X509Certificate>> usageTypeListMap = convertKeyDescriptorsToCert(spssoDescriptor.getKeyDescriptors());
 
@@ -256,7 +442,7 @@ public class MetadataService {
         return certificates;
     }
 
-    public List<EndpointDTO> getLogoutEndpointDTOs(SPSSODescriptor spssoDescriptor) {
+    private List<EndpointDTO> getLogoutEndpointDTOs(SPSSODescriptor spssoDescriptor) {
         return CollectionUtils.emptyIfNull(spssoDescriptor.getSingleLogoutServices())
                 .stream()
                 .filter(sls -> SAMLConstants.SAML2_POST_BINDING_URI.equals(sls.getBinding()) || SAMLConstants.SAML2_REDIRECT_BINDING_URI.equals(sls.getBinding()))
@@ -264,7 +450,7 @@ public class MetadataService {
                 .collect(Collectors.toList());
     }
 
-    public List<EndpointDTO> getAssertionConsumerEndpointDTOs(SPSSODescriptor spssoDescriptor) {
+    private List<EndpointDTO> getAssertionConsumerEndpointDTOs(SPSSODescriptor spssoDescriptor) {
         return CollectionUtils.emptyIfNull(spssoDescriptor.getAssertionConsumerServices())
                 .stream()
                 .filter(acs -> SAMLConstants.SAML2_POST_BINDING_URI.equals(acs.getBinding()))
@@ -272,39 +458,141 @@ public class MetadataService {
                 .collect(Collectors.toList());
     }
 
-    // TODO: really should move all these methods into a ServiceProviderService - they do not belong in MetadataService
-    public SqlServiceProviderConfiguration saveConfiguration(ServiceProviderDTO serviceProviderDTO) throws Exception {
-        // Get configuration if it exists
-        SqlServiceProviderConfiguration config = configurationService.getById(Long.parseLong(serviceProviderDTO.getId()));
+    private void createOrUpdateRegisteredClientBasedOnSP(ServiceProviderDTO serviceProviderDTO, SqlServiceProviderConfiguration config, boolean createScenario) {
+        RegisteredClient.Builder builder = null;
+        if (createScenario) {
+            // Create registeredClient with defaults
+            builder = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId(serviceProviderDTO.getEntityId())
+                    .clientName(serviceProviderDTO.getName())
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                    .scope("openid");
+        }
+        else {
+            // Fetch Registered client
+            RegisteredClient registeredClient = registeredClientRepository.findByClientId(config.getEntityId());
+            if (registeredClient == null) {
+                throw new IllegalStateException("No Registered Client found for ClientId: " + config.getEntityId());
+            }
 
-        // Determine if create scenario
-        boolean createScenario = false;
-        if (config == null) {
-            createScenario = true;
-            config = new SqlServiceProviderConfiguration();
-            config.setStaticClaims(new HashSet<>());
-            config.setRequiredFields(new HashSet<>());
-            config.setRcClaims(new HashSet<>());
-            config.setConditions(new HashSet<>());
-
+            builder = RegisteredClient.from(registeredClient);
         }
 
-        // Update fields
+        // Update Registered client
+        if (StringUtils.hasText(serviceProviderDTO.getClientSecret())) {
+            BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+            builder.clientSecret("{bcrypt}" + passwordEncoder.encode(serviceProviderDTO.getClientSecret()));
+        }
+        
+        List<String> redirectURLs = serviceProviderDTO.getRedirectURLs() != null ? serviceProviderDTO.getRedirectURLs() : new ArrayList<>();
+        builder.redirectUris((uris) -> uris.addAll(redirectURLs));
 
-        config.setName(serviceProviderDTO.getName());
-        config.setMetadataUrl(serviceProviderDTO.getMetadataUrl());
-        config.setMetadataContent(serviceProviderDTO.getMetadataContent());
-        config.setNameIdFormat(serviceProviderDTO.getNameIdFormat());
-        config.setNameIdValue(serviceProviderDTO.getNameIdValue());
-        config.setForceMfaRequired(serviceProviderDTO.getForceMfaRequired());
-        config.setPreferNemid(serviceProviderDTO.isPreferNemid());
-        config.setPreferNIST(serviceProviderDTO.isPreferNIST());
-        config.setNemLogInBrokerEnabled(serviceProviderDTO.isNemLogInBrokerEnabled());
-        config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
-        config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
-        config.setEnabled(serviceProviderDTO.isEnabled());
-        config.setProtocol("SAML20");
+        RegisteredClient registeredClient = builder.build();
 
+        registeredClientRepository.save(registeredClient);
+    }
+
+    public void attemptToUpdateEntityId(long id) throws Exception {
+        SqlServiceProviderConfiguration config = configurationService.getById(id);
+        if (config != null) {
+        	updateConfigWithEntityIdFromMetadata(config);
+        	
+        	configurationService.save(config);
+        }
+    }
+
+    private void updateConfigWithEntityIdFromMetadata(SqlServiceProviderConfiguration config) throws Exception {
+        EntityDescriptor metadata = getMetadata(config);
+        if (metadata == null) {
+        	throw new Exception("Kunne ikke læse metadata");
+        }
+
+        List<String> registeredEntityIDs = getRegisteredEntityIDs();
+
+        if (registeredEntityIDs.contains(config.getEntityId())) {
+            throw new Exception("Tjenesteudbyder med entityId: '" + config.getEntityId() + "' findes allerede.");
+        }
+            
+        config.setEntityId(metadata.getEntityID());
+    }
+
+    private void setSPExemptedMfaDomains(ServiceProviderDTO serviceProviderDTO, SqlServiceProviderConfiguration config) {
+    	
+    	// add
+    	for (long exemptedDomain : serviceProviderDTO.getExemptedDomains()) {
+    		Domain domain = domainService.getById(exemptedDomain);
+    		if (domain == null) {
+    			log.warn("Unable to find domain: " + exemptedDomain);
+    			continue;
+    		}
+
+    		if (!config.getMfaExemptions().stream().anyMatch(e -> exemptedDomain == e.getDomain().getId())) {
+    			SqlServiceProviderMfaExemptedDomain add = new SqlServiceProviderMfaExemptedDomain();
+    			add.setConfiguration(config);
+    			add.setDomain(domain);
+
+				config.getMfaExemptions().add(add);
+    		}
+    	}
+    	
+    	// remove
+    	for (Iterator<SqlServiceProviderMfaExemptedDomain> iterator = config.getMfaExemptions().iterator(); iterator.hasNext();) {
+			SqlServiceProviderMfaExemptedDomain exemptedDomain = iterator.next();
+			
+			if (!serviceProviderDTO.getExemptedDomains().stream().anyMatch(d -> exemptedDomain.getDomain().getId() == d)) {
+				iterator.remove();
+			}
+		}
+    }
+    
+    private void setSPConditions(ServiceProviderDTO serviceProviderDTO, SqlServiceProviderConfiguration config) {
+        Set<SqlServiceProviderCondition> conditions = config.getConditions();
+        Set<SqlServiceProviderCondition> newConditions = new HashSet<>();
+
+        Set<SqlServiceProviderCondition> domainConditions = conditions.stream().filter(condition -> SqlServiceProviderConditionType.DOMAIN.equals(condition.getType())).collect(Collectors.toSet());
+        List<ConditionDTO> conditionsDomains = serviceProviderDTO.getConditionsDomains();
+        
+        for (ConditionDTO conditionsDomain : conditionsDomains) {
+            Optional<SqlServiceProviderCondition> condition = domainConditions.stream().filter(domainCondition -> domainCondition.getDomain().getId() == conditionsDomain.getId()).findAny();
+
+            if (condition.isEmpty()) {
+                Domain domain = domainService.getById(conditionsDomain.getId());
+                if (domain != null) {
+                    newConditions.add(new SqlServiceProviderCondition(config, SqlServiceProviderConditionType.DOMAIN, null, domain));
+                }
+            }
+            else {
+                newConditions.add(condition.get());
+            }
+        }
+
+        Set<SqlServiceProviderCondition> groupConditions = conditions.stream().filter(condition -> SqlServiceProviderConditionType.GROUP.equals(condition.getType())).collect(Collectors.toSet());
+        List<ConditionDTO> conditionsGroups = serviceProviderDTO.getConditionsGroups();
+        
+        for (ConditionDTO conditionsGroup : conditionsGroups) {
+            Optional<SqlServiceProviderCondition> condition = groupConditions.stream().filter(groupCondition -> groupCondition.getGroup().getId() == conditionsGroup.getId()).findAny();
+            
+            if (condition.isEmpty()) {
+                Group group = groupService.getById(conditionsGroup.getId());
+
+                if (group != null) {
+                    newConditions.add(new SqlServiceProviderCondition(config, SqlServiceProviderConditionType.GROUP, group, null));
+                }
+            }
+            else {
+                newConditions.add(condition.get());
+            }
+        }
+
+        Set<SqlServiceProviderCondition> allConditions = config.getConditions();
+        allConditions.clear();
+        allConditions.addAll(newConditions);
+        config.setConditions(allConditions);
+    }
+
+    private void setSPClaims(ServiceProviderDTO serviceProviderDTO, SqlServiceProviderConfiguration config) {
         Map<Long, SqlServiceProviderStaticClaim> staticClaimMap = (config.getStaticClaims() != null)
                 ? config.getStaticClaims()
                         .stream()
@@ -316,17 +604,31 @@ public class MetadataService {
                         .stream()
                         .collect(Collectors.toMap(SqlServiceProviderRequiredField::getId, SqlServiceProviderRequiredField -> SqlServiceProviderRequiredField))
                 : new HashMap<>();
-        
-        Map<Long, SqlServiceProviderRoleCatalogueClaim> rcClaimMap = (config.getRcClaims() != null) 
+
+        Map<Long, SqlServiceProviderRoleCatalogueClaim> rcClaimMap = (config.getRcClaims() != null)
                 ? config.getRcClaims()
                         .stream()
                         .collect(Collectors.toMap(SqlServiceProviderRoleCatalogueClaim::getId, SqlServiceProviderRoleCatalogueClaim -> SqlServiceProviderRoleCatalogueClaim))
+                : new HashMap<>();
+
+        Map<Long, SqlServiceProviderAdvancedClaim> advClaimMap = (config.getAdvancedClaims() != null)
+                ? config.getAdvancedClaims()
+                        .stream()
+                        .collect(Collectors.toMap(SqlServiceProviderAdvancedClaim::getId, SqlServiceProviderAdvancedClaim -> SqlServiceProviderAdvancedClaim))
+                : new HashMap<>();
+
+        Map<Long, SqlServiceProviderGroupClaim> groupClaimMap = (config.getGroupClaims() != null)
+                ? config.getGroupClaims()
+                        .stream()
+                        .collect(Collectors.toMap(SqlServiceProviderGroupClaim::getId, SqlServiceProviderGroupClaim -> SqlServiceProviderGroupClaim))
                 : new HashMap<>();
 
         // Separate set of claims from DTO
         HashSet<SqlServiceProviderStaticClaim> staticResult = new HashSet<>();
         HashSet<SqlServiceProviderRequiredField> dynamicResult = new HashSet<>();
         HashSet<SqlServiceProviderRoleCatalogueClaim> rcResult = new HashSet<>();
+        HashSet<SqlServiceProviderAdvancedClaim> advResult = new HashSet<>();
+        HashSet<SqlServiceProviderGroupClaim> groupResult = new HashSet<>();
 
         for (ClaimDTO claimDTO : serviceProviderDTO.getClaims()) {
             switch (claimDTO.getType()) {
@@ -365,196 +667,55 @@ public class MetadataService {
                     rcClaim.setExternalOperationArgument(claimDTO.getExternalOperationArgument());
                     rcResult.add(rcClaim);
                     break;
+                case ADVANCED:
+                	SqlServiceProviderAdvancedClaim advClaim = advClaimMap.get(claimDTO.getId());
+                    if (advClaim == null) {
+                    	advClaim = new SqlServiceProviderAdvancedClaim();
+                    	advClaim.setConfiguration(config);
+                    }
+
+                    advClaim.setClaimName(claimDTO.getAttribute());
+                    advClaim.setClaimValue(claimDTO.getValue());
+                    advResult.add(advClaim);
+                    break;
+                case GROUP:
+                	SqlServiceProviderGroupClaim groupClaim = groupClaimMap.get(claimDTO.getId());
+                    if (groupClaim == null) {
+                    	groupClaim = new SqlServiceProviderGroupClaim();
+                    	groupClaim.setConfiguration(config);
+                    }
+
+                    groupClaim.setClaimName(claimDTO.getAttribute());
+                    groupClaim.setClaimValue(claimDTO.getValue());
+                    Group group = groupService.getById(claimDTO.getGroupId());
+                    if (group != null) {
+                    	groupClaim.setGroup(group);
+                    	groupResult.add(groupClaim);
+                    }
+                    else {
+                    	log.warn("Unable to find group with id: " + claimDTO.getGroupId());
+                    }
+
+                    break;
             }
         }
+
+        // TODO: this is not the best way to replace a collection... compare and update please
 
         config.getStaticClaims().clear();
         config.getStaticClaims().addAll(staticResult);
 
         config.getRequiredFields().clear();
         config.getRequiredFields().addAll(dynamicResult);
-        
+
         config.getRcClaims().clear();
         config.getRcClaims().addAll(rcResult);
-
-        // Handle conditions
-        Set<SqlServiceProviderCondition> conditions = config.getConditions();
-        Set<SqlServiceProviderCondition> newConditions = new HashSet<>();
-
-        Set<SqlServiceProviderCondition> domainConditions = conditions.stream().filter(condition -> SqlServiceProviderConditionType.DOMAIN.equals(condition.getType())).collect(Collectors.toSet());
-        List<ConditionDTO> conditionsDomains = serviceProviderDTO.getConditionsDomains();
-        for (ConditionDTO conditionsDomain : conditionsDomains) {
-            Optional<SqlServiceProviderCondition> condition = domainConditions.stream().filter(domainCondition -> domainCondition.getDomain().getId() == conditionsDomain.getId()).findAny();
-            if (condition.isEmpty()) {
-                Domain domain = domainService.getById(conditionsDomain.getId());
-                if (domain != null) {
-                    newConditions.add(new SqlServiceProviderCondition(config, SqlServiceProviderConditionType.DOMAIN, null, domain));
-                }
-            } else {
-                newConditions.add(condition.get());
-            }
-        }
-
-        Set<SqlServiceProviderCondition> groupConditions = conditions.stream().filter(condition -> SqlServiceProviderConditionType.GROUP.equals(condition.getType())).collect(Collectors.toSet());
-        List<ConditionDTO> conditionsGroups = serviceProviderDTO.getConditionsGroups();
-        for (ConditionDTO conditionsGroup : conditionsGroups) {
-            Optional<SqlServiceProviderCondition> condition = groupConditions.stream().filter(groupCondition -> groupCondition.getGroup().getId() == conditionsGroup.getId()).findAny();
-            if (condition.isEmpty()) {
-                Group group = groupService.getById(conditionsGroup.getId());
-                if (group != null) {
-                    newConditions.add(new SqlServiceProviderCondition(config, SqlServiceProviderConditionType.GROUP, group, null));
-                }
-            } else {
-                newConditions.add(condition.get());
-            }
-        }
-
-        Set<SqlServiceProviderCondition> allConditions = config.getConditions();
-        allConditions.clear();
-        allConditions.addAll(newConditions);
-        config.setConditions(allConditions);
-
-        // Validate that we can fetch metadata with the current config
-        EntityDescriptor metadata = null;
-
-        try {
-            if (config.isEnabled()) {
-                try {
-                    // If create, fetch entityId from metadata before validating
-                    List<String> registeredEntityIDs = getRegisteredEntityIDs();
-    
-                    if (createScenario) {
-                        EntityDescriptor rawMetadata = getMetadata(config.getMetadataUrl(), config.getMetadataContent());
-                        config.setEntityId(rawMetadata.getEntityID());
-    
-                        if (registeredEntityIDs.contains(config.getEntityId())) {
-                            throw new Exception("Tjenesteudbyder med entityId: '" + config.getEntityId() + "' findes allerede.");
-                        }
-                    }
-    
-                    metadata = getMetadata(config);
-                } catch (Exception ex) {
-                    throw new Exception(ex.getMessage(), ex);
-                }
-    
-                if (!Objects.equals(metadata.getEntityID(), config.getEntityId())) {
-                    throw new Exception("EntityId fra metadata matchede ikke den konfigurede EntityID");
-                }
-            }
-        } catch (Exception e) {
-            if (createScenario) {
-                throw e;
-            } else {
-                log.warn("Failed to update metadata for serviceProvider: " + config.getId(), e);
-            }
-        }
-
-        // Save and return the new metadata.
-        return configurationService.save(config);
-    }
-
-    @Transactional
-    public void monitorCertificates() {
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DATE, 14);
-        Date futereDate = cal.getTime();
-
-        // TODO: could just look at the configured certificates instead
-        // monitor os2faktor Login IdP
-        try {
-        	if (configuration.getIdp().getMetadataUrl() != null) {
-                EntityDescriptor entityDescriptor = getMetadata(configuration.getIdp().getMetadataUrl(), null);
-                if (entityDescriptor == null) {
-                    throw new Exception("Could not find IdP entityDescriptor based on: " + configuration.getIdp().getMetadataUrl());
-                }
-
-                IDPSSODescriptor idpssoDescriptor = entityDescriptor.getIDPSSODescriptor(SAMLConstants.SAML20P_NS);
-                if (idpssoDescriptor == null) {
-                    throw new Exception("No IDPSSODescriptor was found in the fetched EntityDescriptor for the IdP");
-                }
-
-                // run through the list of certificates looking for any expired or soon to be expired certificates
-                Map<UsageType, List<X509Certificate>> certMap = convertKeyDescriptorsToCert(idpssoDescriptor.getKeyDescriptors());
-                for (Map.Entry<UsageType, List<X509Certificate>> entry : certMap.entrySet()) {
-                    for (X509Certificate x509Certificate : entry.getValue()) {
-                        if (x509Certificate.getNotAfter().before(futereDate)) {
-                            log.error(constructCertWarnMessage("OS2faktor login IdP", entry.getKey().toString(), x509Certificate.getNotAfter()));
-                        }
-                        else {
-                            log.info(constructCertDebugMessage("OS2faktor login IdP", entry.getKey().toString(), x509Certificate.getNotAfter()));
-                        }
-                    }
-                }
-        	}
-        	else {
-        		// TODO: noone in production has actually configured this, I need to go over all of them and update the config for this to work
-        		log.warn("No IdP metadata URL configured for monitoring");
-        	}
-        }
-        catch (Exception ex) {
-            log.error("Error in Monitor Certificates task while checking IdentityProvider certificates", ex);
-        }
-
-        // monitor static ServiceProviders
-        try {
-            List<ServiceProviderDTO> serviceProviderDTOs = getStaticServiceProviderDTOs();
-            for (ServiceProviderDTO serviceProviderDTO : serviceProviderDTOs) {
-            	if (!serviceProviderDTO.isEnabled()) {
-            		continue;
-            	}
-            	
-                List<CertificateDTO> certificates = serviceProviderDTO.getCertificates();
-
-                if (certificates != null) {
-                    for (CertificateDTO certificate : certificates) {
-                        if (certificate.getExpiryDateAsDate().before(futereDate)) {
-                            log.error(constructCertWarnMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
-                        }
-                        else {
-                            log.info(constructCertDebugMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
-                        }
-                    }
-                }
-                else {
-                    log.error("Error in Monitor Certificates task, could not fetch certificates for: " + serviceProviderDTO.getName());
-                }
-            }
-        }
-        catch (Exception ex) {
-            log.error("Error in Monitor Certificates task while checking Statically configured ServiceProviders", ex);
-        }
-
-        // Monitor SQL configured ServiceProviders
-        for (SqlServiceProviderConfiguration sqlSPConfig : configurationService.getAll()) {
-        	if (!sqlSPConfig.isEnabled()) {
-        		continue;
-        	}
-        	
-            try {
-                EntityDescriptor metadata = getMetadata(sqlSPConfig.getMetadataUrl(), sqlSPConfig.getMetadataContent());
-                if (metadata == null) {
-                    log.error("Error in Monitor Certificates task, metadata was null for SQL SP: '" + sqlSPConfig.getName() + "' EntityId, URL or metadata content might be misconfigured?");
-                    continue;
-                }
-                
-                SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
-                Map<UsageType, List<X509Certificate>> certMap = convertKeyDescriptorsToCert(spssoDescriptor.getKeyDescriptors());
-
-                for (Map.Entry<UsageType, List<X509Certificate>> entry : certMap.entrySet()) {
-                    for (X509Certificate x509Certificate : entry.getValue()) {
-                        if (x509Certificate.getNotAfter().before(futereDate)) {
-                            log.error(constructCertWarnMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()));
-                        }
-                        else {
-                            log.info(constructCertDebugMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()));
-                        }
-                    }
-                }
-            }
-            catch (Exception ex) {
-                log.error("Error in Monitor Certificates task while checking SQL configured ServiceProvider (" + sqlSPConfig.getName() + ")", ex);
-            }
-        }
+        
+        config.getAdvancedClaims().clear();
+        config.getAdvancedClaims().addAll(advResult);
+        
+        config.getGroupClaims().clear();
+        config.getGroupClaims().addAll(groupResult);
     }
 
     private String constructCertWarnMessage(String name, String usageType, Date expiryDate) {
@@ -564,53 +725,71 @@ public class MetadataService {
     private String constructCertDebugMessage(String name, String usageType, Date expiryDate) {
         return "Certificate expiry was ok for: " + name + " (UsageType: " + usageType + ", ExpiryDate: " + expiryDate + ")";
     }
+    
+    private EntityDescriptor getEntityDescriptorFromMetadataString(String serviceProviderName, String metadataContent) {
+    	DOMMetadataResolver resolver = null;
+    	
+    	try {
+    		DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+    		documentBuilderFactory.setNamespaceAware(true);
+    		DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
 
-    private AbstractReloadingMetadataResolver getHttpMetadataProvider(String metadataURL, String metadataContent) throws Exception {
-        try {
-            if (metadataURL != null && !metadataURL.isEmpty()) {
-                return getHttpMetadataProvider(metadataURL);
-            }
-            else if (metadataContent != null && !metadataContent.isEmpty()) {
-                return getResourceBackedMetadataProvider(metadataContent);
-            }
-            else {
-                throw new Exception("Enten metadataURL eller metadataContent skal konfigureres.");
-            }
-        }
-        catch (IOException e) {
-            throw new Exception("Kunne ikke oprette MetadataResolver", e);
-        }
-    }
+	    	InputSource is = new InputSource();
+	    	is.setCharacterStream(new StringReader(metadataContent));
 
-    private ResourceBackedMetadataResolver getResourceBackedMetadataProvider(String metadataContent) throws Exception {
-    	ResourceBackedMetadataResolver resolver = new ResourceBackedMetadataResolver(new Timer(), new StringResource(metadataContent));
-		resolver.setId(UUID.randomUUID().toString());
-		resolver.setMinRefreshDelay(1000 * 60 * 60 * 3);
-		resolver.setMaxRefreshDelay(1000 * 60 * 60 * 3);
+	    	Document doc = documentBuilder.parse(is);
+	    	
+	    	resolver = new DOMMetadataResolver(doc.getDocumentElement());
+	    	resolver.setParserPool(new BasicParserPool());
+	    	resolver.setFailFastInitialization(true);
+	    	resolver.setId(resolver.getClass().getCanonicalName());
+	        resolver.initialize();
 
-		BasicParserPool parserPool = new BasicParserPool();
-		parserPool.initialize();
+	    	return resolver.iterator().next();
+    	}
+    	catch (Exception ex) {
+    		log.warn("Failed to parse metadata for SP " + serviceProviderName, ex);
+    	}
+    	finally {
+    		try {
+    			resolver.destroy();
+    		}
+    		catch (Exception ignored) {
+    			;
+    		}
+    	}
 
-		resolver.setParserPool(parserPool);
-		resolver.initialize();
-		
-		return resolver;
+    	return null;
     }
     
-	private HTTPMetadataResolver getHttpMetadataProvider(String metadataURL) throws Exception {
-		HTTPMetadataResolver resolver = new HTTPMetadataResolver(httpClient, metadataURL);
-		resolver.setId(UUID.randomUUID().toString());
-		resolver.setMinRefreshDelay(1000 * 60 * 60 * 3);
-		resolver.setMaxRefreshDelay(1000 * 60 * 60 * 3);
-		
-		BasicParserPool parserPool = new BasicParserPool();
-		parserPool.initialize();
+	static class MetadataDownloadResponseHandler implements ResponseHandler<String> {
 
-		resolver.setParserPool(parserPool);
-		resolver.initialize();
-
-		return resolver;
+		@Override
+		public String handleResponse(HttpResponse response) throws ClientProtocolException, IOException {
+			InputStream source = response.getEntity().getContent();
+			byte[] bytes = source.readAllBytes();
+			
+			return new String(bytes);
+		}		
 	}
+    
+    private EntityDescriptor getEntityDescriptorFromMetadataUrl(String serviceProviderName, String metadataUrl) {
+    	try {
+			HttpGet get = new HttpGet(metadataUrl);
+			String metadataContent = httpClient.execute(get, new MetadataDownloadResponseHandler());
+
+			if (StringUtils.hasLength(metadataContent)) {
+				return getEntityDescriptorFromMetadataString(serviceProviderName, metadataContent);
+			}
+
+			log.warn("Unable to download metadata from supplied URL: " + metadataUrl);
+    	}
+    	catch (Exception ex) {
+    		log.warn("Failed to download metadata for SP " + serviceProviderName, ex);
+    	}
+    	
+    	return null;
+    }
 
     private Map<UsageType, List<X509Certificate>> convertKeyDescriptorsToCert(List<KeyDescriptor> keyDescriptors) throws Exception {
         HashMap<UsageType, List<X509Certificate>> certificates = new HashMap<>();
@@ -659,28 +838,10 @@ public class MetadataService {
         return certificates;
     }
 
-	public boolean setManualReload(String serviceProviderId) throws Exception {
-		try {
-			SqlServiceProviderConfiguration spConfig = configurationService.getById(Long.parseLong(serviceProviderId));
-			if (spConfig == null) {
-				return false;
-			}
-			
-			spConfig.setManualReloadTimestamp(LocalDateTime.now());
-
-			configurationService.save(spConfig);
-			return true;
-		}
-		catch (Exception ex) {
-			ServiceProviderDTO staticServiceProvider = getStaticServiceProviderDTOByName(serviceProviderId);
-
-			if (staticServiceProvider == null) {
-				return false;
-			}
-
-			// TODO: we are not actually forcing a metadata reload - we need to add a similar feature to our static SPs
-
-			return true;
+	public void deleteServiceProvider(long id) {
+		SqlServiceProviderConfiguration config = configurationService.getById(id);
+		if (config != null) {
+			configurationService.delete(config);
 		}
 	}
 }

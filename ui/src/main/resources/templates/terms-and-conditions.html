@@ -12,6 +12,7 @@
 						<div class="ibox">
 							<div class="ibox-title">
 								<h5><em class="fa fa-info"></em> &nbsp; Vilkår for anvendelse af brugerkonto</h5>
+								<p style="float:right; color: lightgrey;" th:text=" ${tts}"></p>
 							</div>
 
 							<div class="ibox-content">
@@ -19,7 +20,9 @@
 							</div>
 						</div>
 					</div>
-					<div sec:authorize="isAuthenticated()" th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')" />
+					<div sec:authorize="isAuthenticated()" class="column col-lg-3">
+						<div th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')" />
+					</div>
 				</div>
 			</div>
 

@@ -2,6 +2,7 @@ package dk.digitalidentity.service.validation;
 
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
 
@@ -12,17 +13,17 @@ import org.opensaml.messaging.handler.MessageHandlerException;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.binding.security.impl.MessageLifetimeSecurityHandler;
 import org.opensaml.saml.common.binding.security.impl.ReceivedEndpointSecurityHandler;
-import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
-import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
-import org.opensaml.saml.saml2.metadata.Endpoint;
-import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
-import org.opensaml.security.SecurityException;
+import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.crypto.SigningUtil;
+import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.algorithm.AlgorithmSupport;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -59,15 +60,17 @@ public class AuthnRequestValidationService {
 		validateNSISLevel(authnRequest);
 		validateDestination(httpServletRequest, messageContext);
 		validateLifeTime(messageContext);
-		validateSignature(httpServletRequest, serviceProvider);
+		if (!serviceProvider.allowUnsignedAuthnRequests()) {
+			validateSignature(httpServletRequest, serviceProvider, authnRequest);
+		}
 		validateAssertionConsumer(authnRequest, serviceProvider);
 		validateIssuer(authnRequest, serviceProvider);
-		validateRequireMents(authnRequest);
+		validateRequirements(authnRequest);
 
 		log.debug("Completed validation of AuthnRequest");
 	}
 
-	private void validateRequireMents(AuthnRequest authnRequest) throws RequesterException {
+	private void validateRequirements(AuthnRequest authnRequest) throws RequesterException {
 		if (authnRequest.isForceAuthn() && authnRequest.isPassive()) {
 			throw new RequesterException("Kan ikke både tvinge login og være passiv (både ForceAuthn og isPassive er true)");
 		}
@@ -142,50 +145,83 @@ public class AuthnRequestValidationService {
 		if (StringUtils.hasLength(url)) {
 			log.debug("Checking AssertionConsumerServiceURL against list of AssertionConsumerServiceURLs in SP metadata");
 
-			SPSSODescriptor spssoDescriptor = serviceProvider.getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
 
-			List<AssertionConsumerService> assertionConsumerServices = spssoDescriptor.getAssertionConsumerServices();
-			boolean anyMatch = assertionConsumerServices.stream().map(Endpoint::getLocation).anyMatch(s -> s.equals(url));
+			/* TODO: kan ikke læse mere end ét endpoint.. so hvad gør vi her?
+			SPSSODescriptor spssoDescriptor = serviceProvider.getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+			boolean anyMatch = spssoDescriptor.assertionConsumerServices.stream().map(Endpoint::getLocation).anyMatch(s -> s.equals(url));
 	
 			if (!anyMatch) {
-				throw new RequesterException("Den givne 'AssertionConsumerServiceURL' matcher ingen af tjenesteudbyderens 'AssertionConsumerServiceURLs'");
+				log.info("Could not find a match from this list: " + String.join(", ", assertionConsumerServices.stream().map(s -> s.getLocation()).collect(Collectors.toSet())));
+				throw new RequesterException("Den givne 'AssertionConsumerServiceURL' (" + url + ") matcher ingen af tjenesteudbyderens 'AssertionConsumerServiceURLs'");
 			}
+			*/
 		}
 	}
 
 	private void validateIssuer(AuthnRequest authnRequest, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		log.debug("Validating Issuer");
 
-		String metadataEntityID = serviceProvider.getEntityId();
-
 		Issuer issuer = authnRequest.getIssuer();
 		if (issuer == null) {
 			throw new RequesterException("Ingen 'Issuer' fundet på login forespørgsel (AuthnRequest)");
 		}
 
-		if (!java.util.Objects.equals(metadataEntityID, issuer.getValue())) {
-			throw new RequesterException("'Issuer' matcher ikke tjenesteudbyderen. Forventet: " + metadataEntityID + " Var: " + issuer.getValue());
+		boolean match = false;
+		for (String entityId : serviceProvider.getEntityIds()) {
+			if (java.util.Objects.equals(entityId, issuer.getValue())) {
+				match = true;
+			}
+		}
+		
+		if (!match) {
+			throw new RequesterException("'Issuer' matcher ikke tjenesteudbyderen (" + serviceProvider.getEntityId() + ")- modtog " + issuer.getValue());
 		}
 	}
-
-	private void validateSignature(HttpServletRequest request, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
+	
+	private void validateSignature(HttpServletRequest request, ServiceProvider serviceProvider, AuthnRequest authnRequest) throws RequesterException, ResponderException {
 		log.debug("Validating Signature");
-
-		String queryString = request.getQueryString();
-		String signature = request.getParameter("Signature");
-		String sigAlg = request.getParameter("SigAlg");
-
-		if (!StringUtils.hasLength(signature)) {
-			throw new RequesterException("Login forespørgsel (AuthnRequest) har ingen signatur");
-		}
-
-		List<PublicKey> signingKeys = serviceProvider.getSigningKeys();
+		
 		boolean validSignature = false;
+		
+		if (request.getMethod().equals("POST")) {
+			Signature signature = authnRequest.getSignature();
+			if (signature == null) {
+				throw new RequesterException("Login forespørgsel (AuthnRequest) har ingen signatur");
+			}
 
-		for (PublicKey signingKey : signingKeys) {
-			if (validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
-				validSignature = true;
-				break;
+			List<X509Certificate> signingCerts = serviceProvider.getX509Certificate(UsageType.SIGNING);
+			if (signingCerts == null || signingCerts.size() == 0) {
+				throw new ResponderException("Unable find certificates to validate signature on AuthnRequest in metadata");
+			}
+
+			for (X509Certificate signingCert : signingCerts) {
+				try {
+					SignatureValidator.validate(authnRequest.getSignature(), new BasicX509Credential(signingCert));
+					validSignature = true;
+					
+					// break for loop we have found a valid signature/credential combo
+					break;
+				}
+				catch (SignatureException ignored) {
+					; // validate method throws an exception if not valid, we iterate over all of them until we find one valid combo
+				}
+			}
+		}
+		else {
+			String queryString = request.getQueryString();
+			String signature = request.getParameter("Signature");
+			String sigAlg = request.getParameter("SigAlg");
+
+			if (!StringUtils.hasLength(signature)) {
+				throw new RequesterException("Login forespørgsel (AuthnRequest) har ingen signatur");
+			}
+
+			List<PublicKey> signingKeys = serviceProvider.getSigningKeys();
+			for (PublicKey signingKey : signingKeys) {
+				if (validateSignature(queryString, Constants.SAML_REQUEST, signingKey, signature, sigAlg)) {
+					validSignature = true;
+					break;
+				}
 			}
 		}
 		
@@ -195,19 +231,28 @@ public class AuthnRequestValidationService {
 	}
 
 	private boolean validateSignature(String queryString, String queryParameter, PublicKey publicKey, String signature, String sigAlg) throws RequesterException {
-		// Get url string to be verified
+		String jcaAlgorithmID = null;
+		byte[] decodedSignature = null;
 		byte[] data = new byte[0];
-		data = parseSignedQueryString(queryString, queryParameter).getBytes(StandardCharsets.UTF_8);
-
-		// Decode signature
-		byte[] decodedSignature = Base64.getDecoder().decode(signature);
-		String jcaAlgorithmID = AlgorithmSupport.getAlgorithmID(sigAlg);
+		
+		try {
+			// get url string to be verified
+			data = parseSignedQueryString(queryString, queryParameter).getBytes(StandardCharsets.UTF_8);
+	
+			// decode signature
+			decodedSignature = Base64.getDecoder().decode(signature);
+			jcaAlgorithmID = AlgorithmSupport.getAlgorithmID(sigAlg);
+		}
+		catch (Exception ex) {
+			log.warn("Invalid data on signature (AuthnRequest", ex);
+			return false;
+		}
 
 		try {
 			return SigningUtil.verify(publicKey, jcaAlgorithmID, decodedSignature, data);
 		}
-		catch (SecurityException ex) {
-			log.error("Signatur forkert på login forespørgsel (AuthnRequest) ", ex);
+		catch (Exception ex) {
+			log.warn("Signatur forkert på login forespørgsel (AuthnRequest)", ex);
 			return false;
 		}
 	}

@@ -316,8 +316,6 @@ public abstract class RadiusServer {
 	 */
 	protected void processRequest(final DatagramSocket s, final DatagramPacket packetIn) {
 		try {
-			// TODO: this is where we need to tweak
-
 			// check client
 			final InetSocketAddress localAddress = (InetSocketAddress) s.getLocalSocketAddress();
 			final InetSocketAddress remoteAddress = new InetSocketAddress(packetIn.getAddress(), packetIn.getPort());
@@ -340,7 +338,7 @@ public abstract class RadiusServer {
 
 			// send response
 			if (response != null) {
-				log.info("send response: " + response);
+				log.info("send response: " + response + " to " + remoteAddress.getAddress() + ":" + packetIn.getPort());
 
 				final DatagramPacket packetOut = makeDatagramPacket(response, secret, remoteAddress.getAddress(), packetIn.getPort(), request);
 				s.send(packetOut);

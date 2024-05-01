@@ -1,5 +1,6 @@
 package dk.digitalidentity.controller;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 import javax.servlet.http.HttpServletRequest;
@@ -24,6 +25,7 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
 import dk.digitalidentity.common.service.PrivacyPolicyService;
+import dk.digitalidentity.common.service.TUTermsAndConditionsService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.security.SecurityUtil;
@@ -38,6 +40,9 @@ public class DefaultController implements ErrorController {
 
 	@Autowired
 	private TermsAndConditionsService termsAndConditionsService;
+
+	@Autowired
+	private TUTermsAndConditionsService tuTermsAndConditionsService;
 
 	@Autowired
 	private PrivacyPolicyService privacyPolicyService;
@@ -80,14 +85,29 @@ public class DefaultController implements ErrorController {
 	
 	@GetMapping("/privatlivspolitik")
 	public String privacyPage(Model model) {
+		String tts = privacyPolicyService.getPrivacyPolicy().getLastUpdatedTts() != null ? privacyPolicyService.getPrivacyPolicy().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
+		
 		model.addAttribute("privacy", privacyPolicyService.getPrivacyPolicy().getContent());
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
 		return "privacy";
 	}
 
 	@GetMapping("/vilkaar")
 	public String termAndConditionsPage(Model model) {
+		String tts = termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts() != null ? termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
+		
 		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions().getContent());
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
 		return "terms-and-conditions";
+	}
+	
+	@GetMapping("/tuvilkaar")
+	public String tuTermAndConditionsPage(Model model) {
+		String tts = tuTermsAndConditionsService.getTermsAndConditions().getLastUpdatedTts() != null ? termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
+		
+		model.addAttribute("terms", tuTermsAndConditionsService.getTermsAndConditions().getContent());
+		model.addAttribute("tts", "Sidst redigeret: " + tts);
+		return "tu-terms-and-conditions";
 	}
 
 	@GetMapping(value = { "/version" })
@@ -101,40 +121,44 @@ public class DefaultController implements ErrorController {
 
 		// deal with SAML errors first
 		Object status = body.get("status");
-		if (status != null && status instanceof Integer && (Integer) status == 999) {
-			Object authException = request.getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
-
-			// handle the forward case
-			if (authException == null && request.getSession() != null) {
-				authException = request.getSession().getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
-			}
-
-			if (authException != null && authException instanceof Throwable) {
-				StringBuilder builder = new StringBuilder();
-				Throwable t = (Throwable) authException;
-
-				logThrowable(builder, t, false);
-				model.addAttribute("exception", builder.toString());
-
-				if (t.getCause() != null) {
-					t = t.getCause();
-
-					// deal with the known causes for this error
-					if (t instanceof SAMLException) {
-						String message = t.getMessage();
-
-						String[] split = message.split(", status message is ");
-						String actualMessage = split[split.length - 1];
-						if (StringUtils.hasLength(actualMessage)) {
-							model.addAttribute("message", actualMessage);
+		if (status != null && status instanceof Integer) {
+			if ((Integer) status == 999) {
+				Object authException = request.getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
+	
+				// handle the forward case
+				if (authException == null && request.getSession() != null) {
+					authException = request.getSession().getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
+				}
+	
+				if (authException != null && authException instanceof Throwable) {
+					StringBuilder builder = new StringBuilder();
+					Throwable t = (Throwable) authException;
+	
+					logThrowable(builder, t, false);
+					model.addAttribute("exception", builder.toString());
+	
+					if (t.getCause() != null) {
+						t = t.getCause();
+	
+						// deal with the known causes for this error
+						if (t instanceof SAMLException) {
+							String message = t.getMessage();
+	
+							String[] split = message.split(", status message is ");
+							String actualMessage = split[split.length - 1];
+							if (StringUtils.hasLength(actualMessage)) {
+								model.addAttribute("message", actualMessage);
+							}
+						}
+						else {
+							model.addAttribute("cause", "UNKNOWN");
 						}
 					}
-					else {
-						model.addAttribute("cause", "UNKNOWN");
-					}
+	
+					return "samlerror";
 				}
-
-				return "samlerror";
+			} else if ((Integer) status == 403 || (Integer) status == 401) {
+				return "unauthorized";
 			}
 		}
 

@@ -1,25 +1,20 @@
 package dk.digitalidentity.controller;
 
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
-import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.nemlogin.NemLoginUtil;
-import dk.digitalidentity.samlmodule.model.TokenUser;
-import dk.digitalidentity.service.AssertionService;
-import dk.digitalidentity.service.ErrorResponseService;
-import dk.digitalidentity.service.LoginService;
-import dk.digitalidentity.service.LogoutResponseService;
-import dk.digitalidentity.service.OpenSAMLHelperService;
-import dk.digitalidentity.service.SessionHelper;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
-import dk.digitalidentity.util.Constants;
-import dk.digitalidentity.util.LoggingUtil;
-import dk.digitalidentity.util.RequesterException;
-import dk.digitalidentity.util.ResponderException;
-import lombok.extern.slf4j.Slf4j;
-import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
-import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
+import dk.digitalidentity.service.OidcAuthorizationCodeService;
+import dk.digitalidentity.service.WSFederationService;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.io.UnmarshallingException;
 import org.opensaml.messaging.context.MessageContext;
@@ -30,7 +25,6 @@ import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPRedirectDeflateEncoder;
 import org.opensaml.saml.saml2.core.Assertion;
-import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.impl.AssertionUnmarshaller;
@@ -45,16 +39,28 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.nemlogin.NemLoginUtil;
+import dk.digitalidentity.samlmodule.model.TokenUser;
+import dk.digitalidentity.service.AssertionService;
+import dk.digitalidentity.service.ErrorResponseService;
+import dk.digitalidentity.service.FlowService;
+import dk.digitalidentity.service.LoginService;
+import dk.digitalidentity.service.LogoutResponseService;
+import dk.digitalidentity.service.OpenSAMLHelperService;
+import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.LoggingUtil;
+import dk.digitalidentity.util.RequesterException;
+import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
 
 @Slf4j
 @Controller
@@ -65,6 +71,9 @@ public class MitIDController {
 
 	@Autowired
 	private SessionHelper sessionHelper;
+
+	@Autowired
+	private FlowService flowService;
 
 	@Autowired
 	private LoginService loginService;
@@ -89,6 +98,12 @@ public class MitIDController {
 
 	@Autowired
 	private AssertionService assertionService;
+
+	@Autowired
+	private OidcAuthorizationCodeService oidcAuthorizationCodeService;
+
+	@Autowired
+	private WSFederationService wsFederationService;
 
 	@GetMapping("/sso/saml/nemlogin/complete")
 	public ModelAndView nemLogInComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
@@ -117,15 +132,11 @@ public class MitIDController {
 		// if the originating AuthnRequest (from the upstream ServiceProvider) was a forced NemLog-in flow, then
 		// we handle the request in a separate method, and ignore the rest of the logic
 		if (sessionHelper.isInNemLogInBrokerFlow()) {
-			return handleNemLogInAsBroker(httpServletResponse, tokenUser);
+			return handleNemLogInAsBroker(httpServletResponse, model, tokenUser);
 		}
 
 		// set nameID as an identifier on the session associated with the MitID login.
-		String username = tokenUser.getUsername();
-		String mitIdName = username;
-		if (mitIdName.startsWith("https://data.gov.dk/model/core/eid/person/uuid/")) {
-			mitIdName = mitIdName.substring("https://data.gov.dk/model/core/eid/person/uuid/".length());
-		}
+		String mitIdName = nemLoginUtil.getPersonUuid();
 
 		// in case we end up in a sub-flow, we need to know that we are in the middle of a NemID/MitID login flow
 		sessionHelper.setInNemIdOrMitIDAuthenticationFlow(true);
@@ -139,95 +150,63 @@ public class MitIDController {
 		// check if we have a person on the session, if we do we will only work with this person
 		Person person = sessionHelper.getPerson();
 
-		// If no existing person is found on the session: treat as fresh login
+		// if no existing person is found on the session: treat as fresh login
 		if (person == null) {
 			List<Person> availablePeople = nemLoginUtil.getAvailablePeople();
 
-			// If no user accounts can be associated with the CPR-Number we fetched from
-			// NemLog-in (meaning the people list is empty)
-			// We will have to error
-			if (availablePeople == null || availablePeople.isEmpty()) {
-				auditLogger.rejectedUnknownPerson(mitIdName);
-				
-				AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-				if (authnRequest == null) {
-					return invalidateSessionAndSendRedirect();
-				}
+			// persons locked by 3rd party (municipality, admin or cpr) are filtered out
+			availablePeople = availablePeople.stream()
+					.filter(p -> !(p.isLockedAdmin() || p.isLockedCivilState() || p.isLockedDataset()))
+					.collect(Collectors.toList());
 
-				errorResponseService.sendResponderError(httpServletResponse, authnRequest, new ResponderException("Brugeren loggede ind med MitID, men er ikke kendt af systemet"));
-				return null;
+			// if no user accounts can be associated with the CPR-Number we fetched from
+			// NemLog-in (meaning the people list is empty) we will have to error
+			if (availablePeople.isEmpty()) {				
+				auditLogger.rejectedUnknownPerson(mitIdName, nemLoginUtil.getCpr());
+				return new ModelAndView("error-unknown-user");
 			}
 
-			// Handle multiple user accounts
+			// handle multiple user accounts
 			if (availablePeople.size() != 1) {
-				return loginService.initiateUserSelect(model, availablePeople);
+				return flowService.initiateUserSelect(model, availablePeople, nsisLevel, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
 			}
 			else {
-				// If we only have one person use that one
+				// if we only have one person use that one
 				person = availablePeople.get(0);
 			}
 		}
 		else {
 			// an existing person was found on the session, validate CPR-Number from NemLog-in against that persons CPR.
 			if (!Objects.equals(nemLoginUtil.getCpr(), person.getCpr())) {
-				AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-				if (authnRequest == null) {
+				LoginRequest loginRequest = sessionHelper.getLoginRequest();
+				if (loginRequest == null) {
 					return invalidateSessionAndSendRedirect();
 				}
-				errorResponseService.sendResponderError(httpServletResponse, authnRequest, new ResponderException("Bruger foretog MitID login med et andet CPR end der allerede var gemt på sessionen"));
+				errorResponseService.sendError(httpServletResponse, loginRequest, new ResponderException("Bruger foretog MitID login med et andet CPR end der allerede var gemt på sessionen"));
 				return null;
 			}
 		}
 
 		// The specific person has now been determined.
-		return loginService.continueLoginWithMitIdOrNemId(person, nsisLevel, sessionHelper.getAuthnRequest(), httpServletRequest, httpServletResponse, model);
+		return loginService.continueLoginWithMitIdOrNemId(person, nsisLevel, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse, model);
 	}
 
-	private ModelAndView handleNemLogInAsBroker(HttpServletResponse httpServletResponse, TokenUser tokenUser) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
+	private ModelAndView handleNemLogInAsBroker(HttpServletResponse httpServletResponse, Model model, TokenUser tokenUser) throws ResponderException, RequesterException {
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
 			return handleMitIdErrors(httpServletResponse, "Ingen login forespørgsel på sessionen");
 		}
+		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest.getServiceProviderId());
+
 
 		String rawToken = tokenUser.getRawToken();
 		if (rawToken == null) {
 			return handleMitIdErrors(httpServletResponse, "Intet login svar fra NemLog-In");
 		}
 
+		Assertion assertion;
 		try {
-			// Parse raw Assertion String
-			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-			dbf.setNamespaceAware(true);
-			dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
-			dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-			DocumentBuilder db = dbf.newDocumentBuilder();
-			Document doc = db.parse(new ByteArrayInputStream(rawToken.getBytes("UTF-8")));
-
-			// Get Assertion Element
-			Element documentElement = doc.getDocumentElement();
-
-			// Unmarshall Assertion
-			AssertionUnmarshaller unmarshaller = new AssertionUnmarshaller();
-			XMLObject xmlObject = unmarshaller.unmarshall(documentElement);
-			Assertion assertion = (Assertion) xmlObject;
-
-			MessageContext<SAMLObject> brokerAssertionMessage = assertionService.createBrokerAssertionMessage(assertion, authnRequest);
-
-			// Send assertion
-			HTTPPostEncoder encoder = new HTTPPostEncoder();
-			encoder.setHttpServletResponse(httpServletResponse);
-			encoder.setMessageContext(brokerAssertionMessage);
-			encoder.setVelocityEngine(VelocityEngine.newVelocityEngine());
-
-			try {
-				encoder.initialize();
-				encoder.encode();
-			}
-			catch (ComponentInitializationException | MessageEncodingException e) {
-				throw new ResponderException("Encoding error", e);
-			}
-
-			return null;
+			assertion = getNemLogInAssertion(rawToken);
 		}
 		catch (ParserConfigurationException | IOException | SAXException e) {
 			return handleMitIdErrors(httpServletResponse, "Kunne ikke læse NemLogIn login svar");
@@ -235,6 +214,35 @@ public class MitIDController {
 		catch (UnmarshallingException e) {
 			return handleMitIdErrors(httpServletResponse, "Kunne ikke afkode NemLogIn login svar");
 		}
+
+		switch (serviceProvider.getProtocol()) {
+			case SAML20:
+				return assertionService.createAndSendBrokeredAssertion(httpServletResponse, loginRequest, assertion);
+			case OIDC10:
+				return oidcAuthorizationCodeService.createAndSendBrokeredAuthorizationCode(httpServletResponse, assertion, serviceProvider, loginRequest);
+			case WSFED:
+				return wsFederationService.createAndSendBrokeredSecurityTokenResponse(model, loginRequest, assertion, serviceProvider);
+			default:
+				throw new IllegalStateException("Unexpected value: " + serviceProvider.getProtocol());
+		}
+	}
+
+	private static Assertion getNemLogInAssertion(String rawToken) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException {
+		// Parse raw Assertion String
+		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+		dbf.setNamespaceAware(true);
+		dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+		dbf.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+		DocumentBuilder db = dbf.newDocumentBuilder();
+		Document doc = db.parse(new ByteArrayInputStream(rawToken.getBytes("UTF-8")));
+
+		// Get Assertion Element
+		Element documentElement = doc.getDocumentElement();
+
+		// Unmarshall Assertion
+		AssertionUnmarshaller unmarshaller = new AssertionUnmarshaller();
+		XMLObject xmlObject = unmarshaller.unmarshall(documentElement);
+		return (Assertion) xmlObject;
 	}
 
 	@GetMapping("/sso/saml/nemlogin/logout/complete")
@@ -260,7 +268,7 @@ public class MitIDController {
 		SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
 
 		String destination = StringUtils.hasLength(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
-		MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination);
+		MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination, logoutEndpoint.getBinding());
 
 		// Log to Console and AuditLog
 		auditLogger.logoutResponse(sessionHelper.getPerson(), samlHelper.prettyPrint((LogoutResponse) messageContext.getMessage()), true, serviceProvider.getName(null));
@@ -308,14 +316,14 @@ public class MitIDController {
 		return new ModelAndView("redirect:/");
 	}
 
-	private ModelAndView handleMitIdErrors(HttpServletResponse httpServletResponse, String errMsg) throws ResponderException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest == null) {
+	private ModelAndView handleMitIdErrors(HttpServletResponse httpServletResponse, String errMsg) throws ResponderException, RequesterException {
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest == null) {
 			log.warn(errMsg);
 			return invalidateSessionAndSendRedirect();
 		}
 
-		errorResponseService.sendResponderError(httpServletResponse, authnRequest, new ResponderException(errMsg));
+		errorResponseService.sendError(httpServletResponse, loginRequest, new ResponderException(errMsg));
 		return null;
 	}
 }

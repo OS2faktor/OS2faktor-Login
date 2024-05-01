@@ -1,0 +1,1 @@
+ALTER TABLE cached_mfa_client ADD COLUMN serialnumber VARCHAR(36) NULL;

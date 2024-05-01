@@ -1,0 +1,1 @@
+ALTER TABLE local_registered_mfa_clients ADD COLUMN prime BOOLEAN NOT NULL DEFAULT FALSE;

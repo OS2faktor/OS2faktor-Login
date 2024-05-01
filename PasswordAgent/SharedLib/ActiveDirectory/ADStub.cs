@@ -1,15 +1,19 @@
 ﻿using Serilog;
+using System;
 using System.DirectoryServices.AccountManagement;
+using System.Management.Automation;
 
 namespace OS2faktor
 {
     public class ADStub
     {
         private ILogger logger;
+        private Settings settings;
 
-        public ADStub(ILogger logger)
+        public ADStub(ILogger logger, Settings settings)
         {
             this.logger = logger;
+            this.settings = settings;
         }
 
         public bool ValidatePassword(string userId, string password)
@@ -18,6 +22,11 @@ namespace OS2faktor
             {
                 using (PrincipalContext ctx = GetPrincipalContext())
                 {
+                    if (settings.GetBooleanValue("useNegotiation"))
+                    {
+                        return ctx.ValidateCredentials(userId, password, ContextOptions.Negotiate);
+                    }
+
                     return ctx.ValidateCredentials(userId, password);
                 }
             }
@@ -31,11 +40,16 @@ namespace OS2faktor
 
         public ChangePasswordResponse ChangePassword(string userId, string newPassword)
         {
+            return ChangePassword(userId, newPassword, false);
+        }
+
+        public ChangePasswordResponse ChangePassword(string userId, string newPassword, bool forceChange)
+        {
             try
             {
                 using (PrincipalContext ctx = GetPrincipalContext())
                 {
-                    using (UserPrincipal user = UserPrincipal.FindByIdentity(ctx, userId))
+                    using (UserPrincipal user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, userId))
                     {
                         if (user != null)
                         {
@@ -50,7 +64,19 @@ namespace OS2faktor
                             }
                             catch (System.Exception ex)
                             {
-                                logger.Warning("Attempting to unlock account (lockoutTime = 0) during password reset failed for " + userId + ". Password reset succeeded, but if they account was locked, it is still locked. Cause = " + ex.Message);
+                                logger.Warning(ex, "Attempting to unlock account (lockoutTime = 0) during password reset failed for " + userId + ". Password reset succeeded, but if they account was locked, it is still locked");
+                            }
+
+                            if (forceChange)
+                            {
+                                try
+                                {
+                                    user.ExpirePasswordNow();
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    logger.Warning(ex, "Attempting expire password (force user to change password on next logon) during password reset failed for " + userId + ". Password reset succeeded, but they won't be forced to change password");
+                                }
                             }
 
                             return new ChangePasswordResponse()
@@ -78,7 +104,7 @@ namespace OS2faktor
                 return new ChangePasswordResponse()
                 {
                     Success = false,
-                    Message = ex.Message
+                    Message = ex.ToString()
                 };
             }
         }
@@ -89,7 +115,7 @@ namespace OS2faktor
             {
                 using (PrincipalContext ctx = GetPrincipalContext())
                 {
-                    using (UserPrincipal user = UserPrincipal.FindByIdentity(ctx, userId))
+                    using (UserPrincipal user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, userId))
                     {
                         if (user != null)
                         {
@@ -120,8 +146,73 @@ namespace OS2faktor
                 return new ChangePasswordResponse()
                 {
                     Success = false,
-                    Message = ex.Message
+                    Message = ex.ToString()
                 };
+            }
+        }
+
+        public ChangePasswordResponse RunPasswordExpiresScript(string userId)
+        {
+            try
+            {
+                using (PrincipalContext ctx = GetPrincipalContext())
+                {
+                    using (UserPrincipal user = UserPrincipal.FindByIdentity(ctx, IdentityType.SamAccountName, userId))
+                    {
+                        if (user != null)
+                        {
+                            RunScript(userId);
+
+                            return new ChangePasswordResponse()
+                            {
+                                Success = true
+                            };
+                        }
+                        else
+                        {
+                            logger.Warning("Cannot find user '" + userId + "' in Active Directory");
+                        }
+                    }
+                }
+
+                return new ChangePasswordResponse()
+                {
+                    Success = true,
+                    Message = "Could not find user: " + userId
+                };
+            }
+            catch (System.Exception ex)
+            {
+                logger.Information(ex, "Error during run password expires script");
+
+                return new ChangePasswordResponse()
+                {
+                    Success = false,
+                    Message = ex.ToString()
+                };
+            }
+        }
+
+        public void RunScript(string sAMAccountName)
+        {
+            var passwordExpiresPowerShell = settings.GetStringValue("passwordExpiresPowerShell");
+            if (!string.IsNullOrEmpty(passwordExpiresPowerShell))
+            {
+                string script = System.IO.File.ReadAllText(passwordExpiresPowerShell);
+
+                if (!string.IsNullOrEmpty(script))
+                {
+                    using (PowerShell powershell = PowerShell.Create())
+                    {
+                        script = script + "\n\n" +
+                        "$ppArg1=\"" + sAMAccountName + "\"\n";
+
+                        script += "Invoke-Method -SAMAccountName $ppArg1 -Name $ppArg2\n";
+
+                        powershell.AddScript(script);
+                        powershell.Invoke();
+                    }
+                }
             }
         }
 

@@ -5,7 +5,8 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.opensaml.saml.saml2.core.AuthnRequest;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.service.FlowService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -18,7 +19,6 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
 import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
-import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -36,7 +36,7 @@ public class ClaimSelectionController {
 	private SessionHelper sessionHelper;
 
 	@Autowired
-	private LoginService loginService;
+	private FlowService flowService;
 
 	@PostMapping(value = "/sso/saml/claims/completed", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE })
 	public ModelAndView mfaChallengePage(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @RequestParam Map<String, String> selectedParameters) throws ResponderException, RequesterException {
@@ -68,13 +68,13 @@ public class ClaimSelectionController {
 
 		sessionHelper.setSelectedClaims(selectedParameters);
 
-		return loginService.initiateFlowOrCreateAssertion(model, httpServletResponse, httpServletRequest, person);
+		return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
 	}
 
 	private ModelAndView handleError(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, String location, String message) throws ResponderException, RequesterException {
-		AuthnRequest authnRequest = sessionHelper.getAuthnRequest();
-		if (authnRequest != null) {
-			errorResponseService.sendRequesterError(httpServletResponse, authnRequest, new RequesterException(message));
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest != null) {
+			errorResponseService.sendError(httpServletResponse, loginRequest, new RequesterException(message));
 			return null;
 		}
 		else {

@@ -21,7 +21,9 @@
 						</div>
 					</div>
 
-					<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.unlock-ad-account')"></div>
+					<div class="column col-lg-3">
+						<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.unlock-ad-account')"></div>
+					</div>
 				</div>
 			</div>
 
@@ -48,15 +50,12 @@
 				$("#unlockBtn").prop('disabled', true);
 				$.ajax({
 					method : "GET",
-					url: "/rest/selvbetjening/unlockADAccount",
+					url: "/rest/selvbetjening/unlockAccount",
 					headers: {
 						'X-CSRF-TOKEN': token
 					}
 				}).done(function (data) {
-					toastr.success("Windows kontoen er nu låst op")
-					setTimeout(function() {
-						window.location.href = "/selvbetjening";
-					}, 5000);
+					toastr.success("Windows kontoen er nu låst op");
 					
 				}).fail(function(jqXHR, textStatus, errorThrown) {
 					toastr.error("Windows kontoen kunne ikke låses op.")

@@ -24,6 +24,7 @@ public class AdminIndexController {
 		model.addAttribute("personCount", statisticsService.getPersonCount());
 		model.addAttribute("aprovedConditionsCount", statisticsService.getAprovedConditionCount());
 		model.addAttribute("websocketConnections", statisticsService.getWebsocketConnections());
+		model.addAttribute("transferedToNemloginCount", statisticsService.getTransferedToNemloginCount());
 
 		return "admin/index";
 	}

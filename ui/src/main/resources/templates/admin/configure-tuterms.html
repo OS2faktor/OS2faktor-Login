@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header (texteditor = true)" />
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-tuterms')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5>
+									<em class="fa fa-info"></em> &nbsp; Opsæt tjenesteudbydervilkår &nbsp; <span style="font-size: smaller; color: lightgrey;" th:text="${tts}"></span>
+								</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Opsæt de vilkår der er gældende for tjenesteudbyderes anvendelsen af løsningen.
+								</p>
+								
+								<h4>Vilkår</h4>
+								<form id="termsForm" action="#" th:action="@{/admin/konfiguration/tuvilkaar}" th:object="${termsAndConditions}" method="post">
+									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
+									
+									<br/>
+
+									<button onclick="saveTermsAndConditions()" type="button" class="btn btn-primary block full-width m-b">Gem vilkår</button>
+									<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
+								</form>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-tuterms')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts (texteditor = true)"></div>
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		$(document).ready(function() {
+			$('#content').summernote({
+				"height": 320,
+				"toolbar": [
+					[ "font", [ "bold", "italic", "underline" ]],
+					[ "para", [ "ul", "ol", "style" ]],
+                    [ "insert", ["link"]]
+				]
+			});
+		});
+
+		function saveTermsAndConditions() {
+			$("#termsForm").submit();
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

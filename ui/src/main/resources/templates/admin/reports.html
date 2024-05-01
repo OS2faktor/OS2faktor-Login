@@ -41,6 +41,15 @@
 						                        	<a th:href="@{/ui/report/download/persons}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
 						                        </td>
 						                    </tr>
+
+
+											<tr th:if="${@commonConfiguration.getRoleCatalogue().isEnabled() == false}">
+												<td>Jobfunktionsroller</td>
+												<td>Hent en rapport over alle brugere med jobfunktionsroller.</td>
+												<td class="text-center">
+													<a th:href="@{/ui/report/download/roles}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+												</td>
+											</tr>
 						                    
 						                    <th:block sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
 						                    <!-- audit reports - only shown for admins -->
@@ -60,7 +69,15 @@
 						                        	<a th:href="@{/ui/report/download/auditorReportLogins}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
 						                        </td>
 						                    </tr>
-						                    
+
+						                    <tr>
+						                        <td>Revisionsrapport (administratorhandlinger)</td>
+						                        <td>Hent et udtræk fra hændelselsloggen over administratorhandlinger for de sidste 13 måneder.</td>
+						                        <td class="text-center">
+						                        	<a th:href="@{/ui/report/download/auditorReportAdmins}" style="color: black;" title="Download"><em class="fa fa-fw fa-file-excel-o"></em></a>
+						                        </td>
+						                    </tr>
+
 						                    <!-- end of audit reports -->
 						                    </th:block>
 					                    </tbody>

@@ -44,9 +44,9 @@ public class DevBootstrapper {
 	@PostConstruct
 	public void init() {
 		if (configuration.getDev().isEnabled()) {
-			if (personDao.findAll().size() == 0) {
-				Domain domain = domainService.getInternalDomain();
-				
+			if (personDao.findAll().isEmpty()) {
+				Domain domain = domainService.getByName("OS2faktor", true);
+
 				Person person = new Person();
 				person.setUuid("14deef62-b5ff-49d8-a1bd-e1e256043f5c");
 				person.setAdmin(true);
@@ -147,8 +147,8 @@ public class DevBootstrapper {
 
 	private String getInt(int min, int max) {
 		int val = random.nextInt(max + 1 - min) + min;
-		int width = (int) Math.log10(max);
-
+		int width = (int) Math.ceil(Math.log10(max));
+		
 		String result = "" + val;
 		while (result.length() < width) {
 			result = "0" + result;

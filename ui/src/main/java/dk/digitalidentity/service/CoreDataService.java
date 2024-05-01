@@ -10,16 +10,22 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
+import dk.digitalidentity.common.service.EmailTemplateService;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.api.CoreDataApi;
 import dk.digitalidentity.api.dto.CoreData;
 import dk.digitalidentity.api.dto.CoreDataDelete;
 import dk.digitalidentity.api.dto.CoreDataDeleteEntry;
@@ -33,21 +39,27 @@ import dk.digitalidentity.api.dto.CoreDataGroupLoad;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
 import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
+import dk.digitalidentity.api.dto.CoreDataNemLoginEntry;
+import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
 import dk.digitalidentity.api.dto.CoreDataStatus;
 import dk.digitalidentity.api.dto.CoreDataStatusEntry;
 import dk.digitalidentity.api.dto.Jfr;
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.Supporter;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
+import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -69,6 +81,18 @@ public class CoreDataService {
 	@Autowired
 	private EmailTemplateSenderService emailTemplateSenderService;
 	
+	@Autowired
+	private EmailTemplateService emailTemplateService;
+
+	@Autowired
+	private OS2faktorConfiguration configuration;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
+	
+	@Autowired
+	private MessageQueueService messageQueueService;
+		
 	// thread-safe formatter
 	private DateTimeFormatter formatter = new DateTimeFormatterBuilder()
 	        .appendPattern("yyyy-MM-dd[ HH:mm:ss]")
@@ -79,9 +103,6 @@ public class CoreDataService {
 
 	@Transactional(rollbackFor = Exception.class)
 	public void load(CoreData coreData, boolean fullLoad) throws IllegalArgumentException {
-		List<Person> updatedPersons = new ArrayList<>();
-		List<Person> createdPersons = new ArrayList<>();
-
 		Domain domain = domainService.getByName(coreData.getDomain());
 		if (domain == null) {
 			throw new IllegalArgumentException("Ukendt domæne: " + coreData.getDomain());
@@ -103,28 +124,55 @@ public class CoreDataService {
 		List<Domain> subDomains = domain.getChildDomains() != null ? domain.getChildDomains() : new ArrayList<>();
 		if (globalSubDomain != null) {
 			// retrict to globalSubdomain
-			subDomains.clear();
-			subDomains.add(globalSubDomain);
+			subDomains = List.of(globalSubDomain);
 		}
 
-		HashMap<String, Domain> subDomainMap = new HashMap<>(subDomains.stream().collect(Collectors.toMap(Domain::getName, Function.identity())));
-		
-		// Get people from the database (restrict to globalSubDomain if supplied, to ensure cleanup(delete only happens on these users)
-		List<Person> personList = (globalSubDomain == null) ? personService.getByDomain(domain, true) : personService.getByDomain(globalSubDomain, false);
-		Map<String, Person> personMap = personList.stream().collect(Collectors.toMap(Person::getIdentifier, Function.identity()));
-
 		// Validate input
-		String result = validateInput(coreData, personList, subDomains, globalSubDomain);
+		String result = validateInput(coreData, subDomains, globalSubDomain);
 		if (result != null) {
 			throw new IllegalArgumentException(result);
 		}
 
-		ensureUniqueSAMAccountNames(coreData, personList);
+		List<Person> updatedPersons = new ArrayList<>();
+		List<Person> createdPersons = new ArrayList<>();
+
+		HashMap<String, Domain> subDomainMap = new HashMap<>(subDomains.stream().collect(Collectors.toMap(Domain::getName, Function.identity())));
+
+		// Get a list of all account of the domain, even if Global subdomain is set,
+		// this is used to move accounts between subdomains without locking and creating a new one
+		List<Person> personsByDomain = personService.getByDomain(domain, true);
+		Map<String, Person> personMap = personsByDomain
+				.stream()
+				.collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
+
+		// Get people from the database (restrict to globalSubDomain if supplied, to ensure cleanup (delete only happens on these users)
+		List<Person> filteredPersonList = (globalSubDomain == null) ? personsByDomain : personService.getByDomain(globalSubDomain, false);
 
 		// Go through the received list of entries, check if there's a matching person object, then update/create
 		for (CoreDataEntry coreDataEntry : coreData.getEntryList()) {
-			Person person = personMap.get(coreDataEntry.getIdentifier());
+			Person person = personMap.get(coreDataEntry.getLowerSamAccountName());
 
+			// in the special case that we have an existing user in the DB with the same sAMAccountName, but that account
+			// is locked (dataset), then we will only allow reactivation if the cpr+uuid matches, otherwise it is a fresh person
+			if (person != null && person.isLockedDataset()) {
+				if (!Objects.equals(person.getCpr(), coreDataEntry.getCpr()) || !Objects.equals(person.getUuid(), coreDataEntry.getUuid())) {
+					// delete (side-effect it gets auditlogged)
+					personService.delete(person, null);
+
+					// force creation of a new person
+					person = null;
+				}
+			}
+			
+			// in the special case that the CPR changes on an existing person, it should be treated as a delete followed by a create
+			if (person != null && !Objects.equals(person.getCpr(), coreDataEntry.getCpr())) {
+				// delete (side-effect it gets auditlogged)
+				personService.delete(person, null);
+
+				// force creation of a new person
+				person = null;				
+			}
+			
 			if (person != null) {
 				boolean modified = updatePerson(coreDataEntry, domain, person, subDomainMap);
 
@@ -143,8 +191,8 @@ public class CoreDataService {
 			Map<String, CoreDataEntry> entryMap = coredataToMap(coreData);
 			List<Person> removedFromDataset = new ArrayList<>();
 
-			for (Person person : personList) {
-				CoreDataEntry entry = entryMap.get(person.getIdentifier());
+			for (Person person : filteredPersonList) {
+				CoreDataEntry entry = entryMap.get(person.getLowerSamAccountName());
 
 				if (entry == null && !person.isLockedDataset()) {
 					person.setLockedDataset(true);
@@ -153,7 +201,17 @@ public class CoreDataService {
 					person.getGroups().clear();
 					removedFromDataset.add(person);
 					
-					emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA, person);
+					if (person.isNsisAllowed()) {
+						EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
+
+						for (EmailTemplateChild child : emailTemplate.getChildren()) {
+							if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+								emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, 180);
+							}
+						}
+					}
 				}
 			}
 
@@ -173,6 +231,21 @@ public class CoreDataService {
 
 			auditLogger.addedAllToDataset(createdPersons);
 			log.info(createdPersons.size() + " persons were created");
+
+			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NEW_USER);
+			if (emailTemplate.getChildren().stream().anyMatch(c -> c.isEnabled())) {
+				createdPersons.forEach( p -> {
+					for (EmailTemplateChild emailTemplateChild : emailTemplate.getChildren()) {
+						if (emailTemplateChild.isEnabled() && emailTemplateChild.getDomain().getId() == p.getDomain().getId()) {
+							String msg = EmailTemplateService.safeReplacePlaceholder(emailTemplateChild.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, p.getName());
+							msg = EmailTemplateService.safeReplacePlaceholder(msg, EmailTemplateService.USERID_PLACEHOLDER, p.getSamaccountName());
+
+							// queue message
+							emailTemplateSenderService.send(p.getEmail(), p.getCpr(), p, emailTemplateChild.getTitle(), msg, emailTemplateChild, false);
+						}
+					}
+				});
+			}
 		}
 	}
 
@@ -201,6 +274,40 @@ public class CoreDataService {
 		List<CoreDataStatusEntry> matches = persons.stream().map(CoreDataStatusEntry::new).collect(Collectors.toList());
 		coreData.setEntryList(matches);
 
+		return coreData;
+	}
+	
+	public CoreDataNemLoginStatus getNemloginStatus(String domainName) {
+		if (!StringUtils.hasLength(domainName)) {
+			throw new IllegalArgumentException("Domain cannot be empty");
+		}
+
+		// Get domain and validate it
+		Domain domain = domainService.getByName(domainName);
+		if (domain == null || domain.getParent() != null) {
+			throw new IllegalArgumentException("Domain was either null or not a master domain");
+		}
+
+		CoreDataNemLoginStatus coreData = new CoreDataNemLoginStatus();
+		coreData.setDomain(domainName);
+		coreData.setEntries(new HashSet<>());
+		
+		List<Person> persons = personService.getByNemloginUserUuidNotNull();
+		for (Person person : persons) {
+			// we keep the NemLoginUserUuid for reactivation purposes, but these are actually Suspended inside MitID Erhverv
+			if (!person.isTransferToNemlogin()) {
+				continue;
+			}
+			
+			CoreDataNemLoginEntry entry = new CoreDataNemLoginEntry();
+			entry.setActive(!person.isLocked());
+			entry.setCpr(person.getCpr());
+			entry.setNemloginUserUuid(person.getNemloginUserUuid());
+			entry.setSamAccountName(person.getSamaccountName());
+			
+			coreData.getEntries().add(entry);
+		}
+		
 		return coreData;
 	}
 	
@@ -233,17 +340,10 @@ public class CoreDataService {
 	}
 
 	public CoreData getByDomainAndCpr(Domain domain, String cpr) throws IllegalArgumentException {
-		if (domain == null) {
-			throw new IllegalArgumentException("Domain cannot be empty");
-		}
+		domainValidation(domain);
 
 		if (!StringUtils.hasLength(cpr)) {
 			throw new IllegalArgumentException("Cpr cannot be empty");
-		}
-
-		// Get domain and validate it
-		if (domain.getParent() != null) {
-			throw new IllegalArgumentException("Domain was not a master domain");
 		}
 
 		// Create response object
@@ -262,6 +362,141 @@ public class CoreDataService {
 		return coreData;
 	}
 
+	public CoreDataFullJfr getJFRByDomain(Domain domain) throws IllegalArgumentException {
+		domainValidation(domain);
+
+		// Create response object
+		CoreDataFullJfr coreDataFullJfr = new CoreDataFullJfr();
+		coreDataFullJfr.setDomain(domain.getName());
+
+		// Add matching people
+		List<Person> byDomainAndCpr = personService.getByDomain(domain, true);
+		if (byDomainAndCpr == null) {
+			return coreDataFullJfr;
+		}
+
+		List<CoreDataFullJfrEntry> matches = byDomainAndCpr.stream().filter(person -> CollectionUtils.isNotEmpty(person.getKombitJfrs())).map(CoreDataFullJfrEntry::new).collect(Collectors.toList());
+		coreDataFullJfr.setEntryList(matches);
+
+		return coreDataFullJfr;
+	}
+
+	public CoreDataFullJfr getJFRByDomainAndCpr(Domain domain, String cpr) throws IllegalArgumentException {
+		domainValidation(domain);
+
+		if (!StringUtils.hasLength(cpr)) {
+			throw new IllegalArgumentException("Cpr cannot be empty");
+		}
+
+		// Create response object
+		CoreDataFullJfr coreDataFullJfr = new CoreDataFullJfr();
+		coreDataFullJfr.setDomain(domain.getName());
+
+		// Add matching people
+		List<Person> byDomainAndCpr = personService.getByDomainAndCpr(domain, cpr, true);
+		if (byDomainAndCpr == null) {
+			return coreDataFullJfr;
+		}
+
+		List<CoreDataFullJfrEntry> matches = byDomainAndCpr.stream().filter(person -> CollectionUtils.isNotEmpty(person.getKombitJfrs())).map(CoreDataFullJfrEntry::new).collect(Collectors.toList());
+		coreDataFullJfr.setEntryList(matches);
+
+		return coreDataFullJfr;
+	}
+
+	public CoreDataGroupLoad getGroupsByDomain(Domain domain) throws IllegalArgumentException {
+		domainValidation(domain);
+
+		// Create response object
+		CoreDataGroupLoad coreDataGroupLoad = new CoreDataGroupLoad();
+		coreDataGroupLoad.setDomain(domain.getName());
+
+		List<Group> groups = groupService.getByDomain(domain);
+		if (groups == null) {
+			return coreDataGroupLoad;
+		}
+
+		List<CoreDataGroup> groupEntries = groups.stream().map(CoreDataGroup::new).collect(Collectors.toList());
+		coreDataGroupLoad.setGroups(groupEntries);
+
+		return coreDataGroupLoad;
+	}
+
+	public CoreDataGroupLoad getGroupsByDomainAndCpr(Domain domain, String cpr) throws IllegalArgumentException {
+		domainValidation(domain);
+
+		if (!StringUtils.hasLength(cpr)) {
+			throw new IllegalArgumentException("Cpr cannot be empty");
+		}
+
+		// Create response object
+		CoreDataGroupLoad coreDataGroupLoad = new CoreDataGroupLoad();
+		coreDataGroupLoad.setDomain(domain.getName());
+
+		List<Person> byDomainAndCpr = personService.getByDomainAndCpr(domain, cpr, true);
+
+		HashSet<Group> distinctGroups = new HashSet<>();
+		CollectionUtils.emptyIfNull(byDomainAndCpr)
+				.stream()
+				.map(person ->
+					 CollectionUtils.emptyIfNull(person.getGroups())
+							.stream()
+							.map(PersonGroupMapping::getGroup)
+							.collect(Collectors.toSet())
+				)
+				.forEach(distinctGroups::addAll);
+
+		List<CoreDataGroup> groupEntries = distinctGroups.stream().map(CoreDataGroup::new).collect(Collectors.toList());
+		coreDataGroupLoad.setGroups(groupEntries);
+
+		return coreDataGroupLoad;
+	}
+
+	private static void domainValidation(Domain domain) {
+		if (domain == null) {
+			throw new IllegalArgumentException("Domain cannot be empty");
+		}
+
+		// Get domain and validate it
+		if (domain.getParent() != null) {
+			throw new IllegalArgumentException("Domain was not a master domain");
+		}
+	}
+
+	@Transactional(rollbackFor = Exception.class)
+	public void deleteDataset(CoreDataDelete coreDataDelete) throws IllegalArgumentException {
+		if (!StringUtils.hasLength(coreDataDelete.getDomain())) {
+			throw new IllegalArgumentException("Domain cannot be empty");
+		}
+
+		Domain domain = domainService.getByName(coreDataDelete.getDomain());
+		if (domain == null) {
+			throw new IllegalArgumentException("Unknown domain: " + coreDataDelete.getDomain());
+		}
+
+		if (coreDataDelete.getEntryList() == null) {
+			throw new IllegalArgumentException("entryList cannot be null");
+		}
+
+		List<Person> toDelete = new ArrayList<Person>();
+		for (CoreDataDeleteEntry entry : coreDataDelete.getEntryList()) {
+			List<Person> matches = personService.getByDomainAndCpr(domain, entry.getCpr(), true);
+
+			if (matches != null) {
+				for (Person match : matches) {
+					if (match.getSamaccountName().equalsIgnoreCase(entry.getSamAccountName())) {
+						toDelete.add(match);
+					}
+				}
+			}
+		}
+
+		if (toDelete.size() > 0) {
+			personService.deleteAll(toDelete);
+			auditLogger.deleteFromDataset(toDelete);
+		}
+	}
+	
 	@Transactional(rollbackFor = Exception.class)
 	public void lockDataset(CoreDataDelete coreDataDelete) throws IllegalArgumentException {
 		if (!StringUtils.hasLength(coreDataDelete.getDomain())) {
@@ -283,7 +518,8 @@ public class CoreDataService {
 
 			if (matches != null) {
 				for (Person match : matches) {
-					if (Objects.equals(match.getSamaccountName(), entry.getSamAccountName()) && Objects.equals(match.getUuid(), entry.getUuid())) {
+					
+					if (match.getSamaccountName().equalsIgnoreCase(entry.getSamAccountName())) {
 						if (!match.isLockedDataset()) {
 							match.setLockedDataset(true);
 							match.getAttributes().clear();
@@ -291,7 +527,16 @@ public class CoreDataService {
 							match.getGroups().clear();
 							toSave.add(match);
 							
-							emailTemplateSenderService.send(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA, match);
+							if (match.isNsisAllowed()) {
+								EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
+								for (EmailTemplateChild child : emailTemplate.getChildren()) {
+									if (child.isEnabled() && child.getDomain().getId() == match.getDomain().getId()) {
+										String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, match.getName());
+										message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, match.getSamaccountName());
+										emailTemplateSenderService.send(match.getEmail(), match.getCpr(), match, child.getTitle(), message, child, 180);
+									}
+								}
+							}
 						}
 					}
 				}
@@ -306,54 +551,10 @@ public class CoreDataService {
 		Map<String, CoreDataEntry> coreDataMap = new HashMap<>();
 
 		for (CoreDataEntry coreDataEntry : coreData.getEntryList()) {
-			coreDataMap.put(coreDataEntry.getIdentifier(), coreDataEntry);
+			coreDataMap.put(coreDataEntry.getLowerSamAccountName(), coreDataEntry);
 		}
 
 		return coreDataMap;
-	}
-	
-	private void ensureUniqueSAMAccountNames(CoreData coreData, List<Person> databasePeople) {
-		List<CoreDataEntry> entries = coreData.getEntryList();
-		
-		// Map people from database to a list of matching SAMAccountNames, ignore null or empty
-		HashMap<String, List<Person>> listOfMatches = new HashMap<>();
-		for (Person person : databasePeople) {
-			if (StringUtils.hasLength(person.getSamaccountName())) {
-				List<Person> people = listOfMatches.get(person.getSamaccountName());
-
-				if (people == null) {
-					people = new ArrayList<>();
-				}
-				people.add(person);
-
-				listOfMatches.put(person.getSamaccountName(), people);
-			}
-		}
-
-		for (CoreDataEntry entry : entries) {
-
-			// the incoming payload does not have duplicate sAMAccountNames (true for both full and delta payloads), but
-			// there might be users in the database that have the existing sAMAccountName. If this happens, we need to
-			// null the associated sAMAccountName on the existing database-entry (if it is does not match the identifier
-			// for the incoming payload) - worst case, if there is an error in the import logic on the other side, this
-			// will result in flip-flopping, but that means they have associcated the same userId with multiple persons
-			// on the other end which is unlikely (but could happen)
-
-			if (StringUtils.hasLength(entry.getSamAccountName())) {
-				List<Person> dbMatches = listOfMatches.get(entry.getSamAccountName());
-
-				if (dbMatches != null && dbMatches.size() > 0) {
-					for (Person match : dbMatches) {
-						if (!CoreDataEntry.compare(match, entry)) {
-							match.setSamaccountName(null);
-							personService.save(match);
-
-							log.warn("Moved sAMAccountName = " + entry.getSamAccountName() + " from " + match.getIdentifier() + " to " + entry.getIdentifier());
-						}
-					}
-				}
-			}
-		}
 	}
 	
 	private String validateInput(CoreDataKombitAttributesLoad kombitAttributes, List<Person> databasePeople) {
@@ -402,7 +603,7 @@ public class CoreDataService {
 		return null;
 	}
 
-	private String validateInput(CoreData coreData, List<Person> databasePeople, List<Domain> subDomains, Domain globalSubDomain) {
+	private String validateInput(CoreData coreData, List<Domain> subDomains, Domain globalSubDomain) {
 		List<CoreDataEntry> entries = coreData.getEntryList();
 
 		if (entries == null || entries.size() == 0) {
@@ -418,17 +619,36 @@ public class CoreDataService {
 			return "Angivne domæne (" + coreData.getDomain() + ") er et sub-domæne";
 		}
 
-		// convert "" to null for more correct handling
-		entries.forEach(e -> {
-			if (!StringUtils.hasLength(e.getSamAccountName())) {
-				e.setSamAccountName(null);
+		// remove null entries :)
+		entries.removeIf(e -> e == null);
+		
+		// remove null/empty entries from attributes
+		for (CoreDataEntry entry : entries) {
+			for (Iterator<Entry<String, String>> iterator = entry.getAttributes().entrySet().iterator(); iterator.hasNext();) {
+				Entry<String, String> mapEntry = iterator.next();
+				String value = mapEntry.getValue();
+				
+				if (!StringUtils.hasLength(value)) {
+					iterator.remove();
+				}
 			}
-		});
+		}
+		
+		// make sure all entries have a sAMAccountName
+		CoreDataEntry nullEntry = entries.stream().filter(e -> !StringUtils.hasLength(e.getSamAccountName())).findAny().orElse(null);
+		if (nullEntry != null) {
+			return "Bruger med uuid '" + nullEntry.getUuid() + "' mangler et brugernavn";
+		}
 
 		// Check for duplicate SAMAccountNames and unknown subDomain
 		Set<String> existingSAMAccountNames = new HashSet<>();
 		for (CoreDataEntry entry : entries) {
 			if (globalSubDomain != null) {
+				// no subdomain supplied on entry, but a global subdomain has been supplied, so set that on the user
+				if (!StringUtils.hasLength(entry.getSubDomain())) {
+					entry.setSubDomain(globalSubDomain.getName());
+				}
+
 				if (!Objects.equals(globalSubDomain.getName(), entry.getSubDomain())) {
 					return "Underdomæne mismatch: " + globalSubDomain.getName() + " != " + entry.getSubDomain();
 				}
@@ -437,15 +657,40 @@ public class CoreDataService {
 				return "Ukendt underdomæne: " + entry.getSubDomain();
 			}
 
-			if (StringUtils.hasLength(entry.getSamAccountName())) {
-				if (!existingSAMAccountNames.contains(entry.getSamAccountName().toLowerCase())) {
-					existingSAMAccountNames.add(entry.getSamAccountName().toLowerCase());
-				}
-				else {
-					return "Flere personer med tilknyttet AD konto (" + entry.getSamAccountName() + ") for domæne " + coreData.getDomain();
-				}
+			// fix empty string email
+			if (entry.getEmail() != null && !StringUtils.hasLength(entry.getEmail())) {
+				entry.setEmail(null);
+			}
+
+			if (!existingSAMAccountNames.contains(entry.getSamAccountName().toLowerCase())) {
+				existingSAMAccountNames.add(entry.getSamAccountName().toLowerCase());
+			}
+			else {
+				return "Flere personer med tilknyttet AD konto (" + entry.getSamAccountName() + ") for domæne " + coreData.getDomain();
 			}
 		}
+		
+		// remove entries with invalid cpr's
+		entries.removeIf(e -> {
+			if (!StringUtils.hasLength(e.getCpr())) {
+				log.warn("Fjernet entry for Person uden cpr: " + e.getUuid() + " for domæne " + coreData.getDomain());
+				return true;
+			}
+			else if (e.getCpr().length() != 10) {
+				log.warn("Fjernet entry for Person med ugyldigt CPR nummer: " + e.getUuid() + " for domæne " + coreData.getDomain());
+				return true;
+			}
+			
+			try {
+				Long.parseLong(e.getCpr());
+			}
+			catch (NumberFormatException ex) {
+				log.warn("Fjernet entry for Person med ugyldigt CPR nummer. Indeholder tegn, som ikke er tal: " + e.getUuid() + " / " + e.getCpr() + " for domæne " + coreData.getDomain());
+				return true;
+			}
+			
+			return false;
+		});
 
 		for (CoreDataEntry entry : entries) {
 			// copy domain to each entry - we need it for the entity identifier and for comparison
@@ -457,12 +702,6 @@ public class CoreDataService {
 			else if (!StringUtils.hasLength(entry.getName())) {
 				return "Person uden navn: " + entry.getUuid() + " for domæne " + coreData.getDomain();
 			}
-			else if (!StringUtils.hasLength(entry.getCpr())) {
-				return "Person uden CPR nummer: " + entry.getUuid() + " for domæne " + coreData.getDomain();
-			}
-			else if (entry.getCpr().length() != 10) {
-				return "Person med ugyldigt CPR nummer: " + entry.getUuid() + " for domæne " + coreData.getDomain();
-			}
 		}
 
 		return null;
@@ -470,7 +709,7 @@ public class CoreDataService {
 
 	private Person createPerson(CoreDataEntry coreDataEntry, Domain domain, HashMap<String, Domain> subDomainMap) {
 		Person person = new Person();
-		person.setSamaccountName(coreDataEntry.getSamAccountName());
+		person.setSamaccountName(coreDataEntry.getLowerSamAccountName());
 		person.setApprovedConditions(false);
 		person.setApprovedConditionsTts(null);
 		person.setCpr(coreDataEntry.getCpr());
@@ -485,8 +724,10 @@ public class CoreDataService {
 		person.setUuid(coreDataEntry.getUuid());
 		person.setAttributes(coreDataEntry.getAttributes());
 		person.setExpireTimestamp(coreDataEntry.getExpireTimestamp() != null ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
-		person.setRid(coreDataEntry.getRid());
+		person.setNextPasswordChange(coreDataEntry.getNextPasswordChange() != null ? LocalDateTime.parse(coreDataEntry.getNextPasswordChange(), formatter) : null);
+		person.setDepartment(coreDataEntry.getDepartment());
 		person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
+		person.setEan(coreDataEntry.getEan());
 		
 		if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
 			person.setLockedExpired(true);
@@ -506,6 +747,46 @@ public class CoreDataService {
 			person.setDomain(domain);
 		}
 		
+		if (configuration.getCoreData().isRoleApiEnabled()) {
+			if (coreDataEntry.getRoles() != null) {
+				for (String role : coreDataEntry.getRoles()) {
+					CoreDataApi.PersonRoles pRole = null;
+					
+					try {
+						pRole = CoreDataApi.PersonRoles.valueOf(role);
+					}
+					catch (Exception ex) {
+						throw new RuntimeException("Unknown role: " + role);
+					}
+
+					switch (pRole) {
+						case ADMIN:
+							person.setAdmin(true);
+							break;
+						case KODEVISER_ADMIN:
+							person.setKodeviserAdmin(true);
+							break;
+						case REGISTRANT:
+							if (commonConfiguration.getCustomer().isEnableRegistrant()) {
+								person.setRegistrant(true);
+							}
+							break;
+						case SUPPORTER:
+							person.setSupporter(new Supporter());
+							person.getSupporter().setDomain(person.getDomain());
+							person.getSupporter().setPerson(person);
+							break;
+						case TU_ADMIN:
+							person.setServiceProviderAdmin(true);
+							break;
+						case USER_ADMIN:
+							person.setUserAdmin(true);
+							break;
+					}
+				}
+			}
+		}
+
 		return person;
 	}
 
@@ -521,6 +802,17 @@ public class CoreDataService {
 		// update if needed
 		if (!Objects.equals(coreDataEntryDomain, person.getDomain())) {
 			person.setDomain(coreDataEntryDomain);
+			modified = true;
+		}
+		
+		// the UUID is just an attribute, and can be modified
+		if (!Objects.equals(person.getUuid(), coreDataEntry.getUuid())) {
+			person.setUuid(coreDataEntry.getUuid());
+			modified = true;
+		}
+
+		if (!coreDataEntry.isNsisAllowed() && !Objects.equals(person.getName(), coreDataEntry.getName())) {
+			person.setName(coreDataEntry.getName());
 			modified = true;
 		}
 
@@ -548,6 +840,13 @@ public class CoreDataService {
 			modified = true;
 		}
 
+		String dateToCompareNextPasswordChange = (person.getNextPasswordChange() == null) ? null : person.getNextPasswordChange().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		if (!Objects.equals(dateToCompareNextPasswordChange, coreDataEntry.getNextPasswordChange())) {
+			person.setNextPasswordChange((coreDataEntry.getNextPasswordChange() != null) ? LocalDateTime.parse(coreDataEntry.getNextPasswordChange(), formatter) : null);
+
+			modified = true;
+		}
+
 		if (person.isLockedDataset()) {
 			person.setLockedDataset(false);
 			person.setApprovedConditions(false);
@@ -555,6 +854,10 @@ public class CoreDataService {
 			person.setNsisLevel(NSISLevel.NONE);
 			person.setNsisPassword(null);
 
+			// make sure any messages in the queue about being locked are removed (just in case this user was locked previously, and the message has not actually
+			// been processed yet - no reason to send the message, as it was a mistake that the user was locked
+			messageQueueService.dequeue(person.getCpr(), person.getEmail(), EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
+			
 			auditLogger.addedToDataset(person);
 			modified = true;
 		}
@@ -563,45 +866,187 @@ public class CoreDataService {
 			if (coreDataEntry.isNsisAllowed()) {
 				person.setNsisAllowed(true);
 				person.setNsisPassword(null);
-				auditLogger.nsisAllowedChanged(person, true);
-				emailTemplateSenderService.send(EmailTemplateType.NSIS_ALLOWED, person);
+				
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
+				for (EmailTemplateChild child : emailTemplate.getChildren()) {
+					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+					}
+				}
 			}
 			else {
 				person.setNsisAllowed(false);
 				person.setNsisLevel(NSISLevel.NONE);
 				person.setNsisPassword(null);
-				auditLogger.nsisAllowedChanged(person, false);
 			}
+
+			auditLogger.nsisAllowedChanged(person, person.isNsisAllowed());
 
 			modified = true;
 		}
 
-		// map equality works on element equality (which works because they are Strings), and the order is not relevant (equality still works)
-		if (!Objects.equals(person.getAttributes(), coreDataEntry.getAttributes())) {
+		if (!mapEquals(person.getAttributes(), coreDataEntry.getAttributes())) {
 			person.setAttributes(coreDataEntry.getAttributes());
 			modified = true;
 		}
 		
 		if (coreDataEntry.isTransferToNemlogin() != person.isTransferToNemlogin()) {
 			person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
+			
+			auditLogger.transferToNemloginChanged(person, person.isTransferToNemlogin());
+
 			modified = true;
 		}
 		
-		if (!Objects.equals(person.getRid(), coreDataEntry.getRid()) && StringUtils.hasLength(coreDataEntry.getRid())) {
-			person.setRid(coreDataEntry.getRid());
+		if (!Objects.equals(person.getDepartment(), coreDataEntry.getDepartment())) {
+			person.setDepartment(coreDataEntry.getDepartment());
 			modified = true;
 		}
 
+		if (!Objects.equals(person.getEan(), coreDataEntry.getEan())) {
+			person.setEan(coreDataEntry.getEan());
+			modified = true;
+		}
+
+		if (configuration.getCoreData().isRoleApiEnabled()) {
+			Set<CoreDataApi.PersonRoles> pRoles = new HashSet<>();
+
+			if (coreDataEntry.getRoles() != null) {
+				for (String role : coreDataEntry.getRoles()) {
+					CoreDataApi.PersonRoles pRole = null;
+					
+					try {
+						pRole = CoreDataApi.PersonRoles.valueOf(role);
+						pRoles.add(pRole);
+					}
+					catch (Exception ex) {
+						throw new RuntimeException("Unknown role: " + role);
+					}
+				}
+			}
+
+			// add roles
+			for (CoreDataApi.PersonRoles pRole : pRoles) {
+				switch (pRole) {
+					case ADMIN:
+						if (!person.isAdmin()) {
+							person.setAdmin(true);
+							modified = true;
+						}
+						break;
+					case KODEVISER_ADMIN:
+						if (!person.isKodeviserAdmin()) {
+							person.setKodeviserAdmin(true);
+							modified = true;
+						}
+						break;
+					case REGISTRANT:
+						if (commonConfiguration.getCustomer().isEnableRegistrant()) {
+							if (!person.isRegistrant()) {
+								person.setRegistrant(true);
+								modified = true;
+							}
+						}
+						break;
+					case SUPPORTER:
+						if (!person.isSupporter()) {
+							person.setSupporter(new Supporter());
+							person.getSupporter().setDomain(person.getDomain());
+							person.getSupporter().setPerson(person);
+							modified = true;
+						}
+						break;
+					case TU_ADMIN:
+						if (!person.isServiceProviderAdmin()) {
+							person.setServiceProviderAdmin(true);
+							modified = true;
+						}
+						break;
+					case USER_ADMIN:
+						if (!person.isAdmin()) {
+							person.setUserAdmin(true);
+							modified = true;
+						}
+						break;
+				}
+			}
+			
+			// remove roles
+
+			if (person.isAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.ADMIN)) {
+				person.setAdmin(false);
+				modified = true;
+			}
+			
+			if (person.isKodeviserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.KODEVISER_ADMIN)) {
+				person.setKodeviserAdmin(false);
+				modified = true;
+			}
+			
+			if (person.isRegistrant() && !pRoles.contains(CoreDataApi.PersonRoles.REGISTRANT)) {
+				person.setRegistrant(false);
+				modified = true;
+			}
+			
+			if (person.isServiceProviderAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.TU_ADMIN)) {
+				person.setServiceProviderAdmin(false);
+				modified = true;
+			}
+			
+			if (person.isUserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.USER_ADMIN)) {
+				person.setUserAdmin(false);
+				modified = true;
+			}
+			
+			if (person.isSupporter() && !pRoles.contains(CoreDataApi.PersonRoles.SUPPORTER)) {
+				person.setSupporter(null);
+				modified = true;
+			}
+		}
+
 		return modified;
+	}
+	
+	private boolean mapEquals(Map<String, String> map1, Map<String, String> map2) {
+
+		// basic null checking
+		if (map1 == null && map2 == null) {
+			return true;
+		}
+		else if (map1 == null && map2 != null) {
+			return false;
+		}
+		else if (map1 != null && map2 == null) {
+			return false;
+		}
+
+		// size check
+		if (map1.keySet().size() != map2.keySet().size()) {
+			return false;
+		}
+		
+		// same size, so pull keyset from one map, and values from both maps and compare directly
+		for (String key : map1.keySet()) {
+			String value1 = map1.get(key);
+			String value2 = map2.get(key);
+			
+			if (!Objects.equals(value1, value2)) {
+				return false;
+			}
+		}
+		
+		return true;
 	}
 
 	@Transactional
 	public void loadFullKombitJfr(CoreDataFullJfr coreData) {
 		List<Person> persons = personService.getByDomain(coreData.getDomain(), true);
 
-		Map<String, Person> personMapSAMAccountName = persons.stream().filter(p -> StringUtils.hasLength(p.getSamaccountName())).collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
+		Map<String, Person> personMapSAMAccountName = persons.stream().filter(p -> StringUtils.hasLength(p.getLowerSamAccountName())).collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
 		Map<String, Person> personMapAzureId = persons.stream().filter(p -> p.getAzureId() != null).collect(Collectors.toMap(Person::getAzureId, Function.identity()));
-		Map<String, Person> personMap = persons.stream().filter(p -> p.getUuid() != null).collect(Collectors.toMap(person -> person.getUuid() + (person.getSamaccountName() != null ? person.getSamaccountName() : "<null>"), Function.identity()));
+		Map<String, Person> personMap = persons.stream().filter(p -> p.getUuid() != null).collect(Collectors.toMap(person -> person.getUuid() + (person.getLowerSamAccountName() != null ? person.getLowerSamAccountName() : "<null>"), Function.identity()));
 
 		// add/update case
 		for (CoreDataFullJfrEntry entry : coreData.getEntryList()) {
@@ -613,15 +1058,15 @@ public class CoreDataService {
 				}
 				else {
 					// otherwise use the ordinary UUID (for most other muni's
-					person = personMap.get(entry.getUuid() + (entry.getSamAccountName() != null ? entry.getSamAccountName() : "<null>"));
+					person = personMap.get(entry.getUuid() + (entry.getLowerSamAccountName() != null ? entry.getLowerSamAccountName() : "<null>"));
 				}
 			}
 			else {
-				person = personMapSAMAccountName.get(entry.getSamAccountName().toLowerCase());
+				person = personMapSAMAccountName.get(entry.getLowerSamAccountName().toLowerCase());
 			}
 
 			if (person == null) {
-				log.warn("Got person that does not exist in OS2faktor yet: " + (entry.getSamAccountName() != null ? entry.getSamAccountName() : "<null>") + " (" + (entry.getUuid() != null ? entry.getUuid() : "<null>") + ")");
+				log.debug("Got person that does not exist in OS2faktor yet: " + (entry.getLowerSamAccountName() != null ? entry.getLowerSamAccountName() : "<null>") + " (" + (entry.getUuid() != null ? entry.getUuid() : "<null>") + ")");
 				continue;
 			}
 
@@ -672,11 +1117,12 @@ public class CoreDataService {
 			}
 
 			if (changes) {
+				log.info("Registering JFR changes on " + person.getId());
 				personService.save(person);
 			}
 		}
 
-		Map<String, CoreDataFullJfrEntry> coreDataMapSAMAccountName = coreData.getEntryList().stream().filter(entry -> StringUtils.hasLength(entry.getSamAccountName())).collect(Collectors.toMap(CoreDataFullJfrEntry::getLowerSamAccountName, Function.identity()));
+		Map<String, CoreDataFullJfrEntry> coreDataMapSAMAccountName = coreData.getEntryList().stream().filter(entry -> StringUtils.hasLength(entry.getLowerSamAccountName())).collect(Collectors.toMap(CoreDataFullJfrEntry::getLowerSamAccountName, Function.identity()));
 		Map<String, CoreDataFullJfrEntry> coreDataMapUuid = coreData.getEntryList().stream().filter(entry -> StringUtils.hasLength(entry.getUuid())).collect(Collectors.toMap(CoreDataFullJfrEntry::getUuid, Function.identity()));
 
 		// remove those not in map
@@ -701,22 +1147,33 @@ public class CoreDataService {
 	@Transactional
 	public void loadDeltaKombitJfr(CoreDataDeltaJfr coreData) {
 		List<Person> persons = personService.getByDomain(coreData.getDomain(), true);
+		
+		// remove all without a sAMAccountName
+		persons = persons.stream().filter(p -> StringUtils.hasLength(p.getLowerSamAccountName())).collect(Collectors.toList());
 
-		Map<String, Person> personMapSAMAccountName = persons.stream().filter(p -> StringUtils.hasLength(p.getSamaccountName())).collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
+		Map<String, Person> personMapSAMAccountName = persons.stream().collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
 		Map<String, Person> personMapAzureId = persons.stream().filter(p -> p.getAzureId() != null).collect(Collectors.toMap(Person::getAzureId, Function.identity()));
+		Map<String, Person> personMap = persons.stream().collect(Collectors.toMap(person -> person.getUuid() + person.getLowerSamAccountName(), Function.identity()));
 
 		// add/update case
 		for (CoreDataDeltaJfrEntry entry : coreData.getEntryList()) {
 			Person person = null;
 			if (StringUtils.hasLength(entry.getUuid())) {
-				person = personMapAzureId.get(entry.getUuid());
+				// try against Azure in case Azure users are loaded into this domain
+				if (personMapAzureId.size() > 0) {
+					person = personMapAzureId.get(entry.getUuid());
+				}
+				else {
+					// otherwise use the ordinary UUID (for most other muni's
+					person = personMap.get(entry.getUuid() + entry.getLowerSamAccountName());
+				}
 			}
-			else if (StringUtils.hasLength(entry.getSamAccountName())) {
+			else if (StringUtils.hasLength(entry.getLowerSamAccountName())) {
 				person = personMapSAMAccountName.get(entry.getLowerSamAccountName());
 			}
 
 			if (person == null) {
-				log.warn("Got person that does not exist in OS2faktor yet: " + (entry.getSamAccountName() != null ? entry.getSamAccountName() : "<null>") + " (" + (entry.getUuid() != null ? entry.getUuid() : "<null>") + ")");
+				log.warn("Got person that does not exist in OS2faktor yet: " + (entry.getLowerSamAccountName() != null ? entry.getLowerSamAccountName() : "<null>") + " (" + (entry.getUuid() != null ? entry.getUuid() : "<null>") + ")");
 				continue;
 			}
 
@@ -786,8 +1243,16 @@ public class CoreDataService {
 					domainPerson.setNsisAllowed(shouldNsisBeAllowed);
 					if (!shouldNsisBeAllowed) {
 						domainPerson.setNsisLevel(NSISLevel.NONE);
-					} else {
-						emailTemplateSenderService.send(EmailTemplateType.NSIS_ALLOWED, domainPerson);
+					}
+					else {
+						EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
+						for (EmailTemplateChild child : emailTemplate.getChildren()) {
+							if (child.isEnabled() && child.getDomain().getId() == domainPerson.getDomain().getId()) {
+								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, domainPerson.getName());
+								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, domainPerson.getSamaccountName());
+								emailTemplateSenderService.send(domainPerson.getEmail(), domainPerson.getCpr(), domainPerson, child.getTitle(), message, child, false);
+							}
+						}
 					}
 					toBeSaved.add(domainPerson);
 					auditLogger.nsisAllowedChanged(domainPerson, shouldNsisBeAllowed);
@@ -847,7 +1312,7 @@ public class CoreDataService {
 
 		List<Person> allPersons = personService.getByDomain(domain, true);
 		Map<String, Person> personMap = allPersons.stream()
-				.filter(p -> p.getSamaccountName() != null)
+				.filter(p -> p.getLowerSamAccountName() != null)
 				.collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
 
 		// create or update groups
@@ -885,32 +1350,26 @@ public class CoreDataService {
 
 			// add members
 			for (String member : coreDataGroup.getMembers()) {
-				boolean found = false;
-
 				Person personToAdd = personMap.get(member.toLowerCase());
+
+				// TODO: we can remove this code sometime in the future, when we know that everyone has upgraded to using sAMAccountName in CoreData
 				if (personToAdd == null) {
-					// TODO: we can remove this code sometime in the future, when we know that everyone has upgraded to using sAMAccountName in CoreData
 					for (Person person : allPersons) {
 						if (Objects.equals(person.getUuid(), member)) {
 							personToAdd = person;
 							break;
 						}
 					}
-					
-					if (personToAdd == null) {
-						log.warn("Group payload contains sAMAccountName of person that does not exist:" + member);
-						continue;
-					}
 				}
 
-				for (Person person : group.getMembers()) {
-					if (Objects.equals(person.getUuid(), member)) {
-						found = true;
-						break;
-					}
+				if (personToAdd == null) {
+					log.warn("Group payload contains sAMAccountName of person that does not exist:" + member);
+					continue;
 				}
 
-				if (!found) {
+				// if the person is not already a member, then add
+				final Person fPersonToAdd = personToAdd;
+				if (!group.getMembers().stream().anyMatch(p -> p.getId() == fPersonToAdd.getId())) {
 					log.info("Adding user to group (" + group.getName() + ") : " + PersonService.getUsername(personToAdd));
 					PersonGroupMapping pgm = new PersonGroupMapping(personToAdd, group);
 					group.getMemberMapping().add(pgm);
@@ -925,7 +1384,7 @@ public class CoreDataService {
 				boolean found = false;
 				
 				for (String member : coreDataGroup.getMembers()) {
-					// TODO: can remove the UUID check in the future (once everyone is running latest CoreData
+					// TODO: can remove the UUID check in the future (once everyone is running latest CoreData)
 					if (Objects.equals(pgm.getPerson().getLowerSamAccountName(), member.toLowerCase()) || Objects.equals(pgm.getPerson().getUuid(), member)) {
 						found = true;
 						break;

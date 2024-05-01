@@ -15,8 +15,13 @@ public class CleanupTask {
 	private SocketHandler socketHandler;
 	
 	@Scheduled(fixedRate = 5 * 60 * 1000)
-	public void cleanup() {
+	public void cleanupRequestResponseAndSendIsAliveRequests() {
 		socketHandler.cleanupRequestResponse();
+		socketHandler.sendIsAlive();
+	}
+	
+	@Scheduled(fixedRate = 5 * 1000)
+	public void cleanupStateSessions() {
 		socketHandler.closeStaleSessions();
 	}
 }
