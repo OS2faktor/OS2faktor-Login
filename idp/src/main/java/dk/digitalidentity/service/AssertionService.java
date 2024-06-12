@@ -502,7 +502,7 @@ public class AssertionService {
 		assertion.getAuthnStatements().add(authnStatement);
 		authnStatement.setSessionIndex(assertionId);
 
-		// Set AuthnInstant (The moment password/mfa/nemid was validated)
+		// Set AuthnInstant (The moment Password/MFA/MitID was validated)
 		if (authnInstant == null) {
 			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
 		}

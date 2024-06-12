@@ -1,7 +1,7 @@
 #define AppId "{{e7ecb42f-a16d-414a-aaf9-41658ae9d53c}"
 #define AppSourceDir "..\Build"
 #define AppName "OS2faktorCoreDataSync"
-#define AppVersion "2.9.1"
+#define AppVersion "2.9.2"
 #define AppPublisher "Digital Identity"
 #define AppURL "http://digital-identity.dk/"
 #define AppExeName "OS2faktorCoreDataSync"

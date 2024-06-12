@@ -240,7 +240,15 @@ public abstract class ServiceProvider {
 		// return true if the SP does not support the SubjectConfirmation element
 		return false;
 	}
-	
+
+	public boolean isAllowAnonymousUsers() {
+		return false;
+	}
+
+	public boolean isAllowMitidErvhervLogin() {
+		return false;
+	}
+
 	// END-SECTION
 
     public abstract EntityDescriptor getMetadata() throws RequesterException, ResponderException;
@@ -259,7 +267,7 @@ public abstract class ServiceProvider {
 	public abstract boolean requireOiosaml3Profile();
 	public abstract Long getPasswordExpiry();
 	public abstract Long getMfaExpiry();
-	
+
 	/* These settings interact with each other - setting preferNIST = true overrules the last two, and
 	 * no NSIS claim will ever be issued in that case.
 	 * 

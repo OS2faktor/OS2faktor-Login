@@ -64,6 +64,10 @@ public class CoreDataLogService {
 		}
 
 		Domain domain = domainService.getByName(domainName);
+		if (domain == null) {
+			log.warn("Unknown domain: domainName = " + domainName + " endpoint = " + endpoint);
+			return null;
+		}
 
 		return save(new CoreDataLog(endpoint, domain));
 	}

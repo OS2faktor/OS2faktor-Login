@@ -128,6 +128,15 @@ public class LoginService {
         // Start login flow against NemLog-in no matter the session
         if (commonConfiguration.getNemlogin().isBrokerEnabled() && (serviceProvider.nemLogInBrokerEnabled()) || loginRequest.isRequireBrokering()) {
             sessionHelper.setInNemLogInBrokerFlow(true);
+
+            if (serviceProvider.isAllowMitidErvhervLogin()) {
+            	sessionHelper.setRequestProfessionalProfile();
+            	sessionHelper.setRequestPersonalProfile();
+            }
+            else {
+            	sessionHelper.setRequestPersonalProfile();
+            }
+
             return new ModelAndView("redirect:/nemlogin/saml/login");
         }
 

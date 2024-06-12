@@ -56,6 +56,8 @@ public class ServiceProviderDTO {
 	private Long passwordExpiry;
 	private Long mfaExpiry;
 	private boolean hasCustomSessionExpiry;
+	private boolean allowMitidErhvervLogin;
+	private boolean allowAnonymousUsers;
 
 	public ServiceProviderDTO() {
 		this.id = "0";
@@ -65,6 +67,7 @@ public class ServiceProviderDTO {
 		this.conditionsDomains = new ArrayList<>();
 		this.conditionsGroups = new ArrayList<>();
 		this.exemptedDomains = new ArrayList<>();
+		this.allowAnonymousUsers = false;
 	}
 
 	public ServiceProviderDTO(ServiceProviderConfig config, List<CertificateDTO> certificates, List<EndpointDTO> endpoints) {
@@ -83,6 +86,8 @@ public class ServiceProviderDTO {
 		this.sqlServiceProvider = (config instanceof SqlServiceProviderConfiguration);
 		this.kombitServiceProvider = (config instanceof KombitServiceProviderConfig) || (config instanceof KombitServiceProviderConfigV2);
 		this.hasCustomSessionExpiry = false;
+		this.allowMitidErhvervLogin = config.isAllowMitidErvhervLogin();
+		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
 
 		for (NameIdFormat format : NameIdFormat.values()) {
 			if (Objects.equals(format.value, config.getNameIdFormat().value)) {

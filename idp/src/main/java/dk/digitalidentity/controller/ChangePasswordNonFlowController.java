@@ -123,7 +123,7 @@ public class ChangePasswordNonFlowController {
 		}
 
 		String failureReason = "";
-		ChangePasswordResult result = passwordSettingService.validatePasswordRules(person, newPW, false, true);
+		ChangePasswordResult result = passwordSettingService.validatePasswordRules(person, newPW, true);
 		if (!result.equals(ChangePasswordResult.OK)) {
 			model.addAttribute("personId", personId);
 			model.addAttribute("failureReason", result.getMessage());

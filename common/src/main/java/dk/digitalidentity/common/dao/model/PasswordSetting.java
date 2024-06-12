@@ -91,6 +91,12 @@ public class PasswordSetting {
 	
 	@Column
 	private boolean preventBadPasswords;
+
+	@Column
+	private boolean specificSpecialCharactersEnabled;
+
+	@Column
+	private String allowedSpecialCharacters;
 	
 	@OneToOne
 	@JoinColumn(name = "can_not_change_password_group_id", referencedColumnName = "id")

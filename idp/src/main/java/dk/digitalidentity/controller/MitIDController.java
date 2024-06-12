@@ -132,7 +132,7 @@ public class MitIDController {
 		// if the originating AuthnRequest (from the upstream ServiceProvider) was a forced NemLog-in flow, then
 		// we handle the request in a separate method, and ignore the rest of the logic
 		if (sessionHelper.isInNemLogInBrokerFlow()) {
-			return handleNemLogInAsBroker(httpServletResponse, model, tokenUser);
+			return handleNemLogInAsBroker(httpServletResponse, model, tokenUser.getRawToken());
 		}
 
 		// set nameID as an identifier on the session associated with the MitID login.
@@ -144,7 +144,7 @@ public class MitIDController {
 		// store for later use
 		sessionHelper.setMitIDNameID(mitIdName);
 		sessionHelper.setNemIDMitIDNSISLevel(nsisLevel);
-
+		String token = tokenUser.getRawToken();
 		auditLogger.usedNemLogin(sessionHelper.getPerson(), nsisLevel, tokenUser.getAndClearRawToken());
 
 		// check if we have a person on the session, if we do we will only work with this person
@@ -161,7 +161,14 @@ public class MitIDController {
 
 			// if no user accounts can be associated with the CPR-Number we fetched from
 			// NemLog-in (meaning the people list is empty) we will have to error
-			if (availablePeople.isEmpty()) {				
+			if (availablePeople.isEmpty()) {
+				LoginRequest loginRequest = sessionHelper.getLoginRequest();
+				if (loginRequest != null) {
+					ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+					if (serviceProvider.isAllowAnonymousUsers()) {
+						return handleNemLogInAsBroker(httpServletResponse, model, token);
+					}
+				}
 				auditLogger.rejectedUnknownPerson(mitIdName, nemLoginUtil.getCpr());
 				return new ModelAndView("error-unknown-user");
 			}
@@ -191,15 +198,14 @@ public class MitIDController {
 		return loginService.continueLoginWithMitIdOrNemId(person, nsisLevel, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse, model);
 	}
 
-	private ModelAndView handleNemLogInAsBroker(HttpServletResponse httpServletResponse, Model model, TokenUser tokenUser) throws ResponderException, RequesterException {
+	private ModelAndView handleNemLogInAsBroker(HttpServletResponse httpServletResponse, Model model, String rawToken) throws ResponderException, RequesterException {
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest == null) {
 			return handleMitIdErrors(httpServletResponse, "Ingen login forespørgsel på sessionen");
 		}
+		
 		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest.getServiceProviderId());
 
-
-		String rawToken = tokenUser.getRawToken();
 		if (rawToken == null) {
 			return handleMitIdErrors(httpServletResponse, "Intet login svar fra NemLog-In");
 		}

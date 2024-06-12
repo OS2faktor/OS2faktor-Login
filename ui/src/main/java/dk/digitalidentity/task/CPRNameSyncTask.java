@@ -31,6 +31,8 @@ public class CPRNameSyncTask {
 			catch (Exception ex) {
 				log.error("CPR Sync task failed", ex);
 			}
+			
+			log.info("Syncing names and civilstand from cpr service completed");
 		}
 	}
 }

@@ -31,6 +31,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -886,20 +887,39 @@ public class NemLoginService {
 
 		HttpEntity<EmployeeSearchRequest> request = new HttpEntity<>(body, headers);
 
+		// dear god - the error handling. Maybe create a decode utility method that handles this boilerplate :)
+
 		try {
-			ResponseEntity<EmployeeSearchResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, EmployeeSearchResponse.class);
+			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 
 			if (response.getStatusCodeValue() == 200 && response.getBody() != null) {
-				employees = response.getBody().getEmployees();
-				log.info("Found " + employees.size() + " employees");
+				try {
+					ObjectMapper mapper = new ObjectMapper();
+					EmployeeSearchResponse responseBody = mapper.readValue(response.getBody(), EmployeeSearchResponse.class);
+	
+					employees = responseBody.getEmployees();
+					log.info("Found " + employees.size() + " employees");
+				}
+				catch (JacksonException ex) {
+					if (++readAllIdentitiesFailureInARow > 3) {
+						log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody(), ex);
+					}
+					else {
+						log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody(), ex);
+					}
+					
+					return null;
+				}
 			}
 			else {
 				if (++readAllIdentitiesFailureInARow > 3) {
-					log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCodeValue());
+					log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody());
 				}
 				else {
-					log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue());
+					log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody());
 				}
+				
+				return null;
 			}
 		}
 		catch (ResourceAccessException ex) {
@@ -915,6 +935,8 @@ public class NemLoginService {
 					log.warn("Failed to fetch all employees from nemloginApi", ex);
 				}
 			}
+			
+			return null;
 		}
 		
 		readAllIdentitiesFailureInARow = 0;

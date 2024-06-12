@@ -17,10 +17,10 @@
     <ROW Property="ARPNOREPAIR" Value="1"/>
     <ROW Property="LIMITUI" Value="1"/>
     <ROW Property="Manufacturer" Value="Digital Identity"/>
-    <ROW Property="ProductCode" Value="1030:{7C056D8F-F8E2-4169-B5D2-2074AD4ADB6B} 1033:{7C056D8F-F8E2-4169-B5D2-2074AD4ADB6B} " Type="16"/>
+    <ROW Property="ProductCode" Value="1030:{090293E9-CE44-42CE-B50C-FB8496EB73C2} 1033:{090293E9-CE44-42CE-B50C-FB8496EB73C2} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1030"/>
     <ROW Property="ProductName" Value="OS2faktorLogin CredentialProvider"/>
-    <ROW Property="ProductVersion" Value="3.1.0" Type="32"/>
+    <ROW Property="ProductVersion" Value="3.1.1" Type="32"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND"/>
     <ROW Property="UpgradeCode" Value="{90CEC6F9-4C3D-4CA0-B13E-E18FDE712E2C}"/>
     <ROW Property="WindowsType9X" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>
@@ -80,6 +80,9 @@
     <ROW Component="CreateSession.pdb" ComponentId="{E49B767D-63F2-431B-A05E-57170B16DD95}" Directory_="Release_Dir" Attributes="0" KeyPath="CreateSession.exe"/>
     <ROW Component="EmbeddedBrowserWebView.dll" ComponentId="{E360FF68-6F24-43B4-90EE-4F4244573CA7}" Directory_="x86_Dir" Attributes="0" KeyPath="EmbeddedBrowserWebView.dll"/>
     <ROW Component="EmbeddedBrowserWebView.dll_1" ComponentId="{2B0E3E82-FADF-4594-A03A-20E014683201}" Directory_="x64_Dir" Attributes="256" KeyPath="EmbeddedBrowserWebView.dll_1"/>
+    <ROW Component="EstablishSessionChrome" ComponentId="{66FDA56B-F018-41BE-B757-CDAF1013C425}" Directory_="APPDIR" Attributes="404" KeyPath="EstablishSessionChrome"/>
+    <ROW Component="EstablishSessionEdge" ComponentId="{46217AD5-ADC9-454D-9C2D-62C9BDF5FD0B}" Directory_="APPDIR" Attributes="404" KeyPath="EstablishSessionEdge"/>
+    <ROW Component="EstablishSessionFirefox" ComponentId="{9624B385-C0A8-49EC-B582-C9044253AB9E}" Directory_="APPDIR" Attributes="404" KeyPath="EstablishSessionFirefox"/>
     <ROW Component="Microsoft.Extensions.Logging.Abstractions.dll" ComponentId="{335F9A77-2F0E-4341-B985-5460B52B3632}" Directory_="Release_3_Dir" Attributes="0" KeyPath="Microsoft.Extensions.Logging.Abstractions.dll"/>
     <ROW Component="Microsoft.Web.WebView2.Core.dll" ComponentId="{9FDF9CEA-E33C-436E-B26A-23284C047949}" Directory_="Release_1_Dir" Attributes="0" KeyPath="Microsoft.Web.WebView2.Core.dll"/>
     <ROW Component="Microsoft.Web.WebView2.WinForms.dll" ComponentId="{D736A5DF-F82B-4D8E-9F3D-BCFA15A98A13}" Directory_="Release_1_Dir" Attributes="0" KeyPath="Microsoft.Web.WebView2.WinForms.dll"/>
@@ -96,6 +99,7 @@
     <ROW Component="ProviderOrder" ComponentId="{C48B250E-355C-49A4-9054-2F2746DF4F27}" Directory_="APPDIR" Attributes="20" Condition="NOT (PROVIDER_ORDER_ORIG ~&gt;&lt; &quot;os2faktorCredentialManager&quot;)" KeyPath="ProviderOrder"/>
     <ROW Component="ProviderPath" ComponentId="{ACEED177-7656-41FF-84C2-C8174E8FDD42}" Directory_="APPDIR" Attributes="4" KeyPath="ProviderPath"/>
     <ROW Component="ResetPasswordDialog.exe" ComponentId="{77C10106-7068-4ADC-B01B-C759743FEEF0}" Directory_="Release_1_Dir" Attributes="0" KeyPath="ResetPasswordDialog.exe"/>
+    <ROW Component="ResetPasswordLinkText" ComponentId="{D8F77933-854F-4CE2-BA9B-0EE19D676B7F}" Directory_="APPDIR" Attributes="404" KeyPath="ResetPasswordLinkText"/>
     <ROW Component="Serilog.Sinks.File.dll" ComponentId="{D2EE7BCB-C0F2-4B63-8BD0-2B46D8EBBC6D}" Directory_="Release_Dir" Attributes="0" KeyPath="Serilog.Sinks.File.dll"/>
     <ROW Component="Serilog.Sinks.File.dll_1" ComponentId="{DCB6230C-E63B-45CE-9EAD-76A785514A74}" Directory_="Release_1_Dir" Attributes="0" KeyPath="Serilog.Sinks.File.dll_1"/>
     <ROW Component="Serilog.Sinks.File.dll_2" ComponentId="{A47E06A3-FA5C-408A-B1A4-6C1C61B6ECA4}" Directory_="Release_2_Dir" Attributes="0" KeyPath="Serilog.Sinks.File.dll_2"/>
@@ -678,6 +682,10 @@
     <ROW Feature_="MainFeature" Component_="ProviderPath"/>
     <ROW Feature_="MainFeature" Component_="ProviderOrder"/>
     <ROW Feature_="MainFeature" Component_="OrigProviderOrder"/>
+    <ROW Feature_="MainFeature" Component_="ResetPasswordLinkText"/>
+    <ROW Feature_="MainFeature" Component_="EstablishSessionChrome"/>
+    <ROW Feature_="MainFeature" Component_="EstablishSessionEdge"/>
+    <ROW Feature_="MainFeature" Component_="EstablishSessionFirefox"/>
   </COMPONENT>
   <COMPONENT cid="caphyon.advinst.msicomp.MsiInstExSeqComponent">
     <ROW Action="AI_DOWNGRADE" Condition="AI_NEWERPRODUCTFOUND AND (UILevel &lt;&gt; 5)" Sequence="210"/>
@@ -722,6 +730,9 @@
   <COMPONENT cid="caphyon.advinst.msicomp.MsiRegsComponent">
     <ROW Registry="CLSID" Root="0" Key="CLSID" Name="+" Component_="CLSID"/>
     <ROW Registry="Class" Root="2" Key="SYSTEM\CurrentControlSet\Services\os2faktorCredentialManager\NetworkProvider" Name="Class" Value="#2" Component_="Class"/>
+    <ROW Registry="EstablishSessionChrome" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="EstablishSessionChrome" Value="#1" Component_="EstablishSessionChrome"/>
+    <ROW Registry="EstablishSessionEdge" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="EstablishSessionEdge" Value="#1" Component_="EstablishSessionEdge"/>
+    <ROW Registry="EstablishSessionFirefox" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="EstablishSessionFirefox" Value="#0" Component_="EstablishSessionFirefox"/>
     <ROW Registry="Name" Root="2" Key="SYSTEM\CurrentControlSet\Services\os2faktorCredentialManager\NetworkProvider" Name="Name" Value="os2faktorCredentialManager" Component_="Name"/>
     <ROW Registry="New_Key" Root="2" Key="Software\Microsoft\Windows\CurrentVersion\Authentication\Credential Provider Filters" Name="+" Component_="New_Key_1"/>
     <ROW Registry="New_Key_5" Root="2" Key="Software\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers" Name="+" Component_="New_Key"/>
@@ -730,6 +741,7 @@
     <ROW Registry="Path" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="InstallPath" Value="[APPDIR]" Component_="ProductInformation"/>
     <ROW Registry="ProviderOrder" Root="2" Key="SYSTEM\CurrentControlSet\Control\NetworkProvider\Order" Name="ProviderOrder" Value="[PROVIDER_ORDER_ORIG],os2faktorCredentialManager" Component_="ProviderOrder"/>
     <ROW Registry="ProviderPath" Root="2" Key="SYSTEM\CurrentControlSet\Services\os2faktorCredentialManager\NetworkProvider" Name="ProviderPath" Value="#%%SystemRoot%\System32\os2faktorCredentialManager.dll" Component_="ProviderPath"/>
+    <ROW Registry="ResetPasswordLinkText" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="ResetPasswordLinkText" Value="Jeg har glemt mit kodeord" Component_="ResetPasswordLinkText"/>
     <ROW Registry="ThreadingModel" Root="0" Key="CLSID\{0e4029c5-fab7-44dc-ac19-7060791f9b19}\InprocServer32" Name="ThreadingModel" Value="Apartment" Component_="ThreadingModel"/>
     <ROW Registry="Version" Root="2" Key="Software\DigitalIdentity\OS2faktorLogin" Name="Version" Value="[ProductVersion]" Component_="ProductInformation"/>
     <ROW Registry="_" Root="2" Key="Software\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\{0e4029c5-fab7-44dc-ac19-7060791f9b19}" Value="os2faktorCredentialProvider" Component_="_"/>

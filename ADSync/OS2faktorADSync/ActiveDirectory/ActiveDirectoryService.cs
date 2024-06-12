@@ -477,8 +477,7 @@ namespace OS2faktorADSync
 
                             foreach (SearchResult searchResult in searchResultCollection)
                             {
-                                // Group GUID
-                                string Guid = new Guid(searchResult.Properties.GetValue<System.Byte[]>(propertyResolver.ObjectGuidProperty, null)).ToString();
+                                string Guid = new Guid(searchResult.Properties.GetValue<System.Byte[]>("objectGUID", null)).ToString();
                                 string GroupDN = searchResult.Properties.GetValue<string>(propertyResolver.DistinguishedNameProperty, null);
                                 string GroupName = searchResult.Properties.GetValue<string>(propertyResolver.NameProperty, null);
                                 string groupDescription = searchResult.Properties.GetValue<string>(propertyResolver.DescriptionProperty, null);

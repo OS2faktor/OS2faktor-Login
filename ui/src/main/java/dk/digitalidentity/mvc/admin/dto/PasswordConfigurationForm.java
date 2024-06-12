@@ -36,6 +36,8 @@ public class PasswordConfigurationForm {
 	private boolean canNotChangePasswordEnabled;
 	private Long canNotChangePasswordGroup;
 	private boolean preventBadPasswords;
+	private boolean specificSpecialCharactersEnabled;
+	private String allowedSpecialCharacters;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
 		this.minLength = settings.getMinLength();
@@ -65,5 +67,7 @@ public class PasswordConfigurationForm {
 		this.canNotChangePasswordEnabled = settings.isCanNotChangePasswordEnabled();
 		this.canNotChangePasswordGroup = settings.getCanNotChangePasswordGroup() != null ? settings.getCanNotChangePasswordGroup().getId() : null;
 		this.preventBadPasswords = settings.isPreventBadPasswords();
+		this.specificSpecialCharactersEnabled = settings.isSpecificSpecialCharactersEnabled();
+		this.allowedSpecialCharacters = settings.getAllowedSpecialCharacters();
 	}
 }

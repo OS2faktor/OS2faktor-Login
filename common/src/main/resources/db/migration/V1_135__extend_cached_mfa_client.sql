@@ -1,0 +1,1 @@
+ALTER TABLE cached_mfa_client ADD associated_user_timestamp datetime;

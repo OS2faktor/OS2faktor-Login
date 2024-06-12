@@ -28,7 +28,7 @@ public class UserAdminstrationApi {
     @Autowired
     private DomainService domainService;
     
-    @PostMapping("/api/useradminstration/forcepwchange")
+    @PostMapping("/api/userAdminstration/forcepwchange")
     public ResponseEntity<?> forceChangePassword(@RequestBody ForceChangePwd forceChangePwd) {
     	Domain domain = domainService.getByName(forceChangePwd.getDomain());
 		if (Objects.equals(null, domain)) {

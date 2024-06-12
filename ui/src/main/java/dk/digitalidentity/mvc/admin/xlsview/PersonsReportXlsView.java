@@ -153,7 +153,10 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 
 				mfaClients.append(mfaClient.getDeviceId() + " / " + mfaClient.getType() + " / " + mfaClient.getName() + " / " + nsisLevelToDanish(mfaClient.getNsisLevel()));
 				if (mfaClient.getLastUsed() != null) {
-					mfaClients.append("/anvendt: " + mfaClient.getLastUsed().toLocalDate().toString());
+					mfaClients.append(" / anvendt: ").append(mfaClient.getLastUsed().toLocalDate().toString());
+				}
+				if (mfaClient.getAssociatedUserTimestamp() != null) {
+					mfaClients.append(" / registreret: ").append(mfaClient.getAssociatedUserTimestamp().toLocalDate().toString());
 				}
 			}
 

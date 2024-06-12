@@ -1,8 +1,9 @@
 package dk.digitalidentity.rest;
 
-import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.rest.model.SelectUserDTO;
-import dk.digitalidentity.rest.model.UserIdPasswordDTO;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,12 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
+import dk.digitalidentity.rest.model.SelectUserDTO;
+import dk.digitalidentity.rest.model.UserIdPasswordDTO;
 import dk.digitalidentity.service.SessionHelper;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ResourceBundle;
 
 @RestController
 public class ChangePasswordRestController {
@@ -41,7 +41,7 @@ public class ChangePasswordRestController {
 			return new ResponseEntity<>("Ikke logget ind", HttpStatus.BAD_REQUEST);
 		}
 
-		ChangePasswordResult result = passwordSettingService.validatePasswordRules(person, password, false);
+		ChangePasswordResult result = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, password);
 
 		if (!result.equals(ChangePasswordResult.OK)) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -54,12 +54,11 @@ public class ChangePasswordRestController {
 	public ResponseEntity<?> nonFlowValidatePassword(@RequestBody UserIdPasswordDTO userIdPasswordDTO) {
 		Person person = personService.getById(userIdPasswordDTO.getUserId());
 		if (person == null) {
-			//If person doesn't exist, we don't care about rules
 			return new ResponseEntity<>(HttpStatus.OK);
 		}
 
-		// We just validate against normal password requirements, if a password is invalid due to password history, we wait to tell them until they post (and count up bad password)
-		ChangePasswordResult result = passwordSettingService.validatePasswordRules(person, userIdPasswordDTO.getPassword(), true, false);
+		// we just validate against normal password requirements, if a password is invalid due to password history, we wait to tell them until they post (and count up bad password)
+		ChangePasswordResult result = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, userIdPasswordDTO.getPassword());
 		
 		if (!result.equals(ChangePasswordResult.OK)) {
 			return new ResponseEntity<>(getResultText(result),HttpStatus.BAD_REQUEST);
@@ -80,7 +79,7 @@ public class ChangePasswordRestController {
 		
 		return new ResponseEntity<>(selectUserDTOS, HttpStatus.OK);
 	}
-	
+
 	private String getResultText(ChangePasswordResult validPassword) {
 		ResourceBundle bundle = ResourceBundle.getBundle("messages");
 
@@ -105,6 +104,10 @@ public class ChangePasswordRestController {
 				return bundle.getString("page.selfservice.changePassword.error.rules.tooLong");
 			case TOO_SHORT:
 				return bundle.getString("page.selfservice.changePassword.error.rules.tooShort");
+			case WRONG_SPECIAL_CHARACTERS:
+				return bundle.getString("page.selfservice.changePassword.error.rules.wrongSpecialCharacters");
+			case LEAKED_PASSWORD:
+				return bundle.getString("page.selfservice.changePassword.error.rules.wrongSpecialCharacters");
 			case OK:
 				// does not happen - we just keep this here to not trigger an IDE warning about missing case handling
 				break;

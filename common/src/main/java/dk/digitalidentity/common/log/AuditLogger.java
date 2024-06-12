@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import javax.servlet.http.HttpServletRequest;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.service.PersonStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -764,7 +765,7 @@ public class AuditLogger {
 			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
 		}
 
-		log(auditLog, admin, admin);
+		log(auditLog, admin, admin, passwordSettings.getDomain());
 	}
 
 	public void resetHardwareToken(String serialNumber, Person admin) {
@@ -801,7 +802,7 @@ public class AuditLogger {
 			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
 		}
 
-		log(auditLog, admin, admin);
+		log(auditLog, admin, admin, sessionSettings.getDomain());
 	}
 	
 	public void changeKombitMfaSettings(Person admin, String entityId, ForceMFARequired forceMfaRequired) {
@@ -893,7 +894,7 @@ public class AuditLogger {
 		auditLog.setLogAction(LogAction.DELETED_USER);
 		auditLog.setMessage("Stamdata for person slettet");
 
-		log(auditLog, person, admin);
+		log(auditLog, person, admin, person.getDomain());
 	}
 
 	public void authnRequest(Person person, String authnRequest, String sentBy) {
@@ -1224,6 +1225,10 @@ public class AuditLogger {
 	}
 
 	private void log(AuditLog auditLog, Person person, Person admin) {
+		log(auditLog, person, admin, null);
+	}
+
+	private void log(AuditLog auditLog, Person person, Person admin, Domain domain) {
 		auditLog.setCorrelationId(getCorrelationId());
 		auditLog.setIpAddress(getIpAddress());
 
@@ -1238,7 +1243,11 @@ public class AuditLogger {
 			auditLog.setPerformerId(admin.getId());
 			auditLog.setPerformerName(admin.getName());
 		}
-		
+
+		if (domain != null && StringUtils.hasLength(auditLog.getMessage())) {
+			auditLog.setMessage(auditLog.getMessage() + " (" + domain.getName() + ")");
+		}
+
 		// compress xml
 		if (auditLog.getDetails() != null && auditLog.getDetails().getDetailContent() != null && auditLog.getDetails().getDetailType() == DetailType.XML) {
 			try {

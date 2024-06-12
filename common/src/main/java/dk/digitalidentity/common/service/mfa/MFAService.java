@@ -3,6 +3,8 @@ package dk.digitalidentity.common.service.mfa;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.spec.KeySpec;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -468,7 +470,8 @@ public class MFAService {
 						client.setLocalClient(true);
 						client.setSerialnumber(localClient.getSerialnumber());
 						client.setLastUsed(localClient.getLastUsed());
-						
+						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
+
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());
 					}
@@ -487,13 +490,14 @@ public class MFAService {
 						client.setType(localClient.getType());
 						client.setLocalClient(true);
 						client.setSerialnumber(localClient.getSerialnumber());
+						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
 
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());
 					}
 				}
 			}
-			
+
 			// locally stored in OS2faktor Login
 			List<LocalRegisteredMfaClient> localClients = locallyRegisteredClientsBySsn.get(persons.get(0).getCpr());
 			if (localClients != null) {
@@ -505,7 +509,10 @@ public class MFAService {
 						client.setNsisLevel(localClient.getNsisLevel());
 						client.setType(localClient.getType());
 						client.setLocalClient(true);
-						
+						client.setAssociatedUserTimestamp(Instant.ofEpochMilli(localClient.getAssociatedUserTimestamp().getTime())
+								.atZone(ZoneId.systemDefault())
+								.toLocalDateTime());
+
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());
 					}
@@ -519,18 +526,18 @@ public class MFAService {
 		log.info("completed in: " + stopWatch.toString());
 	}
 
-	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
+	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used, c.associated_user_timestamp FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
 	private List<MfaClient> lookupMfaClientsInDB() {
 		return jdbcTemplate.query(
 				selectClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used")));
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used"), rs.getTimestamp("associated_user_timestamp")));
 	}
 
-	private static final String selectLocalClientsSql = "SELECT c.name, c.device_id, c.client_type, td.serialnumber, lc.nsis_level, lc.ssn FROM local_clients lc JOIN clients c ON c.device_id = lc.device_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE c.disabled = 0 AND lc.cvr = ?;";
+	private static final String selectLocalClientsSql = "SELECT c.name, c.device_id, c.client_type, td.serialnumber, lc.nsis_level, lc.ssn, c.associated_user_timestamp FROM local_clients lc JOIN clients c ON c.device_id = lc.device_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE c.disabled = 0 AND lc.cvr = ?;";
 	private List<MfaClient> lookupLocalMfaClientsInDB() {
 		return jdbcTemplate.query(
 				selectLocalClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null),
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null, rs.getTimestamp("associated_user_timestamp")),
 				configuration.getCustomer().getCvr());
 	}
 	
@@ -593,6 +600,11 @@ public class MFAService {
 							changes = true;
 							cachedClientToUpdate.setLastUsed(mfaClient.getLastUsed());
 						}
+
+						if (!Objects.equals(mfaClient.getAssociatedUserTimestamp(), cachedClientToUpdate.getAssociatedUserTimestamp())) {
+							changes = true;
+							cachedClientToUpdate.setAssociatedUserTimestamp(mfaClient.getAssociatedUserTimestamp());
+						}
 					}
 				}
 				
@@ -625,6 +637,7 @@ public class MFAService {
 			cachedClient.setPerson(person);
 			cachedClient.setSerialnumber(client.getSerialnumber());
 			cachedClient.setLastUsed(client.getLastUsed());
+			cachedClient.setAssociatedUserTimestamp(client.getAssociatedUserTimestamp());
 
 			newCachedMFAClients.add(cachedClient);
 		}

@@ -16,4 +16,12 @@ public interface ServiceProviderConfig {
     boolean isEncryptAssertions();
     boolean isPreferNIST();
     boolean isRequireOiosaml3Profile();
+
+    default boolean isAllowMitidErvhervLogin() {
+    	return false;
+    }
+
+    default boolean isAllowAnonymousUsers() {
+    	return false;
+    }
 }

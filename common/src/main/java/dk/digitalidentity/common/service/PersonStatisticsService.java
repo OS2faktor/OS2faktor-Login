@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 import dk.digitalidentity.common.dao.PersonStatisticsDao;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonStatistics;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class PersonStatisticsService {
 
@@ -21,38 +23,63 @@ public class PersonStatisticsService {
 	}
 
 	public void setLastLogin(Person person) {
-		PersonStatistics statistics = getByPerson(person);
-		statistics.setLastLogin(LocalDateTime.now());
+		try {
+			PersonStatistics statistics = getByPerson(person);
+			statistics.setLastLogin(LocalDateTime.now());
 
-		personStatisticsDao.save(statistics);
+			personStatisticsDao.save(statistics);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to update statistics for " + person.getId() + " / " + person.getSamaccountName(), ex);
+		}
 	}
-	
+
 	public void setLastSelfServiceLogin(Person person) {
-		PersonStatistics statistics = getByPerson(person);
-		statistics.setLastSelfServiceLogin(LocalDateTime.now());
+		try {
+			PersonStatistics statistics = getByPerson(person);
+			statistics.setLastSelfServiceLogin(LocalDateTime.now());
 
-		personStatisticsDao.save(statistics);
+			personStatisticsDao.save(statistics);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to update statistics for " + person.getId() + " / " + person.getSamaccountName(), ex);
+		}
 	}
-	
+
 	public void setLastPasswordChange(Person person) {
-		PersonStatistics statistics = getByPerson(person);
-		statistics.setLastPasswordChange(LocalDateTime.now());
-	
-		personStatisticsDao.save(statistics);
+		try {
+			PersonStatistics statistics = getByPerson(person);
+			statistics.setLastPasswordChange(LocalDateTime.now());
+
+			personStatisticsDao.save(statistics);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to update statistics for " + person.getId() + " / " + person.getSamaccountName(), ex);
+		}
 	}
-	
+
 	public void setLastUnlock(Person person) {
-		PersonStatistics statistics = getByPerson(person);
-		statistics.setLastUnlock(LocalDateTime.now());
-	
-		personStatisticsDao.save(statistics);
+		try {
+			PersonStatistics statistics = getByPerson(person);
+			statistics.setLastUnlock(LocalDateTime.now());
+
+			personStatisticsDao.save(statistics);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to update statistics for " + person.getId() + " / " + person.getSamaccountName(), ex);
+		}
 	}
-	
+
 	public void setLastMFAUse(Person person) {
-		PersonStatistics statistics = getByPerson(person);
-		statistics.setLastMFAUse(LocalDateTime.now());
-	
-		personStatisticsDao.save(statistics);
+		try {
+			PersonStatistics statistics = getByPerson(person);
+			statistics.setLastMFAUse(LocalDateTime.now());
+
+			personStatisticsDao.save(statistics);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to update statistics for " + person.getId() + " / " + person.getSamaccountName(), ex);
+		}
 	}
 
 	private PersonStatistics getByPerson(Person person) {
@@ -61,7 +88,7 @@ public class PersonStatisticsService {
 			statistics = new PersonStatistics();
 			statistics.setPersonId(person.getId());
 		}
-		
+
 		return statistics;
 	}
 }

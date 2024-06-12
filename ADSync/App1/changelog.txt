@@ -37,3 +37,4 @@
 2024.01.04 - 2.8.2 - rettede en bug introduceret i 2.8.1 der gjorde at MitID Erhverv overførsel kun sker på fulde sync og ikke drypvise opdateringer
 2024.01.05 - 2.9.0 - understøttelse for at angive et EAN (via UUID) som en attribut på brugerne, der anvendes til betaling for MitID Erhverv (optionel)
 2024.03.04 - 2.9.1 - korrekt udlæsning af accountExpires datoen (var 1 dag for tidligt før)
+2024.05.23 - 2.9.2 - fixet problem med udlæsning af Grupper hvis man kører med en specialtilpasset ObjectGuid attribut

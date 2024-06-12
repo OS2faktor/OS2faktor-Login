@@ -151,7 +151,10 @@
 									<div class="hr-line-dashed"></div>
 
 									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
-										<label class="col-sm-3 col-form-label">Gennemstil logins til NemLog-In</label>
+										<label class="col-sm-3 col-form-label">
+											Gennemstil logins til NemLog-In
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, viderestilles der automatisk til NemLog-in under login, og alene login med MitID er muligt - der udstedes ikke claims, men gennemstilles blot oplysninger fra NemLog-in til tjenesteudbyderen."></em>
+										</label>
 										<div class="col-sm-9">
 											<label>
 												<input th:field="${serviceprovider.nemLogInBrokerEnabled}" type="checkbox" class="i-checks">
@@ -159,15 +162,41 @@
 										</div>
 									</div>
 
+									<div class="form-group row allowMitidErhvervLogin enabledByBrokerFunctionality" th:if="${@commonConfiguration.nemlogin.brokerEnabled}" style="display: none;">
+										<label class="col-sm-3 col-form-label">
+											Tillad erhvervsidentiteter
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, kan NemLog-in login foretages både med privat MitID og erhvervsidentiter. Ellers er kun privat MitID tilladt."></em>
+										</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.allowMitidErhvervLogin}" type="checkbox" class="i-checks">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row allowAnonymous disabledByBrokerFunctionality" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+										<label class="col-sm-3 col-form-label">
+											Tillad anonyme bruger
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, er login med MitID muligt for brugere der ikke findes i OS2faktor. Brugerens data fra NemLog-in gennemstilles direkte til den opsatte tjenesteudbyder."></em>
+										</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.allowAnonymousUsers}" type="checkbox" class="i-checks">
+											</label>
+										</div>
+									</div>
+
 									<div class="form-group row disabledByBrokerFunctionality">
-										<label class="col-sm-3 col-form-label">Foretræk NemLog-in ved login</label>
+										<label class="col-sm-3 col-form-label">
+											Foretræk NemLog-in ved login
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, vises NemLog-in siden først under login, men brugeren kan skifte til brugernavn/kodeord hvis de ønsker det."></em>
+										</label>
 										<div class="col-sm-9">
 											<label>
 												<input th:field="${serviceprovider.preferNemid}" type="checkbox" class="i-checks">
 											</label>
 										</div>
 									</div>
-
 
 									<div class="form-group row samlSpecific">
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
@@ -954,10 +983,12 @@
 
 				$('input[name=nemLogInBrokerEnabled]').on('ifToggled', function(event){
 					if (event.currentTarget.checked) {
-						$('.disabledByBrokerFunctionality').hide()
+						$('.disabledByBrokerFunctionality').hide();
+						$('.enabledByBrokerFunctionality').show();
 					}
 					else {
-						$('.disabledByBrokerFunctionality').show()
+						$('.disabledByBrokerFunctionality').show();
+						$('.enabledByBrokerFunctionality').hide();
 					}
 				});
 
@@ -985,7 +1016,8 @@
 				}
 				
 				if (nemLogInBrokerEnabled) {
-					$('.disabledByBrokerFunctionality').hide()
+					$('.disabledByBrokerFunctionality').hide();
+					$('.enabledByBrokerFunctionality').show();
 				}
 
 				// Set displaynames for claims based on data-val attribute
@@ -1037,6 +1069,8 @@
 							data.enabled = $('input[name=enabled]').iCheck('update')[0].checked;
 							data.preferNIST = $('input[name=preferNIST]').iCheck('update')[0].checked;
 							data.requireOiosaml3Profile = $('input[name=requireOiosaml3Profile]').iCheck('update')[0].checked;
+							data.allowMitidErhvervLogin = $('input[name=allowMitidErhvervLogin]').iCheck('update')[0].checked;
+							data.allowAnonymousUsers = $('input[name=allowAnonymousUsers]').iCheck('update')[0].checked;
 							
 							if ($('#nsisLevelRequiredSelect option:selected').val() == 'NONE' && $('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
 								data.passwordExpiry =  $('input[name=passwordExpiry]').val();

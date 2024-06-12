@@ -108,6 +108,10 @@ public class PasswordChangeValidator implements Validator {
 					errors.rejectValue("password", "page.selfservice.changePassword.error.rules.tooShort");
 					sessionHelper.setPasswordChangeFailureReason(validPassword);
 					break;
+				case WRONG_SPECIAL_CHARACTERS:
+					errors.rejectValue("password", "page.selfservice.changePassword.error.rules.wrongSpecialCharacters");
+					sessionHelper.setPasswordChangeFailureReason(validPassword);
+					break;
 				case OK:
 					// does not happen - we just keep this here to not trigger an IDE warning about missing case handling
 					break;
@@ -116,7 +120,11 @@ public class PasswordChangeValidator implements Validator {
 					errors.rejectValue("password", "page.selfservice.changePassword.error.rules");
 					sessionHelper.setPasswordChangeFailureReason(validPassword);
 					break;
-			}
+                case LEAKED_PASSWORD:
+					errors.rejectValue("password", "page.selfservice.changePassword.error.leaked");
+					sessionHelper.setPasswordChangeFailureReason(validPassword);
+					break;
+            }
 		}
 	}
 }

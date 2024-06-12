@@ -134,6 +134,24 @@
 											</label>
 										</div>
 									</div>
+									
+									<div class="form-group row allowMitidErhvervLogin" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+										<label class="col-sm-3 col-form-label">Tillad erhvervsidentiteter</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.allowMitidErhvervLogin}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Tillad anonyme bruger</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.allowAnonymousUsers}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
 
 									<div class="form-group row" th:unless="${serviceprovider.nemLogInBrokerEnabled}">
 										<label class="col-sm-3 col-form-label">Foretræk NemLog-in ved login</label>
@@ -143,7 +161,7 @@
 											</label>
 										</div>
 									</div>
-
+									
 									<div th:if="${serviceprovider.protocol} == 'SAML20'" class="form-group row">
 										<label class="col-sm-3 col-form-label">Krypter Assertion</label>
 										<div class="col-sm-9">

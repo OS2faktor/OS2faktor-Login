@@ -122,8 +122,9 @@ public class ReportController {
 	
 	@RequireAdministrator
 	@GetMapping("/ui/report/download/auditorReportLogins")
-	public ResponseEntity<StreamingResponseBody> downloadAuditorReportLogins(HttpServletRequest request, HttpServletResponse response) {
-		
+	public ResponseEntity<StreamingResponseBody> downloadAuditorReportLogins(HttpServletRequest request, HttpServletResponse response) {		
+		log.info("Starting download of login report");
+
 		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"Revisorrapporter over logins.zip\"") 
 			.body(out -> { 
 				var zipOutputStream = new ZipOutputStream(out);
@@ -207,10 +208,17 @@ public class ReportController {
 
 			month = month - 1;
 
+			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+			String formattedFrom = from.format(formatter);
+			String formattedTo = to.format(formatter);
+
 			try {
-				log.info("Starting rendering logs from " + from.toString() +  " to " + to.toString());
+				log.info(type.toString()  + " : Starting rendering logs from " + formattedFrom +  " to " + formattedTo);
 				
-				boolean isEmpty = auditLogService.countAuditLogsByMonth(from, to, type) == 0;
+				int count = auditLogService.countAuditLogsByMonth(from, to, type);
+				log.info(type.toString() + " : found " + count + " rows");
+
+				boolean isEmpty = (count == 0);
 				if (!isEmpty) {
 					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear() + " " + monthStr + ".csv");
 					zipOutputStream.putNextEntry(taskfile); 
@@ -235,6 +243,8 @@ public class ReportController {
 						if (auditLogs == null || auditLogs.size() == 0) {
 							break;
 						}
+						
+						log.info(type.toString() + " : processing " + auditLogs.size() + " database rows");
 
 						for (AuditLogDTO entry : auditLogs) {
 							builder = new StringBuilder();
@@ -256,17 +266,15 @@ public class ReportController {
 					} while (true);					
 				}
 				
-				log.info("Done rendering logs from " + from.toString() +  " to " + to.toString());
+				log.info(type.toString() + " : Done rendering logs from " + formattedFrom +  " to " + formattedTo);
 			}
 			catch (Exception ex) {
-				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm");
-				String formattedFrom = from.format(formatter);
-				String formattedTo = to.format(formatter);
-				log.error("Failed to add file for auditLogs from " + formattedFrom + " to " + formattedTo + " to zip. Report type: " + type, ex);
-			}			
+				log.error(type.toString() + " : Failed to add file for auditLogs from " + formattedFrom + " to " + formattedTo + " to zip", ex);
+				return;
+			}
 		}
-		
-		log.info("Done rendering logs for download");
+
+		log.info(type.toString() + " : Done rendering logs for download");
 	}
 
 	private void addFilesToZipCsv(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, LogAction logAction, String messageFilter) {

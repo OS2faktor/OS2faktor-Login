@@ -1,5 +1,6 @@
 package dk.digitalidentity.api;
 
+import dk.digitalidentity.api.dto.CoreDataForceChangePassword;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -292,6 +293,25 @@ public class CoreDataApi {
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for deltaLoadKombitJfr", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@PostMapping("/api/coredata/passwordchange/force")
+	public ResponseEntity<?> forceChangePassword(@RequestBody CoreDataForceChangePassword coreData) {
+		try {
+			// validate
+			if (coreData == null || !StringUtils.hasLength(coreData.getDomain()) || !StringUtils.hasLength(coreData.getSamAccountName())) {
+				return new ResponseEntity<>("Missing samAccountName or domain", HttpStatus.BAD_REQUEST);
+			}
+
+			boolean success = coreDataService.setForceChangePassword(coreData);
+			coreDataLogService.addLog("/api/coredata/passwordchange/force", coreData.getDomain(), null);
+
+			return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body("No person found");
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for forceChangePassword", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

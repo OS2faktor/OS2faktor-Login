@@ -140,6 +140,12 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private Long customMfaExpiry;
 
+    @Column
+    private boolean allowMitidErvhervLogin;
+
+    @Column
+    private boolean allowAnonymousUsers;
+
     public void loadFully() {
         this.requiredFields.size();
         this.staticClaims.size();

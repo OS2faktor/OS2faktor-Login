@@ -12,10 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import dk.digitalidentity.api.dto.CoreDataForceChangePassword;
 import dk.digitalidentity.common.dao.model.EmailTemplate;
 import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.service.EmailTemplateService;
@@ -1222,6 +1224,24 @@ public class CoreDataService {
 				personService.save(person);
 			}
 		}
+	}
+
+	@Transactional
+	public boolean setForceChangePassword(CoreDataForceChangePassword coreData) {
+		List<Person> persons = personService.getByDomain(coreData.getDomain(), true);
+
+		Optional<Person> optionalPerson = persons.stream()
+				.filter(person -> Objects.equals(coreData.getSamAccountName(), person.getSamaccountName()))
+				.findAny();
+
+		if (optionalPerson.isEmpty()) {
+			return false;
+		}
+
+		Person person = optionalPerson.get();
+		person.setForceChangePassword(true);
+		personService.save(person);
+		return true;
 	}
 
 	@Transactional(rollbackFor = Exception.class)

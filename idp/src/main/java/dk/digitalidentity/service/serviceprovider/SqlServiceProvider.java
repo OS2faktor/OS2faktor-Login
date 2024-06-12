@@ -222,6 +222,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		return attributes;
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void addAttribute(HashMap<String, Object> attributes, String claimKey, String newClaimVal, boolean includeDuplicates) {
 		if (!includeDuplicates) {
 			ArrayList<String> values = new ArrayList<>();
@@ -247,6 +248,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		}
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void addAttributeList(HashMap<String, Object> attributes, String claimKey, List<String> newClaimVal, boolean includeDuplicates) {
 		if (!includeDuplicates) {
 			ArrayList<String> values = new ArrayList<>(newClaimVal);
@@ -423,6 +425,11 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
 	@Override
+	public boolean isAllowAnonymousUsers() {
+		return config.isAllowAnonymousUsers();
+	}
+
+	@Override
 	public boolean allowUnsignedAuthnRequests() {
 		return config.isAllowUnsignedAuthnRequests();
 	}
@@ -550,5 +557,10 @@ public class SqlServiceProvider extends ServiceProvider {
 	@Override
 	public boolean preferNIST() {
 		return config.isPreferNIST();
+	}
+
+	@Override
+	public boolean isAllowMitidErvhervLogin() {
+		return config.isAllowMitidErvhervLogin();
 	}
 }

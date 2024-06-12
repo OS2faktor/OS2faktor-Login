@@ -54,7 +54,10 @@ public class CachedMfaClient {
 
 	@Column
 	private LocalDateTime lastUsed;
-	
+
+	@Column
+	private LocalDateTime associatedUserTimestamp;
+
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")
 	private Person person;

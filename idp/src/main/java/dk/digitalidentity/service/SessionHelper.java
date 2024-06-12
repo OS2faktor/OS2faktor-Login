@@ -26,6 +26,7 @@ import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.LoginRequestDTO;
+import dk.digitalidentity.samlmodule.util.SessionConstant;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -996,7 +997,7 @@ public class SessionHelper {
 			log.debug("InNemLogInBrokerFlow: " + b);
 		}
 	}
-	
+
 	public boolean isInChoosePasswordResetOrUnlockAccountFlow() {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
@@ -1134,7 +1135,33 @@ public class SessionHelper {
 		Object attribute = httpServletRequest.getSession().getAttribute(Constants.PASSWORD_CHANGE_FLOW);
 		return (boolean) (attribute != null ? attribute : false);
 	}
+	
+	public void setRequestProfessionalProfile() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
 
+		httpServletRequest.getSession().setAttribute(SessionConstant.PROFESSIONAL_PROFILE_ENABLED.getKey(), true);
+
+		if (log.isDebugEnabled()) {
+			log.debug("requestProfessionalProfile: true");
+		}
+	}
+
+	public void setRequestPersonalProfile() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		httpServletRequest.getSession().setAttribute(SessionConstant.PERSONAL_PROFILE_ENABLED.getKey(), true);
+
+		if (log.isDebugEnabled()) {
+			log.debug("requestPersonalProfile: true");
+		}
+	}
+	
 	public void setInPasswordExpiryFlow(boolean inPasswordExpiryFlow) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {

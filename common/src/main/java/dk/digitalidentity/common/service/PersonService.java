@@ -521,7 +521,7 @@ public class PersonService {
 		// if not flagged with bypass, attempt to change password in Active Directory
 		if (!bypassReplication && !person.isDoNotReplicatePassword() && !person.getDomain().isStandalone()) {
 			if (settings.isReplicateToAdEnabled() && StringUtils.hasLength(person.getSamaccountName())) {
-				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword);
+				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword, forceChangePassword);
 
 				switch (adPasswordStatus) {
 					case FAILURE:

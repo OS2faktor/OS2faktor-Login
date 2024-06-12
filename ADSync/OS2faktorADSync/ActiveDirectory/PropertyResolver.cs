@@ -115,8 +115,8 @@ namespace OS2faktorADSync
             groupProperties.AddRange(
                 new string[]
                 {
+                    "objectGUID",
                     DistinguishedNameProperty,
-                    ObjectGuidProperty,
                     NameProperty,
                     DescriptionProperty
                 });

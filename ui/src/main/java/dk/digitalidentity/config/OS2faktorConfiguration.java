@@ -24,8 +24,8 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.ui")
 public class OS2faktorConfiguration {
-	private String version = "2024 r2";
-	private String latestVersion = "2024 r2";
+	private String version = "2024 r3";
+	private String latestVersion = "2024 r3";
 
 	private Scheduled scheduled = new Scheduled();
 	private CoreData coreData = new CoreData();

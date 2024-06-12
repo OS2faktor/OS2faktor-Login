@@ -28,6 +28,9 @@ import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.serviceprovider.KombitServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +59,9 @@ public class MultiFactorAuthenticationController {
 	
 	@Autowired
 	private AuditLogger auditlogger;
+	
+	@Autowired
+	private ServiceProviderFactory serviceProviderFactory;
 
 	@GetMapping("/sso/saml/mfa/{deviceId}")
 	public ModelAndView mfaChallengePage(HttpServletResponse response, HttpServletRequest httpServletRequest, Model model, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
@@ -93,7 +99,7 @@ public class MultiFactorAuthenticationController {
 				errorResponseService.sendError(response, loginRequest, error);
 			}
 			else {
-				log.error("No LoginRequest on session, SP and error endpoint unknown", error);
+				log.warn("No LoginRequest on session, SP and error endpoint unknown", error);
 			}
 			return null;
 		}
@@ -139,6 +145,24 @@ public class MultiFactorAuthenticationController {
 		
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
+		
+		// TODO: hack, replace by good code later
+		boolean delayedLogin = false;
+		if (configuration.getMfa().isDelayedLogin()) {
+			try {
+				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(sessionHelper.getLoginRequest().getServiceProviderId());
+				if (serviceProvider != null) {
+					if (serviceProvider instanceof KombitServiceProvider) {
+						delayedLogin = true;
+					}
+				}
+			}
+			catch (Exception ignored) {
+				;
+			}
+		}
+
+		model.addAttribute("delayedLogin", delayedLogin);
 
 		return new ModelAndView("login-mfa-challenge", model.asMap());
 	}

@@ -189,7 +189,7 @@ public class MetadataService {
 
         // Update fields
         config.setName(serviceProviderDTO.getName());
-        config.setMetadataUrl(serviceProviderDTO.getMetadataUrl());
+		config.setMetadataUrl(StringUtils.hasLength(serviceProviderDTO.getMetadataUrl()) ? serviceProviderDTO.getMetadataUrl().trim() : null);
         config.setMetadataContent(serviceProviderDTO.getMetadataContent());
         config.setNameIdFormat(serviceProviderDTO.getNameIdFormat());
         config.setNameIdValue(serviceProviderDTO.getNameIdValue());
@@ -201,6 +201,8 @@ public class MetadataService {
         config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
         config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
         config.setEnabled(serviceProviderDTO.isEnabled());
+        config.setAllowMitidErvhervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
+        config.setAllowAnonymousUsers(serviceProviderDTO.isAllowAnonymousUsers());
 
 		if (serviceProviderDTO.getPasswordExpiry() != null && serviceProviderDTO.getMfaExpiry() != null) {
 			Long passwordExpiry = serviceProviderDTO.getPasswordExpiry();

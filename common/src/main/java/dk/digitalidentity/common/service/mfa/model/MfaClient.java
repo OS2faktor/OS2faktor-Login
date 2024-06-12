@@ -30,13 +30,15 @@ public class MfaClient implements Serializable {
 
 	// used for UI
 	private transient String typeMessage;
-	
+
 	// used for mapping during night-batch
 	private transient String ssn;
 
 	// used for personStatistics
 	private LocalDateTime lastUsed;
-	
+
+	private LocalDateTime associatedUserTimestamp;
+
 	public MfaClient(String name, String deviceId, String serialnumber, String type, String nsisLevel) {
 		this.name = name;
 		this.deviceId = deviceId;
@@ -45,7 +47,7 @@ public class MfaClient implements Serializable {
 		this.serialnumber = serialnumber;
 	}
 	
-	public MfaClient(String name, String deviceId, String serialnumber, String type, String nsisLevel, String ssn, Timestamp lastUsed) {
+	public MfaClient(String name, String deviceId, String serialnumber, String type, String nsisLevel, String ssn, Timestamp lastUsed, Timestamp associatedUserTimestamp) {
 		this.name = name;
 		this.deviceId = deviceId;
 		this.type = ClientType.valueOf(type);
@@ -55,6 +57,10 @@ public class MfaClient implements Serializable {
 
 		if (lastUsed != null) {
 			this.lastUsed = lastUsed.toLocalDateTime();
+		}
+
+		if (associatedUserTimestamp != null) {
+			this.associatedUserTimestamp = associatedUserTimestamp.toLocalDateTime();
 		}
 	}
 }

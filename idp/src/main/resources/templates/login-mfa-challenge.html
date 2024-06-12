@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="da">
-<head th:replace="fragments/header :: header" />
+<head th:replace="fragments/header :: header"></head>
 <div th:replace="fragments/topbar :: topbar"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
@@ -40,6 +40,13 @@
                             </div>
                         </div>
 
+			            <div id="finishLoginBlock" style="display: none;">
+			                <p>
+			                    Login er gennemført - tryk på knappen nedenfor for at gå videre
+			                </p>
+			                <button class="btn btn-primary" onclick="mfaService.finishLoginFlow(); return false;">Videre</button>
+			            </div>
+
                         <div th:if="${@loginService.showNemLogIn()}">
                             <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
                                 <em class="fa fa-fw fa-key"></em>
@@ -53,8 +60,9 @@
         </div>
     </div>
     
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="fragments/footer :: scripts"></div>
 </body>
+
 <script th:inline="javascript">
 	/*<![CDATA[*/
 
@@ -63,6 +71,7 @@
             var url = [[@{/ui/tempworker}]];
             var pollingKey = [[${pollingKey}]];
             var redirectUrl = [[${redirectUrl}]];
+            var delayedLogin = [[${delayedLogin}]];
             var finishUrl = [[${@OS2faktorConfiguration.baseUrl} + '/sso/saml/mfa/' + ${deviceId} + '/completed']];
             var wakeEvent = [[${wakeEvent}]];
 		+]*/
@@ -107,9 +116,15 @@
                             if (data && data.stateChange == true) {
                             	// prevent double-submits if the form is slow
                             	clearInterval(pollingFn);
-                            	
-                            	// submit form
-                                $("#loginForm").submit();
+
+                                if (delayedLogin) {
+                                	// hack for Tønder - should be replaced by good code once we know it works
+                                    var insideBrowserElem = document.getElementById('finishLoginBlock');
+                                    insideBrowserElem.style.cssText = 'display: block;';
+                                }
+                                else {
+                                	mfaService.finishLoginFlow();
+                                }
                             }
                         }
                     });
@@ -132,6 +147,10 @@
 
             this.openRedirect = function () {
             	window.location.href = redirectUrl + "?redirectUrl=" + finishUrl;
+            }
+            
+            this.finishLoginFlow = function() {
+            	$("#loginForm").submit();
             }
         }
 

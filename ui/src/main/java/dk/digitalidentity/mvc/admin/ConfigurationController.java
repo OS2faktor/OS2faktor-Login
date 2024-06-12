@@ -250,14 +250,17 @@ public class ConfigurationController {
 		settings.setCanNotChangePasswordEnabled(canNotChangePasswordGroup != null);
 		settings.setCanNotChangePasswordGroup(canNotChangePasswordGroup);
 		settings.setPreventBadPasswords(form.isPreventBadPasswords());
+		settings.setSpecificSpecialCharactersEnabled(form.isSpecificSpecialCharactersEnabled());
+		settings.setAllowedSpecialCharacters(form.isSpecificSpecialCharactersEnabled() ? form.getAllowedSpecialCharacters() : null);
 		
 		if (form.isRequireComplexPassword()) {
-			settings.setRequireLowercaseLetters(form.isRequireLowercaseLetters());
-			settings.setRequireUppercaseLetters(form.isRequireUppercaseLetters());
-			settings.setRequireComplexPassword(form.isRequireComplexPassword());
-			settings.setRequireDigits(form.isRequireDigits());
+			settings.setRequireLowercaseLetters(true);
+			settings.setRequireUppercaseLetters(true);
+			settings.setRequireComplexPassword(true);
+			settings.setRequireDigits(true);
+			settings.setDisallowNameAndUsername(true);
 		}
-		
+
 		passwordService.save(settings);
 		auditLogger.changePasswordSettings(settings, admin);
 

@@ -182,7 +182,7 @@ public class ActivateAccountController {
 			// NSIS passwords otherwise ask the user for a new password.
 			// In the case where a user has previously had a NSIS password (and therefore password history exists)
 			// we allow the user to use their AD password even if it matches with a password history we have saved.
-			ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(sessionHelper.getPerson(), sessionHelper.getPassword(), true, false);
+			ChangePasswordResult validPassword = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(sessionHelper.getPerson(), sessionHelper.getPassword());
 			if (validPassword.equals(ChangePasswordResult.OK)) {
 				try {
 					// can ignore return value because we bypass replication
@@ -402,7 +402,7 @@ public class ActivateAccountController {
 
 		// In the case where a user has previously had a NSIS password (and therefore password history exists)
 		// we allow the user to use their AD password even if it matches with a password history we have saved.
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true, false);
+		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, form.getPassword());
 		if (!validPassword.equals(ChangePasswordResult.OK)) {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 			model.addAttribute("redirectUrl", "/konto/vaelgkode");
