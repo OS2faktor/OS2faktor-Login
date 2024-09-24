@@ -200,12 +200,14 @@ public class PasswordService {
 			}
 		}
 		
-		/* for students, with a stored student password, we allow validating against the local student password if either
-		 *  - the student is indskoling or special needs class
-		 *  - or the domain of the student is standAlone
+		/* for domains that are stand-alone, perform fallback against student_password (badly named field - consider renaming).
+		 * for students that are in indskoling or special-needs-class, we also allow validating against this field (original functionality, thus the name)
 		 */
-		if ((result == null && personService.isStudent(person) && StringUtils.hasLength(person.getStudentPassword())) &&
-			(personService.isStudentInIndskolingOrSpecialNeedsClass(person) || person.getDomain().isStandalone())) {
+		if (result == null && StringUtils.hasLength(person.getStudentPassword()) &&
+			(
+					(personService.isStudent(person) && personService.isStudentInIndskolingOrSpecialNeedsClass(person)) ||
+					person.getDomain().isStandalone())
+			) {
 
 			try {
 				String pwd = passwordChangeQueueService.decryptPassword(person.getStudentPassword());
@@ -228,30 +230,67 @@ public class PasswordService {
 
 		// fallback to validating against AD (if allowed and possible...)
 		if (result == null && StringUtils.hasLength(person.getSamaccountName()) && !person.getDomain().isStandalone()) {
-			PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
 
-			if (topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
-				switch (cacheStrategy) {
-					case NO_AD:
-						break;
-					case NO_CACHE: {
-						ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
+			switch (cacheStrategy) {
+				case NO_AD:
+					break;
+				case NO_CACHE: {
+					ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
 
-						if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
-							sessionHelper.setAuthenticatedWithADPassword(true);
-							sessionHelper.setADPerson(person);
-							sessionHelper.setPasswordLevel(NSISLevel.NONE);
-							sessionHelper.setAuthnInstant(new DateTime());
-							sessionHelper.setPassword(password);
-							result = PasswordValidationResult.VALID;
-	
-							// update the cached password then
-							adPasswordService.updateCache(person, password);
-						}
+					if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
+						sessionHelper.setAuthenticatedWithADPassword(true);
+						sessionHelper.setADPerson(person);
+						sessionHelper.setPasswordLevel(NSISLevel.NONE);
+						sessionHelper.setAuthnInstant(new DateTime());
+						sessionHelper.setPassword(password);
+						result = PasswordValidationResult.VALID;
 
-						break;
+						// update the cached password then
+						adPasswordService.updateCache(person, password);
 					}
-					case WITH_CACHE: {
+
+					break;
+				}
+				case WITH_CACHE: {
+					// check cache on technical/timeout errors only
+					if (adPasswordService.validateAgainstCache(person, password)) {
+						sessionHelper.setAuthenticatedWithADPassword(true);
+						sessionHelper.setADPerson(person);
+						sessionHelper.setPasswordLevel(NSISLevel.NONE);
+						sessionHelper.setAuthnInstant(new DateTime());
+						sessionHelper.setPassword(password);
+						result = PasswordValidationResult.VALID_CACHE;							
+					}
+					else {
+						// special case - the user does not actually have a registered NSIS password
+						// so the validation against the cache is the only thing we are actually doing,
+						// and a cache-miss does not count as an invalid password attempt, just reject
+						// without counting up anything
+						if (!StringUtils.hasLength(person.getNsisPassword())) {
+							sessionHelper.setPasswordLevel(null);
+							return PasswordValidationResult.INVALID;
+						}
+					}
+
+					break;
+				}
+				case NO_CACHE_UNLESS_AD_DOWN: {
+					ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
+
+					// first attempt validation against AD
+					if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
+						sessionHelper.setAuthenticatedWithADPassword(true);
+						sessionHelper.setADPerson(person);
+						sessionHelper.setPasswordLevel(NSISLevel.NONE);
+						sessionHelper.setAuthnInstant(new DateTime());
+						sessionHelper.setPassword(password);
+						result = PasswordValidationResult.VALID;
+
+						// update the cached password then
+						adPasswordService.updateCache(person, password);
+					}
+					else if (adResult == ADPasswordStatus.TECHNICAL_ERROR || adResult == ADPasswordStatus.TIMEOUT) {
+
 						// check cache on technical/timeout errors only
 						if (adPasswordService.validateAgainstCache(person, password)) {
 							sessionHelper.setAuthenticatedWithADPassword(true);
@@ -261,49 +300,9 @@ public class PasswordService {
 							sessionHelper.setPassword(password);
 							result = PasswordValidationResult.VALID_CACHE;							
 						}
-						else {
-							// special case - the user does not actually have a registered NSIS password
-							// so the validation against the cache is the only thing we are actually doing,
-							// and a cache-miss does not count as an invalid password attempt, just reject
-							// without counting up anything
-							if (!StringUtils.hasLength(person.getNsisPassword())) {
-								sessionHelper.setPasswordLevel(null);
-								return PasswordValidationResult.INVALID;
-							}
-						}
-
-						break;
 					}
-					case NO_CACHE_UNLESS_AD_DOWN: {
-						ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
 
-						// first attempt validation against AD
-						if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
-							sessionHelper.setAuthenticatedWithADPassword(true);
-							sessionHelper.setADPerson(person);
-							sessionHelper.setPasswordLevel(NSISLevel.NONE);
-							sessionHelper.setAuthnInstant(new DateTime());
-							sessionHelper.setPassword(password);
-							result = PasswordValidationResult.VALID;
-	
-							// update the cached password then
-							adPasswordService.updateCache(person, password);
-						}
-						else if (adResult == ADPasswordStatus.TECHNICAL_ERROR || adResult == ADPasswordStatus.TIMEOUT) {
-
-							// check cache on technical/timeout errors only
-							if (adPasswordService.validateAgainstCache(person, password)) {
-								sessionHelper.setAuthenticatedWithADPassword(true);
-								sessionHelper.setADPerson(person);
-								sessionHelper.setPasswordLevel(NSISLevel.NONE);
-								sessionHelper.setAuthnInstant(new DateTime());
-								sessionHelper.setPassword(password);
-								result = PasswordValidationResult.VALID_CACHE;							
-							}
-						}
-
-						break;
-					}
+					break;
 				}
 			}
 		}

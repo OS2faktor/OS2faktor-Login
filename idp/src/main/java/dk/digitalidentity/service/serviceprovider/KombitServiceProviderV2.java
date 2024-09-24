@@ -136,7 +136,7 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		}
 
 		String oiobpp = null;
-		if (commonConfig.getRoleCatalogue().isEnabled()) {
+		if (commonConfig.getRoleCatalogue().isEnabled() && commonConfig.getRoleCatalogue().isKombitRolesEnabled()) {
 			oiobpp = roleCatalogueService.getOIOBPP(person, lookupIdentifier);
 		}
 		else {

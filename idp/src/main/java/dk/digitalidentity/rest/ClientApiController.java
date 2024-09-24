@@ -9,6 +9,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,13 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.TemporaryClientSessionMapping;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
 import dk.digitalidentity.common.service.TemporaryClientSessionMappingService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
@@ -78,9 +77,6 @@ public class ClientApiController {
 	@Autowired
 	private OtherSessionHelper otherSessionHelper;
 
-	@Autowired
-	private SessionSettingService sessionService;
-
     @PostMapping("/api/client/loginWithBody")
     @ResponseBody
     public ResponseEntity<String> clientLoginWithPost(@RequestBody UsernameAndPassword usernameAndPassword, HttpServletRequest request) {
@@ -112,12 +108,30 @@ public class ClientApiController {
             return ResponseEntity.badRequest().build();
         }
 
+		// Strip domain from username if provided
+		if (StringUtils.hasLength(username) && username.contains("@")) {
+			String[] split = username.split("@");
+			username = split[0];
+		}
+
 		if (!StringUtils.hasLength(username) || !StringUtils.hasLength(password)) {
 			log.warn("Missing username/password parameters");
 			return ResponseEntity.badRequest().build();
 		}
 		
-        List<Person> people = personService.getBySamaccountNameAndDomain(username, domain);
+		if (domain.getParent() != null) {
+			domain = domain.getParent();
+		}
+		
+		List<Domain> domains = new ArrayList<>();
+		domains.add(domain);
+		if (domain.getChildDomains() != null) {
+			for (Domain d : domain.getChildDomains()) {
+				domains.add(d);
+			}
+		}
+		
+        List<Person> people = personService.getBySamaccountNameAndDomains(username, domains);
         if (people.size() != 1) {
             log.info(people.size() + " persons found that matched client request, has to be 1 (username: " + username + ")");
             return ResponseEntity.badRequest().build();
@@ -250,7 +264,6 @@ public class ClientApiController {
 			log.debug("Found " + previousTokenExchanges.size() + " sessions with a matching token");
 		}
 
-		SessionSetting passwordRulesSettings = sessionService.getSettings(person.getDomain());
 		int count = 0;
 		for (TemporaryClientSessionMapping previousTokenExchange : previousTokenExchanges) {
 			String sessionId = previousTokenExchange.getSessionId();
@@ -269,7 +282,8 @@ public class ClientApiController {
 			log.debug("Refreshing passwordsession timestamp (Person: " + person.getId() + ") for token " + previousToken.getSessionKey());
 
 			LocalDateTime passwordLevelTimestamp = otherSessionHelper.getLocalDateTime(sessionId, Constants.PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP);
-			Long passwordExpiry = passwordRulesSettings.getPasswordExpiry();
+
+			Long passwordExpiry = sessionHelper.getSessionLifetimePassword(person);
 
 			boolean passwordSessionStillValid = passwordLevelTimestamp != null && !LocalDateTime.now().minusMinutes(passwordExpiry).isAfter(passwordLevelTimestamp);
 			if (passwordSessionStillValid) {

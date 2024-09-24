@@ -10,14 +10,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import dk.digitalidentity.util.IPUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.EmailTemplate;
 import dk.digitalidentity.common.dao.model.EmailTemplateChild;
@@ -32,6 +33,7 @@ import dk.digitalidentity.common.service.LoginAlarmService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.dto.AuditLogFailedLoginDTO;
 import dk.digitalidentity.common.service.dto.AuditLogLocationDto;
+import dk.digitalidentity.util.IPUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -89,6 +91,9 @@ public class LogWatcherService {
 	
 	@Autowired
 	private LoginAlarmService loginAlarmService;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
 	@Transactional
 	public void logWatchTooManyWrongPasswordsFromNonWhitelistIP() {
@@ -150,20 +155,33 @@ public class LogWatcherService {
 			return;
 		}
 
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (!StringUtils.hasLength(emails)) {
+			return;
+		}
+
 		long logCount = personDao.countByLockedPasswordTrue();
 
 		if (logCount > limit) {
 			log.warn("Too many time locked accounts");
 
-			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TOO_MANY_LOCKED_ACCOUNTS);
-
-			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+			EmailTemplateChild child = null;
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				child = new EmailTemplateChild();
+				child.setTitle("(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: for mange tids-spærrede brugerkonti");
+				child.setMessage("Der er registreret " + logCount + " tidsspærrede brugerkonti indenfor den sidste time, hvilket er over den opsatte grænseværdi på " + limit);
+			}
+			else {
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TOO_MANY_LOCKED_ACCOUNTS);
+				if (emailTemplate.getChildren() != null && emailTemplate.getChildren().size() > 0) {
+					child = emailTemplate.getChildren().get(0);
+				}
+			}
+			
+			if (child != null) {
 				String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.LOG_COUNT, String.valueOf(logCount));
 				message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.LIMIT, String.valueOf(limit));
-				emailTemplateSenderService.send(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), null, null, child.getTitle(), message, child, true);
-				
-				// there should ever only be one should, but this at least prevents duplicate mail sending
-				break;
+				emailTemplateSenderService.send(emails, null, null, child.getTitle(), message, child, true);
 			}
 		}
 	}
@@ -222,6 +240,11 @@ public class LogWatcherService {
 		boolean translateGermany = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED);
 		boolean translateSweeden = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED);
 		
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (!StringUtils.hasLength(emails)) {
+			return;
+		}
+
 		List<AuditLogLocationDto> logsWithLocation = jdbcTemplate.query(SELECT_LOGIN_AUDITLOGS_WITH_LOCATION,
 			(rs, rowNum) -> {
 				String location = rs.getString("location");
@@ -269,14 +292,22 @@ public class LogWatcherService {
 
 			log.warn("En eller flere personer har logget ind fra forskellige lande indenfor den sidste time: " + message);
 
-			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TWO_COUNTRIES_ONE_HOUR);
-
-			for (EmailTemplateChild child : emailTemplate.getChildren()) {
-				String msg = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.LIST_OF_PERSONS, message);
-				emailTemplateSenderService.send(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), null, null, child.getTitle(), msg, child, true);
-
-				// there should ever only be one should, but this at least prevents duplicate mail sending
-				break;
+			EmailTemplateChild child = null;
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				child = new EmailTemplateChild();
+				child.setTitle("(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: bruger har logget ind fra flere lande indenfor samme time");
+				child.setMessage(message);
+			}
+			else {
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TWO_COUNTRIES_ONE_HOUR);
+				if (emailTemplate.getChildren() != null && emailTemplate.getChildren().size() > 0) {
+					child = emailTemplate.getChildren().get(0);
+				}
+			}
+			
+			if (child != null) {
+				message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.LIST_OF_PERSONS, message);
+				emailTemplateSenderService.send(emails, null, null, child.getTitle(), message, child, true);
 			}
 		}
 	}
@@ -285,6 +316,11 @@ public class LogWatcherService {
 	public void logWatchTooManyWrongPassword() {
 		long limit = logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, 0);
 		if (limit == 0) {
+			return;
+		}
+
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (!StringUtils.hasLength(emails)) {
 			return;
 		}
 
@@ -300,14 +336,23 @@ public class LogWatcherService {
 
 		if (logCount > limit) {
 			log.warn("Too many wrong passwords the last hour");
-			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TOO_MANY_WRONG_PASSWORD);
-
-			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+			
+			EmailTemplateChild child = null;
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				child = new EmailTemplateChild();
+				child.setTitle("(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: for mange forkerte kodeord");
+				child.setMessage("Der er registreret " + logCount + " forkerte kodeord indenfor den sidste time, hvilket er over den opsatte grænseværdi på " + limit);
+			}
+			else {
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.TOO_MANY_WRONG_PASSWORD);
+				if (emailTemplate.getChildren() != null && emailTemplate.getChildren().size() > 0) {
+					child = emailTemplate.getChildren().get(0);
+				}
+			}
+			
+			if (child != null) {
 				String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.LOG_COUNT, String.valueOf(logCount));
-				emailTemplateSenderService.send(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), null, null, child.getTitle(), message, child, true);
-
-				// there should ever only be one should, but this at least prevents duplicate mail sending
-				break;
+				emailTemplateSenderService.send(emails, null, null, child.getTitle(), message, child, true);
 			}
 		}
 	}

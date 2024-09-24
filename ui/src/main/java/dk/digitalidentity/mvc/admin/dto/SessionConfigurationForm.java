@@ -12,15 +12,18 @@ public class SessionConfigurationForm {
 	private Long domainId;
 	private Long passwordExpiry;
 	private Long mfaExpiry;
+	private boolean nsisDomain;
 
-	public SessionConfigurationForm(SessionSetting settings) {
+	public SessionConfigurationForm(SessionSetting settings, boolean nsisDomain) {
 		this.domainId = settings.getDomain().getId();
 		this.passwordExpiry = settings.getPasswordExpiry();
 		this.mfaExpiry = settings.getMfaExpiry();
+		this.nsisDomain = nsisDomain;
 	}
 
-	public SessionConfigurationForm(long passwordExpiry, long mfaExpiry) {
+	public SessionConfigurationForm(long passwordExpiry, long mfaExpiry, boolean nsisDomain) {
 		this.passwordExpiry = passwordExpiry;
 		this.mfaExpiry = mfaExpiry;
+		this.nsisDomain = nsisDomain;
 	}
 }

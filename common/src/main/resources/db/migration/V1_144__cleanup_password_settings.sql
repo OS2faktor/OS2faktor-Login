@@ -1,0 +1,2 @@
+ALTER TABLE password_settings DROP COLUMN replicate_to_ad_enabled;
+ALTER TABLE password_settings DROP COLUMN validate_against_ad_enabled;

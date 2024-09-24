@@ -5,6 +5,7 @@ import lombok.Getter;
 @Getter
 public enum SettingsKey {
 	TRACE_LOGGING("false"),
+	FULL_SERVICE_IDP_MIGRATED("false"),
 	CERTIFICATE_ROLLOVER_TTS("2099-12-31T23:59");
 	
 	private String defaultValue;

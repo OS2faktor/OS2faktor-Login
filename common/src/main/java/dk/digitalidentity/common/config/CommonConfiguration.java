@@ -1,17 +1,20 @@
 package dk.digitalidentity.common.config;
 
-import dk.digitalidentity.common.config.modules.PasswordSoonExpireConfiguration;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.modules.AdConfiguration;
 import dk.digitalidentity.common.config.modules.CprConfiguration;
 import dk.digitalidentity.common.config.modules.CustomerConfiguration;
 import dk.digitalidentity.common.config.modules.DevConfiguration;
+import dk.digitalidentity.common.config.modules.FullServiceIdPConfiguration;
 import dk.digitalidentity.common.config.modules.KombitConfiguration;
 import dk.digitalidentity.common.config.modules.MailConfiguration;
 import dk.digitalidentity.common.config.modules.MfaConfiguration;
 import dk.digitalidentity.common.config.modules.MfaDatabaseConfiguration;
+import dk.digitalidentity.common.config.modules.PasswordSoonExpireConfiguration;
 import dk.digitalidentity.common.config.modules.RadiusConfiguration;
 import dk.digitalidentity.common.config.modules.RoleCatalogueConfiguration;
 import dk.digitalidentity.common.config.modules.SelfServiceConfiguration;
@@ -47,4 +50,13 @@ public class CommonConfiguration {
 	private StudentPwdConfiguration stilStudent = new StudentPwdConfiguration();
 	private PasswordSoonExpireConfiguration passwordSoonExpire = new PasswordSoonExpireConfiguration();
 	private StilPersonCreationConfiguration stilPersonCreation = new StilPersonCreationConfiguration();
+	private FullServiceIdPConfiguration fullServiceIdP = new FullServiceIdPConfiguration();
+
+	@EventListener(ApplicationReadyEvent.class)
+	public void runOnStartup() {
+		// when running in fullServiceIdP mode, always disable registrant feature
+		if (fullServiceIdP.isEnabled()) {
+			customer.setEnableRegistrant(false);
+		}
+	}
 }

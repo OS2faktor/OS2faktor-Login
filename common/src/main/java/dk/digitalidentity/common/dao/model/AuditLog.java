@@ -12,10 +12,10 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
-import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
@@ -52,8 +52,8 @@ public class AuditLog {
 
 	// referenced person which data was used
 
-	@BatchSize(size = 100)
-	@OneToOne(fetch = FetchType.LAZY)
+	// has to be EAGER because of IGNORE below
+	@ManyToOne(fetch = FetchType.EAGER)
 	@JoinColumn(name = "person_id")
 	@JsonIgnore
 	@NotFound(action = NotFoundAction.IGNORE)

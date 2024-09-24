@@ -474,7 +474,7 @@ public abstract class AbstractReloadingMetadataResolver extends AbstractBatchMet
             return unmarshallMetadata(new ByteArrayInputStream(metadataBytes));
         } catch (final UnmarshallingException e) {
             final String errorMsg = "Unable to unmarshall metadata";
-            log.error("{} " + errorMsg, getLogPrefix());
+            log.warn("{} " + errorMsg, getLogPrefix());
             throw new ResolverException(errorMsg, e);
         }
     }

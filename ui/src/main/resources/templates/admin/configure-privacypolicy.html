@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true)" />
+<head th:replace="fragments/header :: header (texteditor = true)"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-privacypolicy')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-privacypolicy')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -12,50 +12,80 @@
 						<div class="ibox">
 							<div class="ibox-title">
 								<h5>
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+									<em class="fa fa-info"></em> &nbsp; Se privatlivspolitik
+									</th:block>
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									<em class="fa fa-info"></em> &nbsp; Opsæt privatlivspolitik &nbsp; <span style="font-size: smaller; color: lightgrey;" th:text="${tts}"></span>
+									</th:block>
 								</h5>
 							</div>
 
 							<div class="ibox-content">
-								<p>
+								<p th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									Opsæt privatlivspolitikken for løsningen. Brugerne kan løbende tilgå disse, og de bliver præsenteret
 									for dem ved deres første login.
 								</p>
-								
-								<h4>Privatlivspolitik</h4>
+
 								<form action="#" th:action="@{/admin/konfiguration/privacypolicy}" th:object="${privacyPolicy}" method="post">
 									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
 									
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									<br/>
 
 									<button type="submit" class="btn btn-primary block full-width m-b">Gem</button>
 									<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
+									</th:block>
 								</form>
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-privacypolicy')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-privacypolicy')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (texteditor = true)" />
+	<div th:replace="fragments/footer :: scripts (texteditor = true)"></div>
 	
-	<script>
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+			var fullServiceIdP = [[${@commonConfiguration.fullServiceIdP.enabled}]];
+		+]*/
+
 		$(document).ready(function() {
-			$('#content').summernote({
-				"height": 320,
-				"toolbar": [
-					[ "font", [ "bold", "italic", "underline" ]],
-					[ "para", [ "ul", "ol", "style" ]],
-                    [ "insert", ["link"]]
-				]
-			});
+			if (fullServiceIdP) {
+				$('#content').summernote({
+					"height": 600,
+					"toolbar": []
+				});
+				
+				// make really read-only (timeout to ensure that above has executed... stupid async ;))
+				setTimeout(function() {
+					var container = $('#content').parent().find('.note-editable');
+		            if ($(container).length) {
+		                $(container).prop('contenteditable', 'false');
+		            }
+				}, 200);
+			}
+			else {
+				$('#content').summernote({
+					"height": 400,
+					"toolbar": [
+						[ "font", [ "bold", "italic", "underline" ]],
+						[ "para", [ "ul", "ol", "style" ]],
+	                    [ "insert", ["link"]]
+					]
+				});
+			}
 		});
+		
+		/*]]>*/
 	</script>
 </body>
 </html>

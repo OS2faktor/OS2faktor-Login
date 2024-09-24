@@ -7,4 +7,7 @@ import lombok.Setter;
 @Setter
 public class PasswordSoonExpireConfiguration {
 	private int reminderDaysBeforeExpired = 7;
+	
+	// allow disabling the public change password page for those not wanting it available
+	private boolean changePasswordPageEnabled = true;
 }

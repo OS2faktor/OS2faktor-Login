@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.dao.model;
 
+import java.time.LocalDateTime;
+
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
@@ -17,8 +19,6 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
 
 @Getter
 @Setter

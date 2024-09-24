@@ -27,6 +27,7 @@ import lombok.ToString;
 @Table(name = "school_classes")
 @Setter
 @Getter
+@BatchSize(size = 100)
 @ToString
 public class SchoolClass {
 

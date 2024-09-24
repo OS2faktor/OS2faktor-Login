@@ -52,7 +52,13 @@ public class PasswordChangeQueue {
     
     @Column
     private boolean externallyReplicated;
-    
+
+    @Column
+    private boolean azureReplicated;
+
+    @Column
+    private boolean googleWorkspaceReplicated;
+
     public PasswordChangeQueue(Person person, String newPassword, boolean forceChangePasswordOnNextLogin) {
     	this.password = newPassword;
     	this.samaccountName = person.getSamaccountName();

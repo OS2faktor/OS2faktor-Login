@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="fragments/header :: header"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.index')"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-info"></em> &nbsp; Overblik over bruger-rettede sider i OS2faktor</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+								Nedenfor er samlet de forskellige links som er relevante for brugere af OS2faktor. Hvis brugerne skal kende til disse sider, så overvej
+								at tilføje links til dem på forsiden af OS2faktor via CMS systemet.
+								</p>
+
+								<table class="table striped">
+									<thead>
+										<tr>
+											<th style="width: 450px;">Link</th>
+											<th>Beskrivelse</th>
+										</tr>
+									</thead>
+									
+									<tbody>
+										<tr th:if="${changePasswordEnabled}">
+											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'change-password'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'change-password'}"></a></td>
+											<td>Side til at skifte kodeord - brugerne kan tilgå denne side fra internettet, og udføre et kodeordsskifte vha deres eksisterende kodeord.</td>
+										</tr>
+										
+										<tr th:if="${parentChangePasswordOnStudent}">
+											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/elevkode'}" th:text="${@commonConfiguration.selfService.baseUrl + '/elevkode'}"></a></td>
+											<td>Side til at skifte kodeord - forældre kan tilgå denne side fra internettet, og udføre et kodeordsskifte på deres børn (skole-elever) ved et forudgående login med MitID.</td>
+										</tr>
+
+										<tr>
+											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/forgotpworlocked'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/forgotpworlocked'}"></a></td>
+											<td>Side til at skifte kodeord - brugere der har glemt deres kodeord, kan anvende denne side til at nulstille deres kodeord med MitID.</td>
+										</tr>
+
+										<tr>
+											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/privatlivspolitik'}" th:text="${@commonConfiguration.selfService.baseUrl + '/privatlivspolitik'}"></a></td>
+											<td>Privatlivsvilkår - her kan brugerne altid tilgå de gældende privatlivsvilkår.</td>
+										</tr>
+
+										<tr>
+											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/vilkaar'}" th:text="${@commonConfiguration.selfService.baseUrl + '/vilkaar'}"></a></td>
+											<td>Anvendelsesvilkår - her kan brugerne altid tilgå de gældende anvendelsesvilkår.</td>
+										</tr>
+
+										<tr>
+											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/selvbetjening'}" th:text="${@commonConfiguration.selfService.baseUrl + '/selvbetjening'}"></a></td>
+											<td>Selvbetjening - her kan brugerne logge ind i selvbetjeningen og administrere deres konto.</td>
+										</tr>
+
+									</tbody>
+								</table>
+
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.index')"></div>
+				</div>
+			</div>
+
+			<div th:replace="fragments/footer :: footer"></div>
+		</div>
+	</div>
+
+	<div th:replace="fragments/footer :: scripts"></div>
+</body>
+</html>

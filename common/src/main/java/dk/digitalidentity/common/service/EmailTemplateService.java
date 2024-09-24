@@ -9,38 +9,61 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.EmailTemplateDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.EmailTemplate;
 import dk.digitalidentity.common.dao.model.EmailTemplateChild;
+import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
 import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
 
 @Service
 public class EmailTemplateService {
-	public static final String RECIPIENT_PLACEHOLDER = "{modtager}";
+	// alarms
 	public static final String IP_PLACEHOLDER = "{ip}";
 	public static final String LOG_COUNT = "{antal}";
 	public static final String LIMIT = "{max}";
 	public static final String LIST_OF_PERSONS = "{liste}";
 	public static final String COUNTRY = "{land}";
+	
+	// users
 	public static final String USERID_PLACEHOLDER = "{brugernavn}";
+	public static final String RECIPIENT_PLACEHOLDER = "{modtager}";
+	
+	// full service IdP only
+	public static final String MUNICIPALITY_PLACEHOLDER = "{kommune}";
+	public static final String ACTIVATION_LINK_PLACEHOLDER = "{aktiveringslink}";
+	public static final String LOGO_PLACEHOLDER = "{logo}";
 	
 	@Autowired
 	private EmailTemplateDao emailTemplateDao;
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private CmsMessageBundle bundle;
 
 	public List<EmailTemplate> findForPersons() {
 		List<EmailTemplate> result = new ArrayList<>();
 		
 		for (EmailTemplateType type : EmailTemplateType.values()) {
-			if (!type.isLogWatch()) {
-				result.add(findByTemplateType(type));
+			if (type.isLogWatch()) {
+				continue;
 			}
+			
+			if (!commonConfiguration.getFullServiceIdP().isEnabled() && type.isFullServiceIdP()) {
+				continue;
+			}
+
+			result.add(findByTemplateType(type));
 		}
 		
 		return result;
@@ -50,9 +73,11 @@ public class EmailTemplateService {
 		List<EmailTemplate> result = new ArrayList<>();
 		
 		for (EmailTemplateType type : EmailTemplateType.values()) {
-			if (type.isLogWatch()) {
-				result.add(findByTemplateType(type));
+			if (!type.isLogWatch()) {
+				continue;
 			}
+			
+			result.add(findByTemplateType(type));
 		}
 		
 		return result;
@@ -159,13 +184,30 @@ public class EmailTemplateService {
 				break;
 			case NEW_USER:
 				title = "Brugerkonto oprettet";
-				message = "Kære {modtager} \n<br/>\n<br/>Du er blevet tildelt en brugerkonto.<br/><br/>\n\nDit brugernavn er: {brugernavn}<br/><br/>\n\n";
+				message = "Kære {modtager}\n<br/>\n<br/>Du er blevet tildelt en brugerkonto.<br/><br/>\n\nDit brugernavn er: {brugernavn}<br/><br/>\n\n";
+				break;
+			case FULL_SERVICE_IDP_ASSIGNED:
+				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
+				title = "Erhvervsidentitet tildelt";
+				message = "<b>Til {modtager}</b><br/><br/>Du er blevet tildelt en erhvervsidentitet af {kommune}, som er knyttet til din it-konto {brugernavn}.<br/><br/>Før du kan anvende din erhvervsidentitet skal den aktiveres. Aktiveringen foretages ved at logge ind på nedenstående aktiveringsside, og anvende dit MitID til at gennemføre aktiveringen.<br/><br/><b>Aktivering</b>\n<br/><a href=\"{aktiveringslink}\">Klik her for at aktivere din erhvervsidentitet</a><br/><br/>Med venlig hilsen<br/>{kommune}<br/>{logo}";
+				break;
+			case FULL_SERVICE_IDP_REMOVED:
+				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
+				title = "Erhvervsidentitet spærret";
+				message = "<b>Til {modtager}</b><br/><br/>Din erhvervsidentitet knyttet til din it-konto {brugernavn}, er blevet spærret af {kommune}.<br/><br/>Med venlig hilsen<br/>{kommune}<br/>{logo}<br/>";
+				break;
 		}
 
 		child.setTitle(title);
 		child.setMessage(message);
 		child.setEmailTemplate(template);
 		child.setDomain(domain);
+		
+		// make sure eboks is enabled by default on new Full Service IdP templates
+		if (child.getEmailTemplate().getTemplateType().isFullServiceIdP()) {
+			child.setEboks(true);
+			child.setEnabled(true);
+		}
 
 		children.add(child);
 	}
@@ -214,5 +256,25 @@ public class EmailTemplateService {
 		value = value.replace("&", "&amp;");
 		
 		return message.replace(placeholder, value);
+	}
+
+	// should only really be used for the full service IdP messages (but _would_ work for the other ones, except the data might not be entirely correct, so verify that first)
+	public String safeReplaceEverything(String message, Person person) {
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.ACTIVATION_LINK_PLACEHOLDER, commonConfiguration.getSelfService().getBaseUrl());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_PLACEHOLDER, commonConfiguration.getEmail().getFromName());
+
+		String logo = bundle.getText("cms.logo");
+		if (StringUtils.hasLength(logo)) {
+			logo = "<img style=\"max-width: 30vw; max-height: 40px;\" src=\"" + logo + "\" data-filename=\"logo.png\" />";
+		}
+		else {
+			logo = "";
+		}
+		
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.LOGO_PLACEHOLDER, logo);
+		
+		return message;
 	}
 }

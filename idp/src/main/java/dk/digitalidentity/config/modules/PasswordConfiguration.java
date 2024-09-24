@@ -8,5 +8,7 @@ import org.springframework.stereotype.Component;
 @Setter
 @Getter
 public class PasswordConfiguration {
-	private String secret; // encrypt passwords on session
+	
+	// key for encrypting passwords in memory on session
+	private String secret;
 }

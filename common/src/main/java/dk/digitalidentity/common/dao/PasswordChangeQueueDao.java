@@ -14,4 +14,6 @@ public interface PasswordChangeQueueDao extends JpaRepository<PasswordChangeQueu
 	List<PasswordChangeQueue> findBySamaccountNameAndDomainAndStatusNot(String samaccountName, String domain, ReplicationStatus replicationStatus);
 	List<PasswordChangeQueue> findByDomain(String domain);
 	PasswordChangeQueue findFirst1ByDomainAndStatusOrderByTtsAsc(String domain, ReplicationStatus replicationStatus);
+	List<PasswordChangeQueue> findByDomainAndStatusInAndAzureReplicatedFalse(String domain, ReplicationStatus... replicationStatus);
+	List<PasswordChangeQueue> findByDomainAndStatusInAndGoogleWorkspaceReplicatedFalse(String domain, ReplicationStatus... replicationStatus);
 }

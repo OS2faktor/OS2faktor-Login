@@ -101,6 +101,16 @@ public class AuditLogService {
 		return jdbcTemplate.queryForObject("SELECT count(*) FROM auditlogs", Integer.class);
 	}
 
+	public int countAuditLogsByMonth(LocalDateTime from, LocalDateTime to) {
+		MapSqlParameterSource parameters = new MapSqlParameterSource();
+		parameters.addValue("from", Timestamp.valueOf(from), Types.TIMESTAMP);
+		parameters.addValue("to", Timestamp.valueOf(to), Types.TIMESTAMP);
+		
+		return namedParameterJdbcTemplate.queryForObject(
+				"SELECT count(*) FROM auditlogs a WHERE (a.tts BETWEEN :from AND :to)",
+				parameters, Integer.class);
+	}
+
 	public int countAuditLogsByMonth(LocalDateTime from, LocalDateTime to, ReportType type) {
 		List<String> list = new ArrayList<>();
 		for (LogAction logAction : LogAction.values()) {
@@ -141,9 +151,23 @@ public class AuditLogService {
 		parameters.addValue("offset", page.getOffset());
 				
 		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(
-				"SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts FROM auditlogs a WHERE (a.tts BETWEEN :from AND :to) AND (a.log_action IN (:type)) LIMIT :limit OFFSET :offset",
+				"SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) AND (a.log_action IN (:type)) LIMIT :limit OFFSET :offset",
 				parameters, (rs, rowNum) -> mapAuditLogResult(rs));
 		
+		return auditLogs;
+	}
+	
+	public List<AuditLogDTO> findAllJDBC(Pageable page, LocalDateTime from, LocalDateTime to) {
+		MapSqlParameterSource parameters = new MapSqlParameterSource();
+		parameters.addValue("from", Timestamp.valueOf(from), Types.TIMESTAMP);
+		parameters.addValue("to", Timestamp.valueOf(to), Types.TIMESTAMP);
+		parameters.addValue("limit", page.getPageSize());
+		parameters.addValue("offset", page.getOffset());
+				
+		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(
+				"SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) LIMIT :limit OFFSET :offset",
+				parameters, (rs, rowNum) -> mapAuditLogResult(rs));
+
 		return auditLogs;
 	}
 
@@ -186,7 +210,7 @@ public class AuditLogService {
 			whereAuditLog  = " AND (a.log_action = :logAction) ";
 		}
 
-		String sql = "SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts FROM auditlogs a WHERE (a.tts BETWEEN :from AND :to) " + whereAuditLog + whereMessage + " LIMIT :limit OFFSET :offset";
+		String sql = "SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) " + whereAuditLog + whereMessage + " LIMIT :limit OFFSET :offset";
 		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(sql, parameters, (rs, rowNum) -> mapAuditLogResult(rs));
 		
 		return auditLogs;
@@ -202,7 +226,8 @@ public class AuditLogService {
 					rs.getString("message"),
 					rs.getString("cpr"),
 					rs.getString("person_name"),
-					rs.getString("performer_name"));
+					rs.getString("performer_name"),
+					rs.getString("samaccount_name"));
 		}
 		catch (SQLException ex) {
 			log.warn("Error occured while trying to read AuditLog from DB", ex);

@@ -45,16 +45,16 @@ public class EmailTemplateSenderService {
 
 		// non-system-mails are always send as email (those without a domain associated)
 		if ((child.isEmail() || child.getDomain() == null) && StringUtils.hasLength(email)) {
-			sendEmail(email, subject, message, child, bypassQueue, recipient);
+			sendEmail(email, subject, message, child, bypassQueue, recipient, delayMinutes);
 		}
 		
 		if (child.isEboks()) {
-			sendEboks(subject, message, child, bypassQueue, cpr, recipient);
+			sendEboks(subject, message, child, bypassQueue, cpr, recipient, delayMinutes);
 		}		
 	}
 	
-	private void sendEboks(String subject, String message, EmailTemplateChild child, boolean bypassQueue, String cpr, Person recipient) {
-		if (bypassQueue) {
+	private void sendEboks(String subject, String message, EmailTemplateChild child, boolean bypassQueue, String cpr, Person recipient, long delayMinutes) {
+		if (bypassQueue && delayMinutes == 0) {
 			SendStatus status = eboksService.sendMessage(cpr, subject, message, recipient);
 
 			if (status != SendStatus.SEND) {
@@ -62,12 +62,12 @@ public class EmailTemplateSenderService {
 			}
 		}
 		else {
-			messageQueueService.queueEboks(recipient, child.getTitle(), message);
+			messageQueueService.queueEboks(recipient, child.getTitle(), message, delayMinutes);
 		}
 	}
 	
-	private void sendEmail(String email, String subject, String message, EmailTemplateChild child, boolean bypassQueue, Person recipient) {
-		if (bypassQueue) {
+	private void sendEmail(String email, String subject, String message, EmailTemplateChild child, boolean bypassQueue, Person recipient, long delayMinutes) {
+		if (bypassQueue && delayMinutes == 0) {
 			TransformInlineImageDTO inlineImagesDto = emailTemplateService.transformImages(message);
 			boolean success = emailService.sendMessage(email, subject, inlineImagesDto.getMessage(), inlineImagesDto.getInlineImages(), recipient);
 			
@@ -76,7 +76,7 @@ public class EmailTemplateSenderService {
 			}			
 		}
 		else {
-			messageQueueService.queueEmail(recipient, child.getTitle(), message);
+			messageQueueService.queueEmail(recipient, child.getTitle(), message, delayMinutes);
 		}
 	}
 }

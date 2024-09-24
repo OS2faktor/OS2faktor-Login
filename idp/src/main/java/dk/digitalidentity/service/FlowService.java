@@ -390,8 +390,10 @@ public class FlowService {
 
 	public ModelAndView initiateApproveConditions(Model model) {
 		sessionHelper.setInApproveConditionsFlow(true);
-		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions().getContent());
+
+		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions());
 		model.addAttribute("privacy", privacyPolicyService.getPrivacyPolicy().getContent());
+
 		return new ModelAndView("approve-conditions", model.asMap());
 	}
 
@@ -537,10 +539,8 @@ public class FlowService {
 			throw new ResponderException("Person var ikke gemt på session da fortsæt password skift blev tilgået");
 		}
 
-		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
 		String sAMAccountName = null;
-
-		if (person.getSamaccountName() != null && settings.isReplicateToAdEnabled()) {
+		if (person.getSamaccountName() != null && !person.getDomain().isStandalone()) {
 			sAMAccountName = person.getSamaccountName();
 		}
 
@@ -566,11 +566,10 @@ public class FlowService {
 			throw new ResponderException("Person var ikke gemt på session da fortsæt password skift blev tilgået");
 		}
 
-        PasswordSetting topDomainSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
 		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
 		String samaccountName = null;
 
-		if (person.getSamaccountName() != null && topDomainSettings.isReplicateToAdEnabled()) {
+		if (person.getSamaccountName() != null && !person.getDomain().isStandalone()) {
 			samaccountName = person.getSamaccountName();
 		}
 

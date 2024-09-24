@@ -34,7 +34,6 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.dto.AuditLogDTO;
 import dk.digitalidentity.mvc.admin.xlsview.AdminActionReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsView;
-import dk.digitalidentity.mvc.admin.xlsview.AuditLogReportXlsViewStatic;
 import dk.digitalidentity.mvc.admin.xlsview.PersonsReportXlsView;
 import dk.digitalidentity.mvc.admin.xlsview.RolesReportXlsView;
 import dk.digitalidentity.security.RequireAdministrator;
@@ -73,8 +72,7 @@ public class ReportController {
 		return "admin/reports";
 	}
 
-	@GetMapping("/ui/report/download/auditLog")
-	public ModelAndView downloadReportAuditLog(HttpServletResponse response) {
+	/* TODO: Missing this logick
 		Map<String, Object> model;
 		Person loggedInPerson = personService.getById(securityUtil.getPersonId());
 		if (securityUtil.isAdmin() || (loggedInPerson.isSupporter() && loggedInPerson.getSupporter().getDomain() == null)) {
@@ -84,10 +82,20 @@ public class ReportController {
 			model = reportService.getAuditLogReportModelByDomain(loggedInPerson.getSupporter().getDomain().getName());
 		}
 
-		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Hændelseslog.xlsx\"");
+	 */
+	@GetMapping("/ui/report/download/auditLog")
+	public ResponseEntity<StreamingResponseBody> downloadReportAuditLog(HttpServletRequest request, HttpServletResponse response) {
+		log.info("Starting download of login report");
 
-		return new ModelAndView(new AuditLogReportXlsViewStatic(), model);
+		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"Ugerrapport.zip\"") 
+			.body(out -> { 
+				var zipOutputStream = new ZipOutputStream(out);
+				
+				addFilesToZipCsv(request, zipOutputStream, PeriodType.DAYS, 7, null, ReportType.ALL);
+				
+				zipOutputStream.close(); 
+			}
+		);
 	}
 	
 	@GetMapping("/ui/report/download/persons")
@@ -129,7 +137,7 @@ public class ReportController {
 			.body(out -> { 
 				var zipOutputStream = new ZipOutputStream(out);
 				
-				addFilesToZipCsv(request, zipOutputStream, 3, "Revisorrapport over logins ", ReportType.LOGIN_HISTORY);
+				addFilesToZipCsv(request, zipOutputStream, PeriodType.MONTHS, 3, "Revisorrapport over logins ", ReportType.LOGIN_HISTORY);
 				
 				zipOutputStream.close(); 
 			}
@@ -183,28 +191,42 @@ public class ReportController {
 		return new ModelAndView(new RolesReportXlsView(), model);
 	}
 
-	private void addFilesToZipCsv(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, ReportType type) {
+	private enum PeriodType { MONTHS, DAYS };
+	private void addFilesToZipCsv(HttpServletRequest request, ZipOutputStream zipOutputStream, PeriodType periodType, int periodCount, String fileNamePrefix, ReportType type) {
 		LocalDateTime now = LocalDateTime.now();
 		
+		int month = 0;
+		if (periodType == PeriodType.MONTHS) {
+			month = periodCount;
+		}
+
 		while (month >= 0) {
 
 			// 20XX-YY-01 00:00:00
-			LocalDateTime from = now
-					.minusMonths(month)
-					.withDayOfMonth(1)
-					.withHour(0)
-					.withMinute(0)
-					.withSecond(0);
+			LocalDateTime from = (periodType == PeriodType.MONTHS)
+					? now
+						.minusMonths(month)
+						.withDayOfMonth(1)
+						.withHour(0)
+						.withMinute(0)
+						.withSecond(0)
+					: now
+						.minusDays(periodCount)
+						.withHour(0)
+						.withMinute(0)
+						.withSecond(0);
 
 			// 20XX-YY-ZZ 23:59:59
-			LocalDateTime to = now
-					.minusMonths(month)
-					.withHour(23)
-					.withMinute(59)
-					.withSecond(59);
-			to = to.withDayOfMonth(to.getMonth().length(to.toLocalDate().isLeapYear()));
+			LocalDateTime to = now;
+			if (periodType == PeriodType.MONTHS) {
+				to = now
+						.minusMonths(month)
+						.withHour(23)
+						.withMinute(59)
+						.withSecond(59);
 
-			String monthStr = getMonthString(from.getMonth());
+				to = to.withDayOfMonth(to.getMonth().length(to.toLocalDate().isLeapYear()));
+			}
 
 			month = month - 1;
 
@@ -215,12 +237,19 @@ public class ReportController {
 			try {
 				log.info(type.toString()  + " : Starting rendering logs from " + formattedFrom +  " to " + formattedTo);
 				
-				int count = auditLogService.countAuditLogsByMonth(from, to, type);
+				int count = (type != ReportType.ALL) ? auditLogService.countAuditLogsByMonth(from, to, type) : auditLogService.countAuditLogsByMonth(from, to);
 				log.info(type.toString() + " : found " + count + " rows");
 
 				boolean isEmpty = (count == 0);
 				if (!isEmpty) {
-					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear() + " " + monthStr + ".csv");
+					String fileName = "rapport.csv";
+					if (periodType == PeriodType.MONTHS) {
+						String monthStr = getMonthString(from.getMonth());
+						
+						fileName = fileNamePrefix + from.getYear() + " " + monthStr + ".csv";
+					}
+
+					ZipEntry taskfile = new ZipEntry(fileName);
 					zipOutputStream.putNextEntry(taskfile); 
 
 					StringBuilder builder = new StringBuilder();
@@ -232,6 +261,7 @@ public class ReportController {
 					builder.append("\"").append("Besked").append("\";");
 					builder.append("\"").append("Personnummer").append("\";");
 					builder.append("\"").append("Person").append("\";");
+					builder.append("\"").append("Brugernavn").append("\";");
 					builder.append("\"").append("Administrator").append("\"\n");
 
 					zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
@@ -239,7 +269,7 @@ public class ReportController {
 					Pageable page = PageRequest.of(0, 20000);
 
 					do {
-						List<AuditLogDTO> auditLogs = auditLogService.findAllJDBC(page, from, to, type);
+						List<AuditLogDTO> auditLogs = (type != ReportType.ALL) ? auditLogService.findAllJDBC(page, from, to, type) : auditLogService.findAllJDBC(page, from, to);
 						if (auditLogs == null || auditLogs.size() == 0) {
 							break;
 						}
@@ -256,6 +286,7 @@ public class ReportController {
 							builder.append("\"").append(entry.getMessage()).append("\";");
 							builder.append("\"").append(!StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX").append("\";");
 							builder.append("\"").append((entry.getPersonName() != null) ? entry.getPersonName() : "").append("\";");
+							builder.append("\"").append((entry.getPersonUserId() != null) ? entry.getPersonUserId() : "").append("\";");
 							builder.append("\"").append((entry.getPerformerName() != null) ? entry.getPerformerName() : "").append("\"\n");
 
 							zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
@@ -319,6 +350,7 @@ public class ReportController {
 					builder.append("\"").append("Besked").append("\";");
 					builder.append("\"").append("Personnummer").append("\";");
 					builder.append("\"").append("Person").append("\";");
+					builder.append("\"").append("Brugernavn").append("\";");
 					builder.append("\"").append("Administrator").append("\"\n");
 
 					zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));
@@ -341,6 +373,7 @@ public class ReportController {
 							builder.append("\"").append(entry.getMessage()).append("\";");
 							builder.append("\"").append(!StringUtils.hasLength(entry.getCpr()) ? "" : entry.getCpr().substring(0, 6) + "-XXXX").append("\";");
 							builder.append("\"").append((entry.getPersonName() != null) ? entry.getPersonName() : "").append("\";");
+							builder.append("\"").append((entry.getPersonUserId() != null) ? entry.getPersonUserId() : "").append("\";");
 							builder.append("\"").append((entry.getPerformerName() != null) ? entry.getPerformerName() : "").append("\"\n");
 
 							zipOutputStream.write(builder.toString().getBytes(Charset.forName("ISO-8859-1")));

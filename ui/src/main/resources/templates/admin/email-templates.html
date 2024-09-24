@@ -56,35 +56,32 @@
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Aktiv</label>
 												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks enabledCheckbox" th:checked="${child.enabled}"></label>
+													<label><input type="checkbox" class="i-checks enabledCheckbox" th:checked="${child.enabled}" th:disabled="${template.emailTemplateType.fullServiceIdP}"></label>
 												</div>
 											</div>
 
-											<div class="form-group row" th:if="${template.emailAllowed}">
-												<label class="col-sm-2 control-label">Send som email</label>
+											<div class="form-group row">
+												<label class="col-sm-2 control-label">Send via</label>
 												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks emailCheckbox" th:checked="${child.emailEnabled}"></label>
-												</div>
-											</div>
-
-											<div class="form-group row" th:if="${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}">
-												<label class="col-sm-2 control-label">Send som digital post</label>
-												<div class="col-sm-10">
-													<label><input type="checkbox" class="i-checks eboksCheckbox" th:checked="${child.eboksEnabled}"></label>
+													<select class="form-control channelDropdown" name="channel" th:disabled="${template.emailTemplateType.fullServiceIdP}">
+														<option th:value="EBOKS" th:if="${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}" th:selected="${!child.emailEnabled and child.eboksEnabled}">Digital Post</option>
+														<option th:value="EMAIL" th:if="${template.emailAllowed}" th:selected="${child.emailEnabled and !child.eboksEnabled}">Email</option>
+														<option th:value="BOTH" th:if="${template.emailAllowed} and ${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}" th:selected="${child.emailEnabled and child.eboksEnabled}">Digital Post og Email</option>
+													</select>
 												</div>
 											</div>
 
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Overskrift</label>
 												<div class="col-sm-10">
-													<input name="title" th:value="${child.title}" class="form-control" />
+													<input name="title" th:value="${child.title}" class="form-control" th:readonly="${template.emailTemplateType.fullServiceIdP}" />
 												</div>
 											</div>
 
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Brødtekst</label>
 												<div class="col-sm-10">
-													<textarea name="message" th:text="${child.message}" class="mb-0 preformat" rows="10" style="width:100%;"></textarea>
+													<textarea th:class="${template.emailTemplateType.fullServiceIdP} ? 'readonly-message' : 'readwrite-message'" th:text="${child.message}" name="message" class="mb-0 preformat" rows="10" style="width:100%;" th:readonly="${template.emailTemplateType.fullServiceIdP}"></textarea>
 												</div>
 											</div>
 
@@ -130,7 +127,7 @@
 
 		$(document).ready(function () {
 			
-			$('textarea[name="message"]').summernote({
+			$('textarea.readwrite-message').summernote({
 				"height": 320,
 				"toolbar": [
 					[ "font", [ "bold", "italic", "underline" ]],
@@ -151,6 +148,20 @@
 				dialogsInBody: true
 			});
 			
+			// disable all UI stuff for read-only fields
+			$('textarea.readonly-message').summernote({
+				"height": 320,
+				"toolbar": []
+			});
+			
+			// make really read-only (timeout to ensure that above has executed... stupid async ;))
+			setTimeout(function() {
+				var container = $('textarea.readonly-message').parent().find('.note-editable');
+	            if ($(container).length) {
+	                $(container).prop('contenteditable', 'false');
+	            }
+			}, 200);
+
 			$('#templateDropdown').change(function() {
 				// hide all
 				$('.templateForm').hide();
@@ -192,20 +203,24 @@
 				oForm.find("input[name=enabled]")[0].value = checkboxValue;
 			});
 			
-			$('.emailCheckbox').on("ifChanged", function() {
+			$('.channelDropdown').change(function() {
 				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
-				var checkboxValue = oForm.find('.emailCheckbox')[0].checked;
-				
-				oForm.find("input[name=emailEnabled]")[0].value = checkboxValue;
+				var dropDownValue = oForm.find('.channelDropdown').val();
+
+				if (dropDownValue == 'EBOKS') {
+					oForm.find("input[name=emailEnabled]")[0].value = false;
+					oForm.find("input[name=eboksEnabled]")[0].value = true;					
+				}
+				else if (dropDownValue == 'EMAIL') {
+					oForm.find("input[name=emailEnabled]")[0].value = true;
+					oForm.find("input[name=eboksEnabled]")[0].value = false;					
+				}
+				else {
+					oForm.find("input[name=emailEnabled]")[0].value = true;
+					oForm.find("input[name=eboksEnabled]")[0].value = true;					
+				}
 			});
-			
-			$('.eboksCheckbox').on("ifChanged", function() {
-				var oForm = $('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val());
-				var checkboxValue = oForm.find('.eboksCheckbox')[0].checked;
-				
-				oForm.find("input[name=eboksEnabled]")[0].value = checkboxValue;
-			});
-			
+
 			// display currently chosen template
 			$('#template' + $("#templateDropdown").val()).show();
 			$('#child' + $("#templateDropdown").val() + "_" + $("#childDropdown" + $("#templateDropdown").val()).val()).show();

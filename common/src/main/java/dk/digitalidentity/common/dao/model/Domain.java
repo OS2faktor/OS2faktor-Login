@@ -55,7 +55,10 @@ public class Domain {
 	
 	@Column
 	private boolean standalone;
-	
+
+	@Column
+	private boolean nonNsis;
+
 	public Domain(String name) {
 		this.name = name;
 	}

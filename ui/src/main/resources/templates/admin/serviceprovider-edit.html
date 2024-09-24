@@ -1069,23 +1069,25 @@
 							data.enabled = $('input[name=enabled]').iCheck('update')[0].checked;
 							data.preferNIST = $('input[name=preferNIST]').iCheck('update')[0].checked;
 							data.requireOiosaml3Profile = $('input[name=requireOiosaml3Profile]').iCheck('update')[0].checked;
-							data.allowMitidErhvervLogin = $('input[name=allowMitidErhvervLogin]').iCheck('update')[0].checked;
-							data.allowAnonymousUsers = $('input[name=allowAnonymousUsers]').iCheck('update')[0].checked;
 							
 							if ($('#nsisLevelRequiredSelect option:selected').val() == 'NONE' && $('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
 								data.passwordExpiry =  $('input[name=passwordExpiry]').val();
 								data.mfaExpiry =  $('input[name=mfaExpiry]').val();
-							} else {
+							}
+							else {
 								data.passwordExpiry =  null;
 								data.mfaExpiry =  null;
 							}
 
-
 							if (nemLoginEnabled) {
 								data.nemLogInBrokerEnabled = $('input[name=nemLogInBrokerEnabled]').iCheck('update')[0].checked;
+								data.allowMitidErhvervLogin = $('input[name=allowMitidErhvervLogin]').iCheck('update')[0].checked;
+								data.allowAnonymousUsers = $('input[name=allowAnonymousUsers]').iCheck('update')[0].checked;
 							}
 							else {
 								data.nemLogInBrokerEnabled = nemLogInBrokerEnabled;
+								data.allowMitidErhvervLogin = false;
+								data.allowAnonymousUsers = false;
 							}
 
 							// Handle metadata

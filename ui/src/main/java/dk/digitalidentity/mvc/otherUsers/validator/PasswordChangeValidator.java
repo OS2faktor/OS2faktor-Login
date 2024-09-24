@@ -44,11 +44,29 @@ public class PasswordChangeValidator implements Validator {
 		Person person = personService.getById(form.getPersonId());
 		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true);
 
-		if (validPassword.equals(ChangePasswordResult.BAD_PASSWORD)) {
-			errors.rejectValue("password", "page.selfservice.changePassword.error.simple");
-		}
-		else if (!validPassword.equals(ChangePasswordResult.OK)) {
-			errors.rejectValue("password", "page.selfservice.changePassword.error.rules");
+		switch (validPassword) {
+			case BAD_PASSWORD:
+				errors.rejectValue("password", "page.selfservice.changePassword.error.simple");
+				break;
+			case LEAKED_PASSWORD:
+				errors.rejectValue("password", "page.selfservice.changePassword.error.leak");
+				break;
+			case CONTAINS_NAME:
+			case DANISH_CHARACTERS_NOT_ALLOWED:
+			case NO_DIGITS:
+			case NO_LOWERCASE:
+			case NO_SPECIAL_CHARACTERS:
+			case NO_UPPERCASE:
+			case NOT_COMPLEX:
+			case OLD_PASSWORD:
+			case TECHNICAL_MISSING_PERSON:
+			case TOO_LONG:
+			case TOO_SHORT:
+			case WRONG_SPECIAL_CHARACTERS:
+				errors.rejectValue("password", "page.selfservice.changePassword.error.rules");
+				break;
+			case OK:
+				break;
 		}
 	}
 }

@@ -85,13 +85,13 @@
 								</div>
 
 								<th:block th:if="${readonly == false}">
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_KODEVISER_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${kodevisereEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeviseradministrator</a>
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_PASSWORD_RESET_ADMIN" type="button" class="btn btn-primary" style="width: 235px; margin-bottom: 5px;" th:if="${passwordResetEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeordsadministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_USER_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj brugeradministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_KODEVISER_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${kodevisereEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeviseradministrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_PASSWORD_RESET_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${passwordResetEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj kodeordsadministrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${stilStudentEnabled == true}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj elev-kodeordsadministrator</a>
 								</th:block>
 							</div>

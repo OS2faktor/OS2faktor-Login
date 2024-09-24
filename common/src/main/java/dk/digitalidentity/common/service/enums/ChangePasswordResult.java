@@ -22,7 +22,7 @@ public enum ChangePasswordResult {
 	DANISH_CHARACTERS_NOT_ALLOWED("Det angivne kodeord indeholder mindst ét dansk tegn"),
 	CONTAINS_NAME("Det angivne kodeord indeholder brugerens navn eller brugernavn"),
 	OLD_PASSWORD("Det angivne kodeord er det samme som et gammelt kodeord"),
-	BAD_PASSWORD("Det valgte kodeord er for simpelt. Vælg et mere komplekst kodeord"),
+	BAD_PASSWORD("Det valgte kodeord indeholder et forbudt ord, og kan ikke anvendes"),
 	WRONG_SPECIAL_CHARACTERS("Det valgte kodeord indeholder specialtegn som ikke er tilladt"),
 	LEAKED_PASSWORD("Det kodeord du har valgt findes i kendte læk af kodeord, vælg venligst et andet");
 

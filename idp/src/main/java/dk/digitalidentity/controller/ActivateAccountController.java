@@ -297,13 +297,16 @@ public class ActivateAccountController {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 		}
 		
-		PasswordSetting topDomainSettings = passwordService.getSettingsCached(person.getTopLevelDomain());
 		PasswordSetting settings = passwordService.getSettingsCached(person.getDomain());
 		if (sessionHelper.isInDedicatedActivateAccountFlow() && sessionHelper.isDoNotUseCurrentADPassword()) {
 			return flowService.continueChangePassword(model).getViewName();
 		}
 		
-		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && topDomainSettings.isValidateAgainstAdEnabled()) {
+		if (!sessionHelper.isDoNotUseCurrentADPassword() &&
+			!sessionHelper.isAuthenticatedWithADPassword() &&
+			StringUtils.hasLength(person.getSamaccountName()) &&
+			!person.getDomain().isStandalone()) {
+
 			model.addAttribute("validateADPasswordForm", new ValidateADPasswordForm());
 			return "activateAccount/activate-validate-ad-password";
 		}

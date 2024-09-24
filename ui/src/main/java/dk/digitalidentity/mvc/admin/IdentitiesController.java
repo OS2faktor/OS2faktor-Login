@@ -202,11 +202,7 @@ public class IdentitiesController {
 				return "redirect:/admin/identiteter";
 			}
 
-			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePasswordByAdmin(personToBeEdited, form.getPassword(), loggedInPerson, false);
-
-			// force change password on next login through IdP
-			personToBeEdited.setForceChangePassword(true);			
-			personService.save(personToBeEdited);
+			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePasswordByAdmin(personToBeEdited, form.getPassword(), loggedInPerson, true);
 
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				if (adPasswordStatus.equals(ADPasswordResponse.ADPasswordStatus.TECHNICAL_ERROR)) {

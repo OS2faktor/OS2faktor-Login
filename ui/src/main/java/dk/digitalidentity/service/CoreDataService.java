@@ -34,6 +34,7 @@ import dk.digitalidentity.api.dto.CoreDataDeleteEntry;
 import dk.digitalidentity.api.dto.CoreDataDeltaJfr;
 import dk.digitalidentity.api.dto.CoreDataDeltaJfrEntry;
 import dk.digitalidentity.api.dto.CoreDataEntry;
+import dk.digitalidentity.api.dto.CoreDataEntryLight;
 import dk.digitalidentity.api.dto.CoreDataFullJfr;
 import dk.digitalidentity.api.dto.CoreDataFullJfrEntry;
 import dk.digitalidentity.api.dto.CoreDataGroup;
@@ -204,15 +205,7 @@ public class CoreDataService {
 					removedFromDataset.add(person);
 					
 					if (person.isNsisAllowed()) {
-						EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
-
-						for (EmailTemplateChild child : emailTemplate.getChildren()) {
-							if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
-								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
-								emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, 180);
-							}
-						}
+						sendDeactivateEmail(person);
 					}
 				}
 			}
@@ -248,6 +241,33 @@ public class CoreDataService {
 					}
 				});
 			}
+		}
+	}
+
+	private void sendDeactivateEmail(Person person) {
+		EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
+
+		for (EmailTemplateChild child : emailTemplate.getChildren()) {
+			if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+				String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+				message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+				
+				// delay sending for 3 hours, in case this was a mistake (it will get dequeued upon reactivation)
+				emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, 180);
+			}
+		}
+		
+		if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+			emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
+
+			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+				if (child.getDomain().getId() == person.getDomain().getId()) {
+					String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
+
+					// delay sending for 3 hours, in case this was a mistake (it will get dequeued upon reactivation)
+					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, 180);
+				}
+			}			
 		}
 	}
 
@@ -528,16 +548,9 @@ public class CoreDataService {
 							match.getKombitJfrs().clear();
 							match.getGroups().clear();
 							toSave.add(match);
-							
+
 							if (match.isNsisAllowed()) {
-								EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
-								for (EmailTemplateChild child : emailTemplate.getChildren()) {
-									if (child.isEnabled() && child.getDomain().getId() == match.getDomain().getId()) {
-										String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, match.getName());
-										message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, match.getSamaccountName());
-										emailTemplateSenderService.send(match.getEmail(), match.getCpr(), match, child.getTitle(), message, child, 180);
-									}
-								}
+								sendDeactivateEmail(match);
 							}
 						}
 					}
@@ -722,7 +735,14 @@ public class CoreDataService {
 		person.setName(coreDataEntry.getName());
 		person.setNameAlias(coreDataEntry.getName());
 		person.setNsisLevel(NSISLevel.NONE);
-		person.setNsisAllowed(coreDataEntry.isNsisAllowed());
+		
+		if (domain.isNonNsis()) {
+			; // for any user that comes from a non-nsis domain, never set the allowed/ordered flags
+		}
+		else {
+			person.setNsisAllowed(coreDataEntry.isNsisAllowed());
+		}
+
 		person.setUuid(coreDataEntry.getUuid());
 		person.setAttributes(coreDataEntry.getAttributes());
 		person.setExpireTimestamp(coreDataEntry.getExpireTimestamp() != null ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
@@ -859,35 +879,14 @@ public class CoreDataService {
 			// make sure any messages in the queue about being locked are removed (just in case this user was locked previously, and the message has not actually
 			// been processed yet - no reason to send the message, as it was a mistake that the user was locked
 			messageQueueService.dequeue(person.getCpr(), person.getEmail(), EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
+			messageQueueService.dequeue(person.getCpr(), person.getEmail(), EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
 			
 			auditLogger.addedToDataset(person);
 			modified = true;
 		}
 
-		if (coreDataEntry.isNsisAllowed() != person.isNsisAllowed()) {
-			if (coreDataEntry.isNsisAllowed()) {
-				person.setNsisAllowed(true);
-				person.setNsisPassword(null);
-				
-				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
-				for (EmailTemplateChild child : emailTemplate.getChildren()) {
-					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
-						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
-						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
-					}
-				}
-			}
-			else {
-				person.setNsisAllowed(false);
-				person.setNsisLevel(NSISLevel.NONE);
-				person.setNsisPassword(null);
-			}
-
-			auditLogger.nsisAllowedChanged(person, person.isNsisAllowed());
-
-			modified = true;
-		}
+		// update NsisAllowed/NsisOrdered fields
+		modified |= setNsisState(person, coreDataEntry.isNsisAllowed());
 
 		if (!mapEquals(person.getAttributes(), coreDataEntry.getAttributes())) {
 			person.setAttributes(coreDataEntry.getAttributes());
@@ -1257,25 +1256,9 @@ public class CoreDataService {
 			List<Person> toBeSaved = new ArrayList<>();
 			for (Person domainPerson : domainPeople) {
 				boolean shouldNsisBeAllowed = nsisAllowed.getNsisUserUuids().contains(domainPerson.getUuid());
-				boolean currentNsisAllowed = domainPerson.isNsisAllowed();
 
-				if (shouldNsisBeAllowed != currentNsisAllowed) {
-					domainPerson.setNsisAllowed(shouldNsisBeAllowed);
-					if (!shouldNsisBeAllowed) {
-						domainPerson.setNsisLevel(NSISLevel.NONE);
-					}
-					else {
-						EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
-						for (EmailTemplateChild child : emailTemplate.getChildren()) {
-							if (child.isEnabled() && child.getDomain().getId() == domainPerson.getDomain().getId()) {
-								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, domainPerson.getName());
-								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, domainPerson.getSamaccountName());
-								emailTemplateSenderService.send(domainPerson.getEmail(), domainPerson.getCpr(), domainPerson, child.getTitle(), message, child, false);
-							}
-						}
-					}
+				if (setNsisState(domainPerson, shouldNsisBeAllowed)) {
 					toBeSaved.add(domainPerson);
-					auditLogger.nsisAllowedChanged(domainPerson, shouldNsisBeAllowed);
 				}
 			}
 
@@ -1485,5 +1468,85 @@ public class CoreDataService {
 			personService.saveAll(updatedPersons);
 			log.info(updatedPersons.size() + " persons were updated with new KOMBIT attributes");
 		}
+	}
+	
+	// update the nsisAllowed and/or the nsisOrdered fields depending on input, ensuring correct logging and email sending if needed
+	private boolean setNsisState(Person person, boolean newNsisState) {
+		boolean modified = false;
+
+		// for any user that comes from a non-nsis domain, never set the allowed/ordered flags
+		if (person.getDomain().isNonNsis()) {
+			if (person.isNsisAllowed()) {
+				person.setNsisAllowed(false);
+
+				return true;
+			}
+			
+			return false;
+		}
+		
+		if (newNsisState != person.isNsisAllowed()) {
+			if (newNsisState == true) {
+				person.setNsisAllowed(true);
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisPassword(null);
+				
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
+				for (EmailTemplateChild child : emailTemplate.getChildren()) {
+					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+					}
+				}
+
+				if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+					emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_ASSIGNED);
+					for (EmailTemplateChild child : emailTemplate.getChildren()) {
+						if (child.getDomain().getId() == person.getDomain().getId()) {
+							String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
+
+							emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+						}
+					}
+				}
+			}
+			else {
+				person.setNsisAllowed(false);
+				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisPassword(null);
+				
+				// if the person is not locked, we should send a deactivate mail (note that when a person is locked, one is also send,
+				// so we do this to avoid sending it twice
+				if (!person.isLockedDataset()) {
+					sendDeactivateEmail(person);
+				}
+			}
+
+			auditLogger.nsisAllowedChanged(person, person.isNsisAllowed());
+
+			modified = true;
+		}
+		
+		return modified;
+	}
+
+	public CoreDataEntryLight getByCpr(String userId, String domainName) {
+		Domain domain = domainService.getByName(domainName);
+		if (domain == null) {
+			return null;
+		}
+
+		List<Person> persons = personService.getBySamaccountNameAndDomain(userId, domain);
+		if (persons == null || persons.size() == 0) {
+			return null;
+		}
+		
+		Person person = persons.stream().filter(p -> !p.isLocked()).findFirst().orElse(null);
+		if (person == null) {
+			return null;
+		}
+
+		return new CoreDataEntryLight(person);
 	}
 }

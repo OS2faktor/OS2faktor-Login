@@ -19,4 +19,5 @@ public class AuditLogDTO {
 	private String cpr;
 	private String personName;
 	private String performerName;
+	private String personUserId;
 }

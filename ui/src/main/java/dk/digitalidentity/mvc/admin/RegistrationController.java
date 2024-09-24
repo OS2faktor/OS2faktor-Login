@@ -108,6 +108,10 @@ public class RegistrationController {
 
 	@PostMapping("/admin/registration/activation/step1")
 	public ResponseEntity<?> manualActivation(@Valid @RequestBody ActivationDTO activationDTO, BindingResult bindingResult, HttpServletRequest httpServletRequest) {
+		if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+			return ResponseEntity.badRequest().body("Kan ikke aktivere erhvervsidentiten via administrator i Full Service IdP mode"); 
+		}
+
 		if (bindingResult.hasErrors()) {
 			return ResponseEntity.badRequest().body("Ikke alle felter korrekt udfyldt");
 		}

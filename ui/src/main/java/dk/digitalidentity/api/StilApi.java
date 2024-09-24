@@ -54,30 +54,49 @@ public class StilApi {
 			return ResponseEntity.badRequest().body("Feature not enabled");
 		}
 
+		log.info("WS17 full sync trace: before lookup up domain");
+		
 		Domain domain = domainService.getByName(stilData.getDomainName());
 		if (domain == null) {
 			return ResponseEntity.badRequest().body("Unknown domain: " + stilData.getDomainName());
 		}
-		
+
 		// whenever we do lookups, we need to find persons inside all the domains
 		List<Domain> domainAndSubdomains = new ArrayList<>();
 		domainAndSubdomains.add(domain);
 		domainAndSubdomains.addAll(domain.getChildDomains());
 
+		log.info("WS17 full sync trace: before getting all school classes");
+
 		List<SchoolClass> classes = schoolClassService.getAll();
 		List<Person> persons = personService.getByDomain(domain, true);
+		
+		log.info("WS17 full sync trace: before getting all persons from domain");
+
 		Map<String, List<Person>> personMap = persons.stream().collect(Collectors.groupingBy(Person::getCpr));
+
+		log.info("WS17 full sync trace: before updating all classes");
 
 		// step 1 - make sure all classes exists and are updated
 		Map<String, SchoolClass> classMap = createAndUpdateClasses(stilData, domain, classes);
 
 		// step 2 - make sure all roles are assigned to persons
 		List<String> personsWithRoles = new ArrayList<>();
+		
+		log.info("WS17 full sync trace: before updating all school roles");
+
 		createAndUpdatePersonSchoolRoles(classMap, stilData, domain, personMap, personsWithRoles);
+		
+		log.info("WS17 full sync trace: before cleaning old school roles");
+
 		clearPersonSchoolRoles(domainAndSubdomains, personsWithRoles);
+
+		log.info("WS17 full sync trace: before deleting non-existing classes");
 
 		// step 3 - remove unused classes
 		deleteNonExistingClasses(stilData, classes);
+
+		log.info("WS17 full sync trace: done");
 
 		return ResponseEntity.ok().build();
 	}
@@ -97,16 +116,23 @@ public class StilApi {
 	private void createAndUpdatePersonSchoolRoles(Map<String, SchoolClass> classMap, StilData stilData, Domain domain, Map<String, List<Person>> personMap, List<String> personsWithRoles) {
 		List<StilPersonCreationRoleSetting> stilCreateSettings = commonConfiguration.getStilPersonCreation().getRoleSettings();
 		
+		log.info("WS17 full sync trace - before entering loop of " + stilData.getPeople().size() + " StilPersons");
+
+		long globalStart = System.currentTimeMillis();
+		long saveTotal = 0, updateTotal = 0;
+		long fullAddCounter = 0, updateCounter = 0, saveCallCounter = 0, createdSchoolRolesCounter = 0, removeClassCounter = 0, removeSchoolRolesCounter = 0;
+
+		List<Person> toSave = new ArrayList<>();
 		for (StilPerson currentStilPerson : stilData.getPeople()) {
 			String cpr = currentStilPerson.getCpr();
-
 			if (personsWithRoles.contains(cpr)) {
 				continue;
 			}
+
 			personsWithRoles.add(cpr);
 
 			List<Person> peopleWithThisCprAndDomain = personMap.get(cpr);
-
+			
 			if (peopleWithThisCprAndDomain == null && !commonConfiguration.getStilPersonCreation().isEnabled()) {
 				log.debug("Person with cpr " + PersonService.maskCpr(cpr) + " does not exist, but was received as a StilPerson from the STIL integration.");
 				continue;
@@ -139,27 +165,31 @@ public class StilApi {
 				person.setSchoolRoles(new ArrayList<>());
 				
 				person = personService.save(person);
+				saveCallCounter++;
 				peopleWithThisCprAndDomain = new ArrayList<>();
 				peopleWithThisCprAndDomain.add(person);
 			}
-			
-			// update
-			for (Person person : peopleWithThisCprAndDomain) {
 
+			// update school roles and stuff (also happens on create scenario)
+			for (Person person : peopleWithThisCprAndDomain) {
 				if (person.getSchoolRoles().isEmpty() && stilPeopleWithThisCpr.isEmpty()) {
-					continue;
+					; // do nothing
 				}
 				else if (person.getSchoolRoles().isEmpty() && !stilPeopleWithThisCpr.isEmpty()) {
+					fullAddCounter++;
 
 					// all schoolRoles are new roles
 					for (StilPerson stilPerson : stilPeopleWithThisCpr) {
+						createdSchoolRolesCounter++;
 						SchoolRole newRole = createSchoolRole(classMap, person, stilPerson);
 						person.getSchoolRoles().add(newRole);
 					}
 
+					saveCallCounter++;
 					personService.save(person);
 				}
 				else {
+					updateCounter++;
 					boolean changes = false;
 
 					for (StilPerson stilPerson : stilPeopleWithThisCpr) {
@@ -169,9 +199,12 @@ public class StilApi {
 								.orElse(null);
 
 						if (match == null) {
+							createdSchoolRolesCounter++;
 							SchoolRole newRole = createSchoolRole(classMap, person, stilPerson);
 							person.getSchoolRoles().add(newRole);
 
+							log.info("WS17 full sync trace - adding schoolRole " + stilPerson.getRole() + "/" + stilPerson.getInstitutionName() + " to " + stilPerson.getCpr());
+							
 							changes = true;
 						}
 						else {
@@ -186,11 +219,13 @@ public class StilApi {
 								if (!assignedGroups.contains(groupId)) {
 									SchoolClass schoolClass = classMap.get(groupId + ":" + stilPerson.getInstitutionNumber());
 									if (schoolClass != null) {
+										log.info("WS17 full sync trace - adding class " + (groupId + ":" + stilPerson.getInstitutionName()) + " to " + stilPerson.getCpr());
 										changes = true;
+										
 										match.getSchoolClasses().add(new SchoolRoleSchoolClassMapping(match, schoolClass));
 									}
 									else {
-										log.warn("Unable to find a class with identifier: " + groupId + " / " + stilPerson.getInstitutionNumber());
+										log.warn("Unable to find a class with identifier: " + groupId + " / " + stilPerson.getInstitutionName());
 									}
 								}
 							}
@@ -200,12 +235,20 @@ public class StilApi {
 							while (iterator.hasNext()) {
 								SchoolRoleSchoolClassMapping mapping = iterator.next();
 								SchoolClass schoolClass = mapping.getSchoolClass();
-								String classMatch = stilPerson.getGroups().stream().filter(g -> g.equals(schoolClass.getClassIdentifier())).findAny().orElse(null);
+
+								// the class ID should match the class/group on the stilPerson, and the institutionID should match
+								String classMatch = stilPerson.getGroups().stream()
+										.filter(g -> g.equals(schoolClass.getClassIdentifier()) &&
+													 Objects.equals(stilPerson.getInstitutionNumber(), schoolClass.getInstitutionId()))
+										.findAny()
+										.orElse(null);
 
 								if (classMatch == null) {
+									log.info("WS17 full sync trace - removing class " + schoolClass.getClassIdentifier() + "/" + match.getInstitutionName() + " from " + stilPerson.getCpr());
+									
+									removeClassCounter++;
 									changes = true;
 									iterator.remove();
-									break;
 								}
 							}
 						}
@@ -218,6 +261,9 @@ public class StilApi {
 						StilPerson match = stilPeopleWithThisCpr.stream().filter(s -> s.getInstitutionNumber().equals(role.getInstitutionId()) && s.getRole().equals(role.getRole())).findAny().orElse(null);
 
 						if (match == null) {
+							log.info("WS17 full sync trace - removing schoolRole " + role.getRole() + "/" + role.getInstitutionName() + " from " + person.getCpr());
+							
+							removeSchoolRolesCounter++;
 							changes = true;
 							iterator.remove();
 							break;
@@ -240,11 +286,26 @@ public class StilApi {
 					}
 
 					if (changes) {
-						personService.save(person);
+						toSave.add(person);
 					}
 				}
 			}
 		}
+		
+		updateTotal = System.currentTimeMillis() - globalStart;
+				
+		if (toSave.size() > 0) {
+			log.info("WS 17 full sync trace - before save of " + toSave.size() + " persons");
+			long saveStart = System.currentTimeMillis();
+			personService.saveAll(toSave);
+			saveTotal = (System.currentTimeMillis() - saveStart);
+			log.info("WS 17 full sync trace - after save");
+		}
+		
+		long runTotal = System.currentTimeMillis() - globalStart;
+
+		log.info("WS17 full sync trace - total time " + runTotal + "ms, with " + saveTotal + "ms on save() and " + updateTotal + "ms on update - with update split into ");
+		log.info("WS17 full sync trace - counters: fullAddCounter=" + fullAddCounter + ", updateCounter=" + updateCounter + ", individualSaveCallCounter=" + saveCallCounter + ", createdSchoolRolesCounter=" + createdSchoolRolesCounter + ", removeClassCounter=" + removeClassCounter + ", removeSchoolRolesCounter=" + removeSchoolRolesCounter);
 	}
 
 	private boolean isNsisAllowed(List<StilPerson> stilPeopleWithThisCpr, List<StilPersonCreationRoleSetting> stilCreateSettings) {

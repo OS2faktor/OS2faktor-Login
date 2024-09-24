@@ -62,6 +62,17 @@ public class SettingService {
 		settingDao.save(setting);
 	}
 
+	public void setBoolean(SettingsKey key, boolean value) {
+		Setting setting = settingDao.getByKey(key);
+		if (setting == null) {
+			setting = new Setting();
+			setting.setKey(key);
+		}
+
+		setting.setValue(Boolean.toString(value));
+		settingDao.save(setting);
+	}
+	
 	@Caching(evict = {
 		@CacheEvict(value = "booleanSetting", allEntries = true)
 	})

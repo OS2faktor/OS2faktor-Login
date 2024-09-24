@@ -20,7 +20,7 @@ import java.util.Objects;
 
 @Slf4j
 @RestController
-public class UserAdminstrationApi {
+public class UserAdministrationApi {
 	
     @Autowired
     private PersonService personService;
@@ -28,7 +28,7 @@ public class UserAdminstrationApi {
     @Autowired
     private DomainService domainService;
     
-    @PostMapping("/api/userAdminstration/forcepwchange")
+    @PostMapping("/api/userAdministration/forcepwchange")
     public ResponseEntity<?> forceChangePassword(@RequestBody ForceChangePwd forceChangePwd) {
     	Domain domain = domainService.getByName(forceChangePwd.getDomain());
 		if (Objects.equals(null, domain)) {

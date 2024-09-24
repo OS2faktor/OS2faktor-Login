@@ -27,6 +27,7 @@ import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.EmailService;
 import dk.digitalidentity.common.service.EmailTemplateChildService;
+import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
 import dk.digitalidentity.mvc.admin.dto.EmailTemplateChildDTO;
 import dk.digitalidentity.security.RequireAdministrator;
@@ -46,6 +47,9 @@ public class EmailTemplateRestController {
 
 	@Autowired
 	private EmailTemplateChildService emailTemplateChildService;
+	
+	@Autowired
+	private EmailTemplateService emailTemplateService;
 
 	@PostMapping(value = "/admin/rest/mailtemplates")
 	@ResponseBody
@@ -60,8 +64,14 @@ public class EmailTemplateRestController {
 		if (tryEmail) {
 			String email = person.getEmail();
 			if (email != null) {
+				// let's try to replace what can be replaced, just to do some testing
+				String message = emailTemplateDTO.getMessage();
+				message = emailTemplateService.safeReplaceEverything(message, person);
+				emailTemplateDTO.setMessage(message);
+
 				List<InlineImageDTO> inlineImages = transformImages(emailTemplateDTO);
-				emailService.sendMessage(email, emailTemplateDTO.getTitle(), emailTemplateDTO.getMessage(), inlineImages, person);
+
+				emailService.sendMessage(email, emailTemplateDTO.getTitle(), message, inlineImages, person);
 				
 				return new ResponseEntity<>("Test email sendt til " + email, HttpStatus.OK);
 			}
@@ -74,15 +84,24 @@ public class EmailTemplateRestController {
 				return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 			}
 
-			template.setMessage(emailTemplateDTO.getMessage());
-			template.setTitle(emailTemplateDTO.getTitle());
+			// allow editing text on non-full-service-idp templates only
+			if (!template.getEmailTemplate().getTemplateType().isFullServiceIdP()) {
+				template.setMessage(emailTemplateDTO.getMessage());
+				template.setTitle(emailTemplateDTO.getTitle());
+			}
 
 			if (template.getEmailTemplate().getTemplateType().isLogWatch()) {
 				template.setEmail(true);
 				template.setEnabled(true);
 			}
 			else {
-				template.setEnabled(emailTemplateDTO.isEnabled());
+				// full-service IdP templates are ALWAYS enabled
+				if (!template.getEmailTemplate().getTemplateType().isFullServiceIdP()) {
+					template.setEnabled(emailTemplateDTO.isEnabled());
+				}
+				else {
+					template.setEnabled(true);
+				}
 				
 				if (template.getEmailTemplate().getTemplateType().isEboks()) {
 					template.setEboks(emailTemplateDTO.isEboksEnabled());
@@ -96,6 +115,16 @@ public class EmailTemplateRestController {
 				}
 				else {
 					template.setEmail(false);
+				}
+				
+				// make sure at least one channel is enabled
+				if (!template.isEmail() && !template.isEboks()) {
+					if (template.getEmailTemplate().getTemplateType().isEboks()) {
+						template.setEboks(true);
+					}
+					else {
+						template.setEmail(true);
+					}
 				}
 			}
 			

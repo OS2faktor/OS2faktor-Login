@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import javax.annotation.PostConstruct;
-
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -40,8 +40,8 @@ public class DevBootstrapper {
 
 	@Autowired
 	private Flyway flyway;
-	
-	@PostConstruct
+
+	@EventListener(ApplicationReadyEvent.class)
 	public void init() {
 		if (configuration.getDev().isEnabled()) {
 			if (personDao.findAll().isEmpty()) {
@@ -66,10 +66,11 @@ public class DevBootstrapper {
 				person.setCpr("2105791197");
 				person.setEmail("bsg@digital-identity.dk");
 				person.setName("Brian Storm Graversen");
-				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisLevel(NSISLevel.SUBSTANTIAL);
 				person.setNsisAllowed(true);
 				person.setSamaccountName("bsg");
 				person.setDomain(domain);
+				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
 				person = personDao.save(person);
 				
@@ -80,11 +81,11 @@ public class DevBootstrapper {
 				person.setCpr("0701913477");
 				person.setEmail("psu@digital-identity.dk");
 				person.setName("Piotr Suski");
-				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisLevel(NSISLevel.SUBSTANTIAL);
 				person.setNsisAllowed(true);
-	
 				person.setDomain(domain);
 				person.setSamaccountName("psu");
+				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 	
 				person = personDao.save(person);
 				
@@ -95,10 +96,11 @@ public class DevBootstrapper {
 				person.setAdmin(true);
 				person.setCpr("1809960621");
 				person.setName("Malthe Plenge Overgaard");
-				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisLevel(NSISLevel.SUBSTANTIAL);
 				person.setNsisAllowed(true);
 				person.setSamaccountName("mpo");
 				person.setDomain(domain);
+				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
 				person = personDao.save(person);
 
@@ -107,10 +109,11 @@ public class DevBootstrapper {
 				person.setAdmin(true);
 				person.setCpr("0310990868");
 				person.setName("Amalie Flensburg Bojsen");
-				person.setNsisLevel(NSISLevel.NONE);
+				person.setNsisLevel(NSISLevel.SUBSTANTIAL);
 				person.setNsisAllowed(true);
 				person.setSamaccountName("abo");
 				person.setDomain(domain);
+				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
 				person = personDao.save(person);
 

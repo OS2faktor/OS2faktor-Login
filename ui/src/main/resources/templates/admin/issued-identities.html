@@ -153,7 +153,11 @@
 			$('#persons').on('error.dt', function(e, settings, techNote, message) {
 				// it is a bit of a hack, but we assume this means that the user has been logged out
 				if (message.indexOf("Ajax error") >= 0) {
-					window.location.reload();
+					
+					// force reload of page in 1 second
+					setTimeout(() => {
+						window.location.reload();
+					}, 1000);
 				}
 			});
 		}
@@ -234,14 +238,14 @@
 							}
 							else if (row.nsisAllowed) {
 								if (row.nsisLevel == 'NONE') {
-									res = "Erhvervsidentitet ikke aktiveret";
+									res = "Aktiv (erhvervsidentitet ikke aktiveret)";
 								}
 								else {
-									res = "Erhvervsidentitet aktiveret";
+									res = "Aktiv (erhvervsidentitet aktiveret)";
 								}
 							}
 							else {
-								res = "Erhvervsidentitet ikke tildelt";
+								res = "Aktiv (ingen erhvervsidentitet)";
 							}
 
 							return res;

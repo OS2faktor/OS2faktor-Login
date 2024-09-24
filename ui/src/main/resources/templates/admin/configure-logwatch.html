@@ -15,12 +15,21 @@
 							</div>
 
 							<div class="ibox-content">
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 								<p>
 									Når overvågning af logs er blevet slået til første gang, kan man ikke slå det fra selv. Det samme gælder for den indtastede email.
 								</p>
 								<p>
-									Hvis disse indstillinger skal ændres, skal der tages kontakt til driftoperatøren via <a href="mailto:helpdesk@digital-identity.dk">helpdesk@digital-identity.dk</a>
+									Hvis disse indstillinger skal ændres, skal der tages kontakt til driftoperatøren via <a href="mailto:kontakt@digital-identity.dk">kontakt@digital-identity.dk</a>
 								</p>
+								</th:block>
+
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+								<p>
+									Nedenstående overvågning er opsat, og overvåges af Digital Identity. Hvis det ønskes kan man indtaste én email adresse, som der sendes en kopi
+									af alarm-emails til.
+								</p>
+								</th:block>
 
 								<form action="#" th:action="@{/admin/konfiguration/logovervaagning}" method="post" th:object="${settings}">
 									<div class="form-group row">
@@ -34,10 +43,13 @@
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Alarm email</label>
 											<div class="col-sm-8">
-												<input th:field="*{alarmEmail}" th:disabled="${!#strings.isEmpty(settings.alarmEmail)}" class="form-control">
+												<input th:field="*{alarmEmail}" th:disabled="${@commonConfiguration.fullServiceIdP.enabled == false and !#strings.isEmpty(settings.alarmEmail)}" class="form-control">
 											</div>
 										</div>
 
+										<h4 th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">Overvågning af:</h4>
+
+										<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 										<h4>Altid slået til:</h4>
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Overvågning af administrator handlinger i selvbetjeningen</label>
@@ -47,66 +59,69 @@
 										</div>
 										
 										<h4>Send mail hvis:</h4>
+										</th:block>
+										
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Den samme bruger laver et login fra 2 forskellige lande indenfor 1 time</label>
 											<div class="col-sm-8">
-												<label><input id="twoCountriesOneHour" th:field="*{twoCountriesOneHourEnabled}" type="checkbox" class="i-checks" ></label>
+												<label><input id="twoCountriesOneHour" th:field="*{twoCountriesOneHourEnabled}" type="checkbox" class="i-checks" th:disabled="${@commonConfiguration.fullServiceIdP.enabled}"></label>
 											</div>
 										</div>
 
 										<div th:hidden="!*{twoCountriesOneHourEnabled}" class="form-group row" id="twoCountriesGermanyDiv" hidden>
 											<label class="col-sm-4 col-form-label"> &nbsp; - Undlad at overvåge Tyskland</label>
 											<div class="col-sm-8">
-												<label><input id="twoCountriesOneHourGermany" th:field="*{twoCountriesOneHourGermany}" type="checkbox" class="i-checks" ></label>
+												<label><input id="twoCountriesOneHourGermany" th:field="*{twoCountriesOneHourGermany}" type="checkbox" class="i-checks"></label>
 											</div>
 										</div>
 										
 										<div th:hidden="!*{twoCountriesOneHourEnabled}" class="form-group row" id="twoCountriesSweedenDiv" hidden>
 											<label class="col-sm-4 col-form-label"> &nbsp; - Undlad at overvåge Sverige</label>
 											<div class="col-sm-8">
-												<label><input id="twoCountriesOneHourSweeden" th:field="*{twoCountriesOneHourSweeden}" type="checkbox" class="i-checks" ></label>
+												<label><input id="twoCountriesOneHourSweeden" th:field="*{twoCountriesOneHourSweeden}" type="checkbox" class="i-checks"></label>
 											</div>
 										</div>
 										
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Mængden af forkerte kodeord, på tværs af alle brugere, overstiger en opsat grænseværdi indenfor sidste time</label>
 											<div class="col-sm-8">
-												<label><input id="tooManyWrongPasswords" th:field="*{tooManyWrongPasswordsEnabled}" type="checkbox" class="i-checks" ></label>
+												<label><input id="tooManyWrongPasswords" th:field="*{tooManyWrongPasswordsEnabled}" type="checkbox" class="i-checks"  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}"></label>
 											</div>
 										</div>
 										
-										<div th:hidden="!*{tooManyWrongPasswordsEnabled}" class="form-group row" id="tooManyWrongPasswordsDiv" hidden>
+										<div th:hidden="!*{tooManyWrongPasswordsEnabled}" class="form-group row" id="tooManyWrongPasswordsDiv" hidden  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}">
 											<label class="col-sm-4 col-form-label">Antal forkerte kodeord</label>
 											<div class="col-sm-8">
-												<input th:field="*{tooManyWrongPasswordsLimit}" class="form-control">
+												<input th:field="*{tooManyWrongPasswordsLimit}" class="form-control" th:disabled="${@commonConfiguration.fullServiceIdP.enabled}">
 											</div>
 										</div>
 										
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Mængden af tids-spærrede konti overstiger en opsat grænseværdi</label>
 											<div class="col-sm-8">
-												<label><input id="tooManyTimeLockedAccounts" th:field="*{tooManyTimeLockedAccountsEnabled}" type="checkbox" class="i-checks" ></label>
+												<label><input id="tooManyTimeLockedAccounts" th:field="*{tooManyTimeLockedAccountsEnabled}" type="checkbox" class="i-checks"  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}"></label>
 											</div>
 										</div>
 										
 										<div th:hidden="!*{tooManyTimeLockedAccountsEnabled}" class="form-group row" id="tooManyTimeLockedAccountsDiv" hidden>
 											<label class="col-sm-4 col-form-label">Antal tids-spærrede konti</label>
 											<div class="col-sm-8">
-												<input th:field="*{tooManyTimeLockedAccountsLimit}" class="form-control">
+												<input th:field="*{tooManyTimeLockedAccountsLimit}" class="form-control"  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}">
 											</div>
 										</div>
 										
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">En person erklæres død eller umyndiggjort af cpr registeret</label>
 											<div class="col-sm-8">
-												<label><input id="personDeadOrIncapacitated" th:field="*{personDeadOrIncapacitatedEnabled}" type="checkbox" class="i-checks" ></label>
+												<label><input id="personDeadOrIncapacitated" th:field="*{personDeadOrIncapacitatedEnabled}" type="checkbox" class="i-checks"  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}"></label>
 											</div>
 										</div>
 
+										<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 										<div class="form-group row">
 											<label class="col-sm-4 col-form-label">Mængden af forkerte kodeord fra én IP overstiger opsat grænseværdi</label>
 											<div class="col-sm-8">
-												<label><input id="tooManyWrongPasswordsNonWhitelistEnabled" th:field="*{tooManyWrongPasswordsNonWhitelistEnabled}" type="checkbox" class="i-checks"/></label>
+												<label><input id="tooManyWrongPasswordsNonWhitelistEnabled" th:field="*{tooManyWrongPasswordsNonWhitelistEnabled}" type="checkbox" class="i-checks"  th:disabled="${@commonConfiguration.fullServiceIdP.enabled}"/></label>
 											</div>
 										</div>
 										
@@ -116,16 +131,18 @@
 												<input type="number" th:field="*{tooManyWrongPasswordsNonWhitelistLimit}" class="form-control">
 											</div>
 										</div>
-										
+
 										<div th:hidden="!*{tooManyWrongPasswordsNonWhitelistEnabled}" class="form-group row" id="whitelistDiv" hidden>
-											<label class="col-sm-4 col-form-label">Positivliste af ip'er (komma separeret, CIDR tilladt)</label>
+											<label class="col-sm-4 col-form-label">Positivliste af IP adresser (komma separeret, CIDR tilladt)</label>
 											<div class="col-sm-8">
 												<input th:field="*{whitelist}" class="form-control">
 											</div>
 										</div>
+										</th:block>
 									</div>
-									
+
 									<hr/>
+
 									<div>
 										<button type="submit" class="btn btn-primary block full-width m-b">Gem</button>
 										<a href="/admin" type="button" class="btn btn-danger full-width m-b">Annuller</a>

@@ -36,6 +36,14 @@ public class GeoLocateService {
 		GeoIP geo = new GeoIP();
 		geo.setRetry(true);
 		
+		if ("127.0.0.1".equals(ip)) {
+			geo.setRetry(false);
+			geo.setCountry("Danmark");
+			geo.setCity("Systemhandling");
+			
+			return geo;
+		}
+
 		RestTemplate restTemplate = new RestTemplate();
 
 		String resourceUrl = configuration.getGeo().getUrl();

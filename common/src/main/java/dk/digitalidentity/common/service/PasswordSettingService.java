@@ -17,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
-import dk.digitalidentity.common.dao.BadPasswordDao;
 import dk.digitalidentity.common.dao.PasswordSettingDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
@@ -35,7 +34,7 @@ public class PasswordSettingService {
 	private PasswordSettingDao passwordSettingDao;
 
 	@Autowired
-	private BadPasswordDao badPasswordDao;
+	private BadPasswordService badPasswordService;
 
 	@Autowired
 	private PasswordHistoryService passwordHistoryService;
@@ -84,7 +83,7 @@ public class PasswordSettingService {
 			return ChangePasswordResult.TOO_LONG;
 		}
 
-		if (settings.isPreventBadPasswords() && badPasswordDao.findByPassword(password).size() > 0) {
+		if (settings.isPreventBadPasswords() && badPasswordService.match(password)) {
 			return ChangePasswordResult.BAD_PASSWORD;
 		}
 
@@ -177,7 +176,7 @@ public class PasswordSettingService {
 				}
 			}
 	
-			if (isPasswordLeaked(person, password)) {
+			if (settings.isCheckLeakedPasswords() && isPasswordLeaked(person, password)) {
 				return ChangePasswordResult.LEAKED_PASSWORD;
 			}
 		}
@@ -301,10 +300,8 @@ public class PasswordSettingService {
 			settings.setPreventBadPasswords(true);
 			settings.setSpecificSpecialCharactersEnabled(false);
 			settings.setAllowedSpecialCharacters(null);
-
-			if (!domain.isStandalone()) {
-				settings.setValidateAgainstAdEnabled(true);
-			}
+			settings.setForceChangePasswordEnabled(false);
+			settings.setForceChangePasswordInterval(365L);
 
 			return settings;
 		}

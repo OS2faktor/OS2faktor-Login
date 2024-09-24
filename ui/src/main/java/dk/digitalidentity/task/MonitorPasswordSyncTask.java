@@ -57,7 +57,7 @@ public class MonitorPasswordSyncTask {
 				continue;
 			}
 
-			if (setting.isReplicateToAdEnabled()) {
+			if (!setting.getDomain().isStandalone()) {
 				LocalDateTime lastNotification = lastNotifications.get(setting.getDomain().getName());
 				
 				// if we send out a notification within the last 4 hours, we do not do it again

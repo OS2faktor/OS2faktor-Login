@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,6 +24,7 @@ import dk.digitalidentity.api.dto.KeystoreInfo;
 import dk.digitalidentity.api.dto.KeystoreWithSwapDate;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.service.CertificateChangelogService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.service.KeystoreService;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,9 @@ public class CertManagerApi {
 	
 	@Autowired
 	private SettingService settingService;
+	
+	@Autowired
+	private CertificateChangelogService certificateChangelogService;
 
 	@GetMapping("/api/certmanager/all")
 	@ResponseBody
@@ -47,7 +52,7 @@ public class CertManagerApi {
 
 	@PutMapping("/api/certmanager/swapPrimaryForIdp")
 	@ResponseBody
-	public ResponseEntity<?> swapPrimaryForIdP() {
+	public ResponseEntity<?> swapPrimaryForIdP(@RequestParam String operatorId) {
 		List<Keystore> keystores = keystoreService.findAll();
 		
 		// ensure that there are two certificates
@@ -55,12 +60,19 @@ public class CertManagerApi {
 			return ResponseEntity.badRequest().body("Can only swap if there are two certificates, but there are currently " + keystores.size());
 		}
 		
+		String newCertificateName = null;
 		for (Keystore keystore : keystores) {
 			keystore.setPrimaryForIdp(!keystore.isPrimaryForIdp());
 			keystore.setLastUpdated(LocalDateTime.now());
+			
+			if (keystore.isPrimaryForIdp()) {
+				newCertificateName = keystore.getSubjectDn();
+			}
 		}
 		
 		keystoreService.saveAll(keystores);
+
+		certificateChangelogService.rotateIdP(operatorId, "Rotated to " + newCertificateName);
 		
 		log.info("Swapped primary certificate for IdP");
 		
@@ -69,7 +81,7 @@ public class CertManagerApi {
 	
 	@PutMapping("/api/certmanager/swapPrimaryForNemLogin")
 	@ResponseBody
-	public ResponseEntity<?> swapPrimaryForNemLogin() {
+	public ResponseEntity<?> swapPrimaryForNemLogin(@RequestParam String operatorId) {
 		List<Keystore> keystores = keystoreService.findAll();
 		
 		// ensure that there are two certificates
@@ -77,13 +89,20 @@ public class CertManagerApi {
 			return ResponseEntity.badRequest().body("Can only swap if there are two certificates, but there are currently " + keystores.size());
 		}
 		
+		String newCertificateName = null;
 		for (Keystore keystore : keystores) {
 			keystore.setPrimaryForNemLogin(!keystore.isPrimaryForNemLogin());
 			keystore.setLastUpdated(LocalDateTime.now());
+			
+			if (keystore.isPrimaryForNemLogin()) {
+				newCertificateName = keystore.getSubjectDn();
+			}
 		}
 		
 		keystoreService.saveAll(keystores);
 		
+		certificateChangelogService.rotateSp(operatorId, "Rotated to " + newCertificateName);
+
 		log.info("Swapped primary certificate for IdP");
 		
 		return ResponseEntity.ok().build();
@@ -91,7 +110,7 @@ public class CertManagerApi {
 	
 	@PutMapping("/api/certmanager/disableSecondary")
 	@ResponseBody
-	public ResponseEntity<?> disableSecondary() {
+	public ResponseEntity<?> disableSecondary(@RequestParam String operatorId) {
 		List<Keystore> keystores = keystoreService.findAll();
 		
 		// ensure that there are two certificates
@@ -105,8 +124,10 @@ public class CertManagerApi {
 				keystore.setLastUpdated(LocalDateTime.now());
 				
 				keystoreService.save(keystore);
-
+				
 				log.info("Disabled secondary certificate");
+
+				certificateChangelogService.deleteCertificate(operatorId, "Deleted " + keystore.getSubjectDn());
 
 				return ResponseEntity.ok().build();
 			}
@@ -117,7 +138,7 @@ public class CertManagerApi {
 
 	@PostMapping("/api/certmanager/newSecondary")
 	@ResponseBody
-	public ResponseEntity<?> loadNewSecondary(@RequestBody KeystoreWithSwapDate keystoreWithSwapDate) throws Exception {
+	public ResponseEntity<?> loadNewSecondary(@RequestParam String operatorId, @RequestBody KeystoreWithSwapDate keystoreWithSwapDate) throws Exception {
 		List<Keystore> keystores = keystoreService.findAll();
 
 		Keystore secondary = null;
@@ -163,6 +184,8 @@ public class CertManagerApi {
 		
 		log.info("Loaded new secondary keystore (" + secondary.getSubjectDn() + ") with planned rollover at " + keystoreWithSwapDate.getSwapDate());
 		
+		certificateChangelogService.newCertificate(operatorId, "Imported " + secondary.getSubjectDn());
+
 		return ResponseEntity.ok().build();
 	}
 	

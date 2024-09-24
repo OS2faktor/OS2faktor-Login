@@ -48,7 +48,7 @@ public class StatisticsService {
 		Map<String, Pair<Integer, Integer>> connectionMap = new HashMap<>();
 		
 		for (PasswordSetting settings : passwordSettingsService.getAllSettings()) {
-			if ((settings.isReplicateToAdEnabled() || settings.isValidateAgainstAdEnabled()) && settings.getDomain().getParent() == null) {
+			if (!settings.getDomain().isStandalone() && settings.getDomain().getParent() == null) {
 				Pair<Integer, Integer> count = adPasswordService.getWebsocketSessionCountPair(settings.getDomain().getName());
 				connectionMap.put(settings.getDomain().getName(), count);
 			}

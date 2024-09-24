@@ -10,6 +10,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class PasswordConfigurationForm {
 	private long domainId;
+	private long minMinLength;
 	private long minLength;
 	private long maxLength;
 	private boolean requireLowercaseLetters;
@@ -22,8 +23,6 @@ public class PasswordConfigurationForm {
 	private boolean disallowOldPasswords;
 	private Long oldPasswordNumber;
 	private Long forceChangePasswordInterval;
-	private boolean replicateToAdEnabled;
-	private boolean validateAgainstAdEnabled;
 	private boolean monitoringEnabled;	
 	private String monitoringEmail;
 	private boolean disallowNameAndUsername;
@@ -37,9 +36,11 @@ public class PasswordConfigurationForm {
 	private Long canNotChangePasswordGroup;
 	private boolean preventBadPasswords;
 	private boolean specificSpecialCharactersEnabled;
+	private boolean checkLeakedPasswords;
 	private String allowedSpecialCharacters;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
+		this.minMinLength = 4;
 		this.minLength = settings.getMinLength();
 		this.maxLength = settings.getMaxLength();
 		this.requireLowercaseLetters = settings.isRequireLowercaseLetters();
@@ -51,8 +52,6 @@ public class PasswordConfigurationForm {
 		this.forceChangePasswordInterval = settings.getForceChangePasswordInterval();
 		this.disallowOldPasswords = settings.isDisallowOldPasswords();
 		this.oldPasswordNumber = settings.getOldPasswordNumber();
-		this.replicateToAdEnabled = settings.isReplicateToAdEnabled();
-		this.validateAgainstAdEnabled = settings.isValidateAgainstAdEnabled();
 		this.monitoringEnabled = settings.isMonitoringEnabled();
 		this.monitoringEmail = settings.getMonitoringEmail();
 		this.disallowDanishCharacters = settings.isDisallowDanishCharacters();
@@ -69,5 +68,6 @@ public class PasswordConfigurationForm {
 		this.preventBadPasswords = settings.isPreventBadPasswords();
 		this.specificSpecialCharactersEnabled = settings.isSpecificSpecialCharactersEnabled();
 		this.allowedSpecialCharacters = settings.getAllowedSpecialCharacters();
+		this.checkLeakedPasswords = settings.isCheckLeakedPasswords();
 	}
 }

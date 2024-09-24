@@ -186,13 +186,19 @@ public class AuditLogger {
 				roleStr = "registrant rollen";
 				break;
 			case Constants.ROLE_SERVICE_PROVIDER_ADMIN:
-				roleStr = "tjenesteudbyder-admin rollen";
+				roleStr = "tjenesteudbyderadministrator rollen";
 				break;
 			case Constants.ROLE_USER_ADMIN:
 				roleStr = "brugeradministrator rollen";
 				break;
 			case Constants.ROLE_KODEVISER_ADMIN:
 				roleStr = "kodeviseradministrator rollen";
+				break;
+			case Constants.ROLE_PASSWORD_RESET_ADMIN:
+				roleStr = "kodeordsadministrator rollen";
+				break;
+			case Constants.ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN:
+				roleStr = "elev-kodeordsadministrator rollen";
 				break;
 			default:
 				roleStr = role;
@@ -201,7 +207,8 @@ public class AuditLogger {
 		}
 		auditLog.setMessage((enabled ? "Tildelt " : "Frataget ") + roleStr + " af en administrator");
 
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL))) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(emails)) {
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: Rolle ændret";
 
 			// $NAVN ($UUID) har fået tildelt/frataget $ROLLE
@@ -215,7 +222,7 @@ public class AuditLogger {
 				sb.append("<pre>" + auditLog.getDetails().getDetailContent() + "</pre>");
 			}
 
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, sb.toString(), null);
+			emailService.sendMessage(emails, subject, sb.toString(), null);
 		}
 
 		log(auditLog, person, admin);
@@ -327,7 +334,7 @@ public class AuditLogger {
 			if (person.isNsisAllowed()) {
 				auditLog = new AuditLog();
 				auditLog.setLogAction(LogAction.CHANGED_NSIS_ALLOWED);
-				auditLog.setMessage("Bruger tildelt en NSIS erhvervsidentitet");
+				auditLog.setMessage("Bruger godkendt til NSIS erhvervsidentitet");
 
 				auditLog.setCorrelationId(correlationId);
 				auditLog.setIpAddress(ipAddress);
@@ -717,14 +724,15 @@ public class AuditLogger {
 		detail.setDetailType(DetailType.TEXT);
 		auditLog.setDetails(detail);
 
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL))) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(emails)) {
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: brugerkonto spærret af administrator";
 			String message =
 					"Brugerkonto: " + person.getName() + " (" + person.getSamaccountName() + ")<br>" +
 					"Spærret af: " + admin.getName() + " (" + admin.getSamaccountName() + ")<br>" +
 					"Detaljer: <br>" + auditLog.getDetails().getDetailContent();
 
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+			emailService.sendMessage(emails, subject, message, null);
 		}
 
 		log(auditLog, person, admin);
@@ -741,7 +749,7 @@ public class AuditLogger {
 	public void changePasswordSettings(PasswordSetting passwordSettings, Person admin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGE_PASSWORD_SETTINGS);
-		auditLog.setMessage("Passwordregler ændret");
+		auditLog.setMessage("Kodeordsregler ændret"  + ((admin == null ) ? " af systemet" : ""));
 
 		auditLog.setDetails(new AuditLogDetail());
 		auditLog.getDetails().setDetailType(DetailType.JSON);
@@ -756,13 +764,18 @@ public class AuditLogger {
 			log.error("Could not serialize PasswordSettings", e);
 		}
 
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL))) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(emails)) {
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: Kodeordsregler ændret";
-			String message =
-					"Ændret af: " + admin.getName() + " (" + admin.getSamaccountName() + ")<br>" +
-					"Kodeordsregler: <pre>" + auditLog.getDetails().getDetailContent() + "</pre>";
+			String message = (admin != null)
+					?
+							("Ændret af: " + admin.getName() + " (" + admin.getSamaccountName() + ")<br>" +
+							"Kodeordsregler: <pre>" + auditLog.getDetails().getDetailContent() + "</pre>")
+					:
+							("Ændret af: System-migrering af kodeordsregler<br>" +
+							"Kodeordsregler: <pre>" + auditLog.getDetails().getDetailContent() + "</pre>");
 
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+			emailService.sendMessage(emails, subject, message, null);
 		}
 
 		log(auditLog, admin, admin, passwordSettings.getDomain());
@@ -793,13 +806,14 @@ public class AuditLogger {
 			log.error("Could not serialize SessionSettings");
 		}
 
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL))) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(emails)) {
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: Sessionsudløb ændret";
 			String message =
 					"Ændret af: " + admin.getName() + " (" + admin.getSamaccountName() + ")<br>" +
 					"Sessionsudløb: <pre>" + auditLog.getDetails().getDetailContent() + "</pre>";
 
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+			emailService.sendMessage(emails, subject, message, null);
 		}
 
 		log(auditLog, admin, admin, sessionSettings.getDomain());
@@ -816,14 +830,15 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.TEXT);
 		auditLog.getDetails().setDetailContent("Reglen for MFA på it-systemet " + entityId + " ændret til " + ruleTxt);
 
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL))) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && StringUtils.hasLength(emails)) {
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: MFA regler for KOMBIT fagsystem ændret";
 			String message =
 					"Ændret af: " + admin.getName() + " (" + admin.getSamaccountName() + ")<br>" +
 					"It-system: " + entityId + "<br>" +
 					"MFA regel: " + ruleTxt;
 
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+			emailService.sendMessage(emails, subject, message, null);
 		}
 
 		log(auditLog, admin, admin);
@@ -1007,19 +1022,32 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-
 	public void nsisAllowedChanged(Person person, boolean nsisAllowed) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGED_NSIS_ALLOWED);
-		auditLog.setMessage(nsisAllowed ? "Bruger tildelt en NSIS erhvervsidentitet" : "Bruger frataget deres NSIS erhvervsidentitet");
+		auditLog.setMessage(nsisAllowed ? "Bruger godkendt til erhvervsidentitet" : "Bruger frataget godkendelse af deres erhvervsidentitet");
 
 		log(auditLog, person, null);
 	}
-	
+
+	public void nsisAllowedChangedByAdmin(Person admin, Person person, boolean nsisAllowed, String reasonText) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGED_NSIS_ALLOWED);
+		auditLog.setMessage(nsisAllowed ? "Bruger godkendt til erhvervsidentitet af administrator" : "Bruger frataget godkendelse af deres erhvervsidentitet af administrator");
+
+		if (StringUtils.hasLength(reasonText)) {
+			auditLog.setDetails(new AuditLogDetail());
+			auditLog.getDetails().setDetailType(DetailType.TEXT);
+			auditLog.getDetails().setDetailContent(reasonText);
+		}
+
+		log(auditLog, person, admin);
+	}
+
 	public void transferToNemloginChanged(Person person, boolean transferToNemlogin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGED_TRANSFER_TO_NEMLOGIN);
-		auditLog.setMessage(transferToNemlogin ? "Bruger skal overføres til MitID Erhverv" : "Bruger skal fjernes MitID Erhverv");
+		auditLog.setMessage(transferToNemlogin ? "Bruger skal overføres til MitID Erhverv" : "Bruger skal fjernes fra MitID Erhverv");
 
 		log(auditLog, person, null);
 	}
@@ -1107,15 +1135,17 @@ public class AuditLogger {
 	public void personDead(Person person) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.DISABLED_DEAD);
-		auditLog.setMessage("Brugerkonto spærret da personen er angivet med inaktiv statuskode i CPR registeret");
+		auditLog.setMessage("Brugerkonto spærret da personen er angivet med ugyldig tilstand i CPR registeret");
 
 		log(auditLog, person, null);
 		
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED)) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED) && StringUtils.hasLength(emails)) {
 			log.warn("CPR says that person with uuid " + person.getUuid() + " is dead");
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: Person erklæret død eller bortkommet af cpr registeret";
 			String message = "Personen " + person.getName() + "(" + person.getSamaccountName() + ") er erklæret død eller bortkommet af cpr registeret";
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+
+			emailService.sendMessage(emails, subject, message, null);
 		}
 	}
 
@@ -1126,11 +1156,13 @@ public class AuditLogger {
 
 		log(auditLog, person, null);
 		
-		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED)) {
+		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		if (logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.LOG_WATCH_ENABLED) && logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.PERSON_DEAD_OR_DISENFRANCHISED_ENABLED) && StringUtils.hasLength(emails)) {
 			log.warn("CPR says that person with uuid " + person.getUuid() + " is disenfranchised");
 			String subject = "(OS2faktor " + commonConfiguration.getEmail().getFromName() + ") Overvågning af logs: Person erklæret umyndiggjort af cpr registeret";
 			String message = "Personen " + person.getName() + "(" + person.getSamaccountName() + ") er erklæret umyndiggjort af cpr registeret";
-			emailService.sendMessage(logWatchSettingService.getString(LogWatchSettingKey.ALARM_EMAIL), subject, message, null);
+
+			emailService.sendMessage(emails, subject, message, null);
 		}
 	}
 	

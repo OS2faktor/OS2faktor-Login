@@ -17,6 +17,8 @@ import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 
+import org.hibernate.annotations.BatchSize;
+
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import lombok.Getter;
@@ -26,6 +28,7 @@ import lombok.Setter;
 @Table(name = "school_roles")
 @Setter
 @Getter
+@BatchSize(size = 100)
 public class SchoolRole {
 
 	@Id
@@ -51,6 +54,7 @@ public class SchoolRole {
 
 	// note that only the mappings are cascade-saved/orphanRemoved - the SchoolClass mapped to is not cascade-saved nor orphanRemoved,
 	// as that is an entity in its own right
+	@BatchSize(size = 100)
 	@OneToMany(mappedBy = "schoolRole", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<SchoolRoleSchoolClassMapping> schoolClasses;
 }

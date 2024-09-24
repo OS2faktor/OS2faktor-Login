@@ -133,8 +133,21 @@ public class CprStatusCheckService {
 									if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
 										String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
 										message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
-										emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
+										emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
 									}
+								}
+								
+								if (configuration.getFullServiceIdP().isEnabled()) {
+									emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
+
+									for (EmailTemplateChild child : emailTemplate.getChildren()) {
+										if (child.getDomain().getId() == person.getDomain().getId()) {
+											String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+											message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+
+											emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+										}
+									}			
 								}
 							}
 

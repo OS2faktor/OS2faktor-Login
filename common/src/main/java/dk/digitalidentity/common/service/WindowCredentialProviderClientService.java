@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.PostConstruct;
+import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -46,12 +47,23 @@ public class WindowCredentialProviderClientService {
 
     // never needs to be reloaded
 	@Cacheable("clientByApiKey")
+	@Transactional
     public WindowCredentialProviderClient getByApiKeyAndDisabledFalse(String apiKey) {
 		WindowCredentialProviderClient client = clientDao.findByApiKeyAndDisabledFalse(apiKey);
 
 		// force load, so it can be cached after session is dead
 		if (client != null) {
-			client.getDomain().getName();
+        	Domain domain = client.getDomain();
+        	if (domain != null) {
+            	domain.getName();
+
+        		if (domain.getChildDomains() != null) {
+        			domain.getChildDomains().size();
+        		}
+        		if (domain.getParent() != null) {
+        			domain.getParent().getName();
+        		}
+        	}
 		}
         
         return client;

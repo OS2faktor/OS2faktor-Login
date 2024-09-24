@@ -23,7 +23,7 @@ public class NemloginSyncTask {
 	private CommonConfiguration commonConfiguration;
 	
 	// every two minutes during "daytime"
-	@Scheduled(cron = "0 0/2 5-23 * * ?")
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} 0/2 6-23 * * ?")
 	public void sync() {
 		if (configuration.getScheduled().isEnabled() && commonConfiguration.getNemLoginApi().isEnabled()) {
 			nemLoginService.sync();
@@ -31,7 +31,7 @@ public class NemloginSyncTask {
 	}
 	
 	// nightly - makes sure all users in MitID Erhverv, controlled by us, is suspended if it was missed somehow
-	@Scheduled(cron = "${cron.mitid.cleanup:0 #{new java.util.Random().nextInt(55)} 22 * * ?}")
+	@Scheduled(cron = "${cron.mitid.cleanup:#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 22 * * ?}")
 	public void cleanupMitIDErhverv() {
 		if (configuration.getScheduled().isEnabled() && commonConfiguration.getNemLoginApi().isEnabled()) {
 			nemLoginService.cleanupMitIDErhverv();

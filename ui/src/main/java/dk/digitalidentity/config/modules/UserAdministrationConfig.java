@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Getter
 @Setter
-public class UserAdminstrationConfig {
+public class UserAdministrationConfig {
 	
     @FeatureDocumentation(name = "Bruger API", description = "API til sætte tvungen kodeordsskifte på brugere")
     private boolean enabled = false;

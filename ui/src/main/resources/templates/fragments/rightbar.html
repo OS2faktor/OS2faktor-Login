@@ -76,7 +76,7 @@
 	</div>
 	
 	<div th:fragment="admin" class="col-lg-3">
-		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_KODEVISER_ADMIN')">
+		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_KODEVISER_ADMIN') or hasRole('ROLE_USER_ADMIN') or hasRole('ROLE_NSIS_ADMIN')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
 			</div>
@@ -86,16 +86,18 @@
 					<ul>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/logs}">Se hændelseslog</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/identiteter}">Se brugere</a></li>
+						<li sec:authorize="hasRole('ROLE_NSIS_ADMIN')"><a th:href="@{/admin/nsis}">Se NSIS bestillinger</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/rapporter}">Hent rapporter</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/infoboks}">Infoboks</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/password_change_queue}">Log over kodeordsskifte</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/nemlogin_queue}">MitID Erhverv fejlsøgning</a></li>
+						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/relevantPages}">Overblik over sider</a></li>
 						<li sec:authorize="hasRole('ROLE_KODEVISER_ADMIN')"><a th:href="@{/admin/konfiguration/kodeviser}">Kodeviser administration</a></li>
 					</ul>
 				</div>
 			</div>
 		</div>
-		
+
 		<div class="ibox" sec:authorize="hasRole('ROLE_ADMINISTRATOR')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-info"></em> &nbsp; CMS</h5>
@@ -104,13 +106,19 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/cms/list}">Rediger tekster</a></li>
+						<li><a th:href="@{/admin/cms/list}">Rediger tekster</a></li>						
 						<li><a th:href="@{/admin/konfiguration/vilkaar}">Opsæt anvendelsesvilkår</a></li>
+						<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+						<li><a th:href="@{/admin/konfiguration/privacypolicy}">Se privatlivspolitik</a></li>
+						<li><a th:href="@{/admin/konfiguration/tuvilkaar}">Se tjenesteudbydervilkår</a></li>
+						</th:block>
+						<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 						<li><a th:href="@{/admin/konfiguration/privacypolicy}">Opsæt privatlivspolitik</a></li>
 						<li><a th:href="@{/admin/konfiguration/tuvilkaar}">Opsæt tjenesteudbydervilkår</a></li>
+						</th:block>
 						<li><a th:href="@{/admin/cms/logo}">Rediger logo</a></li>
 						<li><a th:href="@{/admin/emailtemplates}">Emailskabeloner (brugere)</a></li>
-						<li><a th:href="@{/admin/emailtemplatesLogwatch}">Emailskabeloner (logovervågning)</a></li>
+						<li th:if="${@commonConfiguration.fullServiceIdP.enabled == false}"><a th:href="@{/admin/emailtemplatesLogwatch}">Emailskabeloner (logovervågning)</a></li>
 					</ul>
 				</div>
 			</div>
@@ -125,7 +133,7 @@
 				<div class="row">
 					<ul>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/password}">Opsæt kodeordsregler</a></li>
-						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/badpassword}">Opsæt svage kodeord</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/badpassword}">Opsæt forbudte kodeord</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/sessioner}">Opsæt sessionsudløb</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/knownNetworks}">Opsæt kendte netværk</a></li>
 						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/konfiguration/links}">Opsæt links</a></li>

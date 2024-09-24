@@ -17,10 +17,52 @@
 							<div class="ibox-content">
 								<p>
 									Nedenfor er en liste over konfigurable indstillinger, som opsættes af driftoperatøren. Hvis disse indstillinger skal ændres,
-									skal der tages kontakt til driftoperatøren via <a href="mailto:helpdesk@digital-identity.dk">helpdesk@digital-identity.dk</a>.
+									skal der tages kontakt til driftoperatøren via <a href="mailto:kontakt@digital-identity.dk">kontakt@digital-identity.dk</a>.
 									Bemærk at flere af disse indstillinger kan kræve aftaleindgåelse hos 3.part, fx Digitaliseringsstyrelsen eller KOMBIT.
 								</p>
 								
+								<th:block th:if="${fullServiceIdPEnabled}">
+								<h4>Full Service IdP</h4>
+								
+								<p>
+								Denne installation af OS2faktor kører i Full Sevice Idp mode, hvilket betyder af nedenstående indstillinger er globalt gældende,
+								og ikke kan ændres af brugergrænsefladen. Disse indstillinger er under revision, og kan ej heller ændres ved henvendelsen til
+								ovenstående mail adresse.
+								</p>
+								
+								<div class="table-responsive">
+									<table id="fullServiceIdPTable" class="table table-striped table-hover configTables">
+										<thead>
+											<tr>
+												<th style="text-align: center; width: 100px;">Slået til</th>
+												<th style="width: 300px;">Indstilling</th>
+												<th>Værdi</th>
+											</tr>
+										</thead>
+							
+										<tbody>
+											<tr>
+												<td style="text-align: center;"><em class="fa fa-check"></em></td>
+												<td>Minimumlængde for kodeord</td>
+												<td th:text="${minimumPasswordLength + ' tegn'}"></td>
+											</tr>
+											
+											<tr>
+												<td style="text-align: center;"><em class="fa fa-check"></em></td>
+												<td>Sessionsudløb for kodeord</td>
+												<td th:text="${sessionExpirePassword + ' minutter'}"></td>
+											</tr>
+											
+											<tr>
+												<td style="text-align: center;"><em class="fa fa-check"></em></td>
+												<td>Sessionsudløb for 2-faktor</td>
+												<td th:text="${sessionExpireMfa + ' minutter'}"></td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								</th:block>
+
 								<h4>Konfiguration</h4>
 								
 								<span th:text="#{page.admin.configuration.features.subheader(${@commonConfiguration.customer.cvr})}"></span>

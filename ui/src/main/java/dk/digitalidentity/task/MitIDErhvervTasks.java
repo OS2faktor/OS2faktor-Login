@@ -28,8 +28,8 @@ public class MitIDErhvervTasks {
 	@Autowired
 	private NemloginQueueService nemloginQueueService;
 
-	// Runs once every day between 01:00:00 and 01:55:00 cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?"
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?")
+	// Runs once every day between 21:00:00 and 21:59:00 cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?"
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 21 * * ?")
 	public void fixMissingCreateSuspendOrders(){
 		if (!configuration.getScheduled().isEnabled() || !commonConfiguration.getNemLoginApi().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled
@@ -42,8 +42,8 @@ public class MitIDErhvervTasks {
 		log.info("Completed task: fixMissingCreateSuspendOrders");
 	}
 	
-	// Runs once every day between 02:00:00 and 05:55:00"
-	@Scheduled(cron = "${cron.mitid.sync:0 #{new java.util.Random().nextInt(55)} #{new java.util.Random().nextInt(4) + 2} * * ?}")
+	// Runs once every day between 02:00:00 and 05:59:00"
+	@Scheduled(cron = "${cron.mitid.sync:0 #{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(4) + 2} * * ?}")
 	public void syncMitIDErhvervCache(){
 		if (!configuration.getScheduled().isEnabled() || !commonConfiguration.getNemLoginApi().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled
@@ -65,7 +65,7 @@ public class MitIDErhvervTasks {
 
 	}
 	
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 4 * * ?")
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 5 * * ?")
 	public void cleanupFailedMitIDQeueueEntries() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.info("Running task: cleanupFailedMitIDQeueueEntries");

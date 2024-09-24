@@ -5,16 +5,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.PersonStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.PersonStatisticsService;
 
 @Service
 public class ReportService {

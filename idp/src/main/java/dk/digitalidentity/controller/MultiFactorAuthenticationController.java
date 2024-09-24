@@ -29,6 +29,7 @@ import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.KombitServiceProvider;
+import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
@@ -153,6 +154,19 @@ public class MultiFactorAuthenticationController {
 				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(sessionHelper.getLoginRequest().getServiceProviderId());
 				if (serviceProvider != null) {
 					if (serviceProvider instanceof KombitServiceProvider) {
+						delayedLogin = true;
+					}
+				}
+			}
+			catch (Exception ignored) {
+				;
+			}
+		}
+		if (configuration.getMfa().isDelayedLoginNemLogin()) {
+			try {
+				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(sessionHelper.getLoginRequest().getServiceProviderId());
+				if (serviceProvider != null) {
+					if (serviceProvider instanceof NemLoginServiceProvider) {
 						delayedLogin = true;
 					}
 				}

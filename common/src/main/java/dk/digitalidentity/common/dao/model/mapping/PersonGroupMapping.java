@@ -10,8 +10,6 @@ import javax.persistence.ManyToOne;
 import javax.persistence.OneToOne;
 import javax.validation.constraints.NotNull;
 
-import org.hibernate.annotations.BatchSize;
-
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import dk.digitalidentity.common.dao.model.Group;
@@ -31,7 +29,6 @@ public class PersonGroupMapping {
 	private long id;
 
 	@JsonBackReference
-	@BatchSize(size = 100)
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "person_id")
 	@NotNull

@@ -2,11 +2,11 @@ package dk.digitalidentity.common.service;
 
 import java.util.List;
 
-import dk.digitalidentity.common.dao.model.Domain;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.SessionSettingDao;
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import lombok.extern.slf4j.Slf4j;
 

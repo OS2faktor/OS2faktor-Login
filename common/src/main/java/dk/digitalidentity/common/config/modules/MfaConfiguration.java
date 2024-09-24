@@ -20,6 +20,7 @@ public class MfaConfiguration {
 	
 	// custom hack for showing a button before finishing MFA login (for Tønder, should be replaced by good code later)
 	private boolean delayedLogin = false;
+	private boolean delayedLoginNemLogin = false;
 	
 	public List<String> getEnabledClients() {
 		if (enabledClientsComputedValue == null) {

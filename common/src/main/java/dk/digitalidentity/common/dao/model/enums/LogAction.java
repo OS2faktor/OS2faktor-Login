@@ -120,5 +120,5 @@ public enum LogAction {
 		return dtos;
 	}
 	
-	public enum ReportType { NONE, GENERAL_HISTORY, LOGIN_HISTORY, ADMIN_ACTION }
+	public enum ReportType { ALL, NONE, GENERAL_HISTORY, LOGIN_HISTORY, ADMIN_ACTION }
 }

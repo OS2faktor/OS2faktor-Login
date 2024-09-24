@@ -154,4 +154,16 @@ public class PasswordChangeQueueService {
 	public List<PasswordChangeQueue> getByDomain(String domain) {
 		return passwordChangeQueueDao.findByDomain(domain);
 	}
+
+	public List<PasswordChangeQueue> getNotSyncedAzure(String domain) {
+		return passwordChangeQueueDao.findByDomainAndStatusInAndAzureReplicatedFalse(domain, ReplicationStatus.DO_NOT_REPLICATE, ReplicationStatus.SYNCHRONIZED);
+	}
+
+	public List<PasswordChangeQueue> getNotSyncedGoogleWorkspace(String domain) {
+		return passwordChangeQueueDao.findByDomainAndStatusInAndGoogleWorkspaceReplicatedFalse(domain, ReplicationStatus.DO_NOT_REPLICATE, ReplicationStatus.SYNCHRONIZED);
+	}
+
+	public void saveAll(List<PasswordChangeQueue> entries) {
+		passwordChangeQueueDao.saveAll(entries);
+	}
 }

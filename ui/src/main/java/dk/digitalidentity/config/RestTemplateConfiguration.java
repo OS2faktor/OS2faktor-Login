@@ -32,6 +32,12 @@ public class RestTemplateConfiguration {
 	public RestTemplate nemLoginRestTemplate() throws Exception {
 		TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
 
+		RequestConfig requestConfig = RequestConfig.custom()
+				.setConnectionRequestTimeout(30000)
+				.setConnectTimeout(30000)
+				.setSocketTimeout(60000)
+				.build();
+
 		CloseableHttpClient client = null;
 		if (config.getNemLoginApi().isEnabled()) {
 			SSLContext sslContext = SSLContextBuilder.create()
@@ -45,11 +51,13 @@ public class RestTemplateConfiguration {
 			client = HttpClients.custom()
 				        .setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 						.setSSLContext(sslContext)
+						.setDefaultRequestConfig(requestConfig)
 						.build();			
 		}
 		else {
 			client = HttpClients.custom()
 						.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
+						.setDefaultRequestConfig(requestConfig)
 						.build();
 		}
 

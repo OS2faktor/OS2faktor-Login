@@ -45,6 +45,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.w3c.dom.Element;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
@@ -73,7 +74,13 @@ public class SessionHelper {
 	
 	@Autowired
 	private AuditLogger auditLogger;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
+	@Autowired
+	private SessionSettingService sessionSettingService;
+	
 	public NSISLevel getLoginState() {
 		return getLoginState(null, null);
 	}
@@ -156,14 +163,7 @@ public class SessionHelper {
 		Person person = getPerson();
 
 		if (attribute != null && timestamp != null && person != null) {
-			Long passwordExpiry = sessionService.getSettings(person.getDomain()).getPasswordExpiry();
-			if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
-				NSISLevel nsisLevel = serviceProvider.nsisLevelRequired(loginRequest);
-				if (nsisLevel == null || Objects.equals(NSISLevel.NONE, nsisLevel)) {
-					// No NSIS level required so we can use the SP's session times
-					passwordExpiry = Math.min(serviceProvider.getPasswordExpiry(), passwordExpiry);
-				}
-			}
+			Long passwordExpiry = getSessionLifetimePassword(person, serviceProvider, loginRequest);
 
 			if (LocalDateTime.now().minusMinutes(passwordExpiry).isAfter(timestamp)) {
 				auditLogger.sessionExpired(person);
@@ -245,14 +245,7 @@ public class SessionHelper {
 		Person person = getPerson();
 
 		if (attribute != null && timestamp != null && person != null) {
-			Long mfaExpiry = sessionService.getSettings(person.getDomain()).getMfaExpiry();
-			if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
-				NSISLevel nsisLevel = serviceProvider.nsisLevelRequired(loginRequest);
-				if (nsisLevel == null || Objects.equals(NSISLevel.NONE, nsisLevel)) {
-					// No NSIS level required so we can use the SP's session times
-					mfaExpiry = Math.min(serviceProvider.getMfaExpiry(), mfaExpiry);
-				}
-			}
+			long mfaExpiry = getSessionLifetimeMfa(person, serviceProvider, loginRequest);
 
 			if (LocalDateTime.now().minusMinutes(mfaExpiry).isAfter(timestamp)) {
 				setMFALevelTimestamp(null);
@@ -1372,7 +1365,7 @@ public class SessionHelper {
 		}
 
 		LocalDateTime mfaLevelTimestamp = getMFALevelTimestamp();
-		Long mfaExpiry = passwordRulesSettings.getMfaExpiry();
+		long mfaExpiry = getSessionLifetimeMfa(person);
 
 		if (mfaLevelTimestamp != null && !LocalDateTime.now().minusMinutes(mfaExpiry).isAfter(mfaLevelTimestamp)) {
 			setMFALevelTimestamp(LocalDateTime.now());
@@ -1531,5 +1524,59 @@ public class SessionHelper {
 		}
 		
 		return false;
+	}
+	
+	public long getSessionLifetimePassword(Person person) {
+		return getSessionLifetimePassword(person, null, null);
+	}
+	
+	public long getSessionLifetimePassword(Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) {
+
+		// for full service IdP, compute if NSIS levels are needed
+		if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+			// compute required NSIS Level - if it happens during a loginflow, look at the it-system otherwise let the users domain decide
+			NSISLevel nsisLevel = (serviceProvider != null && loginRequest != null)
+					? serviceProvider.nsisLevelRequired(loginRequest)
+					: (person.getDomain().isNonNsis() ? NSISLevel.NONE : NSISLevel.SUBSTANTIAL);
+			
+			// check if NSIS is relevant for this loginflow
+			if (NSISLevel.LOW.equalOrLesser(nsisLevel)) {
+				return commonConfiguration.getFullServiceIdP().getSessionExpirePassword();
+			}
+		}
+		
+		// custom settings on SP takes precedence (always 10... might be higher ;))
+		if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
+			return Math.max(serviceProvider.getPasswordExpiry(), 10);
+		}
+
+		return Math.max(sessionSettingService.getSettings(person.getDomain()).getPasswordExpiry(), 10);
+	}
+
+	public long getSessionLifetimeMfa(Person person) {
+		return getSessionLifetimeMfa(person, null, null);
+	}
+	
+	public long getSessionLifetimeMfa(Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) {
+
+		// for full service IdP, compute if NSIS levels are needed
+		if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+			// compute required NSIS Level - if it happens during a loginflow, look at the it-system otherwise let the users domain decide
+			NSISLevel nsisLevel = (serviceProvider != null && loginRequest != null)
+					? serviceProvider.nsisLevelRequired(loginRequest)
+					: (person.getDomain().isNonNsis() ? NSISLevel.NONE : NSISLevel.SUBSTANTIAL);
+			
+			// check if NSIS is relevant for this loginflow
+			if (NSISLevel.LOW.equalOrLesser(nsisLevel)) {
+				return commonConfiguration.getFullServiceIdP().getSessionExpireMfa();
+			}
+		}
+		
+		// custom settings on SP takes precedence (always 10... might be higher ;))
+		if (serviceProvider != null && serviceProvider.hasCustomSessionSettings()) {
+			return Math.max(serviceProvider.getMfaExpiry(), 10);
+		}
+
+		return Math.max(sessionSettingService.getSettings(person.getDomain()).getMfaExpiry(), 10);
 	}
 }

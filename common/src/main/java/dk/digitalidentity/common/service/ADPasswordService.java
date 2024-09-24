@@ -81,8 +81,7 @@ public class ADPasswordService {
 	}
 
 	public boolean hasCachedADPassword(Person person) {
-		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
-		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+		if (person.getDomain().isStandalone()) {
 			return false;
 		}
 		
@@ -99,8 +98,7 @@ public class ADPasswordService {
 	}
 
 	public boolean validateAgainstCache(Person person, String password) {
-		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
-		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+		if (person.getDomain().isStandalone()) {
 			return false;
 		}
 
@@ -118,8 +116,7 @@ public class ADPasswordService {
 	}
 	
 	public void updateCache(Person person, String password) {
-		PasswordSetting topLevelDomainPasswordSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
-		if (!topLevelDomainPasswordSettings.isValidateAgainstAdEnabled()) {
+		if (person.getDomain().isStandalone()) {
 			return;
 		}
 
@@ -226,7 +223,7 @@ public class ADPasswordService {
 	}
 
 	public ADPasswordResponse.ADPasswordStatus validatePassword(Person person, String password) {
-		if (!passwordSettingService.getSettingsCached(person.getTopLevelDomain()).isValidateAgainstAdEnabled()) {
+		if (person.getDomain().isStandalone()) {
 			return ADPasswordStatus.FAILURE;
 		}
 
@@ -309,8 +306,8 @@ public class ADPasswordService {
 				continue;
 			}
 
-			if (!passwordSetting.isReplicateToAdEnabled()) {
-				log.debug("Queued password change skipped since isReplicateToAdEnabled=false for associated domain");
+			if (domain.isStandalone()) {
+				log.debug("Queued password change skipped since standAlone=true for associated domain");
 				change.setMessage("Password replication disabled for domain");
 				change.setStatus(ReplicationStatus.FINAL_ERROR);
 				passwordChangeQueueService.save(change, false);

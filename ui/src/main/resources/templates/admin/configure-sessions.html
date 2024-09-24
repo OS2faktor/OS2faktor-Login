@@ -4,7 +4,7 @@
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-sessions')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-sessions')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -20,7 +20,7 @@
 									værdien for 2-faktor sessioner, så ændres brugerens session fra en 2-faktor session til en kodeord session ved overgangen mellem de to
 									sessionsudløb.
 								</p>
-								
+
 								<h4>Sessionsudløb</h4>
 								<form action="#" th:action="@{/admin/konfiguration/sessioner}" th:object="${configForm}" method="post">
 									<div class="form-group row">
@@ -61,19 +61,45 @@
 									<button type="submit" class="btn btn-primary block full-width m-b">Opdater regler</button>
 									<a th:href="@{/admin}" type="button" class="btn btn-danger block full-width cancelBtn">Annuller</a>
 								</form>
+								
+								<div id="nsisWarning" style="display: none; margin-top: 3em">
+									<h4>NSIS notifikation</h4>
+									<p>
+										<em>OBS!</em> Bemærk at ovenstående sessionstider alene er gældende for tjenester, som ikke kræver NSIS.
+										For systemer der kræver NSIS er sessionslevetiden låst til nedenstående værdier
+									</p>
+									
+									<table class="table table-striped table-bordered" style="width: 500px;">
+										<thead>
+											<th style="width: 200px">Identifikationsmiddel</th>
+											<th>Sessionslevetid i minutter</th>
+										</thead>
+										
+										<tbody>
+											<tr>
+												<td>Kodeord</td>
+												<td th:text="${nsisSessionPassword}"></td>
+											</tr>
+											<tr>
+												<td>2-faktor</td>
+												<td th:text="${nsisSessionMfa}"></td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-sessions')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-sessions')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="fragments/footer :: scripts"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -103,6 +129,13 @@
 
 					mfaExpiry.val(data.mfaExpiry);
 					mfaExpiry.prop("disabled", false);
+					
+					if (data.nsisDomain) {
+						$("#nsisWarning").show();
+					}
+					else {
+						$("#nsisWarning").hide();
+					}
 				}).fail(function(data) {
 					passwordExpiry.prop("disabled", true);
 					mfaExpiry.prop("disabled", true);

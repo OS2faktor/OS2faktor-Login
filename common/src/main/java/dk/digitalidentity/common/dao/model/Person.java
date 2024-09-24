@@ -41,6 +41,7 @@ import lombok.Setter;
 @Table(name = "persons")
 @Setter
 @Getter
+@BatchSize(size = 100)
 public class Person {
 
 	@Id

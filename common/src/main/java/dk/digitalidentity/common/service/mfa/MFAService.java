@@ -509,9 +509,11 @@ public class MFAService {
 						client.setNsisLevel(localClient.getNsisLevel());
 						client.setType(localClient.getType());
 						client.setLocalClient(true);
-						client.setAssociatedUserTimestamp(Instant.ofEpochMilli(localClient.getAssociatedUserTimestamp().getTime())
-								.atZone(ZoneId.systemDefault())
-								.toLocalDateTime());
+						if (localClient.getAssociatedUserTimestamp() != null) {
+							client.setAssociatedUserTimestamp(Instant.ofEpochMilli(localClient.getAssociatedUserTimestamp().getTime())
+									.atZone(ZoneId.systemDefault())
+									.toLocalDateTime());
+						}
 
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());

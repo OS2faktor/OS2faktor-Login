@@ -7,18 +7,17 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
-import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.samlmodule.model.TokenUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.samlmodule.model.TokenUser;
 
 @Component
 public class NemLoginUtil {
@@ -91,7 +90,20 @@ public class NemLoginUtil {
 		}
 
 		Object cprObj = attributes.get("https://data.gov.dk/model/core/eid/cprNumber");
-		if (!(cprObj instanceof String)) {
+		if (cprObj == null || !(cprObj instanceof String)) {
+
+			// if pure MitID UUID match is enabled, then use that find to find the cpr, otherwise the cpr attribute IS required
+			if (configuration.getMitid().isAllowCachedUuidLookup()) {
+				String uuid = getPersonUuid();
+
+				if (uuid != null) {
+					List<Person> persons = personService.getByMitIdNameId(uuid);
+					if (persons != null && persons.size() > 0) {
+						return persons.get(0).getCpr();
+					}
+				}
+			}
+
 			return null;
 		}
 		
@@ -120,18 +132,6 @@ public class NemLoginUtil {
 		}
 
 		String cpr = getCpr();
-
-		if (!StringUtils.hasLength(cpr)) {
-			if (configuration.getMitid().isAllowCachedUuidLookup()) {
-				String uuid = getPersonUuid();
-
-				if (uuid != null) {
-					return personService.getByMitIdNameId(uuid);
-				}
-			}
-
-			return people;
-		}
 
 		return personService.getByCpr(cpr);
 	}

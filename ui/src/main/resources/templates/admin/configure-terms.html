@@ -4,7 +4,7 @@
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-terms')" />
+			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-terms')"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -17,12 +17,12 @@
 							</div>
 
 							<div class="ibox-content">
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 								<p>
 									Opsæt de vilkår der er gældende for anvendelsen af løsningen. Brugerne skal godkende disse
 									vilkår første gang de bruger løsningen.
 								</p>
 								
-								<h4>Vilkår</h4>
 								<form id="termsForm" action="#" th:action="@{/admin/konfiguration/vilkaar}" th:object="${termsAndConditions}" method="post">
 									<input id="must_approve" type="hidden" th:field="*{mustApprove}"></input>
 									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
@@ -32,19 +32,65 @@
 									<button onclick="saveTermsAndConditions()" type="button" class="btn btn-primary block full-width m-b">Gem vilkår</button>
 									<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
 								</form>
+								</th:block>
+								
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+								<p>
+									Opsæt evt tillæg til vilkårene for anvendelsen af løsningen. Bemærk at man kan se de faste anvendelsesvilkår
+									på den anden fane, og at disse tillæg til vilkårene alene er et supplement til de faste vilkår.
+								</p>
+								
+								<p>
+									De faste vilkår kan ikke redigeres, og vedligeholdes løbende af Digital Identity.
+								</p>
+								<div class="tabs-container">
+									<ul class="nav nav-tabs" role="tablist">
+										<li>
+											<a class="nav-link active" data-toggle="tab" href="#tab1">Tillæg til vilkår</a>
+										</li>
+										<li>
+											<a class="nav-link" data-toggle="tab" href="#tab2">Faste vilkår</a>
+										</li>
+									</ul>
+									
+									<div class="tab-content">
+										<div role="tabpanel" id="tab1" class="tab-pane active">
+											<div class="panel-body">
+												<form id="termsForm" action="#" th:action="@{/admin/konfiguration/vilkaar}" th:object="${termsAndConditions}" method="post">
+													<input id="must_approve" type="hidden" th:field="*{mustApprove}"></input>
+													<textarea id="content" class="form-control readwrite-message" th:field="*{content}" autocomplete="off"></textarea>
+													
+													<br/>
+				
+													<button onclick="saveTermsAndConditions()" type="button" class="btn btn-primary block full-width m-b">Gem tillæg til vilkår</button>
+													<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
+												</form>
+											</div>
+										</div>
+
+										<div role="tabpanel" id="tab2" class="tab-pane">
+											<div class="panel-body">
+												<form id="fixedForm">
+													<textarea class="form-control readonly-message" readonly="readonly" th:inline="text">[[${termsAndConditions.fixedTerms}]]</textarea>
+												</form>
+											</div>
+										</div>										
+									</div>
+								</div>
+								</th:block>
 							</div>
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-terms')" />
+					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-terms')"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (texteditor = true)" />
+	<div th:replace="fragments/footer :: scripts (texteditor = true)"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -56,16 +102,30 @@
 		+]*/
 
 		$(document).ready(function() {
-			$('#content').summernote({
+			$('textarea.readwrite-message').summernote({
 				"height": 320,
 				"toolbar": [
 					[ "font", [ "bold", "italic", "underline" ]],
-					[ "para", [ "ul", "ol", "style" ]],
-                    [ "insert", ["link"]]
+					[ "para", [ "ul", "ol" ]],
+					[ "insert", [ "link" ]]
 				]
 			});
+			
+			// disable all UI stuff for read-only fields
+			$('textarea.readonly-message').summernote({
+				"height": 320,
+				"toolbar": []
+			});
+			
+			// make really read-only (timeout to ensure that above has executed... stupid async ;))
+			setTimeout(function() {
+				var container = $('textarea.readonly-message').parent().find('.note-editable');
+	            if ($(container).length) {
+	                $(container).prop('contenteditable', 'false');
+	            }
+			}, 200);
 		});
-
+		
 		function saveTermsAndConditions() {
 			swal({
 				title: '',

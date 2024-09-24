@@ -12,23 +12,29 @@
 						<div class="ibox">
 							<div class="ibox-title">
 								<h5>
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+									<em class="fa fa-info"></em> &nbsp; Se tjenesteudbydervilkår
+									</th:block>
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									<em class="fa fa-info"></em> &nbsp; Opsæt tjenesteudbydervilkår &nbsp; <span style="font-size: smaller; color: lightgrey;" th:text="${tts}"></span>
+									</th:block>
 								</h5>
 							</div>
 
 							<div class="ibox-content">
-								<p>
+								<p th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									Opsæt de vilkår der er gældende for tjenesteudbyderes anvendelsen af løsningen.
 								</p>
-								
-								<h4>Vilkår</h4>
+
 								<form id="termsForm" action="#" th:action="@{/admin/konfiguration/tuvilkaar}" th:object="${termsAndConditions}" method="post">
 									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
 									
+									<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
 									<br/>
 
 									<button onclick="saveTermsAndConditions()" type="button" class="btn btn-primary block full-width m-b">Gem vilkår</button>
 									<a th:href="@{/admin}" class="btn btn-danger block full-width m-b">Annuller</a>
+									</th:block>
 								</form>
 							</div>
 						</div>
@@ -46,16 +52,36 @@
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
+			
+		/*[+
+			var fullServiceIdP = [[${@commonConfiguration.fullServiceIdP.enabled}]];
+		+]*/
 
 		$(document).ready(function() {
-			$('#content').summernote({
-				"height": 320,
-				"toolbar": [
-					[ "font", [ "bold", "italic", "underline" ]],
-					[ "para", [ "ul", "ol", "style" ]],
-                    [ "insert", ["link"]]
-				]
-			});
+			if (fullServiceIdP) {
+				$('#content').summernote({
+					"height": 450,
+					"toolbar": []
+				});
+				
+				// make really read-only (timeout to ensure that above has executed... stupid async ;))
+				setTimeout(function() {
+					var container = $('#content').parent().find('.note-editable');
+		            if ($(container).length) {
+		                $(container).prop('contenteditable', 'false');
+		            }
+				}, 200);
+			}
+			else {
+				$('#content').summernote({
+					"height": 400,
+					"toolbar": [
+						[ "font", [ "bold", "italic", "underline" ]],
+						[ "para", [ "ul", "ol", "style" ]],
+	                    [ "insert", ["link"]]
+					]
+				});
+			}
 		});
 
 		function saveTermsAndConditions() {

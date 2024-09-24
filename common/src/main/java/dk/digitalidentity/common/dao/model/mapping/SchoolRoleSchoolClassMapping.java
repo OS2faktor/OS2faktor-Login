@@ -9,8 +9,6 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.validation.constraints.NotNull;
 
-import org.hibernate.annotations.BatchSize;
-
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import dk.digitalidentity.common.dao.model.SchoolClass;
@@ -30,14 +28,12 @@ public class SchoolRoleSchoolClassMapping {
 	private long id;
 
 	@JsonBackReference
-	@BatchSize(size = 100)
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "school_role_id")
 	@NotNull
 	private SchoolRole schoolRole;
 
 	@JsonBackReference
-	@BatchSize(size = 100)
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "school_class_id")
 	@NotNull

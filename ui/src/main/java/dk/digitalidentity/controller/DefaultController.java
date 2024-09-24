@@ -89,6 +89,7 @@ public class DefaultController implements ErrorController {
 		
 		model.addAttribute("privacy", privacyPolicyService.getPrivacyPolicy().getContent());
 		model.addAttribute("tts", "Sidst redigeret: " + tts);
+
 		return "privacy";
 	}
 
@@ -96,8 +97,9 @@ public class DefaultController implements ErrorController {
 	public String termAndConditionsPage(Model model) {
 		String tts = termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts() != null ? termsAndConditionsService.getTermsAndConditions().getLastUpdatedTts().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Aldrig";
 		
-		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions().getContent());
+		model.addAttribute("terms", termsAndConditionsService.getTermsAndConditions());
 		model.addAttribute("tts", "Sidst redigeret: " + tts);
+
 		return "terms-and-conditions";
 	}
 	
@@ -107,6 +109,7 @@ public class DefaultController implements ErrorController {
 		
 		model.addAttribute("terms", tuTermsAndConditionsService.getTermsAndConditions().getContent());
 		model.addAttribute("tts", "Sidst redigeret: " + tts);
+
 		return "tu-terms-and-conditions";
 	}
 

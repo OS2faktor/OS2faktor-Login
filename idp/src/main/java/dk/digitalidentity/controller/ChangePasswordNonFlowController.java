@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.CmsMessageBundle;
@@ -50,9 +51,16 @@ public class ChangePasswordNonFlowController {
 	
 	@Autowired
 	private CmsMessageBundle messageBundle;
+	
+	@Autowired
+	private CommonConfiguration configuration;
 
 	@GetMapping("/change-password")
 	public ModelAndView changePasswordNonFlow(Model model, HttpServletRequest request) {
+		if (!configuration.getPasswordSoonExpire().isChangePasswordPageEnabled()) {
+			return new ModelAndView("redirect:/");
+		}
+
 		String redirectUrl = "";
 		String queryString = request.getQueryString();
 		if (queryString != null) {

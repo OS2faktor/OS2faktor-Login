@@ -14,8 +14,9 @@ import dk.digitalidentity.config.modules.EBoks;
 import dk.digitalidentity.config.modules.GeoLocate;
 import dk.digitalidentity.config.modules.IdP;
 import dk.digitalidentity.config.modules.MfaPassthrough;
+import dk.digitalidentity.config.modules.PasswordChangeQueueApiConfiguration;
 import dk.digitalidentity.config.modules.Scheduled;
-import dk.digitalidentity.config.modules.UserAdminstrationConfig;
+import dk.digitalidentity.config.modules.UserAdministrationConfig;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,8 +25,8 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.ui")
 public class OS2faktorConfiguration {
-	private String version = "2024 r3";
-	private String latestVersion = "2024 r3";
+	private String version = "2024 r4";
+	private String latestVersion = "2024 r4";
 
 	private Scheduled scheduled = new Scheduled();
 	private CoreData coreData = new CoreData();
@@ -37,8 +38,9 @@ public class OS2faktorConfiguration {
 	private AppManager appManager = new AppManager();
 	private CertManagerApi certManagerApi = new CertManagerApi();
 	private AdminFeatures adminFeatures = new AdminFeatures();
-	private UserAdminstrationConfig userAdminstration = new UserAdminstrationConfig();
-	
+	private UserAdministrationConfig userAdministration = new UserAdministrationConfig();
+	private PasswordChangeQueueApiConfiguration passwordChangeQueueApi = new PasswordChangeQueueApiConfiguration();
+
 	private boolean landingPageEnabled = false;
 
 	public boolean checkVersion() {

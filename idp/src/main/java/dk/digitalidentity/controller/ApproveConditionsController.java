@@ -14,12 +14,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
-import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CprService;
-import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.ValidateADPasswordForm;
@@ -52,9 +50,6 @@ public class ApproveConditionsController {
 
 	@Autowired
 	private FlowService flowService;
-
-	@Autowired
-	private PasswordSettingService passwordSettingService;
 
 	@Autowired
 	private CprService cprService;
@@ -158,8 +153,11 @@ public class ApproveConditionsController {
     			sessionHelper.setDoNotUseCurrentADPassword(true);
     		}
 
-            PasswordSetting topDomainSettings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
-    		if (!sessionHelper.isDoNotUseCurrentADPassword() && !sessionHelper.isAuthenticatedWithADPassword() && StringUtils.hasLength(person.getSamaccountName()) && topDomainSettings.isValidateAgainstAdEnabled()) {
+    		if (!sessionHelper.isDoNotUseCurrentADPassword() &&
+    			!sessionHelper.isAuthenticatedWithADPassword() &&
+    			StringUtils.hasLength(person.getSamaccountName()) &&
+    			!person.getDomain().isStandalone()) {
+    			
     			model.addAttribute("validateADPasswordForm", new ValidateADPasswordForm());
     			return new ModelAndView("activateAccount/activate-validate-ad-password", model.asMap());
     		}

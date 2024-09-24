@@ -814,6 +814,19 @@ public class NemLoginService {
 				person.setNemloginUserUuid(null);
 				personService.save(person);
 			}
+			else if (response.getStatusCodeValue() == 409) {
+				String body = response.getBody();
+				
+				// just try again - no worries (and no errors)
+				if (body != null && body.contains("OptimisticConcurrency")) {
+					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
+					return "statusCode = " + response.getStatusCodeValue();
+				}
+				else {
+					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
+					return "statusCode = " + response.getStatusCodeValue();
+				}
+			}
 			else {
 				log.error("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
 				return "statusCode = " + response.getStatusCodeValue();

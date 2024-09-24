@@ -134,14 +134,14 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 			}
 			else if (entry.isNsisAllowed()) {
 				if (entry.getNsisLevel().equals(NSISLevel.NONE)) {
-					createCell(dataRow, column++, "Erhvervsidentitet ikke aktiveret", null);
+					createCell(dataRow, column++, "Aktiv (erhvervsidentitet ikke aktiveret)", null);
 				}
 				else {
-					createCell(dataRow, column++, "Erhvervsidentitet aktiveret", null);
+					createCell(dataRow, column++, "Aktiv (erhvervsidentitet aktiveret)", null);
 				}
 			}
 			else {
-				createCell(dataRow, column++, "Erhvervsidentitet ikke tildelt", null);
+				createCell(dataRow, column++, "Aktiv (ingen erhvervsidentitet)", null);
 			}
 			
 			// MFA klienter

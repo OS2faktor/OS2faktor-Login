@@ -22,6 +22,7 @@
 							<div class="tabs-container">
 								<ul class="nav nav-tabs" role="tablist">
 									<li><a class="nav-link active" data-toggle="tab" href="#tab-1">Anvendelsesvilkår</a></li>
+									<li th:if="${@commonConfiguration.fullServiceIdP.enabled == true}"><a class="nav-link" data-toggle="tab" href="#tab-15">Tillæg til anvendelsesvilkår</a></li>
 									<li><a class="nav-link" data-toggle="tab" href="#tab-2">Privatlivspolitik</a></li>
 								</ul>
 
@@ -32,7 +33,8 @@
 												<div class="row justify-content-md-center">
 													<div class="col-lg-12">
 														<div class="ibox">
-															<div class="ibox-content" th:utext="${terms}" style="height: 400px; overflow: scroll;"></div>
+															<div th:if="${@commonConfiguration.fullServiceIdP.enabled == false}" class="ibox-content" th:utext="${terms.content}" style="height: 400px; overflow: scroll;"></div>
+															<div th:if="${@commonConfiguration.fullServiceIdP.enabled == true}" class="ibox-content" th:utext="${terms.fixedTerms}" style="height: 400px; overflow: scroll;"></div>
 														</div>
 													</div>
 												</div>
@@ -40,6 +42,20 @@
 										</div>
 									</div>
 
+									<div th:if="${@commonConfiguration.fullServiceIdP.enabled == true}" role="tabpanel" id="tab-15" class="tab-pane">
+										<div class="panel-body" style="padding: 0px;">
+											<div class="wrapper wrapper-content article">
+												<div class="row justify-content-md-center">
+													<div class="col-lg-12">
+														<div class="ibox">
+															<div class="ibox-content" th:utext="${terms.content}" style="height: 400px; overflow: scroll;"></div>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+									
 									<div role="tabpanel" id="tab-2" class="tab-pane">
 										<div class="panel-body" style="padding: 0px;">
 											<div class="wrapper wrapper-content article">

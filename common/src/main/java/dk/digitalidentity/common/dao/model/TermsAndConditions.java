@@ -7,6 +7,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Transient;
 
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.envers.Audited;
@@ -33,4 +34,16 @@ public class TermsAndConditions {
 	@Column
 	@UpdateTimestamp
 	private LocalDateTime lastUpdatedTts;
+	
+	@Transient
+	private transient String fixedTerms =
+		"<p>Jeg medgiver hermed at være indforstået med nedenstående vilkår for anvendelsen af erhvervsidentiteten</p><ul>" +
+		"<li>At jeg ved aktiveringen af erhvervsidentiteten oplyser fyldestgørende og retvisende identifikationsinformationer</li>" +
+		"<li>At jeg ikke deler erhvervsidentiteten med andre</li>" +
+		"<li>At jeg holder kodeord og andre loginmidler tilknyttet erhvervsidentiteten fortrolig</li>" +
+		"<li>At jeg omgående spærrer erhvervsidentiteten, eller at jeg skifter kodeord og andre loginmidler, ved mistanke om at erhvervsidentiteten er blevet kompromitteret</li>" +
+		"<li>At jeg omgående anmoder om at få min erhvervsidentiteten genudstedt hvis de tilknyttede identitets-data (fx personnummer) har ændret sig siden udstedelsen</li>" +
+		"</ul>" +
+		"<p>Jeg medgiver samtidig at jeg er bekendt med kommunens informationssikkerhedspolitikker, og følger disse, og at jeg er ansvarlig for løbende at holde mig opdateret omkring ændringer i informationssikkerhedspolitikken.</p>" +
+		"<p>Endeligt er jeg bekendt med at jeg kun må anvende erhvervsidentiteten i forbindelse med mit arbejdsmæssige hverv.</p>";
 }

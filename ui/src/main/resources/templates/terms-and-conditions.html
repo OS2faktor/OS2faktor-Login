@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header" />
+<head th:replace="fragments/header :: header"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar" />
+			<div th:replace="fragments/topbar :: topbar"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -12,24 +12,50 @@
 						<div class="ibox">
 							<div class="ibox-title">
 								<h5><em class="fa fa-info"></em> &nbsp; Vilkår for anvendelse af brugerkonto</h5>
-								<p style="float:right; color: lightgrey;" th:text=" ${tts}"></p>
 							</div>
 
 							<div class="ibox-content">
-								<div id="content" th:utext="${terms}"></div>
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == true}">
+								<div class="tabs-container">
+									<ul class="nav nav-tabs" role="tablist">
+										<li>
+											<a class="nav-link active" data-toggle="tab" href="#tab1">Faste vilkår</a>
+										</li>
+										<li>
+											<a class="nav-link" data-toggle="tab" href="#tab2">Tillæg til vilkår</a>
+										</li>
+									</ul>
+									<div class="tab-content">
+										<div role="tabpanel" id="tab1" class="tab-pane active">
+											<div class="panel-body">
+												<div id="fixedContent" th:utext="${terms.fixedTerms}"></div>
+											</div>
+										</div>
+
+										<div role="tabpanel" id="tab2" class="tab-pane">
+											<div class="panel-body">
+												<div id="content" th:utext="${terms.content}"></div>
+											</div>
+										</div>										
+									</div>
+								</div>
+								</th:block>
+								<th:block th:if="${@commonConfiguration.fullServiceIdP.enabled == false}">
+									<div id="content" th:utext="${terms.content}"></div>
+								</th:block>
 							</div>
 						</div>
 					</div>
 					<div sec:authorize="isAuthenticated()" class="column col-lg-3">
-						<div th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')" />
+						<div th:replace="fragments/rightbar :: selfservice (page = 'terms-and-conditions')"></div>
 					</div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="fragments/footer :: footer"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="fragments/footer :: scripts"></div>
 </body>
 </html>

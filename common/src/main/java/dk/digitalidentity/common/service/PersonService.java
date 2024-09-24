@@ -297,6 +297,10 @@ public class PersonService {
 		return personDao.findBySamaccountNameAndDomain(samAccountName, domain);
 	}
 	
+	public List<Person> getBySamaccountNameAndDomains(String samAccountName, List<Domain> domains) {
+		return personDao.findBySamaccountNameAndDomainIn(samAccountName, domains);
+	}
+	
 	public List<Person> getBySchoolRolesNotEmptyAndDomainIn(List<Domain> domains) {
 		return personDao.findBySchoolRolesNotEmptyAndDomainIn(domains);
 	}
@@ -504,7 +508,6 @@ public class PersonService {
 	 */
 	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication, Person admin, String parentCpr, boolean forceChangePassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
 		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getTopLevelDomain());
 
 		// sanity check if admin is available with required role for changing password on NSIS users
 		// note that calls from IdentitiesController still need to perform verification that the user has the Kodeordsadministrator role,
@@ -520,7 +523,7 @@ public class PersonService {
 		
 		// if not flagged with bypass, attempt to change password in Active Directory
 		if (!bypassReplication && !person.isDoNotReplicatePassword() && !person.getDomain().isStandalone()) {
-			if (settings.isReplicateToAdEnabled() && StringUtils.hasLength(person.getSamaccountName())) {
+			if (StringUtils.hasLength(person.getSamaccountName())) {
 				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword, forceChangePassword);
 
 				switch (adPasswordStatus) {
@@ -596,7 +599,7 @@ public class PersonService {
 				if (encrypted == null) {
 					throw new UnsupportedEncodingException("Failed to encrypt password (null)");
 				}
-		
+
 				person.setStudentPassword(encrypted);
 				save(person);
 			}

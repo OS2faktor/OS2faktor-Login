@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import dk.digitalidentity.api.dto.CoreData;
 import dk.digitalidentity.api.dto.CoreDataDelete;
 import dk.digitalidentity.api.dto.CoreDataDeltaJfr;
+import dk.digitalidentity.api.dto.CoreDataEntryLight;
 import dk.digitalidentity.api.dto.CoreDataFullJfr;
 import dk.digitalidentity.api.dto.CoreDataGroupLoad;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
@@ -166,6 +167,23 @@ public class CoreDataApi {
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for getByDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@GetMapping("/api/coredata/cprLookup")
+	public ResponseEntity<?> getByCpr(@RequestParam(name = "userId") String userId, @RequestParam(name = "domain") String domain) {
+		try {
+			CoreDataEntryLight coreDataEntryLight = coreDataService.getByCpr(userId, domain);
+			if (coreDataEntryLight == null) {
+				return ResponseEntity.notFound().build();
+			}
+
+			return ResponseEntity.ok(coreDataEntryLight);
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for getByCpr", ex);
+
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

@@ -10,4 +10,5 @@ import lombok.Setter;
 public class TermsAndConditionsDTO {
 	private String content;
 	private boolean mustApprove;
+	private String fixedTerms;
 }

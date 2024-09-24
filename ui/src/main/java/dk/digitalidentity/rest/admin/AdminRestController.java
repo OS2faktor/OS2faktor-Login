@@ -41,7 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.AuditLogSearchCriteria;
-import dk.digitalidentity.common.dao.model.BadPassword;
 import dk.digitalidentity.common.dao.model.CmsMessage;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.EmailTemplate;
@@ -50,13 +49,11 @@ import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitSubsystem;
 import dk.digitalidentity.common.dao.model.Link;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
-import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.RadiusClient;
 import dk.digitalidentity.common.dao.model.RadiusClientClaim;
 import dk.digitalidentity.common.dao.model.RadiusClientCondition;
-import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.Supporter;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
@@ -72,23 +69,18 @@ import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
-import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RadiusClientService;
-import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.datatables.AuditLogDatatableDao;
-import dk.digitalidentity.datatables.BadPasswordDatatableDao;
 import dk.digitalidentity.datatables.PersonDatatableDao;
 import dk.digitalidentity.datatables.model.AdminPersonView;
 import dk.digitalidentity.datatables.model.AuditLogView;
-import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.RadiusClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.RadiusClientDTO;
-import dk.digitalidentity.mvc.admin.dto.SessionConfigurationForm;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.mvc.selfservice.NSISStatus;
@@ -105,7 +97,6 @@ import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.AuditLogSearchCriteriaService;
-import dk.digitalidentity.service.BadPasswordService;
 import dk.digitalidentity.service.EmailTemplateSenderService;
 import dk.digitalidentity.service.LinkService;
 import dk.digitalidentity.service.MetadataService;
@@ -118,9 +109,6 @@ public class AdminRestController {
 
 	@Autowired
 	private AuditLogDatatableDao auditLogDatatableDao;
-
-	@Autowired
-	private BadPasswordDatatableDao badPasswordDatatableDao;
 
 	@Autowired
 	private PersonDatatableDao personDatatableDao;
@@ -136,12 +124,6 @@ public class AdminRestController {
 
 	@Autowired
 	private DomainService domainService;
-
-	@Autowired
-	private SessionSettingService sessionSettingService;
-
-	@Autowired
-	private PasswordSettingService passwordSettingService;
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
@@ -181,9 +163,6 @@ public class AdminRestController {
 	
 	@Autowired
 	private EmailTemplateSenderService emailTemplateSenderService;
-
-	@Autowired
-	private BadPasswordService badPasswordService;
 	
 	@PersistenceContext
 	private EntityManager entityManager;
@@ -473,7 +452,7 @@ public class AdminRestController {
 					finalPredicate = criteriaBuilder.or(finalPredicate, andPredicate);
 				}
 			}
-			
+
 			if (domains != null && finalPredicate != null) {
 				Predicate domainPredicate = criteriaBuilder.in(root.get("domain")).value(domains);
 				
@@ -510,7 +489,7 @@ public class AdminRestController {
 			personService.suspend(person);
 		}
 		
-		sendEmails(lock,person);
+		sendEmails(lock, person);
 
 		personService.save(person);
 
@@ -525,22 +504,54 @@ public class AdminRestController {
 	}
 
 	private void sendEmails(boolean lock, Person person) {
+		// only trigger mails when person is NSISAllowed = true
+		if (!person.isNsisAllowed()) {
+			return;
+		}
+
 		if (lock) {
 			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED);
 			for (EmailTemplateChild child : emailTemplate.getChildren()) {
-				if (child.isEnabled()) {
+				if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
 					String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+					message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+
 					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
 				}
 			}
+
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
+				for (EmailTemplateChild child : emailTemplate.getChildren()) {
+					if (child.getDomain().getId() == person.getDomain().getId()) {
+						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+	
+						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+					}
+				}				
+			}
 		}
 		
-		if (!lock && person.isNsisAllowed()) {
+		if (!lock) {
 			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATION_REPEALED);
 			for (EmailTemplateChild child : emailTemplate.getChildren()) {
-				if (child.isEnabled()) {
+				if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
 					String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+					message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+
 					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
+				}
+			}
+			
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_ASSIGNED);
+				for (EmailTemplateChild child : emailTemplate.getChildren()) {
+					if (child.getDomain().getId() == person.getDomain().getId()) {
+						String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
+	
+						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+					}
 				}
 			}
 		}
@@ -681,67 +692,6 @@ public class AdminRestController {
 	@PostMapping("/rest/admin/settings/link/delete/{id}")
 	public ResponseEntity<String> deleteLink(@PathVariable("id") long id) {
 		linkService.deleteById(id);
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-
-	@GetMapping("/rest/admin/settings/session/{domainId}")
-	@ResponseBody
-	@RequireAdministrator
-	public ResponseEntity<SessionConfigurationForm> getSessionSettings(@PathVariable("domainId") long domainId) {
-		Domain domain = domainService.getById(domainId);
-		if (domain == null) {
-			return ResponseEntity.badRequest().build();
-		}
-
-		SessionSetting settings = sessionSettingService.getSettings(domain);
-
-		return ResponseEntity.ok(new SessionConfigurationForm(settings));
-	}
-
-	@GetMapping("/rest/admin/settings/password/{domainId}")
-	@ResponseBody
-	@RequireAdministrator
-	public ResponseEntity<PasswordConfigurationForm> getPasswordSettings(@PathVariable("domainId") long domainId) {
-		Domain domain = domainService.getById(domainId);
-		if (domain == null) {
-			return ResponseEntity.badRequest().build();
-		}
-
-		PasswordSetting settings = passwordSettingService.getSettings(domain);
-		PasswordConfigurationForm form = new PasswordConfigurationForm(settings);
-		
-		// only show these for parent domains (and only those that are not standalone)
-		form.setShowAdSettings(domain.getParent() == null && !domain.isStandalone());
-		
-		return ResponseEntity.ok(form);
-	}
-	
-	@PostMapping("/rest/admin/konfiguration/badpassword")
-	@ResponseBody
-	@RequireAdministrator
-	public DataTablesOutput<BadPassword> getBadPasswords(@RequestBody DataTablesInput input) {
-		return badPasswordDatatableDao.findAll(input);
-	}
-	
-	@RequireAdministrator
-	@PostMapping("/rest/admin/konfiguration/badPassword/add")
-	public ResponseEntity<?> addBadPassword(@RequestBody String badPassword) {
-		if (badPasswordService.exists(badPassword)) {
-			return new ResponseEntity<>(HttpStatus.CONFLICT);
-		}
-
-		BadPassword bp = new BadPassword();
-		bp.setPassword(badPassword);
-		badPasswordService.save(bp);
-
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-	
-	@RequireAdministrator
-	@PostMapping("/rest/admin/konfiguration/badPassword/remove/{id}")
-	public ResponseEntity<?> removeBadPassword(@PathVariable("id") long id){
-		badPasswordService.delete(id);
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
