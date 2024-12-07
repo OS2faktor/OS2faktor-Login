@@ -3,9 +3,6 @@ package dk.digitalidentity.mvc.admin.xlsview;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -13,6 +10,8 @@ import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.service.AuditLogReportXlsService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class AuditLogReportXlsViewStatic extends AbstractXlsxStreamingView {
 	private CellStyle headerStyle;

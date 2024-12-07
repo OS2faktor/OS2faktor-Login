@@ -1,67 +1,80 @@
 package dk.digitalidentity.config;
 
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.web.SecurityFilterChain;
 
-@EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+@Configuration
+public class SecurityConfig  {
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http
-            .csrf()
-                .ignoringAntMatchers("/sso/saml/login")
-                .ignoringAntMatchers("/sso/saml/logout")
-                .ignoringAntMatchers("/sso/login")
-                .ignoringAntMatchers("/api/client/login")
-                .ignoringAntMatchers("/api/client/loginWithBody")
-                .ignoringAntMatchers("/api/client/changePassword")
-                .ignoringAntMatchers("/api/client/changePasswordWithBody")
-                .ignoringAntMatchers("/nemlogin/saml/**")
-                .ignoringAntMatchers("/oauth2/authorize")
-                .ignoringAntMatchers("/oauth2/introspect")
-                .ignoringAntMatchers("/oauth2/jwks")
-                .ignoringAntMatchers("/oauth2/revoke")
-                .ignoringAntMatchers("/oauth2/token")
-                .ignoringAntMatchers("/userinfo")
-            .and() // Disable CSRF protection for the SAML login flow and windows clients (but keep it everywhere else)
-            .authorizeRequests()
-                .mvcMatchers("/").permitAll()
-                .mvcMatchers("/sso/login").permitAll()
-                .mvcMatchers("/sso/saml/**").permitAll()
-                .mvcMatchers("/oidc/**").permitAll()
-                .mvcMatchers("/ws/**").permitAll()
-                .mvcMatchers("/manage/**").permitAll()
-                .mvcMatchers("/webjars/**").permitAll()
-                .mvcMatchers("/css/**").permitAll()
-                .mvcMatchers("/js/**").permitAll()
-                .mvcMatchers("/img/**").permitAll()
-                .mvcMatchers("/favicon.ico").permitAll()
-                .mvcMatchers("/error").permitAll()
-                .mvcMatchers("/vilkaar/godkendt").permitAll()
-                .mvcMatchers("/konto/aktiver").permitAll()
-                .mvcMatchers("/konto/vaelgkode").permitAll()
-                .mvcMatchers("/konto/fortsaetlogin").permitAll()
-                .mvcMatchers("/konto/init-aktiver").permitAll()
-                .mvcMatchers("/nemlogin/saml/**").permitAll()
-                .mvcMatchers("/konto/valideradkodeord").permitAll()
-                .mvcMatchers("/change-password").permitAll()
-                .mvcMatchers("/change-password-next").permitAll()
-                .mvcMatchers(HttpMethod.POST,"/api/client/login").permitAll()
-                .mvcMatchers(HttpMethod.POST,"/api/client/loginWithBody").permitAll()
-                .mvcMatchers(HttpMethod.POST,"/api/client/changePassword").permitAll()
-                .mvcMatchers(HttpMethod.POST,"/api/client/changePasswordWithBody").permitAll()
-                .mvcMatchers("/oauth2/authorize").permitAll()
-                .mvcMatchers("/oauth2/introspect").permitAll()
-                .mvcMatchers("/oauth2/jwks").permitAll()
-                .mvcMatchers("/oauth2/revoke").permitAll()
-                .mvcMatchers("/oauth2/token").permitAll()
-                .mvcMatchers("/userinfo").permitAll()
-                .mvcMatchers("/.well-known/oauth-authorization-server").permitAll()
-                .mvcMatchers("/.well-known/openid-configuration").permitAll()
-                .mvcMatchers("/elevkode").permitAll()
-                .anyRequest().denyAll();
+	@Order(2) // AuthorizationServerSecurityConfig is set as @Order(1) letting OIDC/OAuth2.0 be handled first
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.csrf((csrf) ->
+        	csrf
+                .ignoringRequestMatchers("/sso/saml/login")
+                .ignoringRequestMatchers("/sso/saml/logout")
+                .ignoringRequestMatchers("/sso/login")
+                .ignoringRequestMatchers("/api/client/login")
+                .ignoringRequestMatchers("/api/client/loginWithBody")
+                .ignoringRequestMatchers("/api/client/changePassword")
+                .ignoringRequestMatchers("/api/client/changePasswordWithBody")
+                .ignoringRequestMatchers("/nemlogin/saml/**")
+                .ignoringRequestMatchers("/oauth2/authorize")
+                .ignoringRequestMatchers("/oauth2/introspect")
+                .ignoringRequestMatchers("/oauth2/jwks")
+                .ignoringRequestMatchers("/oauth2/revoke")
+                .ignoringRequestMatchers("/oauth2/token")
+                .ignoringRequestMatchers("/userinfo")
+                .ignoringRequestMatchers("/entraMfa/**")
+        );
+
+        http.authorizeHttpRequests((req) -> {
+        	req
+            	.requestMatchers("/").permitAll()
+            	.requestMatchers("/sso/login").permitAll()
+            	.requestMatchers("/sso/saml/**").permitAll()
+            	.requestMatchers("/oidc/**").permitAll()
+            	.requestMatchers("/ws/**").permitAll()
+            	.requestMatchers("/manage/**").permitAll()
+            	.requestMatchers("/webjars/**").permitAll()
+            	.requestMatchers("/css/**").permitAll()
+            	.requestMatchers("/js/**").permitAll()
+            	.requestMatchers("/img/**").permitAll()
+            	.requestMatchers("/favicon.ico").permitAll()
+            	.requestMatchers("/error").permitAll()
+				.requestMatchers("/fragment/username").permitAll()
+            	.requestMatchers("/vilkaar/godkendt").permitAll()
+            	.requestMatchers("/konto/aktiver").permitAll()
+            	.requestMatchers("/konto/vaelgkode").permitAll()
+            	.requestMatchers("/konto/fortsaetlogin").permitAll()
+            	.requestMatchers("/konto/init-aktiver").permitAll()
+            	.requestMatchers("/nemlogin/saml/**").permitAll()
+            	.requestMatchers("/konto/valideradkodeord").permitAll()
+            	.requestMatchers("/change-password").permitAll()
+            	.requestMatchers("/change-password-next").permitAll()
+            	.requestMatchers(HttpMethod.POST,"/api/client/login").permitAll()
+            	.requestMatchers(HttpMethod.POST,"/api/client/loginWithBody").permitAll()
+            	.requestMatchers(HttpMethod.POST,"/api/client/changePassword").permitAll()
+            	.requestMatchers(HttpMethod.POST,"/api/client/changePasswordWithBody").permitAll()
+            	.requestMatchers("/elevkode").permitAll()
+            	.requestMatchers("/oauth2/login").permitAll()
+            	.requestMatchers("/oauth2/authorize").permitAll()
+            	.requestMatchers("/oauth2/introspect").permitAll()
+            	.requestMatchers("/oauth2/jwks").permitAll()
+            	.requestMatchers("/oauth2/revoke").permitAll()
+            	.requestMatchers("/oauth2/token").permitAll()
+            	.requestMatchers("/userinfo").permitAll()
+            	.requestMatchers("/.well-known/oauth-authorization-server").permitAll()
+            	.requestMatchers("/.well-known/openid-configuration").permitAll()
+            	.requestMatchers("/entraMfa/**").permitAll();
+
+        	req.anyRequest().denyAll();
+        });
+
+        return http.build();
     }
 }

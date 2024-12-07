@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.radius-client-edit')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.radius-client-edit')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -186,15 +186,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.radius-client-edit')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.radius-client-edit')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 	
 </body>
 <script th:inline="javascript">

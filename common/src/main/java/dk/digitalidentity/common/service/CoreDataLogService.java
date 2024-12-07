@@ -3,8 +3,6 @@ package dk.digitalidentity.common.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -12,6 +10,7 @@ import org.springframework.util.StringUtils;
 import dk.digitalidentity.common.dao.CoreDataLogDao;
 import dk.digitalidentity.common.dao.model.CoreDataLog;
 import dk.digitalidentity.common.dao.model.Domain;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Service

@@ -1,13 +1,14 @@
 package dk.digitalidentity.util;
 
-import org.springframework.security.web.util.matcher.IpAddressMatcher;
-import org.springframework.util.StringUtils;
-
-import javax.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
+import org.springframework.util.StringUtils;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 public class IPUtil {
 

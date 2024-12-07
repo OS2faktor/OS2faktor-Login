@@ -1,5 +1,19 @@
 package dk.digitalidentity.service.serviceprovider;
 
+import java.time.LocalDateTime;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+import org.apache.http.client.HttpClient;
+import org.opensaml.saml.saml2.core.AuthnRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.AdvancedRuleService;
@@ -9,22 +23,8 @@ import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-
-import java.time.LocalDateTime;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
-import javax.annotation.PostConstruct;
-
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.client.HttpClient;
-import org.opensaml.saml.saml2.core.AuthnRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Service
 @Slf4j
@@ -166,7 +166,6 @@ public class ServiceProviderFactory {
                 if (authnRequest != null && authnRequest.getIssuer() != null) {
                     ServiceProvider serviceProvider = getServiceProvider(authnRequest.getIssuer().getValue());
 
-
                     return serviceProvider;
                 }
 
@@ -182,12 +181,26 @@ public class ServiceProviderFactory {
                 throw new RequesterException("Ingen ClientId fundet i OAuth2AuthorizationCodeRequestAuthenticationToken og kunne derfor ikke finde tjenesteudbyderens indstillinger");
             case WSFED:
                 return getServiceProvider(loginRequest.getServiceProviderId());
-            default:
-                throw new IllegalStateException("Unexpected value: " + loginRequest.getProtocol());
+            case ENTRAMFA:
+            	return getEntraMfaServiceProvider();
         }
+        
+        throw new IllegalStateException("Unexpected value: " + loginRequest.getProtocol());
     }
 
-    public ServiceProvider getServiceProvider(String entityId) throws RequesterException, ResponderException {
+	public ServiceProvider getEntraMfaServiceProvider() throws RequesterException, ResponderException {
+        for (ServiceProvider serviceProvider : serviceProviders) {
+        	if (serviceProvider instanceof EntraMfaServiceProvider) {
+        		return serviceProvider;
+        	}
+        }
+
+        log.warn("Kunne ikke finde en tjenesteudbyder for EntraID MFA");
+
+        throw new RequesterException("Kunne ikke finde en tjenesteudbyder for EntraID MFA");
+    }
+	
+	public ServiceProvider getServiceProvider(String entityId) throws RequesterException, ResponderException {
         for (ServiceProvider serviceProvider : serviceProviders) {
 
         	for (String spEntityId : serviceProvider.getEntityIds()) {

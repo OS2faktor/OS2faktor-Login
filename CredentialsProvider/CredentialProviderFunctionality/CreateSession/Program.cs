@@ -1,10 +1,8 @@
 ﻿using Microsoft.Win32;
 using Serilog;
 using System;
-using System.DirectoryServices.AccountManagement;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Globalization;
 using System.Security.Principal;
 using System.Security.Cryptography;
 
@@ -63,7 +61,6 @@ namespace CreateSession
                         Log.Verbose("Logging initialized, CreateSession invoked.");
                         Log.Verbose($"Running as: {WindowsIdentity.GetCurrent().Name}");
 
-
                         // Check that the args are correct
                         if (args.Length != 3)
                         {
@@ -74,91 +71,63 @@ namespace CreateSession
                         // Make configurable or remove (this is for self signed certificates)
                         //ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
+                        // Create HttpClient and set RequestHeaders
+                        HttpClient client = new HttpClient();
+                        client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
+
+                        // Create body of message
+                        // {
+                        //   "username": "xxxx",
+                        //   "password": "xxxx",
+                        //   "version": "xxxx",
+                        //   "base64": true
+                        // }
+                        string body = "{\"username\":\"" + args[0] + "\",\"password\":\"" + getPassword(args[1]) + "\"";
+                        if (version != null)
+                        {
+                            string versionParameter = version.Replace(".", "").Trim();
+                            if (!String.IsNullOrWhiteSpace(versionParameter))
+                            {
+                                body += ",\"version\":\"" + versionParameter + "\",\"base64\":true";
+                            }
+                        }
+                        body += "}";
+                        HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
 
-                        // Fetch the users SID to edit the registry
-                        PrincipalContext context = null;
+                        // Call the service and wait for the response
                         try
                         {
-                            Log.Verbose("UserPrincipal context: Domain");
-                            context = new PrincipalContext(ContextType.Domain);
-                        }
-                        catch (PrincipalServerDownException)
-                        {
-                            Log.Verbose("UserPrincipal context: Local machine");
-                            context = new PrincipalContext(ContextType.Machine);
-                        }
+                            // Create URL from configured baseURL
+                            string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/loginWithBody";
 
-                        using (context)
-                        {
-                            using (UserPrincipal user = UserPrincipal.FindByIdentity(context, args[0]))
+                            Log.Verbose("Calling url: " + url);
+
+                            HttpResponseMessage response = await client.PostAsync(url, content);
+
+                            Log.Verbose("Response recieved");
+
+                            if (response.IsSuccessStatusCode)
                             {
-                                if (string.IsNullOrEmpty(user.Sid.Value))
-                                {
-                                    Log.Error("User SID was null or empty");
-                                    return;
-                                }
+                                Log.Verbose("Response was positive, extablishing session");
 
-                                Log.Information("userSID: " + user.Sid.Value);
+                                string establishSessionUrl = await response.Content.ReadAsStringAsync();
+                                Log.Verbose("Token read");
 
-                                // Create HttpClient and set RequestHeaders
-                                HttpClient client = new HttpClient();
-                                client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
-
-
-                                // Create body of message
-                                // {
-                                //   "username": "xxxx",
-                                //   "password": "xxxx",
-                                //   "version": "xxxx"
-                                // }
-                                string body = "{\"username\":\"" + args[0] + "\",\"password\":\"" + getPassword(args[1]) + "\"";
-                                if (version != null)
-                                {
-                                    string versionParameter = version.Replace(".", "").Trim();
-                                    if (!String.IsNullOrWhiteSpace(versionParameter))
-                                    {
-                                        body += ",\"version\":\"" + versionParameter + "\"";
-                                    }
-                                }
-                                body += "}";
-                                HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
-
-
-                                // Call the service and wait for the response
-                                try
-                                {
-                                    // Create URL from configured baseURL
-                                    string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/loginWithBody";
-
-                                    Log.Verbose("Calling url: " + url);
-
-                                    HttpResponseMessage response = await client.PostAsync(url, content);
-
-                                    Log.Verbose("Response recieved");
-
-                                    if (response.IsSuccessStatusCode)
-                                    {
-                                        Log.Verbose("Response was positive, extablishing session");
-
-                                        string establishSessionUrl = await response.Content.ReadAsStringAsync();
-                                        Log.Verbose("Token read");
-
-                                        Log.Verbose("Sending establishSessionUrl to CredentialManager");
-                                        Console.Out.Write(establishSessionUrl);
-                                    }
-                                    else
-                                    {
-                                        Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, response.ReasonPhrase);
-                                        return;
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log.Error(ex, "Could not fetch temporary session key from os2faktor.");
-                                    return;
-                                }
+                                Log.Verbose("Sending establishSessionUrl to CredentialManager");
+                                Console.Out.Write(establishSessionUrl);
                             }
+                            else
+                            {
+                                var responseBody = await response.Content.ReadAsStringAsync();
+                                Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, responseBody);
+                                return;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Could not fetch temporary session key from os2faktor.");
+                            return;
                         }
                     }
                 }
@@ -179,8 +148,8 @@ namespace CreateSession
         private static string getPassword(string encodedPassword)
         {
             byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
-            string nonEncPass = System.Text.Encoding.Unicode.GetString(bytes);
-            return nonEncPass;
+
+            return Convert.ToBase64String(bytes);
         }
     }
 }

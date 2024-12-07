@@ -214,7 +214,7 @@ HRESULT CredentialProviderFilter::UpdateRemoteCredential(_In_ const CREDENTIAL_P
 		}
 		pcpcsOut->ulAuthenticationPackage = pcpcsIn->ulAuthenticationPackage;
 		pcpcsOut->cbSerialization = pcpcsIn->cbSerialization;
-		pcpcsOut->clsidCredentialProvider = CLSID_OS2faktorCredentialProvider;
+		pcpcsOut->clsidCredentialProvider = pcpcsIn->clsidCredentialProvider;
 
 		CopyMemory(pcpcsOut->rgbSerialization, pcpcsIn->rgbSerialization, pcpcsIn->cbSerialization);
 

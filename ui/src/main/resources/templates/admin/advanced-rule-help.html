@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header"></head>
+<head th:replace="~{fragments/header :: header}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.serviceprovider')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -29,6 +29,8 @@
 									<li><b>UPPER(a)</b> - Denne operation ændrer alle tegn til at være store bogstaver</li>
 									<li><b>LOWER(a)</b> - Denne operation ændrer alle tegn til at være små bogstaver</li>
 									<li><b>REGEX_REPLACE(a, b, c)</b> - Denne operation tager kildeteksten (a) og erstatter alle forekomster af (b) med værdien (c). Man kan anvende regulære udtræk til (b)</li>
+									<li><b>BASE64(a)</b> - Denne operation udfører en base64 enkodning af kildeteksten (a)</li>
+									<li><b>BINARY_UUID(a)</b> - Denne operation kan kun anvendes på UUID værdier, og er lavet specifikt til Danmarks Miljøportal. Den konverterer et UUID til det format som Windows anvender, og derefter Base64 enkoder den værdien</li>
 								</ul>
 								
 								<p>
@@ -56,8 +58,8 @@ VALUE('12345678')</pre>
 								<p>
 									Denne operation anvendes til at flette værdier, og kan tage så mange værdier som man ønsker som input. Eksempler på dette er vist nedenfor
 
-<pre>JOIN(user.userId, user.name)
-JOIN(user.name, VALUE(' - '), LOWER(user.email))</pre>
+<pre>JOIN(VALUE(user.userId), VALUE(user.name))
+JOIN(VALUE(user.name), VALUE(' - '), LOWER(VALUE(user.email)))</pre>
 
 									Bemærk her at hver værdi skal adskilles med komma, og hver værdi i sig selv skal være en lovlig operation.									
 								</p>
@@ -65,15 +67,15 @@ JOIN(user.name, VALUE(' - '), LOWER(user.email))</pre>
 								<h3>UPPER</h3>
 								<p>
 									Dette er en forholdsvis simpel operation, der ændrer det givne input til at være i rene store bogstaver, som vist nedenfor kan det kombineres med andre operationer
-<pre>UPPER(user.userId)
-UPPER(JOIN(user.name, VALUE(' - '), user.email))</pre>
+<pre>UPPER(VALUE(user.userId))
+UPPER(JOIN(VALUE(user.name), VALUE(' - '), VALUE(user.email)))</pre>
 								</p>
 
 								<h3>LOWER</h3>
 								<p>
 									Denne operation fungerer som UPPER ovenfor, men ændrer teksten til at være i rene små bogstaver, med eksempler nedenfor
-<pre>LOWER(user.userId)
-LOWER(JOIN(user.name, VALUE(' - '), user.email))</pre>
+<pre>LOWER(VALUE(user.userId))
+LOWER(JOIN(VALUE(user.name), VALUE(' - '), VALUE(user.email)))</pre>
 								</p>
 
 								<h3>REGEX_REPLACE</h3>
@@ -124,14 +126,14 @@ LOWER(JOIN(user.name, VALUE(' - '), user.email))</pre>
 						</div>
 					</div>
 
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.serviceprovider')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 </body>
 </html>

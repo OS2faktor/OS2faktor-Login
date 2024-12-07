@@ -1,5 +1,6 @@
 package dk.digitalidentity.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -12,21 +13,23 @@ import org.springframework.util.StringUtils;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.ADPasswordService;
 import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
-import dk.digitalidentity.service.model.enums.PasswordStatus;
+import dk.digitalidentity.service.model.enums.PasswordExpireStatus;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class PasswordService {
-	private enum CacheStrategy { NO_AD, NO_CACHE_UNLESS_AD_DOWN, NO_CACHE, WITH_CACHE };
 	
 	@Autowired
 	private PersonService personService;
@@ -36,6 +39,9 @@ public class PasswordService {
 
 	@Autowired
 	private PasswordSettingService passwordSettingService;
+
+	@Autowired
+	private PasswordValidationService passwordValidationService;
 
 	@Autowired
 	private ADPasswordService adPasswordService;
@@ -49,109 +55,79 @@ public class PasswordService {
 	/**
 	 * attempt to validate password in this order (until successful)
 	 * 
-	 * 1) against NSIS password
+	 * 1) against person.getPassword()
+	 */
+	public PasswordValidationResult validatePasswordFromWcp(String password, Person person) {
+		return validatePassword(password, person, true, false);
+	}
+
+	/**
+	 * attempt to validate password in this order (until successful)
+	 * 
+	 * 1) against person.getPassword()
 	 */
 	public PasswordValidationResult validatePasswordNoAD(String password, Person person) {
-		return validatePassword(password, person, false, CacheStrategy.NO_AD);
+		return validatePassword(password, person, false, false);
 	}
 
-	// note that this is the most common method - and should be considered the default unless a different behaviour is needed
 	/**
 	 * attempt to validate password in this order (until successful)
 	 * 
-	 * 1) against NSIS password
-	 * 2) against AD password (and then update the cached password if successful)
-	 * 3) against AD cached password (only if no connection to AD is available)
-	 */
-	public PasswordValidationResult validatePasswordNoCacheUnlessADDown(String password, Person person) {
-		return validatePassword(password, person, false, CacheStrategy.NO_CACHE_UNLESS_AD_DOWN);
-	}
-	
-	/**
-	 * attempt to validate password in this order (until successful)
-	 * 
-	 * 1) against NSIS password
-	 * 2) against AD password (and then update the cached password if successful)
+	 * 1) against person.getPassword()
+	 * 2) against AD password
 	 */
 	public PasswordValidationResult validatePassword(String password, Person person) {
-		return validatePassword(password, person, false, CacheStrategy.NO_CACHE);
-	}
-
-	/**
-	 * attempt to validate password in this order (until successful)
-	 * 
-	 * 1) against NSIS password
-	 * 2) against AD cached password (and no fallback to direct validation)
-	 * 
-	 * note it will return FAILURE in cache-validation misses non non-nsis users, but it will not increment error count, nor block the account
-	 */
-	public PasswordValidationResult validatePasswordWithCache(String password, Person person, boolean isWcp) {
-		return validatePassword(password, person, isWcp, CacheStrategy.WITH_CACHE);
+		return validatePassword(password, person, false, true);
 	}
 	
-	public boolean hasCachedADPassword(Person person) {
-		return adPasswordService.hasCachedADPassword(person);
-	}
-
-	public PasswordStatus getPasswordStatus(Person person) {
+	public PasswordExpireStatus getPasswordExpireStatus(Person person) {
 		// Regardless of password policy of forcing people to change password every X days
 		// we always force it if the flag on the person has been set to true
 		if (person.isForceChangePassword()) {
-			return PasswordStatus.FORCE_CHANGE;
+			return PasswordExpireStatus.FORCE_CHANGE;
 		}
 
 		// Any other prompting of password change needs PasswordSetting.isForceChangePasswordEnabled=true
-		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
+		PasswordSetting settings = passwordSettingService.getSettings(person);
 		if (settings.isForceChangePasswordEnabled()) {
-			// Person is in weird state from not completing activation fully
-			if (person.hasActivatedNSISUser() && (person.getNsisPasswordTimestamp() == null || !StringUtils.hasLength(person.getNsisPassword()))) {
-				log.warn("Person: " + person.getUuid() + " has no NSIS password");
+
+			// person does not actually have a password set (yet)
+			if (person.getPasswordTimestamp() == null || !StringUtils.hasLength(person.getPassword())) {
 
 				// reset persons NSIS level if set - they skipped an important step during activation
 				if (NSISLevel.LOW.equalOrLesser(person.getNsisLevel())) {
+					log.warn("Person: " + person.getUuid() + " has an activated NSIS account, but no password");
+
 					person.setNsisLevel(NSISLevel.NONE);
 					personService.save(person);
+					
+					// this special state is an error-indicator, telling the caller to drop the user into activation again, so
+					// the user can get a registered password
+					return PasswordExpireStatus.NO_PASSWORD;
 				}
 
-				// inform caller that the person has no password, so they can be dropped into activation
-				return PasswordStatus.NO_PASSWORD;
+				// no password is okay when it comes to state - the caller should just validate against AD if possible
+				return PasswordExpireStatus.OK;
 			}
 
-			// NSIS Password expired
-			if (person.hasActivatedNSISUser()) {
-				LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
-				if (person.getNsisPasswordTimestamp().isBefore(expiredTimestamp)) {
-					return PasswordStatus.EXPIRED;
-				}
+			// password expired
+			LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
+			if (person.getPasswordTimestamp().isBefore(expiredTimestamp)) {
+				return PasswordExpireStatus.EXPIRED;
 			}
 
-			// NextPasswordChange expired (from CoreDataAPI)
-			if (person.getNextPasswordChange() != null && person.getNextPasswordChange().isBefore(LocalDateTime.now())) {
-				return PasswordStatus.EXPIRED;
-			}
-
-			// NSIS Password almost expired
-			if (person.hasActivatedNSISUser()) {
-				LocalDateTime almostExpiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval()).plusDays(commonConfiguration.getPasswordSoonExpire().getReminderDaysBeforeExpired());
-				if (person.getNsisPasswordTimestamp().isBefore(almostExpiredTimestamp)) {
-					return PasswordStatus.ALMOST_EXPIRED;
-				}
-			}
-
-			// NextPasswordChange almost expired (from CoreDataAPI)
-			if (person.getNextPasswordChange() != null) {
-				LocalDateTime almostExpiredTimestamp = person.getNextPasswordChange().minusDays(commonConfiguration.getPasswordSoonExpire().getReminderDaysBeforeExpired());
-				if (!LocalDateTime.now().isBefore(almostExpiredTimestamp)) {
-					return PasswordStatus.ALMOST_EXPIRED;
-				}
+			// password almost expired
+			LocalDateTime almostExpiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval()).plusDays(commonConfiguration.getPasswordSoonExpire().getReminderDaysBeforeExpired());
+			if (person.getPasswordTimestamp().isBefore(almostExpiredTimestamp)) {
+				return PasswordExpireStatus.ALMOST_EXPIRED;
 			}
 		}
 
-		return PasswordStatus.OK;
+		return PasswordExpireStatus.OK;
 	}
 
-	private PasswordValidationResult validatePassword(String password, Person person, boolean isWcp, CacheStrategy cacheStrategy) {
-
+	private PasswordValidationResult validatePassword(String password, Person person, boolean isWcp, boolean allowFallbackToAD) {
+		
 		// special case - if no password is supplied, just abort. This does not count as an invalid attempt though,
 		// so no increase in bad_password_attempts
 		if (!StringUtils.hasLength(password)) {
@@ -169,46 +145,50 @@ public class PasswordService {
 		// now lets compute the actual result
 		PasswordValidationResult result = null;
 
-		// if the person has an NSIS password, we always start with validating against that password
-		if (person.hasActivatedNSISUser() && StringUtils.hasLength(person.getNsisPassword())) {
+		// if the person has a registered password, we always start with validating against that password
+		if (StringUtils.hasLength(person.getPassword())) {
 			BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-			PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
 
-			if (encoder.matches(password, person.getNsisPassword())) {
-				// Password matches, check for expiry
+			if (encoder.matches(password, person.getPassword())) {
 
-				if (settings.isForceChangePasswordEnabled() && person.getNsisPasswordTimestamp() != null) {
-					LocalDateTime maxPasswordAge = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
-
-					if (!person.getNsisPasswordTimestamp().isAfter(maxPasswordAge)) {
+				// password matches, check for expiry
+				PasswordExpireStatus passwordStatus = getPasswordExpireStatus(person);
+				switch (passwordStatus) {
+					case ALMOST_EXPIRED:
+					case EXPIRED:
+					case FORCE_CHANGE:
 						log.warn("Local password validation failed due to expired password for person " + person.getId());
 
+						sessionHelper.setPasswordLevel(person.getNsisLevel());
+						sessionHelper.setAuthnInstant(new DateTime());
 						result = PasswordValidationResult.VALID_EXPIRED;
-					}
+					default:
+						break;
 				}
 
 				// Password matches and not expired
 				if (result == null) {
-					sessionHelper.setPasswordLevel(NSISLevel.SUBSTANTIAL);
+					// when validating against the stored password, we set the sessions password-nsis-level to the persons level,
+					// which ensures that we set it to NONE or SUBSTANTIAL, depending on the type of user that logged in.
+					// note that when we validate against AD further down, it is always set to NONE
+
+					sessionHelper.setPasswordLevel(person.getNsisLevel());
 					sessionHelper.setAuthnInstant(new DateTime());
+					
 					result = PasswordValidationResult.VALID;
 				}
 			}
-			else if (cacheStrategy == CacheStrategy.NO_AD) {
+			else if (!allowFallbackToAD) {
 				// if we are not going to fallback to AD validation, the result is now invalid (otherwise fallback to AD validation)
 				result = PasswordValidationResult.INVALID;
 			}
 		}
-		
-		/* for domains that are stand-alone, perform fallback against student_password (badly named field - consider renaming).
-		 * for students that are in indskoling or special-needs-class, we also allow validating against this field (original functionality, thus the name)
-		 */
-		if (result == null && StringUtils.hasLength(person.getStudentPassword()) &&
-			(
-					(personService.isStudent(person) && personService.isStudentInIndskolingOrSpecialNeedsClass(person)) ||
-					person.getDomain().isStandalone())
-			) {
 
+		/*
+		 * for students that are in indskoling or special-needs-class, we validate against this field as fallback, as
+		 * we store a copy of their password, which can be shown to the teacher in the UI
+		 */
+		if (result == null && StringUtils.hasLength(person.getStudentPassword()) && personService.isStudent(person) && personService.isStudentInIndskolingOrSpecialNeedsClass(person)) {
 			try {
 				String pwd = passwordChangeQueueService.decryptPassword(person.getStudentPassword());
 				
@@ -228,81 +208,30 @@ public class PasswordService {
 			}
 		}
 
-		// fallback to validating against AD (if allowed and possible...)
-		if (result == null && StringUtils.hasLength(person.getSamaccountName()) && !person.getDomain().isStandalone()) {
+		// fallback to validating against AD unless it is a standalone domain (or explicitly prohibited by caller)
+		boolean noValidationNeededDueToFallbackPasswordNotStoredInDatabase = false;
+		if (result == null && allowFallbackToAD && !person.getDomain().isStandalone()) {
+			ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
 
-			switch (cacheStrategy) {
-				case NO_AD:
-					break;
-				case NO_CACHE: {
-					ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
+			if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
+				sessionHelper.setAuthenticatedWithADPassword(true);
+				sessionHelper.setADPerson(person);
+				sessionHelper.setPasswordLevel(NSISLevel.NONE);
+				sessionHelper.setAuthnInstant(new DateTime());
+				sessionHelper.setPassword(password);
+				result = PasswordValidationResult.VALID;
 
-					if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
-						sessionHelper.setAuthenticatedWithADPassword(true);
-						sessionHelper.setADPerson(person);
-						sessionHelper.setPasswordLevel(NSISLevel.NONE);
-						sessionHelper.setAuthnInstant(new DateTime());
-						sessionHelper.setPassword(password);
-						result = PasswordValidationResult.VALID;
+				// if the person is a non-nsis user, we also store the password in the database for later validation purposes
+				if (!person.hasActivatedNSISUser()) {
+					BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-						// update the cached password then
-						adPasswordService.updateCache(person, password);
-					}
+					person.setPassword(encoder.encode(password));
+					person.setPasswordTimestamp(LocalDateTime.now());
 
-					break;
+					personService.save(person);
 				}
-				case WITH_CACHE: {
-					// check cache on technical/timeout errors only
-					if (adPasswordService.validateAgainstCache(person, password)) {
-						sessionHelper.setAuthenticatedWithADPassword(true);
-						sessionHelper.setADPerson(person);
-						sessionHelper.setPasswordLevel(NSISLevel.NONE);
-						sessionHelper.setAuthnInstant(new DateTime());
-						sessionHelper.setPassword(password);
-						result = PasswordValidationResult.VALID_CACHE;							
-					}
-					else {
-						// special case - the user does not actually have a registered NSIS password
-						// so the validation against the cache is the only thing we are actually doing,
-						// and a cache-miss does not count as an invalid password attempt, just reject
-						// without counting up anything
-						if (!StringUtils.hasLength(person.getNsisPassword())) {
-							sessionHelper.setPasswordLevel(null);
-							return PasswordValidationResult.INVALID;
-						}
-					}
-
-					break;
-				}
-				case NO_CACHE_UNLESS_AD_DOWN: {
-					ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
-
-					// first attempt validation against AD
-					if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
-						sessionHelper.setAuthenticatedWithADPassword(true);
-						sessionHelper.setADPerson(person);
-						sessionHelper.setPasswordLevel(NSISLevel.NONE);
-						sessionHelper.setAuthnInstant(new DateTime());
-						sessionHelper.setPassword(password);
-						result = PasswordValidationResult.VALID;
-
-						// update the cached password then
-						adPasswordService.updateCache(person, password);
-					}
-					else if (adResult == ADPasswordStatus.TECHNICAL_ERROR || adResult == ADPasswordStatus.TIMEOUT) {
-
-						// check cache on technical/timeout errors only
-						if (adPasswordService.validateAgainstCache(person, password)) {
-							sessionHelper.setAuthenticatedWithADPassword(true);
-							sessionHelper.setADPerson(person);
-							sessionHelper.setPasswordLevel(NSISLevel.NONE);
-							sessionHelper.setAuthnInstant(new DateTime());
-							sessionHelper.setPassword(password);
-							result = PasswordValidationResult.VALID_CACHE;							
-						}
-					}
-
-					break;
+				else {
+					noValidationNeededDueToFallbackPasswordNotStoredInDatabase = true;
 				}
 			}
 		}
@@ -313,6 +242,66 @@ public class PasswordService {
 			result = PasswordValidationResult.INVALID;
 		}
 
+		// if no errors where encountered, and the password used is the one we store in the database, make sure
+		// it complies with the current complexity requirements
+		if (!noValidationNeededDueToFallbackPasswordNotStoredInDatabase && result.isNoErrors()) {
+
+			// if password already flagged as leaked, we will skip any further validation
+			if (person.isBadPassword() && person.getBadPasswordReason() == BadPasswordReason.LEAKED) {
+
+				// if we have passed the grace period, we will block usage - password needs to be changed using MitID
+				if (LocalDate.now().isAfter(person.getBadPasswordDeadlineTts())) {
+					result = PasswordValidationResult.INVALID_BAD_PASSWORD;
+				}
+				else {
+					result = PasswordValidationResult.VALID_BUT_BAD_PASWORD;
+				}				
+			}
+			else {
+
+				// perform password complexity control now
+				if (passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, password) != ChangePasswordResult.OK) {
+
+					// flag user if not already flagged
+					if (person.getBadPasswordDeadlineTts() == null) {
+						person.setBadPassword(true);
+						person.setBadPasswordReason(BadPasswordReason.COMPLEXITY);
+						person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordComplexityConformityGracePeriod()));
+						personService.save(person);
+					}
+					
+					// if we have passed the grace period, we will block usage - password needs to be changed using MitID
+					if (LocalDate.now().isAfter(person.getBadPasswordDeadlineTts())) {
+						result = PasswordValidationResult.INVALID_BAD_PASSWORD;
+					}
+					else {
+						result = PasswordValidationResult.VALID_BUT_BAD_PASWORD;
+					}
+				}
+				else {
+					// just in case the person was flagged, we remove the flag (e.g. if the password complexity has been reduced, and
+					// they where previously flagged, we will remove that flag now
+					if (person.isBadPassword() && person.getBadPasswordReason() == BadPasswordReason.COMPLEXITY) {
+						person.setBadPassword(false);
+						person.setBadPasswordReason(null);
+						person.setBadPasswordDeadlineTts(null);
+						personService.save(person);
+					}
+				}
+				
+				// if password leakage control is enabled, perform a background check if needed
+				PasswordSetting passwordSetting = passwordSettingService.getSettings(person);
+				if (passwordSetting.isCheckLeakedPasswords()) {
+					// only check every X days according to settings
+					if (person.getBadPasswordLeakCheckTts() == null ||
+						LocalDate.now().minusDays(commonConfiguration.getFullServiceIdP().getPasswordLeakCheckInterval()).isAfter(person.getBadPasswordLeakCheckTts())) {
+						
+						passwordValidationService.isPasswordLeakedAsync(person, password);
+					}
+				}
+			}
+		}
+		
 		if (PasswordValidationResult.INVALID.equals(result)) {
 			personService.badPasswordAttempt(person, isWcp);
 		}

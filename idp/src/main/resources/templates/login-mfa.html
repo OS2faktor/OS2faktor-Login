@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="da">
-<head th:replace="fragments/header :: header" />
+<head th:replace="~{fragments/header :: header}" />
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
@@ -61,7 +61,7 @@
         </div>
     </div>
     
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="~{fragments/footer :: scripts}" />
     <script th:inline="javascript">
         /*<![CDATA[*/
 

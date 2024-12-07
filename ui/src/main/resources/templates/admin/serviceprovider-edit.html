@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.serviceprovider')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -34,7 +34,7 @@
 										<label class="col-sm-3 col-form-label">Protokol</label>
 										<div class="col-sm-9">
 											<select class="form-control m-b" id="protocolSelect" th:disabled="${serviceprovider.id} != 0">
-												<option th:each="protocol : ${T(dk.digitalidentity.common.dao.model.enums.Protocol).values()}" th:value="${protocol}" th:text="${protocol.prettyName}" th:selected="${protocol.name} == ${serviceprovider.protocol}"></option>
+												<option th:each="protocol : ${T(dk.digitalidentity.common.dao.model.enums.Protocol).getAllowedValues()}" th:value="${protocol}" th:text="${protocol.prettyName}" th:selected="${protocol.name} == ${serviceprovider.protocol}"></option>
 											</select>
 										</div>
 									</div>
@@ -83,6 +83,25 @@
 													<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>
 												</option>
 											</select>
+										</div>
+									</div>
+
+									<div class="form-group row oidcSpecific">
+										<label class="col-sm-3 col-form-label">Klient type</label>
+										<div class="col-sm-9">
+											<select name="publicClient" onchange="protocolService.publicClientChanged()" class="form-control m-b" id="oidcClientTypeSelect">
+												<option value="true" th:selected="${serviceprovider.publicClient}">Public Client (Kræver PKCE)</option>
+												<option value="false" th:selected="${!serviceprovider.publicClient}">Confidential Client</option>
+											</select>
+										</div>
+									</div>
+									
+									<div class="form-group row oidcSpecific">
+										<label class="col-sm-3 col-form-label">Kræv PKCE</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.requirePKCE}" type="checkbox" class="i-checks">
+											</label>
 										</div>
 									</div>
 
@@ -314,14 +333,14 @@
 									<input th:if="${serviceprovider.existingSecret}" class="form-control secretHint" type="text" value="Der er allerede dannet en klientnøgle" disabled="disabled">
 									<input th:unless="${serviceprovider.existingSecret}" class="form-control secretHint" type="text" value="Ingen klientnøgle dannet endnu" disabled="disabled">
 									<h4 class="secretWarn" style="color: red; display: none;">HUSK at gemme denne klientnøgle, den vil ikke blive vist igen efter ændringerne til tjenesteudbyderen er gemt</h4>
-									<input class="form-control" type="text" th:field="${serviceprovider.clientSecret}" style="display:none;" disabled="disabled">
+									<input class="form-control" type="text" th:field="${serviceprovider.clientSecret}" style="display:none;">
 								</div>
 							</div>
 						</div>
 
 						<div class="ibox oidcSpecific">
 							<div class="ibox-title">
-								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser (redirect URLs)</h5>
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser - Redirect URLs</h5>
 							</div>
 
 							<div class="ibox-content">
@@ -335,6 +354,29 @@
 												<tr>
 													<th>Godkendte webadresser</th>
 												</tr>
+											</thead>
+											<tbody>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser - Logout redirect URLs</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<p class="col-sm-12">Når et logout er færdiggjort i OS2faktor vil brugeren sendes tilbage til en webadresse, denne webadresse er specificeret af klienten i starten af logout flowet. Nedenstående liste indeholder alle de webadresser som OS2faktor vil acceptere at sende brugeren til i forbindelse med logout.</p>
+								</div>
+								<div class="form-group row">
+									<div class="table-responsive col-sm-12">
+										<table id="logoutUrlTable" class="table table-striped table-bordered table-hover listTable">
+											<thead>
+											<tr>
+												<th>Godkendte webadresser</th>
+											</tr>
 											</thead>
 											<tbody>
 											</tbody>
@@ -466,11 +508,11 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.serviceprovider')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
@@ -650,7 +692,7 @@
 	</div>
 	<!-- End Claim Modal -->
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 	
 </body>
 
@@ -691,6 +733,7 @@
 		var conditionsGroups = [[${serviceprovider.conditionsGroups}]];
 		var attributeValueMap = [[${attributeValueMap}]];
 		var redirectUrls = [[${serviceprovider.redirectURLs}]];
+		var logoutURLs = [[${serviceprovider.logoutURLs}]];
 		var existingSecret = [[${serviceprovider.existingSecret}]];
 		
 		var exemptedMfaDomains = [[${serviceprovider.exemptedDomains}]];
@@ -896,7 +939,9 @@
 
 		function ProtocolService() {
 			this.init = function() {
-				protocolService.loadRedirectUrls(redirectUrls);
+				protocolService.loadRedirectUrls(redirectUrls, '#redirectUrlTable');
+				protocolService.loadRedirectUrls(logoutURLs, '#logoutUrlTable');
+				protocolService.publicClientChanged();
 
 				$('#protocolSelect').on('change', function() {
 					if (this.value == 'SAML20') {
@@ -924,30 +969,38 @@
 				$('#protocolSelect').trigger('change');
 			}
 
-			this.loadRedirectUrls = function(attributes) {
+			this.publicClientChanged = function() {
+				if ($("select[name=publicClient]").val() == "true") {
+					$("input[name=requirePKCE]").iCheck('check').iCheck('update').iCheck('disable');
+				} else {
+					$("input[name=requirePKCE]").iCheck('enable');
+				}
+			}
+
+			this.loadRedirectUrls = function(attributes, tableIdentifier) {
 				// Clear table rows here
-				$('#redirectUrlTable tbody').empty();
+				$(tableIdentifier + ' tbody').empty();
 
 				if (attributes != null) {
 					for (var i = 0; i < attributes.length; i += 1) {
 						// Add rows to table here
-						var row = '<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control attributeRow" value="' + attributes[i] + '"></td></tr>';
-						$('#redirectUrlTable > tbody:last-child').append(row);
+						var row = '<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" onChange="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" class="form-control attributeRow" value="' + attributes[i] + '"></td></tr>';
+						$(tableIdentifier + ' > tbody:last-child').append(row);
 						// $('#redirectUrlTable > tbody tr:last').find('td select.attributeTableKey').val(entries[i][0])
 					}
 				}
 
 				// Add additional blank row here
-				$('#redirectUrlTable > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control" value=""></td></tr>');
+				$(tableIdentifier + ' > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" onChange="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" class="form-control" value=""></td></tr>');
 				
 				if (attributes != null) {
-					protocolService.onChangeRedirectUrlTable();
+					protocolService.onChangeRedirectUrlTable(tableIdentifier);
 				}
 			}
 
-			this.onChangeRedirectUrlTable = function() {
+			this.onChangeRedirectUrlTable = function(tableIdentifier) {
 				// Delete any empty rows except the last one
-				var rows = $('#redirectUrlTable tbody tr');
+				var rows = $(tableIdentifier + ' tbody tr');
 				for (let i = 0; i < (rows.length -1); i += 1) {
 					var inputs = $(rows[i]).children().children();
 					var empty = true;
@@ -962,7 +1015,7 @@
 				}
 				
 				// Make sure theres an empty last row
-				var lastRow = $('#redirectUrlTable tbody tr:last');
+				var lastRow = $(tableIdentifier + ' tbody tr:last');
 				var lastInputs = lastRow.children().children();
 				var lastEmpty = true;
 				
@@ -971,10 +1024,10 @@
 				}
 				
 				if (!lastEmpty) {
-					$('#redirectUrlTable > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable()" onChange="protocolService.onChangeRedirectUrlTable()" class="form-control" value=""></td></tr>');
+					$(tableIdentifier + ' > tbody:last-child').append('<tr><td><input onkeypress="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" onChange="protocolService.onChangeRedirectUrlTable(\'' + tableIdentifier + '\')" class="form-control" value=""></td></tr>');
 				}
 			}
-		
+
 		}
 
 		function ServiceProviderService() {
@@ -1165,6 +1218,25 @@
 								}
 							}
 							data.redirectURLs = redirectURLs;
+
+							// Handle LogoutUrls
+							var rows = $('#logoutUrlTable tbody tr');
+							var logoutURLs = [];
+							for (let i = 0; i < rows.length; i += 1) {
+								var inputs = $(rows[i]).children().children();
+								var filled = true;
+								if (!$(inputs[0]).val().length > 0) {
+									filled = false;
+								}
+
+								if (filled) {
+									logoutURLs.push($(inputs[0]).val())
+								}
+							}
+							data.logoutURLs = logoutURLs;
+
+							data.publicClient = $("select[name=publicClient]").val();
+							data.requirePKCE = $("input[name=requirePKCE]").prop("checked");
 
 							if (data.protocol == "OIDC10") {
 								if (data.entityId.length < 1) {

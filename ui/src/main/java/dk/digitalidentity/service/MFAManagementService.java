@@ -50,11 +50,11 @@ public class MFAManagementService {
 
 		try {
 			ResponseEntity<Object> response = restTemplate.exchange(getURL("/api/login/renameClient"), HttpMethod.POST, entity, Object.class);
-			if (response.getStatusCodeValue() == 200) {
+			if (response.getStatusCode().value() == 200) {
 				return true;
 			}
 			
-			log.error("Failed to rename client to '" + name + "' for deviceId = " + deviceId + " with statusCode = " + response.getStatusCodeValue());
+			log.error("Failed to rename client to '" + name + "' for deviceId = " + deviceId + " with statusCode = " + response.getStatusCode().value());
 		}
 		catch (Exception ex) {
 			log.error("Failed to call MFA Login endpoint /api/login/renameClient", ex);

@@ -38,3 +38,7 @@
 2024.01.05 - 2.9.0 - understøttelse for at angive et EAN (via UUID) som en attribut på brugerne, der anvendes til betaling for MitID Erhverv (optionel)
 2024.03.04 - 2.9.1 - korrekt udlæsning af accountExpires datoen (var 1 dag for tidligt før)
 2024.05.23 - 2.9.2 - fixet problem med udlæsning af Grupper hvis man kører med en specialtilpasset ObjectGuid attribut
+2024.10.06 - 2.10.0 - understøtter styring af privat mitid som loginmiddel i MitID Erhverv / NemLog-in via sikkerhedsgruppe
+2024.11.06 - 2.11.0 - understøtter indlæsningen af betroede medarbejdere, som skal have en strammere kodeordspolitik
+2024.11.21 - 2.12.0 - Understøtter at det primære indlæsningsjob kan slås fra, samt at tidspunktet for fuld synk er konfigurabelt
+2024.11.22 - 2.13.0 - understøtter indlæsning af eksternt MitID Erhverv UUID på eksterne konsulenter

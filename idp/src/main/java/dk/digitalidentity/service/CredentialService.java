@@ -15,7 +15,9 @@ import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.service.KeystoreService.KNOWN_CERTIFICATE_ALIASES;
 import dk.digitalidentity.util.ResponderException;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
@@ -38,7 +40,7 @@ public class CredentialService {
 			return secondaryBasicX509Credential;
 		}
 
-		KeyStore ks = keystoreService.getSecondaryKeystoreForIdp();
+		KeyStore ks = keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.OCES_SECONDARY.toString());
 		if (ks == null) {
 			return null;
 		}
@@ -47,7 +49,7 @@ public class CredentialService {
 		String alias = null;
 		try {
 			alias = ks.aliases().nextElement();
-			passwords.put(alias, keystoreService.getSecondaryKeystoreForIdpPassword());
+			passwords.put(alias, keystoreService.getJavaKeystorePassword(KNOWN_CERTIFICATE_ALIASES.OCES_SECONDARY.toString()));
 		}
 		catch (KeyStoreException ex) {
 			throw new ResponderException("Keystore ikke initialiseret ordentligt", ex);
@@ -74,16 +76,21 @@ public class CredentialService {
 			return basicX509Credential;
 		}
 
-		KeyStore ks = keystoreService.getPrimaryKeystoreForIdp();
+		KeyStore ks = keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.OCES.toString());
 		if (ks == null) {
 			return null;
 		}
 
 		Map<String, String> passwords = new HashMap<>();
-		String alias = null;
+
+		String alias = keystoreService.getKmsAlias(KNOWN_CERTIFICATE_ALIASES.OCES.toString());
 		try {
-			alias = ks.aliases().nextElement();
-			passwords.put(alias, keystoreService.getPrimaryKeystoreForIdpPassword());
+			// if no alias to KMS is available, load from keystore and find first
+			if (!StringUtils.hasLength(alias)) {
+				alias = ks.aliases().nextElement();
+			}
+
+			passwords.put(alias, keystoreService.getJavaKeystorePassword(KNOWN_CERTIFICATE_ALIASES.OCES.toString()));
 		}
 		catch (KeyStoreException ex) {
 			throw new ResponderException("Keystore ikke initialiseret ordentligt", ex);
@@ -97,6 +104,7 @@ public class CredentialService {
 
 		try {
 			basicX509Credential = (BasicX509Credential) resolver.resolveSingle(criteria);
+			
 			return basicX509Credential;
 		}
 		catch (ResolverException e) {

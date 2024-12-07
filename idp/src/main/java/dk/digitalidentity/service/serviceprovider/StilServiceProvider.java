@@ -104,6 +104,11 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
+		// allow list of configurable domains to always require MFA (for munis that want forced MFA on first login for employees)
+		if (domain != null && commonConfig.getStil().getDomainIdsThatRequireMfa().contains(domain.getId())) {
+			return true;
+		}
+
         RequestedAuthnContext requestedAuthnContext = loginRequest.getAuthnRequest().getRequestedAuthnContext();
         if (requestedAuthnContext != null) {
             for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {

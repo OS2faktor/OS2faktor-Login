@@ -10,6 +10,13 @@
 	</div>
 
 	<style>
+		@page { margin: 0; }
+
+		@media print {
+	  		@page { margin: 0; }
+	  		body { margin: 1.6cm; }
+		}
+
 		.grid {
 		  display: grid;
 		  gap: 1px;
@@ -30,7 +37,7 @@
 		}
 	</style>
 	
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/

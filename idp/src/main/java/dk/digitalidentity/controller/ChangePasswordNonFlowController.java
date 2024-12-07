@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -25,15 +24,15 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.CmsMessageBundle;
 import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import dk.digitalidentity.service.PasswordService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
-import lombok.extern.slf4j.Slf4j;
+import jakarta.servlet.http.HttpServletRequest;
 
-@Slf4j
 @Controller
 public class ChangePasswordNonFlowController {
 
@@ -45,6 +44,9 @@ public class ChangePasswordNonFlowController {
 
 	@Autowired
 	private PasswordSettingService passwordSettingService;
+	
+	@Autowired
+	private PasswordValidationService passwordValidationService;
 
 	@Autowired
 	private PasswordService passwordService;
@@ -98,7 +100,7 @@ public class ChangePasswordNonFlowController {
 			Person person = users.stream().findFirst().get();
 			model.addAttribute("personId", person.getId());
 
-			PasswordSetting passwordSettings = passwordSettingService.getSettingsCached(person.getDomain());
+			PasswordSetting passwordSettings = passwordSettingService.getSettings(person);
 			model.addAttribute("settings", passwordSettings);
 
 			return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
@@ -116,7 +118,7 @@ public class ChangePasswordNonFlowController {
 
 		Person person = personService.getById(personId);
 		if (person != null) {
-			PasswordSetting settingsCached = passwordSettingService.getSettingsCached(person.getDomain());
+			PasswordSetting settingsCached = passwordSettingService.getSettings(person);
 			model.addAttribute("settings", settingsCached);
 		}
 
@@ -131,7 +133,7 @@ public class ChangePasswordNonFlowController {
 		}
 
 		String failureReason = "";
-		ChangePasswordResult result = passwordSettingService.validatePasswordRules(person, newPW, true);
+		ChangePasswordResult result = passwordValidationService.validatePasswordRules(person, newPW, true);
 		if (!result.equals(ChangePasswordResult.OK)) {
 			model.addAttribute("personId", personId);
 			model.addAttribute("failureReason", result.getMessage());
@@ -149,6 +151,7 @@ public class ChangePasswordNonFlowController {
 			switch (pwvr) {
 				case VALID:
 				case VALID_EXPIRED: // This is ok, you CAN change your expired password for a new one
+				case VALID_BUT_BAD_PASWORD: // this is also okay, you CAN (and SHOULD) change a bad password
 					ADPasswordStatus status = personService.changePassword(personService.getById(personId), newPW);
 
 					switch (status) {
@@ -167,12 +170,12 @@ public class ChangePasswordNonFlowController {
 							break;
 					}
 					break;
-				case VALID_CACHE:
-					log.error("Should not be able to validate via cache (CacheStrategy NoCache), something broke");
-					break;
 				case INVALID:
 					failureReason = "Kodeord er forkert";
 					personService.badPasswordAttempt(person, false);
+					break;
+				case INVALID_BAD_PASSWORD:
+					failureReason = "Det eksisterende kodeord er ugyldigt, og MitID skal anvendes for at vælge et nyt kodeord";
 					break;
 				case LOCKED:
 					failureReason = "Kontoen er låst";
@@ -186,7 +189,7 @@ public class ChangePasswordNonFlowController {
 			}
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettingsCached(person.getDomain()));		
+		model.addAttribute("settings", passwordSettingService.getSettings(person));		
 		model.addAttribute("personId", personId);
 		model.addAttribute("failureReason", failureReason);
 
@@ -195,7 +198,7 @@ public class ChangePasswordNonFlowController {
 
 	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded
 	private boolean changedPasswordTooManyTimes(Person person) {
-		PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+		PasswordSetting settings = passwordSettingService.getSettings(person);
 		if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
 			return true;
 		}

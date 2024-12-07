@@ -11,8 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.servlet.http.HttpServletResponse;
-
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.AttributeStatement;
 import org.opensaml.saml.saml2.core.Subject;
@@ -22,11 +20,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.crypto.keygen.Base64StringKeyGenerator;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -41,6 +39,7 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -61,7 +60,7 @@ public class OidcAuthorizationCodeService {
 
 	@Autowired
 	private OpenSAMLHelperService samlHelper;
-
+	
 	public void createAndSendAuthorizationCode(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) throws ResponderException {
 		if (log.isDebugEnabled()) {
 			log.debug("Creating OIDC Authorization request response code");
@@ -130,7 +129,7 @@ public class OidcAuthorizationCodeService {
 
 		return result;
 	}
-
+	
 	public OAuth2AuthorizationCodeRequestAuthenticationToken createSuccessAuthentication(Set<String> authorizedScopes, OAuth2AuthorizationCodeRequestAuthenticationToken authorizationCodeRequestAuthentication, String nameId, long personId, Map<String, Object> attributes) throws ResponderException {
 		OAuth2AuthorizationCode authorizationCode = generateAuthCode();
 
@@ -169,7 +168,6 @@ public class OidcAuthorizationCodeService {
 			attributes.putAll(selectedClaims);
 		}
 
-
 		// TODO Find a way to make this code better, this is not exactly pretty code
 		User user = new User(nameId, "INTENTIONALLY_NOT_BLANK", new HashSet<>());
 		user.eraseCredentials(); // Blank password
@@ -181,7 +179,7 @@ public class OidcAuthorizationCodeService {
 				.attribute(Principal.class.getName(), authToken)
 				.attribute(OAuth2AuthorizationRequest.class.getName(), authorizationRequest)
 				.token(authorizationCode)
-				.attribute(OAuth2Authorization.AUTHORIZED_SCOPE_ATTRIBUTE_NAME, authorizationCodeRequestAuthentication.getScopes())
+				.authorizedScopes(authorizationCodeRequestAuthentication.getScopes())
 				.attribute("InternalPersonId", String.valueOf(personId))
 				.attribute("ComputedClaims", attributes)
 				.build();
@@ -193,14 +191,15 @@ public class OidcAuthorizationCodeService {
 		}
 
 		Authentication principal = (Authentication) authorizationCodeRequestAuthentication.getPrincipal();
-		OAuth2AuthorizationCodeRequestAuthenticationToken authorizationCodeRequestAuthenticationResult =
-				OAuth2AuthorizationCodeRequestAuthenticationToken.with(authorizationCodeRequestAuthentication.getClientId(), principal)
-						.authorizationUri(authorizationCodeRequestAuthentication.getAuthorizationUri())
-						.redirectUri(redirectUri)
-						.scopes(authorizedScopes)
-						.state(authorizationCodeRequestAuthentication.getState())
-						.authorizationCode(authorizationCode)
-						.build();
+		OAuth2AuthorizationCodeRequestAuthenticationToken authorizationCodeRequestAuthenticationResult = new OAuth2AuthorizationCodeRequestAuthenticationToken(
+			authorizationCodeRequestAuthentication.getAuthorizationUri(),
+			authorizationCodeRequestAuthentication.getClientId(),
+			principal,
+			authorizationCode,
+			redirectUri,
+			authorizationCodeRequestAuthentication.getState(),
+			authorizedScopes
+		);
 
 		authorizationCodeRequestAuthenticationResult.setAuthenticated(true);
 
@@ -230,6 +229,7 @@ public class OidcAuthorizationCodeService {
 	private OAuth2AuthorizationCode generateAuthCode() {
 		Instant issuedAt = Instant.now();
 		Instant expiresAt = issuedAt.plus(5, ChronoUnit.MINUTES);
+
 		return new OAuth2AuthorizationCode(new Base64StringKeyGenerator(Base64.getUrlEncoder().withoutPadding(), 96).generateKey(), issuedAt, expiresAt);
 	}
 }

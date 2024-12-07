@@ -13,9 +13,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,6 +20,7 @@ import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
@@ -42,7 +40,7 @@ import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
-import dk.digitalidentity.service.model.enums.PasswordStatus;
+import dk.digitalidentity.service.model.enums.PasswordExpireStatus;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
 import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
@@ -52,6 +50,8 @@ import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.util.IPUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -106,6 +106,12 @@ public class FlowService {
 	@Autowired
 	private KnownNetworkService knownNetworkService;
 	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private EntraMfaService entraMfaService;
+	
 	public ModelAndView initiateFlowOrSendLoginResponse(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
 		ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
 
@@ -125,7 +131,7 @@ public class FlowService {
 			// frontpage of IdP
 			return new ModelAndView("redirect:/");
 		}
-
+		
 		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
 
 		// Should be caught earlier, but this is an extra check so we won't send any assertions for a person who is locked UNLESS specific requirements are met
@@ -139,8 +145,11 @@ public class FlowService {
 				return new ModelAndView("error-locked-account");
 			}
 		}
-		
-		NSISLevel currentNSISLevel = sessionHelper.getLoginState(serviceProvider, loginRequest);
+
+		NSISLevel currentNSISLevel = (sessionHelper.isInEntraMfaFlow())
+				? sessionHelper.getMFALevel(serviceProvider, loginRequest)
+				: sessionHelper.getLoginState(serviceProvider, loginRequest);
+
 		NSISLevel requiredNSISLevel = serviceProvider.nsisLevelRequired(loginRequest);
 
 		if (requiredNSISLevel == NSISLevel.HIGH) {
@@ -259,7 +268,7 @@ public class FlowService {
 					return loginService.initiateLogin(model, request, serviceProvider.preferNemId());
 			}
 		}
-
+		
 		// in this case, the service provider does not require NSIS
 		if (serviceProvider.mfaRequired(loginRequest, person.getDomain(), IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), request)) && !NSISLevel.NONE.equalOrLesser(sessionHelper.getMFALevel())) {
 			if (loginRequest.isPassive()) {
@@ -349,6 +358,10 @@ public class FlowService {
 			}
 		}
 		
+		if (commonConfiguration.getMitIdErhverv().isEnabled()) {
+			sessionHelper.setRequestProfessionalProfile();
+		}
+
 		return new ModelAndView("login-nemid-only", model.asMap());
 	}
 
@@ -363,6 +376,7 @@ public class FlowService {
 		if (clients.size() == 0) {
 			return new ModelAndView("error-no-mfa-devices");
 		}
+
 		sessionHelper.setMFAClients(clients);
 		sessionHelper.setMFAClientRequiredNSISLevel(requiredNSISLevel);
 
@@ -413,7 +427,7 @@ public class FlowService {
 	}
 
 	public ModelAndView initiatePasswordExpired(Person person, Model model, boolean skipIfNotRequired) throws ResponderException {
-		PasswordStatus passwordStatus = passwordService.getPasswordStatus(person);
+		PasswordExpireStatus passwordStatus = passwordService.getPasswordExpireStatus(person);
 		
 		switch (passwordStatus) {
 			case OK:
@@ -423,7 +437,6 @@ public class FlowService {
 				sessionHelper.setInPasswordExpiryFlow(true);
 				model.addAttribute("forced", true);
 				model.addAttribute("daysLeft", 0);
-				model.addAttribute("alternativeLink", passwordSettingService.getSettingsCached(person.getDomain()).getAlternativePasswordChangeLink());
 
 				return new ModelAndView("password-expiry-prompt", model.asMap());
 			case ALMOST_EXPIRED:
@@ -431,18 +444,14 @@ public class FlowService {
 					return null;
 				}
 
-				PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
+				PasswordSetting settings = passwordSettingService.getSettings(person);
 				LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
 
-				// Calculate the amount of days left to the earliest of the two types of password change dates
-				long daysLeftNsisPassword = (person.getNsisPasswordTimestamp() != null) ? ChronoUnit.DAYS.between(expiredTimestamp, person.getNsisPasswordTimestamp()) : Long.MAX_VALUE;
-				long daysLeftNextChangePassword = (person.getNextPasswordChange() != null) ? ChronoUnit.DAYS.between(LocalDateTime.now(), person.getNextPasswordChange()) : Long.MAX_VALUE;
-				long mostUrgentChangePasswordDate = Long.min(daysLeftNsisPassword, daysLeftNextChangePassword);
-				long daysLeft = (mostUrgentChangePasswordDate != Long.MAX_VALUE) ? mostUrgentChangePasswordDate : 0;
+				long daysLeftPassword = (person.getPasswordTimestamp() != null) ? ChronoUnit.DAYS.between(expiredTimestamp, person.getPasswordTimestamp()) : Long.MAX_VALUE;
+				long daysLeft = (daysLeftPassword != Long.MAX_VALUE && daysLeftPassword > 0) ? daysLeftPassword : 0;
 				model.addAttribute("daysLeft", daysLeft);
 
 				model.addAttribute("forced", false);
-				model.addAttribute("alternativeLink", passwordSettingService.getSettingsCached(person.getDomain()).getAlternativePasswordChangeLink());
 				sessionHelper.setInPasswordExpiryFlow(true);
 
 				return new ModelAndView("password-expiry-prompt", model.asMap());
@@ -450,16 +459,9 @@ public class FlowService {
 				return initiateActivateNSISAccount(model);
 		}
 		
-		log.error("Person in unexpected password state " + person.getId());
+		log.error("Person in unexpected password state " + person.getId() + " : " + passwordStatus);
 		
 		throw new ResponderException("Brugeren var i en uventet tilstand");
-	}
-
-	public ModelAndView initiateForceChangePassword(Person person, Model model) {
-		if (person.isForceChangePassword()) {
-			return new ModelAndView("password-force-change-prompt", model.asMap());
-		}
-		return null;
 	}
 
 	public ModelAndView initiateSelectClaims(Person person, Model model, ServiceProvider serviceProvider) {
@@ -521,9 +523,10 @@ public class FlowService {
 				break;
 			case WSFED:
 				return wsFederationService.createAndSendSecurityTokenResponse(model, person, serviceProvider, loginRequest);
-			default:
-				throw new ResponderException("ServiceProvider used unknown protocol. ID: " + serviceProvider.getEntityId());
+			case ENTRAMFA:
+				return entraMfaService.createAndSendIdToken(httpServletResponse, person, serviceProvider, loginRequest);
 		}
+
 		return null;
 	}
     
@@ -566,7 +569,7 @@ public class FlowService {
 			throw new ResponderException("Person var ikke gemt på session da fortsæt password skift blev tilgået");
 		}
 
-		PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
+		PasswordSetting settings = passwordSettingService.getSettings(person);
 		String samaccountName = null;
 
 		if (person.getSamaccountName() != null && !person.getDomain().isStandalone()) {
@@ -625,9 +628,11 @@ public class FlowService {
 				return false;
 			case WSFED:
 				return false; // TODO maybe we need to support WSFed requests that indicate they want NemId in the future.
-			default:
+			case ENTRAMFA:
 				return false;
 		}
+		
+		return false;
 	}
 
 	private void movePrimeClientToTop(List<MfaClient> clients) {

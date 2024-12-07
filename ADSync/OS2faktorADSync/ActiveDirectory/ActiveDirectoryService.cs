@@ -19,7 +19,9 @@ namespace OS2faktorADSync
         public ILogger Logger { get; set; }
         private readonly PropertyResolver propertyResolver = new PropertyResolver();
         private readonly string nsisAllowedGroup;
+        private readonly string trustedEmployeesGroup;
         private readonly string transferToNemloginGroup;
+        private readonly string privateMitIdGroup;
         private readonly string rolesRoot;
         private readonly string rootMembershipGroup;
         private readonly Boolean groupsInGroups;
@@ -28,13 +30,16 @@ namespace OS2faktorADSync
         private readonly string roleNamePrefix;
         private readonly long maxPasswordAgeConfig;
         private readonly string mitidErhvervUuidAttribute;
+        private readonly string externalMitIdUUidAttribute;
 
         public bool MitIDBackSyncEnabled { get { return !string.IsNullOrEmpty(mitidErhvervUuidAttribute); } }
 
         public ActiveDirectoryService()
         {
+            trustedEmployeesGroup = Settings.GetStringValue("ActiveDirectory.TrustedEmployees.Group");
             nsisAllowedGroup = Settings.GetStringValue("ActiveDirectory.NSISAllowed.Group");
             transferToNemloginGroup = Settings.GetStringValue("ActiveDirectory.TransferToNemlogin.Group");
+            privateMitIdGroup = Settings.GetStringValue("ActiveDirectory.PrivateMitID.Group");
             rootMembershipGroup = Settings.GetStringValue("ActiveDirectory.Group.Root");
             rolesRoot = Settings.GetStringValue("Kombit.RoleOU");
             defaultDomain = Settings.GetStringValue("Kombit.RoleDomainDefault");
@@ -56,7 +61,11 @@ namespace OS2faktorADSync
             {
                 List<string> invalids = new List<string>();
                 Dictionary<string, CoredataEntry> result = new Dictionary<string, CoredataEntry>();
-                string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
+                string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                    ? (propertyResolver.CprProperty + "=*")
+                    : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+                string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter);
 
                 Logger.Debug("Performing search with filter: " + filter);
 
@@ -100,80 +109,92 @@ namespace OS2faktorADSync
                     directorySynchronizationCookie = directorySearcher.DirectorySynchronization.GetDirectorySynchronizationCookie();
                 }
 
-                if (!string.IsNullOrEmpty(nsisAllowedGroup))
+                List<string> nsisAllowedUsers = GetTransativeGroupMembership(directoryEntry, "nsisAllowedGroup", nsisAllowedGroup);
+                foreach (string guid in nsisAllowedUsers)
                 {
-                    Logger.Debug("Performing lookup of membership in NSIS group");
-                    if (!GroupExists(nsisAllowedGroup))
+                    if (result.ContainsKey(guid))
                     {
-                        throw new Exception("nsisAllowedGroup was configured, but a matching group was not found, aborting");
-                    }
-
-                    // Additional search for members of a specific group (Recursive / transative)
-                    filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
-
-                    Logger.Debug("Performing search with filter: " + filter);
-
-                    using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
-                    {
-                        directorySearcher.PageSize = 1000;
-
-                        using (var searchResultCollection = directorySearcher.FindAll())
-                        {
-                            Logger.Debug("Found {0} users in NSIS group", searchResultCollection.Count);
-
-                            foreach (SearchResult searchResult in searchResultCollection)
-                            {
-                                string Guid = fetchGuid(searchResult);
-                                if (!string.IsNullOrEmpty(Guid) && result.ContainsKey(Guid))
-                                {
-                                    result[Guid].NSISAllowed = true;
-                                }
-                                else
-                                {
-                                    Logger.Debug("Could not match user with ObjectGuid " + Guid + " to any user previously found");
-                                }
-                            }
-                        }
+                        result[guid].NSISAllowed = true;
                     }
                 }
 
-                if (!string.IsNullOrEmpty(transferToNemloginGroup))
+                List<string> trustedEmployeesUsers = GetTransativeGroupMembership(directoryEntry, "trustedEmployeesGroup", trustedEmployeesGroup);
+                foreach (string guid in trustedEmployeesUsers)
                 {
-                    if (!GroupExists(transferToNemloginGroup))
+                    if (result.ContainsKey(guid))
                     {
-                        throw new Exception("transferToNemloginGroup was configured, but a matching group was not found, aborting");
+                        result[guid].TrustedEmployee = true;
                     }
+                }
 
-                    filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + transferToNemloginGroup);
-
-                    Logger.Debug("Performing search with filter: " + filter);
-
-                    using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+                List<string> transferToNemloginUsers = GetTransativeGroupMembership(directoryEntry, "transferToNemloginGroup", transferToNemloginGroup);
+                foreach (string guid in transferToNemloginUsers)
+                {
+                    if (result.ContainsKey(guid))
                     {
-                        directorySearcher.PageSize = 1000;
+                        result[guid].TransferToNemlogin = true;
+                    }
+                }
 
-                        using (var searchResultCollection = directorySearcher.FindAll())
-                        {
-                            Logger.Debug("Found {0} users in transfer to nemlogin group", searchResultCollection.Count);
-
-                            foreach (SearchResult searchResult in searchResultCollection)
-                            {
-                                string Guid = fetchGuid(searchResult);
-                                if (!string.IsNullOrEmpty(Guid) && result.ContainsKey(Guid))
-                                {
-                                    result[Guid].TransferToNemlogin = true;
-                                }
-                                else
-                                {
-                                    Logger.Debug("Could not match user with ObjectGuid " + Guid + " to any user previously found");
-                                }
-                            }
-                        }
+                List<string> privateMitIDUsers = GetTransativeGroupMembership(directoryEntry, "privateMitIdGroup", privateMitIdGroup);
+                foreach (string guid in privateMitIDUsers)
+                {
+                    if (result.ContainsKey(guid))
+                    {
+                        result[guid].PrivateMitID = true;
                     }
                 }
 
                 return result.Values;
             }
+        }
+
+        private List<string> GetTransativeGroupMembership(DirectoryEntry directoryEntry, string groupProperty, string groupName)
+        {
+            List<string> result = new List<string>();
+
+            if (!string.IsNullOrEmpty(groupName))
+            {
+                Logger.Debug($"Performing lookup of membership in {groupProperty} group");
+                if (!GroupExists(groupName))
+                {
+                    throw new Exception($"{groupProperty} was configured, but a matching group was not found, aborting");
+                }
+
+                // Additional search for members of a specific group (Recursive / transative)
+                string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                    ? (propertyResolver.CprProperty + "=*")
+                    : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+                string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter, "memberOf:1.2.840.113556.1.4.1941:=" + groupName);
+
+                Logger.Debug("Performing search with filter: " + filter);
+
+                using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+                {
+                    directorySearcher.PageSize = 1000;
+
+                    using (var searchResultCollection = directorySearcher.FindAll())
+                    {
+                        Logger.Debug($"Found {searchResultCollection.Count} users in {groupProperty} group");
+
+                        foreach (SearchResult searchResult in searchResultCollection)
+                        {
+                            string Guid = fetchGuid(searchResult);
+                            if (!string.IsNullOrEmpty(Guid) )
+                            {
+                                result.Add(Guid);
+                            }
+                            else
+                            {
+                                Logger.Debug("Could not match user with ObjectGuid " + Guid + " to any user previously found");
+                            }
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
         public DeltaSync GetDeltaSyncUsers(ref byte[] directorySynchronizationCookie)
@@ -186,7 +207,11 @@ namespace OS2faktorADSync
 
             using (var directoryEntry = GenerateDirectoryEntry())
             {
-                string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
+                string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                    ? (propertyResolver.CprProperty + "=*")
+                    : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+                string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter);
 
                 Logger.Debug("Performing search with filter: " + filter);
 
@@ -248,60 +273,74 @@ namespace OS2faktorADSync
                     throw new Exception("nsisAllowedGroup was configured, but a matching group was not found, aborting");
                 }
 
-                if (!string.IsNullOrEmpty(nsisAllowedGroup))
+                if (!string.IsNullOrEmpty(trustedEmployeesGroup) && !GroupExists(trustedEmployeesGroup))
                 {
-                    foreach (CoredataEntry entry in result.CreateEntries)
-                    {
-                        filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", propertyResolver.SAMAccountNameProperty + "=" + entry.SamAccountName, "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
-                        using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
-                        {
-                            directorySearcher.PageSize = 1000;
+                    throw new Exception("trustedEmployeesGroup was configured, but a matching group was not found, aborting");
+                }
 
-                            using (var searchResultCollection = directorySearcher.FindAll())
-                            {
-                                if (searchResultCollection.Count == 1)
-                                {
-                                    Logger.Debug("{0} is in NSIS allowed group", entry.SamAccountName);
-                                    entry.NSISAllowed = true;
-                                }
-                                else
-                                {
-                                    Logger.Debug("{0} is NOT in NSIS allowed group", entry.SamAccountName);
-                                }
-                            }
-                        }
+                if (!string.IsNullOrEmpty(privateMitIdGroup) && !GroupExists(privateMitIdGroup))
+                {
+                    throw new Exception("privateMitIdGroup was configured, but a matching group was not found, aborting");
+                }
 
-                        if (!string.IsNullOrEmpty(transferToNemloginGroup))
-                        {
-                            filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", propertyResolver.SAMAccountNameProperty + "=" + entry.SamAccountName, "memberOf:1.2.840.113556.1.4.1941:=" + transferToNemloginGroup);
-                            using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
-                            {
-                                directorySearcher.PageSize = 1000;
-
-                                using (var searchResultCollection = directorySearcher.FindAll())
-                                {
-                                    if (searchResultCollection.Count == 1)
-                                    {
-                                        Logger.Debug("{0} is in transfer to nemlogin group", entry.SamAccountName);
-                                        entry.TransferToNemlogin = true;
-                                    }
-                                    else
-                                    {
-                                        Logger.Debug("{0} is NOT in transfer to nemlogin group", entry.SamAccountName);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                foreach (CoredataEntry entry in result.CreateEntries)
+                {
+                    entry.NSISAllowed = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "nsisAllowedGroup", nsisAllowedGroup);
+                    entry.TransferToNemlogin = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "transferToNemloginGroup", transferToNemloginGroup);
+                    entry.PrivateMitID = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "privateMitIdGroup", privateMitIdGroup);
+                    entry.TrustedEmployee = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "trustedEmployeeGroup", trustedEmployeesGroup);
                 }
 
                 return result;
             }
         }
 
+        private bool GetTransativeMembershipForEntry(DirectoryEntry directoryEntry, string samAccountName, string groupProperty, string groupName)
+        {
+            // if not configured, just return false
+            if (string.IsNullOrEmpty(groupName))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(groupName) && !GroupExists(groupName))
+            {
+                throw new Exception($"{groupProperty} was configured, but a matching group was not found, aborting");
+            }
+
+            string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                ? (propertyResolver.CprProperty + "=*")
+                : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+            string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter, propertyResolver.SAMAccountNameProperty + "=" + samAccountName, "memberOf:1.2.840.113556.1.4.1941:=" + groupName);
+            using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
+            {
+                directorySearcher.PageSize = 1000;
+
+                using (var searchResultCollection = directorySearcher.FindAll())
+                {
+                    if (searchResultCollection.Count == 1)
+                    {
+                        Logger.Debug($"{samAccountName} is in {groupProperty} group");
+                        return true;
+                    }
+                    else
+                    {
+                        Logger.Debug($"{samAccountName} is NOT in {groupProperty} group");
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public void UpdateMitIDUUID(List<CoredataMitIDStatus> status)
         {
-            string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*");
+            string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                ? (propertyResolver.CprProperty + "=*")
+                : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+            string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter);
 
             using (var context = new PrincipalContext(ContextType.Domain))
             {
@@ -384,7 +423,11 @@ namespace OS2faktorADSync
             using (var directoryEntry = GenerateDirectoryEntry())
             {
                 // Additional search for members of a specific group (Recursive / transative)
-                string filter = CreateFilter("!(isDeleted=TRUE)", propertyResolver.CprProperty + "=*", "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
+                string cprFilter = string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty)
+                    ? (propertyResolver.CprProperty + "=*")
+                    : ("(|(" + propertyResolver.ExternalMitIdUuidProperty + "=*)(" + propertyResolver.CprProperty + "=*))");
+
+                string filter = CreateFilter("!(isDeleted=TRUE)", cprFilter, "memberOf:1.2.840.113556.1.4.1941:=" + nsisAllowedGroup);
                 using (var directorySearcher = new DirectorySearcher(directoryEntry, filter, propertyResolver.AllProperties, SearchScope.Subtree))
                 {
                     directorySearcher.PageSize = 1000;
@@ -889,9 +932,21 @@ namespace OS2faktorADSync
                 TransferToNemlogin = false
             };
 
+            if (!string.IsNullOrEmpty(propertyResolver.ExternalMitIdUuidProperty))
+            {
+                user.ExternalNemloginUserUuid = properties.GetValue<string>(propertyResolver.ExternalMitIdUuidProperty, null);
+            }
+
             if (!string.IsNullOrEmpty(propertyResolver.CprProperty))
             {
                 user.Cpr = properties.GetValue<string>(propertyResolver.CprProperty, null);
+            }
+
+            // special case - if the users CPR is empty, but an externalNemLoginUuid is present, set the CPR to 0000000000,
+            // so the user gets transfered (a cpr is required)
+            if (string.IsNullOrEmpty(user.Cpr) && !string.IsNullOrEmpty(user.ExternalNemloginUserUuid))
+            {
+                user.Cpr = "0000000000";
             }
 
             // EAN

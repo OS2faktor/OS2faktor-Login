@@ -5,16 +5,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.PersonAttributeService;
@@ -24,7 +28,9 @@ import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.service.KeystoreService;
 import dk.digitalidentity.service.MetadataService;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequireServiceProviderAdmin
 @Controller
 public class ServiceProviderController {
@@ -72,10 +78,10 @@ public class ServiceProviderController {
 	
 	@GetMapping("/admin/konfiguration/tjenesteudbydere/metadata")
 	public String getMetadata(Model model) throws Exception {
-		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingsKey.CERTIFICATE_ROLLOVER_TTS);
+		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS);
 		boolean plannedRollover = false;
 		
-		if (tts.isBefore(LocalDateTime.parse(SettingsKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()))) {
+		if (tts.isBefore(LocalDateTime.parse(SettingKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()))) {
 			plannedRollover = true;
 		}
 		
@@ -84,10 +90,10 @@ public class ServiceProviderController {
 		
 		List<Keystore> keystores = keystoreService.findAll();
 		for (Keystore keystore : keystores) {
-			if (keystore.isPrimaryForIdp()) {
+			if (keystore.isPrimary()) {
 				model.addAttribute("primaryCertName", keystore.getSubjectDn());
 			}
-			else {
+			else if (keystore.isSecondary()) {
 				model.addAttribute("secondaryCertName", keystore.getSubjectDn());
 			}
 		}
@@ -116,6 +122,7 @@ public class ServiceProviderController {
 
 		if (serviceProviderDTO.isKombitServiceProvider()) {
 			model.addAttribute("kombitSubsystems", kombitSubsystemService.findAll());
+			model.addAttribute("kombitSubSystemMfa", settingService.getString(SettingKey.KOMBIT_DEFAULT_MFA));
 		}
 		
 		model.addAttribute("serviceprovider", serviceProviderDTO);
@@ -157,5 +164,22 @@ public class ServiceProviderController {
 
 		model.addAttribute("attributes", allPersonAttributes);
 		return "admin/configure-person-attributes";
+	}
+	
+	@PostMapping("/rest/admin/konfiguration/tjenesteudbydere/kombitMfa/{rule}")
+	@ResponseBody
+	public ResponseEntity<String> setKombitDefafultMfaRule(@PathVariable("rule") String rule) {
+		ForceMFARequired mfaRequired = null;
+		try {
+			mfaRequired = ForceMFARequired.valueOf(rule);
+		}
+		catch (Exception ex) {
+			log.warn("Failed to parse " + rule, ex);
+			return ResponseEntity.badRequest().body("Ikke en gyldig 2-faktor regel: " + rule);
+		}
+
+		settingService.setString(SettingKey.KOMBIT_DEFAULT_MFA, mfaRequired.toString());
+		
+		return ResponseEntity.ok("");
 	}
 }

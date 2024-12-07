@@ -5,13 +5,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import javax.validation.constraints.NotNull;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.LocalRegisteredMfaClientDao;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
+import jakarta.validation.constraints.NotNull;
 
 @Service
 public class LocalRegisteredMfaClientService {

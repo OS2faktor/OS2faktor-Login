@@ -1,15 +1,15 @@
 package dk.digitalidentity.common.dao.model;
 
+import java.beans.Transient;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Table;
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,27 +25,46 @@ public class Keystore {
 	private long id;
 
 	@Column
+	private String alias;
+
+	@Column
 	private String subjectDn;
-
-	@Column
-	private boolean primaryForIdp;
-
-	@Column
-	private boolean primaryForNemLogin;
 
 	@Column
 	private LocalDate expires;
 	
+	// is NULL if KMS is true
 	@Column
 	private byte[] keystore;
 	
+	// is NULL if KMS is true
 	@Column
 	private String password;
 	
 	@Column
 	private LocalDateTime lastUpdated;
 
-	// note, it is only possible to disable the secondary certificates, and only if the secondary bit is in alignment
+	// "soft-delete" feature - certificate is NOT loaded from the database if this is set
 	@Column
 	private boolean disabled;
+	
+	@Column
+	private boolean kms;
+
+	// only set if KMS is true
+	@Column
+	private byte[] certificate;
+	
+	// only set if KMS is true
+	private String kmsAlias;
+	
+	@Transient
+	public boolean isPrimary() {
+		return "OCES".equals(alias);
+	}
+	
+	@Transient
+	public boolean isSecondary() {
+		return "OCES_SECONDARY".equals(alias);
+	}
 }

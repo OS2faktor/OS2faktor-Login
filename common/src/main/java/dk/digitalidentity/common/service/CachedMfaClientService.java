@@ -2,12 +2,11 @@ package dk.digitalidentity.common.service;
 
 import java.util.List;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.CachedMfaClientDao;
+import jakarta.transaction.Transactional;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 

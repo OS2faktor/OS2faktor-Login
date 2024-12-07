@@ -1,16 +1,15 @@
 package dk.digitalidentity.common.dao.model;
 
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import lombok.Getter;
 import lombok.Setter;
-
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
 
 @Entity(name = "settings")
 @Getter
@@ -23,7 +22,7 @@ public class Setting {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "setting_key")
-	private SettingsKey key;
+	private SettingKey key;
 	
 	@Column(name = "setting_value")
 	private String value;

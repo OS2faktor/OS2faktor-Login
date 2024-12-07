@@ -178,7 +178,8 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean encryptAssertions() {
-		return config.isEncryptAssertions();
+		return false;
+//		return config.isEncryptAssertions();
 	}
 
 	@Override

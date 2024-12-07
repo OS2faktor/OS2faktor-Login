@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="da" xmlns:soap="">
-<head th:replace="fragments/header :: header"></head>
-<div th:replace="fragments/topbar :: topbar"></div>
+<head th:replace="~{fragments/header :: header}"></head>
+<div th:replace="~{fragments/topbar :: topbar}"></div>
 <body class="gray-bg">
     <div class="ibox offset-md-2 col-md-8">
         <form class="m-t" id="loginResponse" th:action="@{__${wreply}__}" method="post">
@@ -23,7 +23,7 @@
         </form>
     </div>
 
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 
     <script th:inline="javascript">
         /*<![CDATA[*/

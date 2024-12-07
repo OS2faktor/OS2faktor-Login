@@ -16,10 +16,11 @@ public class StudentPwdConfiguration {
 	
 	// this setting shows the dropdown special for selecting a new password
 	private boolean indskolingSpecialEnabled;
-	
-	private boolean forceChangePassword = true;
+
+	// default setting, can always be overridden by teacher
 	private long forceChangePasswordAfterAge = 10;
-	
+
+	// for loading data from STIL
 	private String apiKey;
 	private List<StudentPwdRoleSettingConfiguration> roleSettings = new ArrayList<>();
 	private List<StudentPwdSpecialNeedsClassConfiguration> specialNeedsClasses = new ArrayList<>();

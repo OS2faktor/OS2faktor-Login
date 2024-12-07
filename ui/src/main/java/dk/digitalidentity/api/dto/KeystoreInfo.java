@@ -12,19 +12,17 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class KeystoreInfo {
-	private long id;
 	private String subjectDn;
 	private LocalDate expires;
 	private LocalDateTime lastUpdated;
-	private boolean primaryForIdp;
-	private boolean primaryForNemLogin;
+	private boolean kms;
+	private String alias;
 	
 	public KeystoreInfo(Keystore keystore) {
-		this.id = keystore.getId();
 		this.subjectDn = keystore.getSubjectDn();		
 		this.expires = keystore.getExpires();
 		this.lastUpdated = keystore.getLastUpdated();
-		this.primaryForIdp = keystore.isPrimaryForIdp();
-		this.primaryForNemLogin = keystore.isPrimaryForNemLogin();
+		this.kms = keystore.isKms();
+		this.alias = keystore.getAlias();
 	}
 }

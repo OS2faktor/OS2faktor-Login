@@ -6,8 +6,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,6 +16,7 @@ import dk.digitalidentity.common.dao.model.MessageQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -130,6 +129,10 @@ public class MessageQueueService {
 				if (person != null) {
 					TransformInlineImageDTO inlineImagesDto = emailTemplateService.transformImages(email.getMessage());
 					success = emailService.sendMessage(email.getEmail(), email.getSubject(), inlineImagesDto.getMessage(), inlineImagesDto.getInlineImages(), person);
+				}
+				else {
+					log.warn("Could not find person with ID " + email.getPersonId() + " when sending mail - skipping");
+					success = true;
 				}
 			}
 			else {

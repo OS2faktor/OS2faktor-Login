@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)" />
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.serviceprovider')" />
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.serviceprovider')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -38,7 +38,7 @@
 									</div>
 									
 									<div class="form-group row">
-										<label th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'WSFED'" class="col-sm-3 col-form-label">Entity ID</label>
+										<label th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'ENTRAMFA' or ${serviceprovider.protocol} == 'WSFED'" class="col-sm-3 col-form-label">Entity ID</label>
 										<label th:if="${serviceprovider.protocol} == 'OIDC10'" class="col-sm-3 col-form-label">Klient ID</label>
 										<div class="col-sm-9">
 											<input type="text" class="form-control" th:value="${serviceprovider.entityId}" disabled="disabled"/>
@@ -73,6 +73,22 @@
 													<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>
 												</option>
 											</select>
+										</div>
+									</div>
+
+									<div class="form-group row" th:if="${serviceprovider.protocol} == 'OIDC10'">
+										<label class="col-sm-3 col-form-label">Klient type</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:value="${serviceprovider.publicClient ? 'Public Client' : 'Confidential Client'}" disabled="disabled"/>
+										</div>
+									</div>
+
+									<div class="form-group row" th:if="${serviceprovider.protocol} == 'OIDC10'">
+										<label class="col-sm-3 col-form-label">Kræver PKCE</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.requirePKCE}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
 										</div>
 									</div>
 
@@ -315,7 +331,7 @@
 
 						<div th:if="${serviceprovider.protocol} == 'OIDC10'" class="ibox">
 							<div class="ibox-title">
-								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser (redirect URLs)</h5>
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser - Redirect URLs</h5>
 							</div>
 
 							<div class="ibox-content">
@@ -329,6 +345,27 @@
 											</thead>
 											<tbody>
 												<tr th:each="redirectURL : ${serviceprovider.redirectURLs}"><td><label class="form-control" th:text="${redirectURL}" disabled="disabled"></label></td></tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+							</div>
+
+							<div class="ibox-title">
+								<h5><em class="fa fa-columns"></em> &nbsp; Godkendte OIDC webadresser - Logout redirect URLs</h5>
+							</div>
+
+							<div class="ibox-content">
+								<div class="form-group row">
+									<div class="col-sm-12">
+										<table id="logoutUrlTable" class="table table-bordered listTable">
+											<thead>
+											<tr>
+												<th>Godkendte webadresser</th>
+											</tr>
+											</thead>
+											<tbody>
+											<tr th:each="logoutURL : ${serviceprovider.logoutURLs}"><td><label class="form-control" th:text="${logoutURL}" disabled="disabled"></label></td></tr>
 											</tbody>
 										</table>
 									</div>
@@ -419,6 +456,15 @@
 							</div>
 
 							<div class="ibox-content">
+								<div class="form-group row">
+									<label class="col-sm-3 col-form-label">2-faktor regel for nye systemer</label>
+									<div class="col-sm-9">
+										<select class="form-control m-b" id="kombitDefaultMfaRule">
+											<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired.toString()} == ${kombitSubSystemMfa}"></option>
+										</select>
+									</div>
+								</div>
+								
 								<div class="table-responsive">
 									<table id="claimTable" class="table table-striped table-bordered table-hover">
 										<thead>
@@ -450,15 +496,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.serviceprovider')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.serviceprovider')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -471,7 +517,25 @@
 
 		var token = $("meta[name='_csrf']").attr("content");
 
-		$(document).ready(function(){
+		$(document).ready(function() {
+			$('#kombitDefaultMfaRule').on('change', function() {
+				var rule = $(this).val();
+
+				$.ajax({
+					url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/kombitMfa/' + rule,
+					method: "POST",
+					headers: {
+     			      'X-CSRF-TOKEN': token
+     			   	},
+     			   	success: function(data, textStatus, jQxhr) {
+						toastr.success('2-faktor regel opdateret')
+     			   	},
+     			   	error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error('Opdateringen af 2-faktor reglen fejlede');
+     			   	}
+				});
+			});
+
 			$('.nameCancel').on('click', function() {
 				var id = $(this).data('id');
 
@@ -485,17 +549,17 @@
 				spanElem.show();
 			});
 
-				// Set displaynames for claims based on data-val attribute
-				var dataValueObj = $('#claimTable tbody tr td[data-type="value"]');
-				for (var i = 0; i < dataValueObj.length; i++) {
-					var obj = $(dataValueObj[i]);
-					var actualValue = obj.data('val');
-					var displayValue = attributeValueMap[actualValue];
+			// Set displaynames for claims based on data-val attribute
+			var dataValueObj = $('#claimTable tbody tr td[data-type="value"]');
+			for (var i = 0; i < dataValueObj.length; i++) {
+				var obj = $(dataValueObj[i]);
+				var actualValue = obj.data('val');
+				var displayValue = attributeValueMap[actualValue];
 
-					if (displayValue) {
-						obj.text(displayValue);
-					}
+				if (displayValue) {
+					obj.text(displayValue);
 				}
+			}
 			
 			$('.namePencil').on('click', function() {
 				var id = $(this).data('id');

@@ -17,12 +17,14 @@ public class StudentDTO {
 	private String samaccountName;
 	private boolean canSeePassword;
 	private List<SchoolRole> schoolRoles;
+	private String password;
 
 	public StudentDTO(Person person, boolean canSeePassword) {
 		this.id = person.getId();
 		this.name = person.getName();
 		this.samaccountName = person.getSamaccountName();
 		this.canSeePassword = StringUtils.hasLength(person.getStudentPassword()) && canSeePassword;
-		this.schoolRoles = person.getSchoolRoles();		
+		this.schoolRoles = person.getSchoolRoles();
+		this.password = person.getStudentPassword();
 	}
 }

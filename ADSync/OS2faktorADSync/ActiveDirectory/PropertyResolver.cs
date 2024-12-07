@@ -27,6 +27,7 @@ namespace OS2faktorADSync
         public string DescriptionProperty { get; set; }
         public string PwdLastSetProperty { get; set; }
         public string MitIDUuidProperty { get; set; }
+        public string ExternalMitIdUuidProperty { get; set; }
         public string EanProperty { get; set; }
 
         public PropertyResolver()
@@ -50,6 +51,7 @@ namespace OS2faktorADSync
             DescriptionProperty = "description";
             PwdLastSetProperty = "pwdlastset";
             MitIDUuidProperty = Settings.GetStringValue("ActiveDirectory.Property.MitIDErhvervUuid");
+            ExternalMitIdUuidProperty = Settings.GetStringValue("ActiveDirectory.Property.ExternalMitIDErhvervUuid");
             EanProperty = Settings.GetStringValue("ActiveDirectory.Property.Ean");
 
             var allProperties = new List<string>();
@@ -94,6 +96,11 @@ namespace OS2faktorADSync
             if (!string.IsNullOrEmpty(EanProperty))
             {
                 allProperties.Add(EanProperty);
+            }
+
+            if (!string.IsNullOrEmpty(ExternalMitIdUuidProperty))
+            {
+                allProperties.Add(ExternalMitIdUuidProperty);
             }
 
             // Resolve attributes fields, Value is eqial to AD attributes that needs to be read.

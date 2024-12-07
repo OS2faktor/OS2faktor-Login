@@ -265,27 +265,15 @@ namespace SessionEstablisher
             // Settings
             startInfo.UseShellExecute = true;
             startInfo.CreateNoWindow = true;
-            startInfo.WindowStyle = ProcessWindowStyle.Minimized;
+            //startInfo.WindowStyle = ProcessWindowStyle.Minimized;
 
             using (Process exeProcess = Process.Start(startInfo))
             {
                 if (exeProcess != null)
                 {
                     Log.Verbose($"Process started with PID: {exeProcess.Id}");
-
-                    exeProcess.WaitForExit(1000 * 60 * 2);
-                    if (!exeProcess.HasExited)
-                    {
-                        Log.Verbose("Process did not exit before timeout, killing process manually");
-                        exeProcess.Kill();
-                    }
-                    else
-                    {
-                        Log.Verbose($"Process exited before timout with exitcode: {exeProcess.ExitCode}");
-                    }
                 }
             }
-            Log.Information("Process done");
         }
 
         private static string fetchExePath(string registryPath, string exeName, string defaultPath)

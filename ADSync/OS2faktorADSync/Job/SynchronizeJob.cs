@@ -22,6 +22,12 @@ namespace OS2faktorADSync
 
         public Task Execute(IJobExecutionContext context)
         {
+            bool disabled = Settings.GetBooleanValue("SyncJob.Disabled");
+            if (disabled)
+            {
+                Logger.Debug("Job is disabled");
+                return Task.CompletedTask;
+            }
 
             if (shouldPerformFullSync)
             {

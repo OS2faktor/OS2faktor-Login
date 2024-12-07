@@ -19,8 +19,9 @@ public enum EmailTemplateType {
 	MITID_DEACTIVATED("html.enum.email.type.mitid.deactivated", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                             // MitID Erhverv konto spærret
 	TOO_MANY_PASSWORD_WRONG_NON_WHITELIST("html.enum.email.type.too_many_password_wrong_non_whitelist", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),     // Antal forkert indtastede kodeord overskredet fra ukendt netadresse
 	NEW_LOGIN_FOREIGN_COUNTRY("html.enum.email.type.new_login_foreign_country", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                             // Login i nyt land registreret
-	NEW_USER("html.enum.email.type.new_user", Arrays.asList(Flags.EMAIL)),                                                                            // Brugerkonto oprettet
-
+	NEW_USER("html.enum.email.type.new_user", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                                               // Brugerkonto oprettet
+	PASSWORD_LEAKED("html.enum.email.type.password_leaked", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                                 // Brugers kodeord er fundet i liste over lækkede kodeord
+	
 	// logwatch
 	TOO_MANY_WRONG_PASSWORD("html.enum.email.type.too_many_wrong_password", Arrays.asList(Flags.EMAIL, Flags.LOG_WATCH)),
 	TOO_MANY_LOCKED_ACCOUNTS("html.enum.email.type.too_many_locked_accounts", Arrays.asList(Flags.EMAIL, Flags.LOG_WATCH)),

@@ -2,9 +2,6 @@ package dk.digitalidentity.mvc.admin;
 
 import java.util.Date;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +35,8 @@ import dk.digitalidentity.service.EboksService;
 import dk.digitalidentity.service.EboksService.SendStatus;
 import dk.digitalidentity.service.MFAManagementService;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

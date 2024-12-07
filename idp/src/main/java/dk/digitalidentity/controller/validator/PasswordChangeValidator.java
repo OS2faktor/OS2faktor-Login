@@ -9,7 +9,7 @@ import org.springframework.validation.ValidationUtils;
 import org.springframework.validation.Validator;
 
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.service.PasswordService;
@@ -19,7 +19,7 @@ import dk.digitalidentity.service.SessionHelper;
 public class PasswordChangeValidator implements Validator {
 
 	@Autowired
-	private PasswordSettingService passwordSettingService;
+	private PasswordValidationService passwordValidationService;
 
 	@Autowired
 	private SessionHelper sessionHelper;
@@ -60,7 +60,7 @@ public class PasswordChangeValidator implements Validator {
 			errors.rejectValue("confirmPassword", "page.selfservice.changePassword.error.match");
 		}
 
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRules(person, form.getPassword(), true);
+		ChangePasswordResult validPassword = passwordValidationService.validatePasswordRules(person, form.getPassword(), true);
 
 		if (validPassword.equals(ChangePasswordResult.BAD_PASSWORD)) {
 			errors.rejectValue("password", "page.selfservice.changePassword.error.simple");

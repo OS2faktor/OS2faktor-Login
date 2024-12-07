@@ -1,0 +1,42 @@
+﻿2020.12.12 - 1.0.0 - initial release
+2021.02.19 - 1.1.0 - supports delta-delete
+2021.05.19 - 1.2.0 - support TLS 1.2
+2021.07.01 - 1.2.1 - improved error logging
+2021.11.19 - 1.2.2 - added group membership
+2022.02.13 - 1.3.0 - added configurable attributes
+2022.02.16 - 1.3.1 - added configurable cron group and NSISAllowed jobs
+2022.02.28 - 1.4.0 - handle groups with more than 1000 members correctly
+2022.03.02 - 1.5.0 - support for synchronizing KOMBIT Jobfunctionsroles
+2022.03.04 - 1.5.1 - fixet a bug where KOMBIT roles HAD to be in same OU as users
+2022.03.16 - 1.5.2 - groupSync supports groups in groups
+2022.05.12 - 1.5.3 - handle loadAllUsers=false setting on deltasync correctly
+2022.06.16 - 1.6.0 - removed "loadAllUsers" setting (use the filter instead), and added more debugging log entries
+2022.08.23 - 1.7.0 - read accountExpire property
+2022.08.31 - 1.7.1 - support SG notation for Jobfunktionsroller
+2022.09.04 - 2.0.0 - support for "transferToNemLogin" and "RID" information to be used with NemLog-in useradministration integration
+2022.09.09 - 2.0.1 - support DSD model for Jobfunktionsroller (including ignore filter with supergroup)
+2022.09.13 - 2.0.2 - support SubDomains (e.g. students)
+2022.09.13 - 2.0.3 - co-exists with other coredata loaders when using subdomains :)
+2022.09.23 - 2.0.4 - support custom identify JFR syntax
+2022.09.28 - 2.0.5 - fix bug when transferToNemLogin property is not filled out (make property optionel)
+2023.03.08 - 2.1.0 - support cpr encoding/decoding
+2023.03.21 - 2.2.0 - support SQL lookup for fetching CPR
+2023.03.25 - 2.2.1 - verify that configured nsis/mitiderhverv groups exists, and fail running if they do not
+2023.04.25 - 2.3.0 - support custom UUID field
+2023.07.19 - 2.4.0 - support reading "next password change date" from AD
+2023.08.24 - 2.4.2 - better handling of password expire policies
+2023.09.12 - 2.4.3 - small tweaks to parsing of SG created JFRs
+2023.09.15 - 2.4.4 - skip to next DC if first DC does not respond (when demoting DCs sometimes the service can no longer connect)
+2023.09.28 - 2.4.5 - more tweaks to SG parsing
+2023.10.12 - 2.5.0 - fixed issue with group memberships in NSIS/MitID Erhverv groups with > 1000 members
+2023.10.13 - 2.5.1 - reintroduce Name.Calculated setting
+2023.10.28 - 2.6.0 - allow running 4 services from same installation (for school student subdomain control)
+2023.11.02 - 2.7.0 - optional configuration to write MitID UUID back into an attribute in AD (requires that the serviceaccount has write access before this can be used)
+2023.11.06 - 2.8.0 - indlæsning af brugerens OU placering som afdeling i OS2faktor, til rapporteringsanvendelse
+2023.11.23 - 2.8.1 - ret problem med indlæsning af delta opdateringer på elever (når man kører med de særskilte elev-indlæsnings-services på skoledomænet)
+2024.01.04 - 2.8.2 - rettede en bug introduceret i 2.8.1 der gjorde at MitID Erhverv overførsel kun sker på fulde sync og ikke drypvise opdateringer
+2024.01.05 - 2.9.0 - understøttelse for at angive et EAN (via UUID) som en attribut på brugerne, der anvendes til betaling for MitID Erhverv (optionel)
+2024.03.04 - 2.9.1 - korrekt udlæsning af accountExpires datoen (var 1 dag for tidligt før)
+2024.05.23 - 2.9.2 - fixet problem med udlæsning af Grupper hvis man kører med en specialtilpasset ObjectGuid attribut
+2024.10.06 - 2.10.0 - understøtter styring af privat mitid som loginmiddel i MitID Erhverv / NemLog-in via sikkerhedsgruppe
+2024.11.06 - 2.11.0 - understøtter indlæsningen af betroede medarbejdere, som skal have en strammere kodeordspolitik

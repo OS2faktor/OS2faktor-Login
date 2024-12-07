@@ -1,7 +1,11 @@
 package dk.digitalidentity.common.service;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -127,6 +131,10 @@ public class AdvancedRuleService {
 				return evaluateJoin(commandAndArgument.argument, person);
 			case "REGEX_REPLACE":
 				return evaluateRegex(commandAndArgument.argument, person);
+			case "BASE64":
+				return evaluateBase64(commandAndArgument.argument, person);
+			case "BINARY_UUID":
+				return evaluateBinaryUuid(commandAndArgument.argument, person);
 			default:
 				log.error("Should not get here, it should have been handled in extractCommandAndArgument: " + commandAndArgument.command);
 				throw new EvaluationException("Syntaksfejl: Ukendt operation '" + commandAndArgument.command + "'");
@@ -144,6 +152,56 @@ public class AdvancedRuleService {
 		String regEx = tokens.get(1).trim().replace("'", "").trim();
 
 		return source.replaceAll(regEx, replacement);
+	}
+	
+	private String evaluateBinaryUuid(String argument, Person person) throws EvaluationException {
+		String value = evaluateRule(argument.trim(), person);
+
+		if (!StringUtils.hasLength(value)) {
+			return value;
+		}
+
+		String uuid = null;
+		try {
+			uuid = UUID.fromString(value).toString();
+		}
+		catch (Exception ex) {
+			throw new EvaluationException(value + " is not a UUID");
+		}
+
+		return base64EncodeUuid(uuid);
+	}
+
+	private String base64EncodeUuid(String uuidStr) {
+		UUID uuid = UUID.fromString(uuidStr);
+		ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
+		bb.putLong(uuid.getMostSignificantBits());
+		bb.putLong(uuid.getLeastSignificantBits());
+
+		byte[] uuidBytes = bb.array();
+		byte[] guidBytes = Arrays.copyOf(uuidBytes, uuidBytes.length);
+
+		// C# is silly, so mix up the order to match what C# would generate here
+		guidBytes[0] = uuidBytes[3];
+		guidBytes[1] = uuidBytes[2];
+		guidBytes[2] = uuidBytes[1];
+		guidBytes[3] = uuidBytes[0];
+		guidBytes[4] = uuidBytes[5];
+		guidBytes[5] = uuidBytes[4];
+		guidBytes[6] = uuidBytes[7];
+		guidBytes[7] = uuidBytes[6];
+
+		return Base64.getEncoder().encodeToString(guidBytes);
+	}
+
+	private String evaluateBase64(String argument, Person person) throws EvaluationException {
+		String value = evaluateRule(argument.trim(), person);
+
+		if (!StringUtils.hasLength(value)) {
+			return value;
+		}
+
+		return Base64.getEncoder().encodeToString(value.getBytes());
 	}
 
 	private String evaluateJoin(String argument, Person person) throws EvaluationException {
@@ -284,6 +342,8 @@ public class AdvancedRuleService {
 			case "LOWER":
 			case "JOIN":
 			case "VALUE":
+			case "BASE64":
+			case "BINARY_UUID":
 				return true;
 			default:
 				return false;

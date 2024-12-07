@@ -23,7 +23,7 @@ public class UsernameAndPasswordHelper {
 	public String generatePassword(Domain domain) {
 		StringBuilder password = new StringBuilder();
 
-		long length = passwordSettingService.getSettingsCached(domain).getMinLength();
+		long length = passwordSettingService.getSettings(domain).getMinLength();
 		for (int i = 0; i < length - 4; i++) {
 			password.append(allAllowed[random.nextInt(allAllowed.length)]);
 		}

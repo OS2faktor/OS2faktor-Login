@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true, select2 = true)" />
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true, select2 = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.issued-identities')" />
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.issued-identities')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -67,11 +67,11 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.issued-identities')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.issued-identities')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 	
@@ -128,7 +128,7 @@
 	</div>
 	<!-- End unlock Modal -->
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)}"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/

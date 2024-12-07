@@ -10,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
@@ -36,7 +37,7 @@ public class GeoLocateService {
 		GeoIP geo = new GeoIP();
 		geo.setRetry(true);
 		
-		if ("127.0.0.1".equals(ip)) {
+		if (!StringUtils.hasLength(ip) || "127.0.0.1".equals(ip)) {
 			geo.setRetry(false);
 			geo.setCountry("Danmark");
 			geo.setCity("Systemhandling");
@@ -59,10 +60,10 @@ public class GeoLocateService {
 
 			ResponseEntity<GeoIP> response = restTemplate.exchange(resourceUrl, HttpMethod.GET, request, GeoIP.class);
 			
-			if (response.getStatusCodeValue() != 200) {
-				log.warn("Failed to lookup ip " + ip + ". Status = " + response.getStatusCodeValue());
+			if (response.getStatusCode().value() != 200) {
+				log.warn("Failed to lookup ip " + ip + ". Status = " + response.getStatusCode().value());
 				
-				if (response.getStatusCodeValue() == 400) {
+				if (response.getStatusCode().value() == 400) {
 					geo.setRetry(false);
 				}
 				return geo;

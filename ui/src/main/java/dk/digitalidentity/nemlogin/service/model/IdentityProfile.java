@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class IdentityProfile {
-	private String status = "Pending"; // before was "active"
+	private String status = "Pending";
 	private String registeredIal = "Substantial";
 	private String targetIal = "Substantial";
 	private String givenName;
@@ -17,4 +17,5 @@ public class IdentityProfile {
 	private String emailAddress;
 	private String cprNumber;
 	private String rid;
+	private boolean pseudonym;
 }

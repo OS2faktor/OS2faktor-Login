@@ -9,7 +9,6 @@ import java.util.List;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -33,6 +32,7 @@ import dk.digitalidentity.mvc.otherUsers.validator.PasswordChangeValidator;
 import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
 import dk.digitalidentity.security.RequireParent;
 import dk.digitalidentity.security.SecurityUtil;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -102,8 +102,8 @@ public class ParentsChangePasswordOnStudentsController {
 			return "redirect:/elevkode/skiftkodeord";
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
-		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited));
+		model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited, false));
 
 		return "students/password-change-parent/change-password";
 	}
@@ -128,7 +128,7 @@ public class ParentsChangePasswordOnStudentsController {
 
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
-			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 
 			return "students/password-change-parent/change-password";
 		}
@@ -151,7 +151,7 @@ public class ParentsChangePasswordOnStudentsController {
 
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 
 				return "students/password-change-parent/change-password";
 			}

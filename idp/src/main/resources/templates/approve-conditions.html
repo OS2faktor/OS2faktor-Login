@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (checkbox = true)" />
-<div th:replace="fragments/topbar :: topbar"></div>
+<head th:replace="~{fragments/header :: header (checkbox = true)}"></head>
+<div th:replace="~{fragments/topbar :: topbar}"></div>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
@@ -92,7 +92,7 @@
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (checkbox = true)}"></div>
 	
 	<script th:inline="javascript">
 		$(document).ready(function() {

@@ -1,12 +1,11 @@
 package dk.digitalidentity.util;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.decoder.MessageDecodingException;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.binding.decoding.impl.HTTPRedirectDeflateDecoder;
 
+import jakarta.servlet.http.HttpServletRequest;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 
 public class HttpRedirectUtil {

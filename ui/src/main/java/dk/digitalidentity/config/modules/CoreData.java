@@ -11,5 +11,8 @@ public class CoreData {
 	
 	@FeatureDocumentation(name = "Ekstern rollestyring", description = "Mulighed for at administrere hvem der har administrator roller tildelt i OS2faktor via API kald")
 	private boolean roleApiEnabled = false;
+	
+	@FeatureDocumentation(name = "Betroede medarbejdere", description = "Mulighed for at opmærke medarbejdere som betroede, så der gælder strammere kodeordspolitikker for dem end for andre brugere")
+	private boolean trustedEmployeeEnabled = false;
 
 }

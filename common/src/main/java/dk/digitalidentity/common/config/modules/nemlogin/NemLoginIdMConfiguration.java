@@ -11,6 +11,9 @@ public class NemLoginIdMConfiguration {
 	@FeatureDocumentation(name = "NemLog-in IdM", description = "Integration til NemLog-in IdM (MitID Erhverv)")
 	private boolean enabled = false;
 	
+	@FeatureDocumentation(name = "Privat MitID / NemLog-in", description = "Overfør anvendelsen af privat MitID som loginmiddel i MitID Erhverv")
+	private boolean privateMitIdEnabled = false;
+
 	private String keystoreLocation;
 	private String keystorePassword;
 	private String invoiceMethodUuid;

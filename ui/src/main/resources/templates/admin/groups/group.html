@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.w3.org/1999/xhtml">
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.group')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.group')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -18,15 +18,15 @@
 						</div>
 					</div>
 
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.group')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.group')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/

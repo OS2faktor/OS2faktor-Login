@@ -10,9 +10,6 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +39,8 @@ import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.ReportService;
 import dk.digitalidentity.util.HttpServletResponseOutputStreamWrapper;
 import dk.digitalidentity.util.OutputStreamWrapper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

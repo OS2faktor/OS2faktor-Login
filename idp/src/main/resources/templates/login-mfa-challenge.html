@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="da">
-<head th:replace="fragments/header :: header"></head>
-<div th:replace="fragments/topbar :: topbar"></div>
+<head th:replace="~{fragments/header :: header}"></head>
+<div th:replace="~{fragments/topbar :: topbar}"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown">
         <div class="row">
@@ -15,9 +15,7 @@
                 	<a class="sr-only sr-only-focusable" href="#wcag-challenge">Gå til kode</a>
                     <form id="loginForm" method="get" th:action="@{/sso/saml/mfa/} + ${deviceId} + '/completed'">
                         <div>
-                            <p th:utext="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}">
-                            </p>
-                            <hr>
+                            <p th:text="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}"></p>
                         </div>
 
                         <div th:if="${challenge} != null">
@@ -41,10 +39,11 @@
                         </div>
 
 			            <div id="finishLoginBlock" style="display: none;">
+			                <button class="btn btn-primary btn-block" onclick="mfaService.finishLoginFlow(); return false;">Videre</button>
+			                <br/>
 			                <p>
-			                    Login er gennemført - tryk på knappen nedenfor for at gå videre
+			                    Login er gennemført - tryk på knappen ovenfor for at gå videre
 			                </p>
-			                <button class="btn btn-primary" onclick="mfaService.finishLoginFlow(); return false;">Videre</button>
 			            </div>
 
                         <div th:if="${@loginService.showNemLogIn()}">
@@ -60,7 +59,7 @@
         </div>
     </div>
     
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 </body>
 
 <script th:inline="javascript">

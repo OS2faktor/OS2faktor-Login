@@ -3,11 +3,6 @@ package dk.digitalidentity.mvc.selfservice;
 import java.util.Comparator;
 import java.util.List;
 
-import javax.servlet.http.HttpServletRequest;
-
-import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.mfa.model.ClientType;
-import dk.digitalidentity.mvc.admin.dto.ActivationDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Controller;
@@ -16,19 +11,23 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.mfa.MFAService;
+import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.mvc.admin.dto.ActivationDTO;
 import dk.digitalidentity.mvc.selfservice.dto.SelfServicePersonDTO;
 import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MFAManagementService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Slf4j
 @Controller

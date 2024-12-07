@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header"></head>
+<head th:replace="~{fragments/header :: header}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 	    <div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar"></div>
+			<div th:replace="~{fragments/topbar :: topbar}"></div>
 
 	        <div class="wrapper wrapper-content">
 	            <div class="row">
@@ -21,7 +21,7 @@
 
 								<!-- Hidden on mobile -->
 								<p class="d-none d-lg-block full-width" style="text-align: right">
-									<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 250px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">
+									<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 250px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + ${httpServletRequestRequestUrl}">
 										<span th:utext="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></span>
 									</a>
 									<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 250px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="@{/saml/login}">Login</a>
@@ -30,7 +30,7 @@
 	                        	<!-- Visible on mobile -->
 	                        	<div class="d-block d-lg-none">
 	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="@{/saml/login}">Login</a>
-	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}"><span th:utext="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></span></a>
+	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + ${httpServletRequestRequestUrl}"><span th:utext="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></span></a>
 	                        	</div>
 	                        </div>
 	                    </div>
@@ -38,10 +38,10 @@
 	            </div>
 	        </div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 	    </div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 </body>
 </html>

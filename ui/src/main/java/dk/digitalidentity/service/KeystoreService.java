@@ -3,15 +3,14 @@ package dk.digitalidentity.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.SettingService;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -26,29 +25,37 @@ public class KeystoreService {
 	
 	@Transactional
 	public void performCertificateSwap() {
-		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingsKey.CERTIFICATE_ROLLOVER_TTS);
+		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS);
 		if (tts.isBefore(LocalDateTime.now())) {
 			List<Keystore> keystores = keystoreDao.findAll();
 
-			// ensure that there are two certificates
-			if (keystores.size() != 2) {
-				log.error("Planned certificate rollover not possible, because there are " + keystores.size() + " certificate(s) in database");
+			// make sure we have both a primary and a secondary available
+			Keystore primary = null, secondary = null;
+			for (Keystore keystore : keystores) {
+				if (keystore.isPrimary()) {
+					primary = keystore;
+				}
+				else if (keystore.isSecondary()) {
+					secondary = keystore;
+				}
+			}
+
+			if (secondary == null || primary == null) {
+				log.error("Cannot perform certificate rollover, as we are missing primary/secondary pair");
 				return;
 			}
-			
-			for (Keystore keystore : keystores) {
-				if (keystore.isPrimaryForIdp() != keystore.isPrimaryForNemLogin()) {
-					log.error("Planned certificate rollover not possible, because certificates are not aligned for Idp/NemLogin");
-					return;
-				}
-				
-				keystore.setPrimaryForIdp(!keystore.isPrimaryForIdp());
-				keystore.setPrimaryForNemLogin(!keystore.isPrimaryForNemLogin());
-				keystore.setLastUpdated(LocalDateTime.now());
-			}
-			
-			keystoreDao.saveAll(keystores);
-			settingService.setLocalDateTimeSetting(SettingsKey.CERTIFICATE_ROLLOVER_TTS, LocalDateTime.parse(SettingsKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()));
+
+			primary.setAlias("OCES_SECONDARY");
+			primary.setDisabled(true);
+			primary.setLastUpdated(LocalDateTime.now());
+			keystoreDao.save(primary);
+
+			secondary.setAlias("OCES");
+			secondary.setDisabled(false);
+			secondary.setLastUpdated(LocalDateTime.now());
+			keystoreDao.save(secondary);
+
+			settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS, LocalDateTime.parse(SettingKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()));
 
 			log.info("Swapped primary certificates");
 		}
@@ -56,6 +63,10 @@ public class KeystoreService {
 
 	public List<Keystore> findAll() {
 		return keystoreDao.findAll();
+	}
+	
+	public Keystore findByAlias(String alias) {
+		return keystoreDao.findByAlias(alias);
 	}
 
 	public void save(Keystore keystore) {

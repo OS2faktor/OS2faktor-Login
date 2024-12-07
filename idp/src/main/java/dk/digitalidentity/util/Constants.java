@@ -53,6 +53,9 @@ public class Constants {
     public static final String LOGIN_SELECT_CLAIMS_FLOW = "LOGIN_SELECT_CLAIMS_FLOW";
     public static final String LOGIN_SELECTABLE_CLAIMS = "LOGIN_SELECTABLE_CLAIMS";
     public static final String LOGIN_SELECTED_CLAIMS = "LOGIN_SELECTED_CLAIMS";
+    
+    public static final String ENTRAID_MFA_IN_FLOW = "ENTRAID_MFA_IN_FLOW";
+    public static final String ENTRAID_MFA_PERSON = "ENTRAID_MFA_PERSON";
 
     // Common Attributes
     public static final String ATTRIBUTE_VALUE_FORMAT_BASIC = "urn:oasis:names:tc:SAML:2.0:attrname-format:basic";

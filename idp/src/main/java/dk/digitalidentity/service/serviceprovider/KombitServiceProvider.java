@@ -24,17 +24,21 @@ import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 
+@Slf4j
 @Component
 public class KombitServiceProvider extends ServiceProvider {
 	private HTTPMetadataResolver resolver;
@@ -53,6 +57,9 @@ public class KombitServiceProvider extends ServiceProvider {
 	
 	@Autowired
 	private AdvancedRuleService advancedRuleService;
+	
+	@Autowired
+	private SettingService settingService;
 	
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
@@ -251,7 +258,18 @@ public class KombitServiceProvider extends ServiceProvider {
 			subsystem = new KombitSubsystem();
 			subsystem.setEntityId(entityId);
 			subsystem.setMinNsisLevel(NSISLevel.NONE);
-			subsystem.setForceMfaRequired(ForceMFARequired.DEPENDS);
+
+			ForceMFARequired mfaRequired = ForceMFARequired.DEPENDS;
+			String mfaSetting = null;
+			try {
+				mfaSetting = settingService.getString(SettingKey.KOMBIT_DEFAULT_MFA);
+				mfaRequired = ForceMFARequired.valueOf(mfaSetting);
+			}
+			catch (Exception ex) {
+				log.warn("Failed to parse " + mfaSetting, ex);
+			}
+
+			subsystem.setForceMfaRequired(mfaRequired);
 
 			subsystem = subsystemService.save(subsystem);
 		}

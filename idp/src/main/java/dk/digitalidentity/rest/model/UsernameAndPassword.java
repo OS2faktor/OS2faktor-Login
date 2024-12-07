@@ -10,4 +10,5 @@ public class UsernameAndPassword {
 	private String password;
 	private String previousToken;
 	private String version;
+	private boolean base64;
 }

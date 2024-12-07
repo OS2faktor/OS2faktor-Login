@@ -41,9 +41,10 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findByLockedExpiredTrueAndExpireTimestampAfterOrExpireTimestampNull(LocalDateTime date);
 	List<Person> findBySchoolRolesRoleAndDomainAndSchoolRolesInstitutionIdInAndNsisAllowedFalse(SchoolRoleValue role, Domain domain, Set<String> institutionIds);
 	List<Person> findBySchoolRolesNotEmptyAndDomainIn(List<Domain> domains);
-	List<Person> findByNsisLevelAndNsisPasswordNull(NSISLevel nsisLevel);
+	List<Person> findByNsisLevelAndPasswordNull(NSISLevel nsisLevel);
 	List<Person> findBySchoolRolesRoleAndStudentPasswordNotNull(SchoolRoleValue role);
 	List<Person> findByTransferToNemloginTrue();
+	List<Person> findByExternalNemloginUserUuid(String uuid);
 	long countByLockedPasswordTrue();
 
 	@Query("SELECT person FROM Person person JOIN person.attributes a WHERE (KEY(a) = :key AND a = :value)")

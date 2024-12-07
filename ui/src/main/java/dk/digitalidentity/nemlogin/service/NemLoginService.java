@@ -7,7 +7,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,13 +47,20 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.MitIdErhvervAccountErrorType;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.MitIdErhvervAccountErrorService;
 import dk.digitalidentity.common.service.NemloginQueueService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.nemlogin.service.model.ActivationOrderRequest;
+import dk.digitalidentity.nemlogin.service.model.Authenticator;
+import dk.digitalidentity.nemlogin.service.model.AuthenticatorsResponse;
+import dk.digitalidentity.nemlogin.service.model.CredentialsRequest;
 import dk.digitalidentity.nemlogin.service.model.Employee;
 import dk.digitalidentity.nemlogin.service.model.EmployeeChangeEmailRequest;
 import dk.digitalidentity.nemlogin.service.model.EmployeeChangeLocalUserIdRequest;
@@ -109,12 +119,45 @@ public class NemLoginService {
 
 	@Autowired
 	private MitIdErhvervAccountErrorService mitIdErhvervAccountErrorService;
+	
+	@Autowired
+	private SettingService settingService;
+	
+	@Autowired
+	private CprService cprService;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {
 		if (config.getNemLoginApi().isEnabled() && os2faktorConfiguration.getScheduled().isEnabled()) {
+			
+			// migrate existing users if needed
 			if (config.getNemLoginApi().isMigrateExistingUsers()) {
 				migrateExistingNemloginUsers();
+			}
+			
+			// migrate private MitID setting - ONCE - during startup
+			if (config.getNemLoginApi().isPrivateMitIdEnabled() && !settingService.getBoolean(SettingKey.MIGRATED_PRIVATE_MITID)) {
+				List<MitidErhvervCache> cache = mitidErhvervCacheService.findAll();
+				
+				// NemLog-in UUID should be unique, but there is no DB constraint, so we try to be safe
+				Map<String, List<Person>> persons = personService.getAll().stream().collect(Collectors.groupingBy(Person::getNemloginUserUuid));
+
+				for (MitidErhvervCache cacheEntry : cache) {
+					if (cacheEntry.isMitidPrivatCredential()) {
+						List<Person> personHits = persons.get(cacheEntry.getUuid());
+						
+						if (personHits != null && personHits.size() > 0) {
+							for (Person person : personHits) {
+								// this is a heavy operation if we do it 1000+ times, but we suspect the amount to be low, and
+								// it IS a one-off, so no bulk saving this change
+								person.setPrivateMitId(true);
+								personService.save(person);
+							}
+						}
+					}
+				}
+
+				settingService.setBoolean(SettingKey.MIGRATED_PRIVATE_MITID, true);
 			}
 		}
 	}
@@ -132,11 +175,11 @@ public class NemLoginService {
 		try {
 			ResponseEntity<TokenResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, TokenResponse.class);
 
-			if (response.getStatusCodeValue() == 200 && response.getBody() != null) {
+			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 				accessToken = response.getBody().getAccessToken();
 			}
 			else {
-				log.error("Failed to fetch token from nemloginApi - statusCode=" + response.getStatusCodeValue());
+				log.error("Failed to fetch token from nemloginApi - statusCode=" + response.getStatusCode().value());
 			}
 		}
 		catch (Exception ex) {
@@ -208,7 +251,7 @@ public class NemLoginService {
 				log.error("Missing NemLoginUserSuffix for  " + queue.getPerson().getId() + " in domain " + queue.getPerson().getDomain().getName() + " - skipping user!");
 				continue;
 			}
-			
+
 			switch (queue.getAction()) {
 				case DELETE:
 					failureReason = deleteEmployee(queue.getNemloginUserUuid());
@@ -236,6 +279,12 @@ public class NemLoginService {
 					break;
 				case ASSIGN_LOCAL_USER_ID:
 					failureReason = assignLocalUserId(queue.getPerson());
+					break;
+				case ASSIGN_PRIVATE_MIT_ID:
+					failureReason = assignPrivateMitId(queue.getPerson());
+					break;
+				case REVOKE_PRIVATE_MIT_ID:
+					failureReason = revokePrivateMitId(queue.getPerson());
 					break;
 			}
 
@@ -294,7 +343,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
 
-			if (response.getStatusCodeValue() >= 200 && response.getStatusCodeValue() <= 299) {
+			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
 				;
 			}
 			else {
@@ -347,7 +396,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
 
-			if (response.getStatusCodeValue() >= 200 && response.getStatusCodeValue() <= 299) {
+			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
 				;
 			}
 			else {
@@ -417,7 +466,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 
-			if (response.getStatusCodeValue() >= 200 && response.getStatusCodeValue() <= 299) {
+			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
 				;
 			}
 			else {
@@ -472,7 +521,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request2, String.class);
 
-			if (response.getStatusCodeValue() >= 200 && response.getStatusCodeValue() <= 299) {
+			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
 				;
 			}
 			else {
@@ -484,7 +533,147 @@ public class NemLoginService {
 			log.error("Failed to update localUserId for person with uuid " + person.getUuid(), ex);
 			return "Exception: " + ex.getMessage();
 		}
+
+		if (person.isPrivateMitId()) {
+			nemloginQueueService.save(new NemloginQueue(person, NemloginAction.ASSIGN_PRIVATE_MIT_ID));
+		}
+
+		return null;
+	}
+
+	private String revokePrivateMitId(Person person) {
+		if (person == null) {
+			log.error("Will not revoke PrivateMitId. Person was null");
+			return "person is null";
+		}
+
+		// no NemLog-in, then just skip this order
+		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
+			return null;
+		}
 		
+		log.info("Revoking PrivateMitId on person " + person.getId());
+
+		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
+			log.error("Will not revoke PrivateMitId for person " + person.getId() + ". The person does not have a nemloginUserUuid");
+			return "nemloginUserUuid is null";
+		}
+
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			log.error("Will not revoke PrivateMitId for person " + person.getId() + ". The person does not have a sAMAccountName");
+			return "sAMAccountName is not null";
+		}
+
+		try {
+			// step 1 - fetch uuid of PrivateMitId "authenticator"
+			String uuidOfPrivateMitId = getUuidOfPrivateMitId(person);
+			
+			// if no MitID present on user, just skip the removal :)
+			if (!StringUtils.hasLength(uuidOfPrivateMitId)) {
+				return null;
+			}
+
+			// step 2 - revoke PrivateMitId
+			revokePrivateMitId(person, uuidOfPrivateMitId);
+		}
+		catch (Exception ex) {
+			log.error("Failed to remove private MitID from " + person.getId() + " / " + person.getSamaccountName(), ex);
+			return "Technical error: " + ex.getMessage();
+		}
+
+		return null;
+	}
+
+	private String getUuidOfPrivateMitId(Person person) {
+		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/authenticators";
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + self.fetchToken());
+
+		HttpEntity<Object> fetchAuthenticatorsRequest = new HttpEntity<>(headers);
+
+		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.GET, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
+
+		if (response.getStatusCode().is2xxSuccessful()) {
+			AuthenticatorsResponse body = response.getBody();
+			
+			if (body != null && body.authenticators != null && !body.authenticators.isEmpty()) {
+				Optional<Authenticator> first = body.authenticators.stream().filter(authenticator -> "PrivateMitId".equals(authenticator.getType())).findFirst();
+
+				if (first.isPresent()) {
+					return first.get().getUuid();
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private void revokePrivateMitId(Person person, String mitIdUuid) throws Exception {
+		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/revokecredential/" + mitIdUuid;
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Authorization", "Bearer " + self.fetchToken());
+
+		HttpEntity<Object> fetchAuthenticatorsRequest = new HttpEntity<>(headers);
+
+		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.GET, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
+
+		if (!response.getStatusCode().is2xxSuccessful()) {
+			throw new Exception("Failed to remove MitID - statusCode " + response.getStatusCode().value());
+		}
+	}
+
+	private String assignPrivateMitId(Person person) {
+		if (person == null) {
+			log.error("Will not assign PrivateMitId. Person was null");
+			return "person is null";
+		}
+
+		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
+			log.warn("Will not assign PrivateMitId for person " + person.getId() + ". The person does not have a nemloginUserUuid");
+			return "nemloginUserUuid is null";
+		}
+
+		log.info("Assigning PrivateMitId on person " + person.getId());
+
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			log.error("Will not assign PrivateMitId for person " + person.getId() + ". The person does not have a sAMAccountName");
+			return "sAMAccountName is not null";
+		}
+		
+		String existingUuid = getUuidOfPrivateMitId(person);
+		if (StringUtils.hasLength(existingUuid)) {
+			log.warn("Will not assign PrivateMitId for person " + person.getId() + ". The person already has a private MitID");
+			return null;
+		}
+
+		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/requestcredentials";
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Content-Type", "application/json");
+		headers.add("Authorization", "Bearer " + self.fetchToken());
+
+		CredentialsRequest body = new CredentialsRequest();
+		ArrayList<String> types = new ArrayList<>();
+		types.add("PrivateNemIdMitId");
+		body.setAuthenticatorSettingTypes(types);
+
+		HttpEntity<CredentialsRequest> requestForPrivateMitID = new HttpEntity<>(body, headers);
+
+		try {
+			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestForPrivateMitID, String.class);
+
+			if (!response.getStatusCode().is2xxSuccessful()) {
+				log.error("Failed to assign PrivateMitId to person with uuid " + person.getUuid() + ". Error: " + response.getBody());
+				return "Technical error: " + response.getBody();
+			}
+		}
+		catch (Exception ex) {
+			log.error("Failed to assign private MitID to " + person.getId() + " / " + person.getSamaccountName(), ex);
+			return "Technical error: " + ex.getMessage();
+		}
+
 		return null;
 	}
 
@@ -496,7 +685,7 @@ public class NemLoginService {
 		
 		log.info("Creating person " + person.getId());
 		
-		if (!validCpr(person.getCpr())) {
+		if (!validCpr(person.getCpr()) || cprService.isFictionalCpr(person.getCpr())) {
 			log.warn("Personen har ikke et gyldigt cpr nummer: " + person.getId() + " / " + person.getSamaccountName());
 			return "Ugyldigt cpr nummer!";
 		}
@@ -516,6 +705,25 @@ public class NemLoginService {
 			return "Personen har ikke et AD brugernavn";
 		}
 
+		// make sure we have name information correct from CPR
+		if (!person.isCprNameUpdated()) {
+			try {
+				Future<CprLookupDTO> cprFuture = cprService.getByCpr(person.getCpr());
+				CprLookupDTO dto = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
+
+				if (dto == null || dto.isDoesNotExist()) {
+					return "Personen kunne ikke findes i CPR registeret";
+				}
+
+				if (cprService.updateName(person, dto)) {
+					personService.save(person);
+				}
+			}
+			catch (Exception ex) {
+				return "CPR opslag ikke muligt";
+			}
+		}
+
 		String email = person.getEmail();
 		if (!StringUtils.hasLength(email)) {
 			email = config.getNemLoginApi().getDefaultEmail();
@@ -524,7 +732,7 @@ public class NemLoginService {
 				return "Der mangler en e-mail adresse på personen";
 			}
 		}
-		
+
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee";
 
 		HttpHeaders headers = new HttpHeaders();
@@ -547,6 +755,7 @@ public class NemLoginService {
 		identityProfile.setSurname(surname);
 		identityProfile.setEmailAddress(email);
 		identityProfile.setCprNumber(person.getCpr());
+		identityProfile.setPseudonym(person.isNameProtected());
 		
 		if (!config.getNemLoginApi().isDisableSendingRid()) {
 			identityProfile.setRid(person.getRid());
@@ -555,11 +764,17 @@ public class NemLoginService {
 		IdentityOrganizationProfile identityOrganizationProfile = new IdentityOrganizationProfile();
 		if (person.getEan() != null && StringUtils.hasLength(person.getEan())) {
 			identityOrganizationProfile.setInvoiceMethodUuid(person.getEan());
-		} else {
+		}
+		else {
 			identityOrganizationProfile.setInvoiceMethodUuid(config.getNemLoginApi().getInvoiceMethodUuid());
 		}
 
 		IdentityAuthenticators identityAuthenticators = new IdentityAuthenticators();
+
+		if (person.isPrivateMitId()) {
+			identityAuthenticators.getAuthenticatorTypes().add("PrivateNemIdMitId");
+		}
+
 		identityAuthenticators.setSubjectNameId(person.getSamaccountName() + person.getDomain().getNemLoginDomain());
 
 		body.setIdentityOrganizationProfile(identityOrganizationProfile);
@@ -572,7 +787,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 			if (response.getBody() != null) {
-				if (response.getStatusCodeValue() == 200) {
+				if (response.getStatusCode().value() == 200) {
 					ObjectMapper mapper = new ObjectMapper();
 					EmployeeCreateResponse responseBody = mapper.readValue(response.getBody(), EmployeeCreateResponse.class);
 					uuid = responseBody.getEmployeeUuid();
@@ -659,12 +874,12 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
 
-			if (response.getStatusCodeValue() == 200) {
+			if (response.getStatusCode().value() == 200) {
 				;
 			}
 			else {
 				log.error("Failed to change email for person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "statusCode = " + response.getStatusCodeValue();
+				return "statusCode = " + response.getStatusCode().value();
 			}
 		}
 		catch (Exception ex) {
@@ -696,12 +911,12 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
 
-			if (response.getStatusCodeValue() == 204 || response.getStatusCodeValue() == 404) {
+			if (response.getStatusCode().value() == 204 || response.getStatusCode().value() == 404) {
 				;
 			}
 			else {
-				log.error("Failed to delete nemlogin employee for deleted person with nemloginUserUuid " + nemloginUserUuid + ". statusCode = " + response.getStatusCodeValue());
-				return "statusCode = " + response.getStatusCodeValue();
+				log.error("Failed to delete nemlogin employee for deleted person with nemloginUserUuid " + nemloginUserUuid + ". statusCode = " + response.getStatusCode().value());
+				return "statusCode = " + response.getStatusCode().value();
 			}
 		}
 		catch (Exception ex) {
@@ -738,7 +953,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
 
-			if (response.getStatusCodeValue() == 204) {
+			if (response.getStatusCode().value() == 204) {
 				auditLogger.suspendedNemLoginUser(person);
 				
 				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_DEACTIVATED);
@@ -750,7 +965,7 @@ public class NemLoginService {
 					}
 				}
 			}
-			else if (response.getStatusCodeValue() == 404) {
+			else if (response.getStatusCode().value() == 404) {
 				log.info("Could not suspend " + person.getSamaccountName() + " (" + person.getId() + "), so clearing NL UUID instead");
 
 				// account in MitID Erhverv no longer exists - so just remove the stored UUID, suspension is not needed
@@ -758,8 +973,8 @@ public class NemLoginService {
 				personService.save(person);
 			}
 			else {
-				log.warn("Failed to suspend nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue());
-				return "statusCode = " + response.getStatusCodeValue();
+				log.warn("Failed to suspend nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value());
+				return "statusCode = " + response.getStatusCode().value();
 			}
 		}
 		catch (Exception ex) {
@@ -794,7 +1009,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
 
-			if (response.getStatusCodeValue() == 204) {
+			if (response.getStatusCode().value() == 204) {
 				auditLogger.reactivatedNemLoginUser(person);
 				
 				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_ACTIVATED);
@@ -806,7 +1021,7 @@ public class NemLoginService {
 					}
 				}
 			}
-			else if (response.getStatusCodeValue() == 404) {
+			else if (response.getStatusCode().value() == 404) {
 				log.info("Could not reactivate " + person.getSamaccountName() + " (" + person.getId() + "), so clearing NL UUID, and doing a CREATE next night");
 				
 				// account in MitID Erhverv no longer exists - reactivating is not possible - we should instead attempt to create
@@ -814,22 +1029,22 @@ public class NemLoginService {
 				person.setNemloginUserUuid(null);
 				personService.save(person);
 			}
-			else if (response.getStatusCodeValue() == 409) {
+			else if (response.getStatusCode().value() == 409) {
 				String body = response.getBody();
 				
 				// just try again - no worries (and no errors)
 				if (body != null && body.contains("OptimisticConcurrency")) {
-					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
-					return "statusCode = " + response.getStatusCodeValue();
+					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
+					return "statusCode = " + response.getStatusCode().value();
 				}
 				else {
-					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
-					return "statusCode = " + response.getStatusCodeValue();
+					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
+					return "statusCode = " + response.getStatusCode().value();
 				}
 			}
 			else {
-				log.error("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCodeValue() + " / body=" + response.getBody());
-				return "statusCode = " + response.getStatusCodeValue();
+				log.error("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
+				return "statusCode = " + response.getStatusCode().value();
 			}
 		}
 		catch (Exception ex) {
@@ -853,12 +1068,12 @@ public class NemLoginService {
 		try {
 			ResponseEntity<EmployeeSearchResponse> response = restTemplate.exchange(url, HttpMethod.GET, request, EmployeeSearchResponse.class);
 
-			if (response.getStatusCodeValue() == 200 && response.getBody() != null) {
+			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 				employees = response.getBody().getEmployees();
 				log.info("Found " + employees.size() + " employees");
 			}
 			else {
-				log.error("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue());
+				log.error("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCode().value());
 			}
 		}
 		catch (Exception ex) {
@@ -881,7 +1096,7 @@ public class NemLoginService {
 
 		ResponseEntity<FullEmployee> response = restTemplate.exchange(url, HttpMethod.GET, request, FullEmployee.class);
 
-		if (response.getStatusCodeValue() == 200 && response.getBody() != null) {
+		if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 			employee = response.getBody();
 		}
 
@@ -905,7 +1120,7 @@ public class NemLoginService {
 		try {
 			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
 
-			if (response.getStatusCodeValue() == 200 && response.getBody() != null) {
+			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 				try {
 					ObjectMapper mapper = new ObjectMapper();
 					EmployeeSearchResponse responseBody = mapper.readValue(response.getBody(), EmployeeSearchResponse.class);
@@ -915,10 +1130,10 @@ public class NemLoginService {
 				}
 				catch (JacksonException ex) {
 					if (++readAllIdentitiesFailureInARow > 3) {
-						log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody(), ex);
+						log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCode().value() + ", body=" + response.getBody(), ex);
 					}
 					else {
-						log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody(), ex);
+						log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCode().value() + ", body=" + response.getBody(), ex);
 					}
 					
 					return null;
@@ -926,10 +1141,10 @@ public class NemLoginService {
 			}
 			else {
 				if (++readAllIdentitiesFailureInARow > 3) {
-					log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody());
+					log.error("Failed to fetch all employees from nemloginApi (" + readAllIdentitiesFailureInARow + " times). StatusCode=" + response.getStatusCode().value() + ", body=" + response.getBody());
 				}
 				else {
-					log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCodeValue() + ", body=" + response.getBody());
+					log.warn("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCode().value() + ", body=" + response.getBody());
 				}
 				
 				return null;

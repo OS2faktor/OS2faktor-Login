@@ -1,6 +1,9 @@
 package dk.digitalidentity.api.dto;
 
+import java.time.LocalDateTime;
+
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.PersonStatistics;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,8 +26,9 @@ public class CoreDataStatusEntry {
 	private boolean lockedPassword;
 	private boolean lockedExpired;
 	private String lockedPasswordUntil;
+	private LocalDateTime lastLogin;
 
-	public CoreDataStatusEntry(Person person) {
+	public CoreDataStatusEntry(Person person, PersonStatistics statistics) {
 		this.uuid = person.getUuid();
 		this.cpr = person.getCpr();
 		this.name = person.getName();
@@ -40,5 +44,6 @@ public class CoreDataStatusEntry {
 		this.lockedExpired = person.isLockedExpired();
 		this.lockedPassword = person.isLockedPassword();
 		this.lockedPasswordUntil = (person.getLockedPasswordUntil() != null) ? person.getLockedPasswordUntil().toString() : null;
+		this.lastLogin = (statistics != null) ? statistics.getLastLogin() : null;
 	}
 }

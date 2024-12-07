@@ -16,7 +16,10 @@ public enum NemloginAction {
 	// when migrating, we use these three (either ACTIVE+ASSIGN or PROFILE+ACTIVE+ASSIGN, depending on initial state)
 	UPDATE_PROFILE("Opdater profil"),
 	ACTIVATE("Aktiver"),
-	ASSIGN_LOCAL_USER_ID("Tilføj loginmiddel");
+	ASSIGN_LOCAL_USER_ID("Tilføj loginmiddel"),
+
+	ASSIGN_PRIVATE_MIT_ID("Tilføj privat MitID"),
+	REVOKE_PRIVATE_MIT_ID("Fjern privat MitID");
 	
 	private String message;
 	

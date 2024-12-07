@@ -14,7 +14,7 @@
 				<div class="row">
 					<ul>
 						<li>
-							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + @{__${#httpServletRequest.requestURL}__}">Skift kodeord</a>
+							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + ${@commonConfiguration.getSelfService().getBaseUrl()}" + '/selvbetjening'>Skift kodeord</a>
 						</li>
 						
 						<li>

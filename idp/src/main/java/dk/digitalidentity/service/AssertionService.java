@@ -2,6 +2,7 @@ package dk.digitalidentity.service;
 
 import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
 
+import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,10 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 
-import lombok.extern.slf4j.Slf4j;
 import org.apache.xml.security.utils.EncryptionConstants;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -66,6 +65,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
@@ -79,6 +79,8 @@ import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
@@ -202,8 +204,15 @@ public class AssertionService {
 		try {
 			// If the object hasnt been marshalled first it can't be signed
 			AssertionMarshaller marshaller = new AssertionMarshaller();
-			marshaller.marshall(assertion);
-
+	
+			// when using KMS keys, make sure to use the KMS provider
+			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
+				marshaller.marshall(assertion, Security.getProvider("KMS"));
+			}
+			else {
+				marshaller.marshall(assertion);
+			}
+	
 			Signer.signObject(signature);
 		}
 		catch (MarshallingException e) {

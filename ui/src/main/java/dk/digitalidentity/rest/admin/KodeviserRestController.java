@@ -1,7 +1,5 @@
 package dk.digitalidentity.rest.admin;
 
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
 import org.springframework.data.jpa.datatables.mapping.DataTablesOutput;
@@ -24,6 +22,7 @@ import dk.digitalidentity.datatables.model.KodeviserView;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MFAManagementService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

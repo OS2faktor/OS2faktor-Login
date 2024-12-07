@@ -3,17 +3,6 @@ package dk.digitalidentity.common.service;
 import java.util.List;
 import java.util.Properties;
 
-import javax.mail.Message;
-import javax.mail.Multipart;
-import javax.mail.Part;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
-import javax.mail.internet.PreencodedMimeBodyPart;
-
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,6 +11,15 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
+import jakarta.mail.Message;
+import jakarta.mail.Multipart;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.internet.PreencodedMimeBodyPart;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -95,7 +93,7 @@ public class EmailService {
 						imagePart.setFileName(inlineImageDTO.getCid());
 						imagePart.setHeader("Content-ID", "<" + inlineImageDTO.getCid() + ">");
 						imagePart.setDisposition(MimeBodyPart.INLINE);
-						imagePart.setDisposition(Part.ATTACHMENT);
+						imagePart.setDisposition("attachment");
 
 						multipart.addBodyPart(imagePart);
 					}

@@ -9,11 +9,13 @@ import dk.digitalidentity.common.config.modules.AdConfiguration;
 import dk.digitalidentity.common.config.modules.CprConfiguration;
 import dk.digitalidentity.common.config.modules.CustomerConfiguration;
 import dk.digitalidentity.common.config.modules.DevConfiguration;
+import dk.digitalidentity.common.config.modules.EntraMfaConfiguration;
 import dk.digitalidentity.common.config.modules.FullServiceIdPConfiguration;
 import dk.digitalidentity.common.config.modules.KombitConfiguration;
 import dk.digitalidentity.common.config.modules.MailConfiguration;
 import dk.digitalidentity.common.config.modules.MfaConfiguration;
 import dk.digitalidentity.common.config.modules.MfaDatabaseConfiguration;
+import dk.digitalidentity.common.config.modules.MitIDErhvervConfiguration;
 import dk.digitalidentity.common.config.modules.PasswordSoonExpireConfiguration;
 import dk.digitalidentity.common.config.modules.RadiusConfiguration;
 import dk.digitalidentity.common.config.modules.RoleCatalogueConfiguration;
@@ -51,6 +53,8 @@ public class CommonConfiguration {
 	private PasswordSoonExpireConfiguration passwordSoonExpire = new PasswordSoonExpireConfiguration();
 	private StilPersonCreationConfiguration stilPersonCreation = new StilPersonCreationConfiguration();
 	private FullServiceIdPConfiguration fullServiceIdP = new FullServiceIdPConfiguration();
+	private MitIDErhvervConfiguration mitIdErhverv = new MitIDErhvervConfiguration();
+	private EntraMfaConfiguration entraMfa = new EntraMfaConfiguration();
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {

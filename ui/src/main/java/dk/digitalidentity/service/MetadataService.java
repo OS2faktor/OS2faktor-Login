@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import javax.transaction.Transactional;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -49,6 +48,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.w3c.dom.Document;
@@ -76,6 +76,7 @@ import dk.digitalidentity.mvc.admin.dto.serviceprovider.ClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.EndpointDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
@@ -149,6 +150,9 @@ public class MetadataService {
                 
                 serviceProviderDTO.setExistingSecret(StringUtils.hasText(oidcClient.getClientSecret()));
                 serviceProviderDTO.setRedirectURLs(new ArrayList<>(oidcClient.getRedirectUris()));
+                serviceProviderDTO.setLogoutURLs(new ArrayList<>(oidcClient.getPostLogoutRedirectUris()));
+				serviceProviderDTO.setRequirePKCE(oidcClient.getClientSettings().isRequireProofKey());
+				serviceProviderDTO.setPublicClient(oidcClient.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE));
 
                 return serviceProviderDTO;
 			case WSFED:
@@ -467,8 +471,6 @@ public class MetadataService {
             builder = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId(serviceProviderDTO.getEntityId())
                     .clientName(serviceProviderDTO.getName())
-                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .scope("openid");
         }
@@ -482,6 +484,24 @@ public class MetadataService {
             builder = RegisteredClient.from(registeredClient);
         }
 
+		if (serviceProviderDTO.isPublicClient()) {
+			builder.clientAuthenticationMethods(clientAuthenticationMethods -> {
+				clientAuthenticationMethods.clear();
+				clientAuthenticationMethods.add(ClientAuthenticationMethod.NONE);
+			});
+			builder.clientSettings(ClientSettings.builder().requireProofKey(true).build());
+		}
+		else {
+			builder.clientAuthenticationMethods(clientAuthenticationMethods -> {
+				clientAuthenticationMethods.clear();
+				clientAuthenticationMethods.add(ClientAuthenticationMethod.CLIENT_SECRET_BASIC);
+				clientAuthenticationMethods.add(ClientAuthenticationMethod.CLIENT_SECRET_POST);
+			});
+
+			builder.clientSettings(ClientSettings.builder().requireProofKey(serviceProviderDTO.isRequirePKCE()).build());
+		}
+
+
         // Update Registered client
         if (StringUtils.hasText(serviceProviderDTO.getClientSecret())) {
             BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -489,7 +509,16 @@ public class MetadataService {
         }
         
         List<String> redirectURLs = serviceProviderDTO.getRedirectURLs() != null ? serviceProviderDTO.getRedirectURLs() : new ArrayList<>();
-        builder.redirectUris((uris) -> uris.addAll(redirectURLs));
+        builder.redirectUris((uris) -> {
+			uris.clear();
+			uris.addAll(redirectURLs);
+		});
+
+        List<String> logoutURLs = serviceProviderDTO.getLogoutURLs() != null ? serviceProviderDTO.getLogoutURLs() : new ArrayList<>();
+		builder.postLogoutRedirectUris((uris) -> {
+			uris.clear();
+			uris.addAll(logoutURLs);
+		});
 
         RegisteredClient registeredClient = builder.build();
 

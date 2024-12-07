@@ -1,5 +1,8 @@
 package dk.digitalidentity.common.config.modules.school;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.FeatureDocumentation;
@@ -22,6 +25,7 @@ public class StilSPConfiguration {
 	private String uniloginAttribute = "cpr";
 	private boolean encryptAssertion = false;
 	private boolean nsisEnabled = false;
+	private List<Long> domainIdsThatRequireMfa = new ArrayList<>();
 	
 	public String getMetadataUrl() {
 		if ("TODO".equals(municipalityId)) {

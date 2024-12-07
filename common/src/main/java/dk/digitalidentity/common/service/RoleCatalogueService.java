@@ -176,11 +176,11 @@ public class RoleCatalogueService {
 			HttpEntity<String> request = new HttpEntity<>(headers);
 	
 			ResponseEntity<String> response = restTemplate.exchange(roleCatalogueUrl, HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
-			if (response.getStatusCodeValue() == 404) {
+			if (response.getStatusCode().value() == 404) {
 				return false;
 			}
-			else if (response.getStatusCodeValue() != 200) {
-				log.error("Failed to lookup userRoles for " + person.getSamaccountName() + " return code " + response.getStatusCodeValue());
+			else if (response.getStatusCode().value() != 200) {
+				log.error("Failed to lookup userRoles for " + person.getSamaccountName() + " return code " + response.getStatusCode().value());
 				return false;
 			}
 			
@@ -218,11 +218,11 @@ public class RoleCatalogueService {
 			HttpEntity<String> request = new HttpEntity<>(headers);
 	
 			ResponseEntity<String> response = restTemplate.exchange(roleCatalogueUrl, HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
-			if (response.getStatusCodeValue() == 404) {
+			if (response.getStatusCode().value() == 404) {
 				return false;
 			}
-			else if (response.getStatusCodeValue() != 200) {
-				log.error("Failed to lookup systemRoles for " + person.getSamaccountName() + " return code " + response.getStatusCodeValue());
+			else if (response.getStatusCode().value() != 200) {
+				log.error("Failed to lookup systemRoles for " + person.getSamaccountName() + " return code " + response.getStatusCode().value());
 				return false;
 			}
 			

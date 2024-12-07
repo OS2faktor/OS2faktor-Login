@@ -1,7 +1,5 @@
 package dk.digitalidentity.rest.registration;
 
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
 import org.springframework.data.jpa.datatables.mapping.DataTablesOutput;
@@ -15,6 +13,7 @@ import dk.digitalidentity.datatables.PersonRegistrationDatatableDao;
 import dk.digitalidentity.datatables.model.PersonPasswordChangeView;
 import dk.digitalidentity.datatables.model.RegistrationPersonView;
 import dk.digitalidentity.security.RequireRegistrant;
+import jakarta.validation.Valid;
 
 @RequireRegistrant
 @RestController

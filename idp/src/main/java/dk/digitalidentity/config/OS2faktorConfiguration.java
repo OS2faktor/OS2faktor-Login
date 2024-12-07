@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.FeatureDocumentation;
 import dk.digitalidentity.config.modules.IdPKeystoreConfiguration;
-import dk.digitalidentity.config.modules.MitID;
 import dk.digitalidentity.config.modules.OIDCConfiguration;
 import dk.digitalidentity.config.modules.PasswordConfiguration;
 import lombok.Getter;
@@ -19,9 +18,11 @@ public class OS2faktorConfiguration {
 	private IdPKeystoreConfiguration keystore = new IdPKeystoreConfiguration();
 	private OIDCConfiguration oidc = new OIDCConfiguration();
 	private PasswordConfiguration password = new PasswordConfiguration();
-	private MitID mitid = new MitID();
 	private String entityId;
 	private String baseUrl;
+
+	// for debugging specific users - browser-window is not closed for these users during WCP login
+	private String wcpRemainOpenForSamAccountName;
 	
 	@FeatureDocumentation(name = "UPN login", description = "Tillad at brugerne kan anvende UPN som brugernavn til login")
 	private boolean loginWithUpn = false;

@@ -81,6 +81,10 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.forgotPasswordOrLocked.changePassword", getDescription("cms.forgotPasswordOrLocked.changePassword")));
 		all.add(new CmsMessageListDTO("cms.forgotPasswordOrLocked.unlockAD", getDescription("cms.forgotPasswordOrLocked.unlockAD")));
 		all.add(new CmsMessageListDTO("cms.password.mismatch.content", getDescription("cms.password.mismatch.content")));
+		all.add(new CmsMessageListDTO("cms.password.complexity.warning", getDescription("cms.password.complexity.warning")));
+		all.add(new CmsMessageListDTO("cms.password.complexity.final", getDescription("cms.password.complexity.final")));
+		all.add(new CmsMessageListDTO("cms.password.leak.warning", getDescription("cms.password.leak.warning")));
+		all.add(new CmsMessageListDTO("cms.password.leak.final", getDescription("cms.password.leak.final")));
 		all.add(new CmsMessageListDTO("cms.unlockAccount.content", getDescription("cms.unlockAccount.content")));
 		all.add(new CmsMessageListDTO("cms.account.expired", getDescription("cms.account.expired")));
 		all.add(new CmsMessageListDTO("cms.login.selectClaims.content.top", getDescription("cms.login.selectClaims.content.top")));
@@ -209,6 +213,14 @@ public class CmsMessageBundle {
 				return "Teksten der vises hvis OS2faktor ikke har de fornødne rettigheder til at skifte kodeord på brugerens konto i AD";
 			case "cms.unlockAccount.insufficient-permission":
 				return "Teksten der vises hvis OS2faktor ikke har de fornødne rettigheder til at låse brugerens konto op i AD";
+			case "cms.password.complexity.warning":
+				return "Teksten der vises hvis en brugers nuværende kodeord ikke lever op til kravene om kodeordskompleksitet, og brugeren stadig har en periode til at nå at skifte kodeordet i";
+			case "cms.password.complexity.final":
+				return "Teksten der vises hvis en brugers nuværende kodeord ikke lever op til kravene om kodeordskompleksitet, og brugeren er tvunget til at skifte kodeordet vha MitID";
+			case "cms.password.leak.warning":
+				return "Teksten der vises hvis en brugers nuværende kodeord er fundet i lister med lækkede kodeord, og brugeren stadig har en periode til at nå at skifte kodeordet i";
+			case "cms.password.leak.final":
+				return "Teksten der vises hvis en brugers nuværende kodeord er fundet i lister med lækkede kodeord, og brugeren er tvunget til at skifte kodeordet vha MitID";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

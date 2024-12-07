@@ -9,10 +9,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
-import javax.servlet.http.HttpServletRequest;
-
-import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.service.PersonStatisticsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Component;
@@ -31,6 +27,7 @@ import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.AuditLogDetail;
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
@@ -44,13 +41,15 @@ import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.dao.model.enums.LogWatchSettingKey;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.EmailService;
 import dk.digitalidentity.common.service.LogWatchSettingService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.PersonStatisticsService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.util.ZipUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
@@ -116,7 +115,7 @@ public class AuditLogger {
 	}
 	
 	public void exchangeTemporaryTokenForSession(TemporaryClientSessionKey temporaryClient, String info, String userAgent, String version) {
-		if (settingService.getBoolean(SettingsKey.TRACE_LOGGING)) {
+		if (settingService.getBoolean(SettingKey.TRACE_LOGGING)) {
 			AuditLog auditLog = new AuditLog();
 			auditLog.setLogAction(LogAction.TRACE_LOG);
 			auditLog.setMessage("Midlertidig token udstedt " + temporaryClient.getTts() + " vekslet til blivende session");
@@ -229,7 +228,7 @@ public class AuditLogger {
 	}
 
 	public void sessionKeyIssued(TemporaryClientSessionKey saved) {
-		if (settingService.getBoolean(SettingsKey.TRACE_LOGGING)) {
+		if (settingService.getBoolean(SettingKey.TRACE_LOGGING)) {
 			AuditLog auditLog = new AuditLog();
 			auditLog.setLogAction(LogAction.TRACE_LOG);
 			auditLog.setMessage("Session etableret via Windows login");
@@ -345,6 +344,22 @@ public class AuditLogger {
 
 				logs.add(auditLog);
 			}
+			
+			// only called for bulk-create, and here we need to ensure that this field is auditlogged as well
+			if (person.isPrivateMitId()) {
+				auditLog = new AuditLog();
+				auditLog.setLogAction(LogAction.CHANGED_ALLOW_PRIVATE_MITID);
+				auditLog.setMessage("Bruger må anvende privat MitID til NemLog-in");
+
+				auditLog.setCorrelationId(correlationId);
+				auditLog.setIpAddress(ipAddress);
+				auditLog.setPerson(person);
+				auditLog.setPersonName(person.getName());
+				auditLog.setPersonDomain(person.getDomain().getName());
+				auditLog.setCpr(person.getCpr());
+
+				logs.add(auditLog);
+			}
 		}
 
 		auditLogDao.saveAll(logs);
@@ -427,7 +442,7 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	public void goodPassword(Person person, boolean authenticatedWithADPassword, boolean expired, boolean againstCache) {
+	public void goodPassword(Person person, boolean authenticatedWithADPassword, boolean expired) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.RIGHT_PASSWORD);
 		auditLog.setMessage("Kodeord anvendt");
@@ -436,7 +451,7 @@ public class AuditLogger {
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailType(DetailType.TEXT);
 		detail.setDetailContent(
-				"Kodeordet er valideret mod: " + (authenticatedWithADPassword ? ("AD" + ((againstCache) ? " (cache)" : "")) : "bruger-databasen") +
+				"Kodeordet er valideret mod: " + (authenticatedWithADPassword ? "AD" : "bruger-databasen") +
 				"\nKodeordet er udløbet: " + (expired ? "Ja" : "Nej"));
 		auditLog.setDetails(detail);
 
@@ -503,7 +518,7 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	public void changePasswordByPerson(Person person, boolean nsisPasswordChanged, boolean replicateToAD) {
+	public void changePasswordByPerson(Person person, boolean replicateToAD) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
 		auditLog.setMessage("Kodeord skiftet af personen selv");
@@ -511,7 +526,7 @@ public class AuditLogger {
 		// Add details of which passwords has been changed
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailType(DetailType.TEXT);
-		detail.setDetailContent("NSIS Kodeord: " + (nsisPasswordChanged ? "Skiftet" : "Uændret") + "\nReplikering til AD: " + (replicateToAD ? "Ja" : "Nej"));
+		detail.setDetailContent("Replikering til AD: " + (replicateToAD ? "Ja" : "Nej"));
 		auditLog.setDetails(detail);
 
 		log(auditLog, person, null);
@@ -948,6 +963,18 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
+	public void entraMfaLoginRequest(Person person, String upn, String userAgent) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.AUTHN_REQUEST);
+		auditLog.setMessage("EntraID MFA login forespørgsel for " + upn);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(userAgent);
+
+		log(auditLog, person, null);
+	}
+	
 	public void wsFederationLogin(Person person, String sentBy, String response) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.LOGIN);
@@ -1042,6 +1069,14 @@ public class AuditLogger {
 		}
 
 		log(auditLog, person, admin);
+	}
+
+	public void allowPrivateMitIdChanged(Person person, boolean allowPrivateMitID) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGED_ALLOW_PRIVATE_MITID);
+		auditLog.setMessage(allowPrivateMitID ? "Bruger må anvende privat MitID til NemLog-in" : "Bruger må ikke længere anvende privat MitID til NemLog-in");
+
+		log(auditLog, person, null);
 	}
 
 	public void transferToNemloginChanged(Person person, boolean transferToNemlogin) {
@@ -1219,7 +1254,7 @@ public class AuditLogger {
 	}
 
 	public void traceLog(Person person, String message, String details) {
-		if (settingService.getBoolean(SettingsKey.TRACE_LOGGING)) {
+		if (settingService.getBoolean(SettingKey.TRACE_LOGGING)) {
 			AuditLog auditLog = new AuditLog();
 			auditLog.setLogAction(LogAction.TRACE_LOG);
 			auditLog.setMessage(message);

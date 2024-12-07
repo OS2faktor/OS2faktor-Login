@@ -5,10 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import dk.digitalidentity.common.dao.model.KombitJfr;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
@@ -17,8 +13,11 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
+import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PersonService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class RolesReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;

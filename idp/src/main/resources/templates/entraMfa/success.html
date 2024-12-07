@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="~{fragments/header :: header}"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="~{fragments/topbar :: topbar}"></div>
+			
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="ibox offset-md-2 col-md-8">
+						<div class="ibox-title">
+							<h5><em class="fa fa-birthday-cake"></em> &nbsp; 2-faktor login gennemført</h5>
+						</div>
+			
+						<div class="ibox-content">
+							<p>
+							Du overføres nu tilbage til Microsoft - hæng på...
+							</p>
+			
+							<form id="payload" method="post" th:action="${url}">
+								<input type="hidden" name="id_token" th:value="${code}"></input>
+								<input type="hidden" name="state" th:value="${state}"></input>
+								<input type="hidden" name="scope" value="openid"></input>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div th:replace="~{fragments/footer :: scripts}"></div>
+	
+	<script type="text/javascript">
+		$(document).ready(function() {
+			$('#payload').submit();
+		});
+	</script>
+</body>
+</html>

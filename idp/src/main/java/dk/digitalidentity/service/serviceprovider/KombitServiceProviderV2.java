@@ -9,8 +9,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import dk.digitalidentity.common.dao.model.enums.Protocol;
-import dk.digitalidentity.controller.dto.LoginRequest;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -28,17 +26,23 @@ import dk.digitalidentity.common.dao.model.KombitSubsystem;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 
+@Slf4j
 @Component
 public class KombitServiceProviderV2 extends ServiceProvider {
 	private HTTPMetadataResolver resolver;
@@ -58,6 +62,9 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	@Autowired
 	private AdvancedRuleService advancedRuleService;
 
+	@Autowired
+	private SettingService settingService;
+	
 	@Override
 	public boolean nemLogInBrokerEnabled() {
 		return false;
@@ -347,7 +354,18 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 			subsystem = new KombitSubsystem();
 			subsystem.setEntityId(entityId);
 			subsystem.setMinNsisLevel(NSISLevel.NONE);
-			subsystem.setForceMfaRequired(ForceMFARequired.DEPENDS);
+
+			ForceMFARequired mfaRequired = ForceMFARequired.DEPENDS;
+			String mfaSetting = null;
+			try {
+				mfaSetting = settingService.getString(SettingKey.KOMBIT_DEFAULT_MFA);
+				mfaRequired = ForceMFARequired.valueOf(mfaSetting);
+			}
+			catch (Exception ex) {
+				log.warn("Failed to parse " + mfaSetting, ex);
+			}
+
+			subsystem.setForceMfaRequired(mfaRequired);
 
 			subsystem = subsystemService.save(subsystem);
 		}

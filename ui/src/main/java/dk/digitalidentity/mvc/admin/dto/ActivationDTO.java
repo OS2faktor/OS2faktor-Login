@@ -2,15 +2,14 @@ package dk.digitalidentity.mvc.admin.dto;
 
 import java.util.Locale;
 
-import javax.validation.constraints.Min;
-import javax.validation.constraints.NotNull;
-
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.IdentificationDetails;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 

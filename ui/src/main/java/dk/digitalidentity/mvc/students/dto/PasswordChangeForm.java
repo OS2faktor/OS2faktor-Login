@@ -18,9 +18,11 @@ public class PasswordChangeForm implements Serializable {
 	private String personName;
 	private String password;
 	private String confirmPassword;
+	private boolean forceChangePassword;
 
-	public PasswordChangeForm(Person person) {
+	public PasswordChangeForm(Person person, boolean forceChangePassword) {
 		this.personId = person.getId();
 		this.personName = person.getName() + " (" + PersonService.getUsername(person) + ")";
+		this.forceChangePassword = forceChangePassword;
 	}
 }

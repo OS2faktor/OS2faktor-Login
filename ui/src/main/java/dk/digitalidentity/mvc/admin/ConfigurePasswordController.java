@@ -2,8 +2,6 @@ package dk.digitalidentity.mvc.admin;
 
 import java.util.List;
 
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -27,7 +25,7 @@ import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.BadPasswordService;
 import dk.digitalidentity.common.service.DomainService;
@@ -35,10 +33,12 @@ import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.datatables.BadPasswordDatatableDao;
 import dk.digitalidentity.mvc.admin.dto.PasswordConfigurationForm;
 import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.SecurityUtil;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -74,11 +74,14 @@ public class ConfigurePasswordController {
 
 	@Autowired
 	private BadPasswordService badPasswordService;
+	
+	@Autowired
+	private OS2faktorConfiguration configuration;
 
 	// runs on startup and migrates password policies if/when fullServiceIdP is enabled
 	@EventListener(ApplicationReadyEvent.class)
 	public void migrateFullServiceIdP() {
-		if (commonConfiguration.getFullServiceIdP().isEnabled() && !settingService.getBoolean(SettingsKey.FULL_SERVICE_IDP_MIGRATED)) {
+		if (commonConfiguration.getFullServiceIdP().isEnabled() && !settingService.getBoolean(SettingKey.FULL_SERVICE_IDP_MIGRATED)) {
 
 			// migrate password policies for all non-non-nsis domains
 			for (Domain domain : domainService.getAll()) {
@@ -94,7 +97,7 @@ public class ConfigurePasswordController {
 				}
 			}
 			
-			settingService.setBoolean(SettingsKey.FULL_SERVICE_IDP_MIGRATED, true);
+			settingService.setBoolean(SettingKey.FULL_SERVICE_IDP_MIGRATED, true);
 		}
 	}
 
@@ -118,6 +121,11 @@ public class ConfigurePasswordController {
 		model.addAttribute("configForm", form);
 
 		List<Domain> domains = domainService.getAll();
+		
+		if (configuration.getCoreData().isTrustedEmployeeEnabled()) {
+			domains = domainService.getAllIncludingTrustedEmployees();
+		}
+
 		model.addAttribute("domains", domains);
 
 		List<Group> groups = groupService.getAll();
@@ -169,7 +177,6 @@ public class ConfigurePasswordController {
 		settings.setDisallowDanishCharacters(form.isDisallowDanishCharacters());
 		settings.setDisallowNameAndUsername(form.isDisallowNameAndUsername());
 		settings.setForceChangePasswordInterval(form.getForceChangePasswordInterval() != null ? form.getForceChangePasswordInterval() : 90);
-		settings.setAlternativePasswordChangeLink(form.getAlternativePasswordChangeLink());
 		settings.setDisallowOldPasswords(form.isDisallowOldPasswords());
 		settings.setOldPasswordNumber(form.getOldPasswordNumber() != null ? form.getOldPasswordNumber() : 10);
 		settings.setMonitoringEnabled(form.isMonitoringEnabled());

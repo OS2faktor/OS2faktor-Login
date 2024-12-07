@@ -3,9 +3,6 @@ package dk.digitalidentity.controller;
 import java.util.List;
 import java.util.Objects;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -34,6 +31,8 @@ import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Controller
@@ -102,6 +101,7 @@ public class MultiFactorAuthenticationController {
 			else {
 				log.warn("No LoginRequest on session, SP and error endpoint unknown", error);
 			}
+
 			return null;
 		}
 
@@ -184,12 +184,19 @@ public class MultiFactorAuthenticationController {
 	@GetMapping("/sso/saml/mfa/{deviceId}/completed")
 	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
 		Person person = sessionHelper.getPerson();
-		if (sessionHelper.getLoginState() == null || person == null) {
-			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login", model);
+		if (person == null) {
+			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Der er ingen bruger på sessionen", model);
 			sessionHelper.invalidateSession();
 			return modelAndView;
 		}
-
+		
+		// we allow a null loginState for the entraMfaFlow only
+		if (sessionHelper.getLoginState() == null && !sessionHelper.isInEntraMfaFlow()) {
+			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login", model);
+			sessionHelper.invalidateSession();
+			return modelAndView;			
+		}
+		
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest == null) {
 			log.warn("No loginRequest found on session");

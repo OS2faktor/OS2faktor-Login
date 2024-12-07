@@ -49,6 +49,7 @@ public class ServiceProviderDTO {
 	private List<ConditionDTO> conditionsDomains;
 	private List<ConditionDTO> conditionsGroups;
 	private List<String> redirectURLs;
+	private List<String> logoutURLs;
 	private List<Long> exemptedDomains;
 	private String clientSecret;
 	private boolean existingSecret;
@@ -58,6 +59,8 @@ public class ServiceProviderDTO {
 	private boolean hasCustomSessionExpiry;
 	private boolean allowMitidErhvervLogin;
 	private boolean allowAnonymousUsers;
+	private boolean publicClient;
+	private boolean requirePKCE;
 
 	public ServiceProviderDTO() {
 		this.id = "0";

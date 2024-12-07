@@ -3,8 +3,6 @@ package dk.digitalidentity.opensaml;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.catalina.connector.ClientAbortException;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
@@ -14,6 +12,7 @@ import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.net.HttpServletSupport;
 

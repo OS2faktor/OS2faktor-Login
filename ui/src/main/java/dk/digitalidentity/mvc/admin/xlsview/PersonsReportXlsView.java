@@ -8,10 +8,6 @@ import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import dk.digitalidentity.common.dao.model.PersonStatistics;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
@@ -23,8 +19,11 @@ import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.PersonStatistics;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.PersonService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private List<Person> persons;

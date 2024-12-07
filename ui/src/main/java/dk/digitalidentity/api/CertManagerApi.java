@@ -2,6 +2,7 @@ package dk.digitalidentity.api;
 
 import java.io.ByteArrayInputStream;
 import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -12,7 +13,9 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,11 +24,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.api.dto.KeystoreInfo;
-import dk.digitalidentity.api.dto.KeystoreWithSwapDate;
+import dk.digitalidentity.api.dto.KeystorePayload;
 import dk.digitalidentity.common.dao.model.Keystore;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
 import dk.digitalidentity.common.service.CertificateChangelogService;
-import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.service.KeystoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,9 +36,6 @@ public class CertManagerApi {
 
 	@Autowired
 	private KeystoreService keystoreService;
-	
-	@Autowired
-	private SettingService settingService;
 	
 	@Autowired
 	private CertificateChangelogService certificateChangelogService;
@@ -50,146 +48,83 @@ public class CertManagerApi {
 		return ResponseEntity.ok(keystores.stream().filter(k -> !k.isDisabled()).map(k -> new KeystoreInfo(k)).collect(Collectors.toList()));
 	}
 
-	@PutMapping("/api/certmanager/swapPrimaryForIdp")
+	@PutMapping("/api/certmanager/disable/{alias}")
 	@ResponseBody
-	public ResponseEntity<?> swapPrimaryForIdP(@RequestParam String operatorId) {
-		List<Keystore> keystores = keystoreService.findAll();
-		
-		// ensure that there are two certificates
-		if (keystores.size() != 2) {
-			return ResponseEntity.badRequest().body("Can only swap if there are two certificates, but there are currently " + keystores.size());
+	public ResponseEntity<?> disableCertificate(@RequestParam String operatorId, @PathVariable("alias") String alias) {
+		Keystore keystore = keystoreService.findByAlias(alias);
+		if (keystore == null) {
+			log.warn("No certificate found with alias: " + alias);
+			return ResponseEntity.notFound().build();
 		}
-		
-		String newCertificateName = null;
-		for (Keystore keystore : keystores) {
-			keystore.setPrimaryForIdp(!keystore.isPrimaryForIdp());
-			keystore.setLastUpdated(LocalDateTime.now());
-			
-			if (keystore.isPrimaryForIdp()) {
-				newCertificateName = keystore.getSubjectDn();
-			}
-		}
-		
-		keystoreService.saveAll(keystores);
 
-		certificateChangelogService.rotateIdP(operatorId, "Rotated to " + newCertificateName);
-		
-		log.info("Swapped primary certificate for IdP");
-		
+		log.info("Disabled " + keystore.getSubjectDn());
+		certificateChangelogService.deleteCertificate(operatorId, "Deleted " + keystore.getSubjectDn());
+
+		keystore.setDisabled(true);
+		keystoreService.save(keystore);
+
 		return ResponseEntity.ok().build();
 	}
-	
-	@PutMapping("/api/certmanager/swapPrimaryForNemLogin")
+
+	@PostMapping("/api/certmanager/new")
 	@ResponseBody
-	public ResponseEntity<?> swapPrimaryForNemLogin(@RequestParam String operatorId) {
-		List<Keystore> keystores = keystoreService.findAll();
-		
-		// ensure that there are two certificates
-		if (keystores.size() != 2) {
-			return ResponseEntity.badRequest().body("Can only swap if there are two certificates, but there are currently " + keystores.size());
-		}
-		
-		String newCertificateName = null;
-		for (Keystore keystore : keystores) {
-			keystore.setPrimaryForNemLogin(!keystore.isPrimaryForNemLogin());
-			keystore.setLastUpdated(LocalDateTime.now());
-			
-			if (keystore.isPrimaryForNemLogin()) {
-				newCertificateName = keystore.getSubjectDn();
-			}
-		}
-		
-		keystoreService.saveAll(keystores);
-		
-		certificateChangelogService.rotateSp(operatorId, "Rotated to " + newCertificateName);
-
-		log.info("Swapped primary certificate for IdP");
-		
-		return ResponseEntity.ok().build();
-	}
-	
-	@PutMapping("/api/certmanager/disableSecondary")
-	@ResponseBody
-	public ResponseEntity<?> disableSecondary(@RequestParam String operatorId) {
-		List<Keystore> keystores = keystoreService.findAll();
-		
-		// ensure that there are two certificates
-		if (keystores.size() != 2) {
-			return ResponseEntity.badRequest().body("Can only disable secondary if there are two certificates, but there are currently " + keystores.size());
-		}
-		
-		for (Keystore keystore : keystores) {
-			if (!keystore.isPrimaryForIdp() && !keystore.isPrimaryForNemLogin()) {
-				keystore.setDisabled(true);
-				keystore.setLastUpdated(LocalDateTime.now());
-				
-				keystoreService.save(keystore);
-				
-				log.info("Disabled secondary certificate");
-
-				certificateChangelogService.deleteCertificate(operatorId, "Deleted " + keystore.getSubjectDn());
-
-				return ResponseEntity.ok().build();
-			}
+	public ResponseEntity<?> loadCertificate(@RequestParam(name = "operatorId") String operatorId, @RequestParam(required = false, defaultValue = "false", name = "force") boolean force, @RequestBody KeystorePayload keystorePayload) throws Exception {
+		Keystore keystore = keystoreService.findByAlias(keystorePayload.getAlias());
+		if (keystore != null && !force) {
+			return ResponseEntity.badRequest().body("Keystore with alias " + keystorePayload.getAlias() + " already exists - set force=true to force overwriting it");
 		}
 
-		return ResponseEntity.badRequest().body("Can only disable secondary if both IdP and NemLogin uses the same certificate as secondary");
-	}
-
-	@PostMapping("/api/certmanager/newSecondary")
-	@ResponseBody
-	public ResponseEntity<?> loadNewSecondary(@RequestParam String operatorId, @RequestBody KeystoreWithSwapDate keystoreWithSwapDate) throws Exception {
-		List<Keystore> keystores = keystoreService.findAll();
-
-		Keystore secondary = null;
-		if (keystores.size() > 1) {
-			for (Keystore keystore : keystores) {
-				if (!keystore.isPrimaryForIdp() && !keystore.isPrimaryForNemLogin()) {
-					secondary = keystore;
-					break;
-				}
-			}
-
-			if (secondary == null) {
-				return ResponseEntity.badRequest().body("Can only upload new secondary if both IdP and NemLogin uses the same certificate as existing secondary or no secondary exists");
-			}
+		if (keystore == null) {
+			keystore = new Keystore();
 		}
 		
-		// throws exception if payload is not a valid PKCS#12 keystore with valid password
-		Keystore ks = null;
-		try {
-			ks = getKeystoreFromPayload(keystoreWithSwapDate.getKeystore(), keystoreWithSwapDate.getPassword());			
+		// clear settings
+		keystore.setAlias(keystorePayload.getAlias());
+		keystore.setDisabled(false);
+		keystore.setKms(false);
+		keystore.setKmsAlias(null);
+		keystore.setKeystore(null);
+		keystore.setPassword(null);
+		keystore.setLastUpdated(LocalDateTime.now());
+
+		if (StringUtils.hasLength(keystorePayload.getCertificate()) && StringUtils.hasLength(keystorePayload.getKmsAlias())) {
+			getKeystoreFromKms(keystore, keystorePayload.getCertificate(), keystorePayload.getKmsAlias());
 		}
-		catch (Exception ex) {
-			log.error("Failed to load keystore", ex);
-			return ResponseEntity.badRequest().body("Error parsing keystore: " + ex.getMessage());			
+		else if (StringUtils.hasLength(keystorePayload.getKeystore()) && StringUtils.hasLength(keystorePayload.getPassword())) {
+			getKeystoreFromPfx(keystore, keystorePayload.getKeystore(), keystorePayload.getPassword());
+		}
+		else {
+			return ResponseEntity.badRequest().body("Either certificate/kmsAlias has to be part of the payload, or keystore/password has to be part of the payload");
 		}
 
-		if (secondary == null) {
-			secondary = new Keystore();
-		}
-
-		secondary.setDisabled(false);		
-		secondary.setExpires(ks.getExpires());
-		secondary.setKeystore(ks.getKeystore());
-		secondary.setSubjectDn(ks.getSubjectDn());
-		secondary.setPassword(keystoreWithSwapDate.getPassword());
-		secondary.setPrimaryForIdp(false);
-		secondary.setPrimaryForNemLogin(false);
-		secondary.setLastUpdated(LocalDateTime.now());
-
-		keystoreService.save(secondary);
+		keystoreService.save(keystore);
 		
-		settingService.setLocalDateTimeSetting(SettingsKey.CERTIFICATE_ROLLOVER_TTS, keystoreWithSwapDate.getSwapDate());
+		log.info("Loaded new keystore (" + keystore.getSubjectDn() + ") with alias " + keystore.getAlias());
 		
-		log.info("Loaded new secondary keystore (" + secondary.getSubjectDn() + ") with planned rollover at " + keystoreWithSwapDate.getSwapDate());
-		
-		certificateChangelogService.newCertificate(operatorId, "Imported " + secondary.getSubjectDn());
+		certificateChangelogService.newCertificate(operatorId, "Imported " + keystore.getSubjectDn());
 
 		return ResponseEntity.ok().build();
 	}
 	
-	private Keystore getKeystoreFromPayload(String payload, String password) throws Exception {
+	private void getKeystoreFromKms(Keystore keystore, String certificate, String kmsAlias) throws Exception {
+		// do this to make sure it is a valid certificate before storing in DB
+		CertificateFactory factory = CertificateFactory.getInstance("X.509");
+		X509Certificate cert = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(certificate)));
+		byte[] encoded = cert.getEncoded();
+		
+		// extract certificate information
+		String subject = cert.getSubjectX500Principal().getName();
+		subject = prettyPrint(subject);
+		LocalDate expires = cert.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+		keystore.setCertificate(encoded);
+		keystore.setExpires(expires);
+		keystore.setSubjectDn(subject);
+		keystore.setKms(true);
+		keystore.setKmsAlias(kmsAlias);
+	}
+
+	private void getKeystoreFromPfx(Keystore keystore, String payload, String password) throws Exception {
 		KeyStore ks = KeyStore.getInstance("PKCS12");
 
 		byte[] content = Base64.getDecoder().decode(payload);
@@ -201,16 +136,10 @@ public class CertManagerApi {
 		subject = prettyPrint(subject);
 		LocalDate expires = certificate.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
 
-		Keystore keystore = new Keystore();
 		keystore.setKeystore(content);
-		keystore.setLastUpdated(LocalDateTime.now());
 		keystore.setPassword(password);
-		keystore.setPrimaryForIdp(false);
-		keystore.setPrimaryForNemLogin(false);
 		keystore.setExpires(expires);
 		keystore.setSubjectDn(subject);
-
-		return keystore;
 	}
 	
 	private String prettyPrint(String subject) {

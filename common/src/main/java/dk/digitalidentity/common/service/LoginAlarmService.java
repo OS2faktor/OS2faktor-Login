@@ -2,8 +2,6 @@ package dk.digitalidentity.common.service;
 
 import java.time.LocalDateTime;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +9,7 @@ import dk.digitalidentity.common.dao.LoginAlarmDao;
 import dk.digitalidentity.common.dao.model.LoginAlarm;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.LoginAlarmType;
+import jakarta.transaction.Transactional;
 
 @Service
 public class LoginAlarmService {

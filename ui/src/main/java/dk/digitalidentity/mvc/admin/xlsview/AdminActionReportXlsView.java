@@ -7,9 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
@@ -22,6 +19,8 @@ import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class AdminActionReportXlsView extends AbstractXlsxStreamingView {
 	private List<AuditLog> auditLogs;

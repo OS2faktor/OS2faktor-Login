@@ -3,9 +3,6 @@ package dk.digitalidentity.mvc.admin;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -16,6 +13,8 @@ import org.springframework.web.servlet.ModelAndView;
 import dk.digitalidentity.common.service.CachedMfaClientService;
 import dk.digitalidentity.mvc.admin.xlsview.AdminKodeviserReportXlsView;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RequireKodeviserAdministrator
 @Controller

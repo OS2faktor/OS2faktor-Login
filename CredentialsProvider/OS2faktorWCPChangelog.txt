@@ -106,3 +106,14 @@
 
 ## v3.1.1
 - Added default settings to registry for easier modification
+
+## v3.1.2
+- Fixed create process for browser startup
+
+## v3.1.3
+- Changed browser startup to not affect window state
+
+## v3.1.4
+- Fixed issue preventing SSO from being established when not connected to the DC (WFH scenario)
+- Fixed potential issue in remote logins where filtering would stop sso
+

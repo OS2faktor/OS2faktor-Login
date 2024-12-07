@@ -10,6 +10,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +19,6 @@ import java.util.Objects;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,6 +47,7 @@ import dk.digitalidentity.service.PasswordService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import dk.digitalidentity.util.Constants;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -80,13 +81,13 @@ public class ClientApiController {
     @PostMapping("/api/client/loginWithBody")
     @ResponseBody
     public ResponseEntity<String> clientLoginWithPost(@RequestBody UsernameAndPassword usernameAndPassword, HttpServletRequest request) {
-		return clientLoginPerform(usernameAndPassword.getUsername(), usernameAndPassword.getPassword(), usernameAndPassword.getPreviousToken(), tempSessionKeyService.getIpAddressFromRequest(request), usernameAndPassword.getVersion());
+		return clientLoginPerform(usernameAndPassword.getUsername(), usernameAndPassword.getPassword(), usernameAndPassword.getPreviousToken(), tempSessionKeyService.getIpAddressFromRequest(request), usernameAndPassword.getVersion(), usernameAndPassword.isBase64());
     }
 
     @PostMapping("/api/client/login")
     @ResponseBody
     public ResponseEntity<String> clientLoginGet(HttpServletRequest request) {
-		return clientLoginPerform(getParameter("username", request), getParameter("password", request), getParameter("previousToken", request), tempSessionKeyService.getIpAddressFromRequest(request), getParameter("version", request));
+		return clientLoginPerform(getParameter("username", request), getParameter("password", request), getParameter("previousToken", request), tempSessionKeyService.getIpAddressFromRequest(request), getParameter("version", request), false);
     }
 
     @PostMapping("/api/client/changePasswordWithBody")
@@ -101,7 +102,7 @@ public class ClientApiController {
 		return clientChangePasswordPerform(getParameter("username", request), getParameter("oldPassword", request), getParameter("newPassword", request), getParameter("version", request));
     }
 
-    private ResponseEntity<String> clientLoginPerform(String username, String password, String previousToken, String ipAddress, String version) {
+    private ResponseEntity<String> clientLoginPerform(String username, String password, String previousToken, String ipAddress, String version, boolean base64) {
     	Domain domain = ClientApiSecurityFilter.domainHolder.get();
         if (domain == null) {
             log.info("No domain matched incoming client request");
@@ -131,6 +132,18 @@ public class ClientApiController {
 			}
 		}
 		
+		// attempt to base64 decode password
+		if (base64) {
+			try {
+				byte[] bPassword = Base64.getDecoder().decode(password);
+				password = new String(bPassword);
+			}
+			catch (Exception ex) {
+				// continue with non-decoded password
+				log.warn("Failed to base64 decode password", ex);
+			}
+		}
+
         List<Person> people = personService.getBySamaccountNameAndDomains(username, domains);
         if (people.size() != 1) {
             log.info(people.size() + " persons found that matched client request, has to be 1 (username: " + username + ")");
@@ -144,26 +157,18 @@ public class ClientApiController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		boolean hasActivatedNsisAccount = (person.hasActivatedNSISUser() && StringUtils.hasLength(person.getNsisPassword()));
-		boolean hasCachedADPassword = passwordService.hasCachedADPassword(person);
-
-		// either the person has an activated NSIS account with a password, or we have a cached AD password to validate against
-		if (!hasActivatedNsisAccount && !hasCachedADPassword) {
-			// log.warn("Person (" + person.getId() + ") did not have a registered password to validate again, so no SSO session was created");
+		boolean hasPassword = StringUtils.hasLength(person.getPassword());
+		if (!hasPassword) {
 			return ResponseEntity.badRequest().build();
 		}
 
-		// we prefer not to attempt a validation against the AD, as these calls originate from the AD, and
-		// a failed result against the NSIS password would then result in a try against AD, which will likely
-		// also be wrong - as a local attempt against AD is also attempted, this will double the amount of
-		// wrong attempts, quickly locking the local AD account.
-		//
-		// Preferring a cached value will ensure no double validation against AD (unless we have no cached value)
-		PasswordValidationResult passwordValidationResult = passwordService.validatePasswordWithCache(password, person, true);
+		// perform local password validation - no fallback to AD as these calls originate from AD, and we do not want
+		// to trigger a double wrong password result
+		PasswordValidationResult passwordValidationResult = passwordService.validatePasswordFromWcp(password, person);
         switch (passwordValidationResult) {
-        	case VALID_CACHE:        		
         	case VALID:
-				personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false, (passwordValidationResult == PasswordValidationResult.VALID_CACHE));
+        	case VALID_BUT_BAD_PASWORD: // will allow this as the grace period is still in-play
+				personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false);
 
 				// Validation
 	            sessionHelper.setPerson(person);
@@ -191,12 +196,13 @@ public class ClientApiController {
 
 	            return ResponseEntity.ok(url);
 			case INVALID:
+			case INVALID_BAD_PASSWORD:
 			case LOCKED:
 			case TECHNICAL_ERROR:
 			case INSUFFICIENT_PERMISSION:
 				break;
 			case VALID_EXPIRED:
-				personService.correctPasswordAttempt(person, false, true, false);
+				personService.correctPasswordAttempt(person, false, true);
 				break;
 		}
 

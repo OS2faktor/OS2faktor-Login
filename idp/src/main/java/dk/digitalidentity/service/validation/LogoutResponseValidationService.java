@@ -2,8 +2,6 @@ package dk.digitalidentity.service.validation;
 
 import java.security.PublicKey;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.handler.MessageHandlerException;
 import org.opensaml.saml.common.SAMLObject;
@@ -15,6 +13,7 @@ import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 

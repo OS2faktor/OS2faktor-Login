@@ -3,11 +3,17 @@ package dk.digitalidentity.service;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.security.KeyStore;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -18,37 +24,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.aws.kms.jce.provider.KmsProvider;
 import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.MetadataController;
 import dk.digitalidentity.samlmodule.service.DISAML_CredentialService;
-import lombok.Getter;
+import dk.digitalidentity.service.model.KeystoreEntry;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.kms.KmsClient;
 
 @Slf4j
 @EnableScheduling
 @Service
 public class KeystoreService {
-	private LocalDateTime lastLoaded = LocalDateTime.of(1970, 1, 1, 0, 0);
-	private boolean initialized = false;
+	public enum KNOWN_CERTIFICATE_ALIASES { OCES, OCES_SECONDARY, NEMLOGIN, NEMLOGIN_SECONDARY };
 
-	private KeyStore primaryKeystoreForIdp;
-	private KeyStore secondaryKeystoreForIdp;
-	private KeyStore primaryKeystoreForNemLogin;
-	private KeyStore secondaryKeystoreForNemLogin;
-	
-	@Getter
-	private String primaryKeystoreForIdpPassword;
-	
-	@Getter
-	private String secondaryKeystoreForIdpPassword;
-	
-	@Getter
-	private String primaryKeystoreForNemLoginPassword;
-	
-	@Getter
-	private String secondaryKeystoreForNemLoginPassword;
+	private LocalDateTime lastLoaded = LocalDateTime.of(1970, 1, 1, 0, 0);
+	private boolean initialized = false, classInitialized = false;
+	private Map<String, KeystoreEntry> keyStoreMap = new HashMap<>();
 
 	@Autowired
 	private KeystoreDao keystoreDao;
@@ -65,81 +60,109 @@ public class KeystoreService {
 	@Autowired
 	private DISAML_CredentialService diSamlCredentialService;
 	
+	public List<String> getAliases() {
+		ensureInitialized();
+		
+		return keyStoreMap.keySet().stream().sorted().collect(Collectors.toList());
+	}
+
+	public KeyStore getJavaKeystore(String alias) {
+		ensureInitialized();
+
+		KeystoreEntry entry = keyStoreMap.get(alias);
+		if (entry != null) {
+			return entry.getKeystore();
+		}
+		
+		return null;
+	}
+	
+	public String getJavaKeystorePassword(String alias) {
+		ensureInitialized();
+		
+		KeystoreEntry entry = keyStoreMap.get(alias);
+		if (entry != null) {
+			return entry.getPassword();
+		}
+		
+		log.debug("Missing keystore with alias " + alias);
+		
+		return null;
+	}
+	
+	public String getKmsAlias(String alias) {
+		ensureInitialized();
+		
+		KeystoreEntry entry = keyStoreMap.get(alias);
+		if (entry != null) {
+			return entry.getKmsAlias();
+		}
+		
+		log.debug("Missing keystore with alias " + alias);
+		
+		return null;
+	}
+
 	@SuppressWarnings("deprecation")
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {
+		// make sure KMS provider is loaded
+		KmsClient kmsClient = KmsClient.builder().region(Region.EU_WEST_1).build();
+		KmsProvider kmsProvider = new KmsProvider(kmsClient);			
+		Security.addProvider(kmsProvider);
+
+		// TODO: this code can go away when we move 100% to KMS created keystores
 		// bootstrap database if empty
 		if (keystoreDao.findAll().size() == 0) {
-			Keystore primaryKeystore = getKeystoreFromConfigration(configuration.getKeystore().getLocation(), configuration.getKeystore().getPassword(), true);
+			Keystore primaryKeystore = getKeystoreFromConfiguration(configuration.getKeystore().getLocation(), configuration.getKeystore().getPassword(), true);
 			if (primaryKeystore != null) {
 				keystoreDao.save(primaryKeystore);
-			}
-			
-			Keystore secondaryKeystore = getKeystoreFromConfigration(configuration.getKeystore().getSecondaryLocation(), configuration.getKeystore().getSecondaryPassword(), false);
-			if (secondaryKeystore != null) {
-				keystoreDao.save(secondaryKeystore);
+				
+				// save a copy of the same information for the NemLogin keystore
+				primaryKeystore.setId(0);
+				primaryKeystore.setAlias(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN.toString());
+				keystoreDao.save(primaryKeystore);
 			}
 		}
+		
+		classInitialized = true;
 
 		loadKeystores();
 	}
 	
 	@Scheduled(cron = "0 0/5 * * * ?")
 	public synchronized void loadKeystores() {
+		// wait till KMS is loaded
+		if (classInitialized == false) {
+			return;
+		}
+
 		LocalDateTime newReload = LocalDateTime.now();
 		
 		List<Keystore> keystores = keystoreDao.findByLastUpdatedAfter(lastLoaded);
 		boolean changes = false;
-		
+
+		// load new or reload modified
 		for (Keystore keystore : keystores) {
+			if (keystore.isDisabled()) {
+				if (keyStoreMap.containsKey(keystore.getAlias())) {
+					keyStoreMap.remove(keystore.getAlias());
+
+					log.info("Removing " + keystore.getAlias() + " from keystore map");
+					
+					changes = true;
+				}
+
+				continue;
+			}
+
 			log.info("Reloading keystore: " + keystore.getSubjectDn());
 			changes = true;
 
 			KeyStore ks = loadKeystore(keystore);
-			
-			if (keystore.isPrimaryForIdp()) {
-				log.info("Setting keystore as primary for IdP: " + keystore.getSubjectDn());
-				
-				primaryKeystoreForIdp = ks;
-				primaryKeystoreForIdpPassword = keystore.getPassword();
-			}
-			else {
-				if (keystore.isDisabled()) {
-					log.info("Secondary keystore for IdP is disabled: " + keystore.getSubjectDn());
-					
-					secondaryKeystoreForIdp = null;
-					secondaryKeystoreForIdpPassword = null;
-				}
-				else {
-					log.info("Setting keystore as secondary for IdP: " + keystore.getSubjectDn());
-	
-					secondaryKeystoreForIdp = ks;
-					secondaryKeystoreForIdpPassword = keystore.getPassword();
-				}
-			}
-			
-			if (keystore.isPrimaryForNemLogin()) {
-				log.info("Setting keystore as primary for NemLogin: " + keystore.getSubjectDn());
-
-				primaryKeystoreForNemLogin = ks;
-				primaryKeystoreForNemLoginPassword = keystore.getPassword();
-			}
-			else {
-				if (keystore.isDisabled()) {
-					log.info("Secondary keystore for NemLogin is disabled: " + keystore.getSubjectDn());
-					
-					secondaryKeystoreForNemLogin = null;
-					secondaryKeystoreForNemLoginPassword = null;
-				}
-				else {
-					log.info("Setting keystore as secondary for NemLogin: " + keystore.getSubjectDn());
-	
-					secondaryKeystoreForNemLogin = ks;
-					secondaryKeystoreForNemLoginPassword = keystore.getPassword();
-				}
-			}
+			keyStoreMap.put(keystore.getAlias(), new KeystoreEntry(ks, keystore.getPassword(), keystore.getKmsAlias()));
 		}
-
+		
 		if (changes) {
 			metadataController.evictCache();
 			credentialService.evictCache();
@@ -148,30 +171,6 @@ public class KeystoreService {
 
 		lastLoaded = newReload;
 		initialized = true;
-	}
-	
-	public KeyStore getPrimaryKeystoreForIdp() {
-		ensureInitialized();
-		
-		return primaryKeystoreForIdp;
-	}
-
-	public KeyStore getPrimaryKeystoreForNemLogin() {
-		ensureInitialized();
-		
-		return primaryKeystoreForNemLogin;
-	}
-
-	public KeyStore getSecondaryKeystoreForIdp() {
-		ensureInitialized();
-		
-		return secondaryKeystoreForIdp;
-	}
-
-	public KeyStore getSecondaryKeystoreForNemLogin() {
-		ensureInitialized();
-		
-		return secondaryKeystoreForNemLogin;
 	}
 
 	private void ensureInitialized() {
@@ -196,11 +195,24 @@ public class KeystoreService {
 	
 	private KeyStore loadKeystore(Keystore keystore) {
 		try {
-			KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			if (keystore.isKms()) {
+		        ByteArrayInputStream inputStream = new ByteArrayInputStream(keystore.getCertificate());
+		        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
 
-			keyStore.load(new ByteArrayInputStream(keystore.getKeystore()), keystore.getPassword().toCharArray());
-			
-			return keyStore;
+				Certificate certificate = certificateFactory.generateCertificate(inputStream);
+				
+				KeyStore keyStore = KeyStore.getInstance("KMS");
+				keyStore.load(new ByteArrayInputStream(certificate.getEncoded()), null);
+				
+				return keyStore;
+			}
+			else {
+				KeyStore keyStore = KeyStore.getInstance("PKCS12");
+
+				keyStore.load(new ByteArrayInputStream(keystore.getKeystore()), keystore.getPassword().toCharArray());
+
+				return keyStore;
+			}
 		}
 		catch (Exception ex) {
 			log.error("Failed to initialize keystore: " + keystore.getSubjectDn(), ex);
@@ -222,7 +234,7 @@ public class KeystoreService {
 		}
 	}
 	
-	private Keystore getKeystoreFromConfigration(String location, String password, boolean primary) {
+	private Keystore getKeystoreFromConfiguration(String location, String password, boolean primary) {
 		byte[] content = readFile(location);
 		if (content != null) {
 			String subject = null;
@@ -248,8 +260,7 @@ public class KeystoreService {
 			keystore.setKeystore(content);
 			keystore.setLastUpdated(LocalDateTime.now());
 			keystore.setPassword(password);
-			keystore.setPrimaryForIdp(primary);
-			keystore.setPrimaryForNemLogin(primary);
+			keystore.setAlias("OCES");
 			keystore.setExpires(expires);
 			keystore.setSubjectDn(subject);
 

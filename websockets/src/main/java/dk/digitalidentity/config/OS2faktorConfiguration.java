@@ -14,4 +14,6 @@ public class OS2faktorConfiguration {
 	private String apiKey;
 	private String webSocketKey;
 	private long maxWait = 40;
+	
+	private AzureProxyConfig azureProxy = new AzureProxyConfig();
 }

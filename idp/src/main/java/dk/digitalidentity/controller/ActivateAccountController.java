@@ -8,9 +8,6 @@ import java.security.NoSuchAlgorithmException;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -32,6 +29,7 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.ADPasswordService;
 import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
@@ -47,6 +45,9 @@ import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -78,7 +79,7 @@ public class ActivateAccountController {
 	private PasswordChangeValidator passwordChangeFormValidator;
 	
 	@Autowired
-	private PasswordSettingService passwordSettingService;
+	private PasswordValidationService passwordValidationService;
 	
 	@Autowired
 	private ADPasswordService adPasswordService;
@@ -126,9 +127,9 @@ public class ActivateAccountController {
 			}
 		}
 
-		// if person has an NSIS user already and is in the
+		// if person has an NSIS user already and is in the activation flow, it is likely an error
 		if (error == null && person.hasActivatedNSISUser()) {
-			if (!StringUtils.hasLength(person.getNsisPassword())) {
+			if (!StringUtils.hasLength(person.getPassword())) {
 				// if password has not been set yet, go to pick password page
 				return new ModelAndView("redirect:/konto/vaelgkode");
 			}
@@ -182,7 +183,7 @@ public class ActivateAccountController {
 			// NSIS passwords otherwise ask the user for a new password.
 			// In the case where a user has previously had a NSIS password (and therefore password history exists)
 			// we allow the user to use their AD password even if it matches with a password history we have saved.
-			ChangePasswordResult validPassword = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(sessionHelper.getPerson(), sessionHelper.getPassword());
+			ChangePasswordResult validPassword = passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(sessionHelper.getPerson(), sessionHelper.getPassword());
 			if (validPassword.equals(ChangePasswordResult.OK)) {
 				try {
 					// can ignore return value because we bypass replication
@@ -197,6 +198,9 @@ public class ActivateAccountController {
 
 		personService.save(person);
 
+		/* BSG / 2024-11-06 / Password Refactor - pretty sure we know need to skip this check, and always ask for a password to be set
+		 *                    because we are storing the cached AD password in this field from this point onwards.
+		 *
 		// if password has already been set, just continue login
 		if (person.getNsisPassword() != null) {
 			ModelAndView mav = new ModelAndView("activateAccount/activation-completed");
@@ -204,6 +208,7 @@ public class ActivateAccountController {
 			
 			return mav;
 		}
+		*/
 		
 		// Go to choose password reset or unlock account page
 		if (sessionHelper.isInChoosePasswordResetOrUnlockAccountFlow()) {
@@ -297,7 +302,7 @@ public class ActivateAccountController {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 		}
 		
-		PasswordSetting settings = passwordService.getSettingsCached(person.getDomain());
+		PasswordSetting settings = passwordService.getSettings(person);
 		if (sessionHelper.isInDedicatedActivateAccountFlow() && sessionHelper.isDoNotUseCurrentADPassword()) {
 			return flowService.continueChangePassword(model).getViewName();
 		}
@@ -342,7 +347,7 @@ public class ActivateAccountController {
 		}
 
 		if (bindingResult.hasErrors()) {
-			model.addAttribute("settings", passwordService.getSettingsCached(person.getDomain()));
+			model.addAttribute("settings", passwordService.getSettings(person));
 			return new ModelAndView("activateAccount/activate-select-password");
 		}
 
@@ -350,7 +355,7 @@ public class ActivateAccountController {
 			ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword());
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordService.getSettingsCached(person.getDomain()));
+				model.addAttribute("settings", passwordService.getSettings(person));
 				
 				return new ModelAndView("activateAccount/activate-select-password");
 			}
@@ -405,7 +410,7 @@ public class ActivateAccountController {
 
 		// In the case where a user has previously had a NSIS password (and therefore password history exists)
 		// we allow the user to use their AD password even if it matches with a password history we have saved.
-		ChangePasswordResult validPassword = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, form.getPassword());
+		ChangePasswordResult validPassword = passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, form.getPassword());
 		if (!validPassword.equals(ChangePasswordResult.OK)) {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 			model.addAttribute("redirectUrl", "/konto/vaelgkode");

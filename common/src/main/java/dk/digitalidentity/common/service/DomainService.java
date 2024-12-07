@@ -9,11 +9,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class DomainService {
+	private static final String TRUSTED_EMPLOYEE_DOMAIN_NAME = "Betroede medarbejdere";
 
 	@Autowired
 	private DomainDao domainDao;
@@ -30,6 +32,7 @@ public class DomainService {
 		Domain domain = domainDao.findByName(name);
 		if (createIfNotExist && domain == null) {
 			domain = new Domain(name);
+			domain.setStandalone(true);
 			save(domain);
 		}
 
@@ -38,9 +41,25 @@ public class DomainService {
 
 	public List<Domain> getAll() {
 		List<Domain> domains = domainDao.findAll();
+		domains.removeIf(d -> Objects.equals(d.getName(), TRUSTED_EMPLOYEE_DOMAIN_NAME));
+
+		domains.sort(Comparator.comparing(Domain::toString));
+		
+		return domains;
+	}
+
+	public List<Domain> getAllIncludingTrustedEmployees() {
+		List<Domain> domains = domainDao.findAll();
 		
 		domains.sort(Comparator.comparing(Domain::toString));
 		
+		// now move the trusted employee entry to end of list
+		Domain trustedEmployeeDomain = domains.stream().filter(d -> Objects.equals(d.getName(), TRUSTED_EMPLOYEE_DOMAIN_NAME)).findFirst().orElse(null);
+		if (trustedEmployeeDomain != null) {
+			domains.remove(trustedEmployeeDomain);
+			domains.add(trustedEmployeeDomain);
+		}
+
 		return domains;
 	}
 
@@ -48,6 +67,7 @@ public class DomainService {
 		List<Domain> domains = domainDao.findAll();
 
 		domains.removeIf(d -> !d.getChildDomains().isEmpty());
+		domains.removeIf(d -> Objects.equals(d.getName(), TRUSTED_EMPLOYEE_DOMAIN_NAME));
 		domains.sort(Comparator.comparing(Domain::toString));
 
 		return domains;
@@ -69,5 +89,9 @@ public class DomainService {
 		Set<Long> domainIds = domains.stream().map(d -> d.getId()).collect(Collectors.toSet());
 		
 		return (domainIds.contains(person.getDomain().getId()) || domainIds.contains(person.getTopLevelDomain().getId()));
+	}
+
+	public Domain getTrustedEmployeesDomain() {
+		return domainDao.findByName(TRUSTED_EMPLOYEE_DOMAIN_NAME);
 	}
 }

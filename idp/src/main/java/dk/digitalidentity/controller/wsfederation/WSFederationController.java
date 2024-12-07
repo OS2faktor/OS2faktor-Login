@@ -2,10 +2,6 @@ package dk.digitalidentity.controller.wsfederation;
 
 import java.util.Set;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -25,6 +21,9 @@ import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 
 @Controller
 public class WSFederationController {
@@ -50,6 +49,8 @@ public class WSFederationController {
 		if ("wsignout1.0".equals(parameters.getWa()) || "wsignoutcleanup1.0".equals(parameters.getWa())) {
 			return logout(httpServletRequest, httpServletResponse, model, parameters);
 		}
+
+		sessionHelper.prepareNewLogin();
 
 		// validate login request
 		wsFederationService.validateLoginParameters(parameters);

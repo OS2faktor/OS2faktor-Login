@@ -2,8 +2,6 @@ package dk.digitalidentity.service;
 
 import java.io.IOException;
 
-import javax.servlet.http.HttpServletResponse;
-
 import org.joda.time.DateTime;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
@@ -37,6 +35,7 @@ import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.opensaml.CustomHTTPPostEncoder;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
@@ -90,7 +89,7 @@ public class ErrorResponseService {
 				break;
 			case OIDC10:
 				if (loginRequest.getToken() == null) {
-					handleErrorWithInsufficientData(response, ex, logged, logoutOfSession, "AuthnRequest was null, but protocol was SAML, cannot send error anywhere");
+					handleErrorWithInsufficientData(response, ex, logged, logoutOfSession, "Token was null, but protocol was OIDC10, cannot send error anywhere");
 					return;
 				}
 
@@ -112,8 +111,10 @@ public class ErrorResponseService {
 				// TODO: figure out how WSFed want Passive Profile to return/handle errors
 				// fejl skal muligvis sendes via noget soap fault, men indtil da lader vi vores IdPFlowControllerAdvice håndtere at vise en fejlbesked.
 				throw new ResponderException(ex.getMessage(), ex);
-			default:
-				throw new IllegalStateException("Unexpected value: " + loginRequest.getProtocol());
+			case ENTRAMFA:
+				// TODO: better error handling
+				handleErrorWithInsufficientData(response, ex, logged, logoutOfSession, "Ikke muligt at gennemføre step-up til EntraID");
+				return;
 		}
 	}
 

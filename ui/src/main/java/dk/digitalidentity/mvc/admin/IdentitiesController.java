@@ -7,11 +7,11 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -47,6 +47,7 @@ import dk.digitalidentity.security.RequirePasswordResetAdmin;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MitidErhvervCacheService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -155,6 +156,9 @@ public class IdentitiesController {
 
 		model.addAttribute("roles", roles);
 
+		List<String> groups = person.getGroups().stream().map(gm -> gm.getGroup().getName()).collect(Collectors.toList());
+		model.addAttribute("groups", groups);
+
 		return "admin/identity";
 	}
 
@@ -166,8 +170,8 @@ public class IdentitiesController {
 			return "redirect:/admin/identiteter";
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(person.getDomain()));
-		model.addAttribute("passwordForm", new PasswordChangeForm(person));
+		model.addAttribute("settings", passwordSettingService.getSettings(person));
+		model.addAttribute("passwordForm", new PasswordChangeForm(person, false));
 
 		return "admin/change-password";
 	}
@@ -188,7 +192,7 @@ public class IdentitiesController {
 
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
-			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 
 			return "admin/change-password";
 		}
@@ -215,7 +219,7 @@ public class IdentitiesController {
 					model.addAttribute("insufficientPermission", true);
 				}
 
-				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited.getDomain()));
+				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 
 				return "admin/change-password";
 			}

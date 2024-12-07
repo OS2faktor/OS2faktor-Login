@@ -16,4 +16,8 @@ public class CustomerConfiguration {
 	private boolean enableRegistrant = true;
 
 	private boolean enableUnlockAccount = true;
+	
+	private boolean showRegisterMfaClient = false;
+	
+	private String contactLocationForMails = "";
 }

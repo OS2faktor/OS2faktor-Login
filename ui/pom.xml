@@ -12,7 +12,7 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<java.version>11</java.version>
+		<java.version>21</java.version>
 	</properties>
 
 	<build>
@@ -40,11 +40,28 @@
 			</plugin>
 
 			<plugin>
-				<groupId>pl.project13.maven</groupId>
-				<artifactId>git-commit-id-plugin</artifactId>
-				<version>2.2.1</version>
+				<groupId>io.github.git-commit-id</groupId>
+				<artifactId>git-commit-id-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>get-the-git-infos</id>
+						<goals>
+							<goal>revision</goal>
+						</goals>
+						<phase>initialize</phase>
+					</execution>
+				</executions>
+				<configuration>
+					<generateGitPropertiesFile>true</generateGitPropertiesFile>
+					<generateGitPropertiesFilename>${project.build.outputDirectory}/git.properties</generateGitPropertiesFilename>
+					<includeOnlyProperties>
+						<includeOnlyProperty>^git.build.(time|version)$</includeOnlyProperty>
+						<includeOnlyProperty>^git.commit.id.(abbrev|full)$</includeOnlyProperty>
+					</includeOnlyProperties>
+					<commitIdGenerationMode>full</commitIdGenerationMode>
+				</configuration>
 			</plugin>
-        </plugins>
+		</plugins>
 
 		<finalName>os2faktor-nsis-ui</finalName>
 	</build>
@@ -69,7 +86,7 @@
 		<dependency>
 			<groupId>dk.digitalidentity</groupId>
 			<artifactId>saml-module</artifactId>
-			<version>2.4.4</version>
+			<version>3.2.0</version>
 		</dependency>
 
 		<dependency>
@@ -84,8 +101,13 @@
 
 		<dependency>
 			<groupId>org.thymeleaf.extras</groupId>
-			<artifactId>thymeleaf-extras-springsecurity5</artifactId>
+			<artifactId>thymeleaf-extras-springsecurity6</artifactId>
 		</dependency>
+
+                <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter-data-jpa</artifactId>
+                </dependency>
 
 		<dependency>
 			<groupId>dk.digitalidentity.os2faktor</groupId>
@@ -93,16 +115,17 @@
 			<version>1.0.0</version>
 		</dependency>
 
-		<!-- Waiting for version 2.5.0 to be released, so this bug can be fixed 
-			https://github.com/spring-projects/spring-session/issues/1213 <dependency> 
-			<groupId>org.springframework.session</groupId> <artifactId>spring-session-jdbc</artifactId> 
-			</dependency> -->
-
 		<dependency>
 			<groupId>com.github.darrachequesne</groupId>
 			<artifactId>spring-data-jpa-datatables</artifactId>
-			<version>5.2.0</version>
+			<version>6.0.4</version>
 		</dependency>
+
+                <dependency>
+                        <groupId>org.apache.httpcomponents.client5</groupId>
+                        <artifactId>httpclient5</artifactId>
+                        <version>5.3.1</version>
+                </dependency>
 
 		<dependency>
 			<groupId>org.apache.poi</groupId>

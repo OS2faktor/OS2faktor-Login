@@ -3,8 +3,6 @@ package dk.digitalidentity.security;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
@@ -13,10 +11,11 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.Constants;
-import lombok.extern.slf4j.Slf4j;
-import dk.digitalidentity.samlmodule.model.TokenUser;
-import dk.digitalidentity.samlmodule.model.SamlLoginPostProcessor;
 import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
+import dk.digitalidentity.samlmodule.model.SamlLoginPostProcessor;
+import dk.digitalidentity.samlmodule.model.TokenUser;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component

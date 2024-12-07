@@ -1,8 +1,8 @@
 package dk.digitalidentity.service;
 
 import java.security.PublicKey;
+import java.security.Security;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 
 import org.joda.time.DateTime;
@@ -30,11 +30,13 @@ import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.validation.LogoutResponseValidationService;
 import dk.digitalidentity.util.HttpRedirectUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 
 @Service
@@ -140,7 +142,14 @@ public class LogoutResponseService {
 		try {
 			// If the object hasnt been marshalled first it can't be signed
 			LogoutResponseMarshaller marshaller = new LogoutResponseMarshaller();
-			marshaller.marshall(logoutResponse);
+			
+			// when using KMS keys, make sure to use the KMS provider
+			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
+				marshaller.marshall(logoutResponse, Security.getProvider("KMS"));
+			}
+			else {
+				marshaller.marshall(logoutResponse);
+			}
 
 			Signer.signObject(signature);
 		}

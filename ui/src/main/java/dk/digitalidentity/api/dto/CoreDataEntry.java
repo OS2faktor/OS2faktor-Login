@@ -26,10 +26,12 @@ public class CoreDataEntry {
 	private Map<String, String> attributes;
 	private String domain;
 	private String expireTimestamp;
-	private String nextPasswordChange;
 	private boolean transferToNemlogin;
+	private boolean privateMitId;
 	private boolean lockedDataset;
+	private boolean trustedEmployee;
 	private String department;
+	private String externalNemloginUserUuid;
 	private Set<String> roles;
 	private String ean;
 
@@ -47,17 +49,16 @@ public class CoreDataEntry {
 		this.attributes = person.getAttributes();
 		this.nsisAllowed = person.isNsisAllowed();
 		this.transferToNemlogin = person.isTransferToNemlogin();
+		this.privateMitId = person.isPrivateMitId();
 		this.lockedDataset = person.isLockedDataset();
 		this.department = person.getDepartment();
+		this.externalNemloginUserUuid = person.getExternalNemloginUserUuid();
+		this.trustedEmployee = person.isTrustedEmployee();
 		this.roles = new HashSet<>();
 		this.ean = person.getEan();
 
 		if (person.getExpireTimestamp() != null) {
 			this.expireTimestamp = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-		}
-
-		if (person.getNextPasswordChange() != null) {
-			this.nextPasswordChange = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 		}
 
 		if (person.getDomain().getParent() != null) {

@@ -15,8 +15,6 @@ import javax.annotation.Nullable;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +42,8 @@ import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.IPUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -117,10 +117,10 @@ public class LoginService {
                 break;
             case WSFED:
                 auditLogger.wsFederationLoginRequest(sessionHelper.getPerson(), serviceProvider.getName(loginRequest), loginRequest.getWsFedLoginParameters());
-                break;
-            default:
-                throw new IllegalStateException("Unexpected value: " + loginRequest.getProtocol());
+            case ENTRAMFA:
+            	throw new RequesterException("EntraID MFA login flow er startet forkert");
         }
+
         NSISLevel loginState = sessionHelper.getLoginState(serviceProvider, loginRequest);
 
         // a ServiceProvider can be configured to just proxy straight to NemLog-in, skipping the build-in IdP login mechanisms.
@@ -139,6 +139,10 @@ public class LoginService {
 
             return new ModelAndView("redirect:/nemlogin/saml/login");
         }
+        
+        if (commonConfiguration.getMitIdErhverv().isEnabled()) {
+        	sessionHelper.setRequestProfessionalProfile();
+        }
 
         // if forceAuthn and MFA required we need to force a new MFA auth
         if (loginRequest.isForceAuthn() && serviceProvider.mfaRequired(loginRequest, null, IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), httpServletRequest))) {
@@ -147,15 +151,15 @@ public class LoginService {
 
         // If forceAuthn is required,
         // you're not logged in,
-        // or you're accessing the service from a new ip regardless of previous authentication
+        // or you're accessing the service from a new IP regardless of previous authentication
         // you will be asked login
         if (loginRequest.isForceAuthn() || loginState == null || !valid) {
             if (loginRequest.isPassive()) {
                 throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
             }
+
             return initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
         }
-
 
         // Login state is non-null which means we have already determined a person on the session
         Person person = sessionHelper.getPerson();
@@ -212,17 +216,23 @@ public class LoginService {
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
 
         // Check password
-        PasswordValidationResult passwordValidationResult = passwordService.validatePasswordNoCacheUnlessADDown(password, person);
+        boolean badPasswordMustBeChanged = false;
+        PasswordValidationResult passwordValidationResult = passwordService.validatePassword(password, person);
         switch (passwordValidationResult) {
+        	case VALID_BUT_BAD_PASWORD:
+        		badPasswordMustBeChanged = true;
+        		// fallthrough to VALID case on purpose
             case VALID:
-            case VALID_CACHE:
-                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false, (passwordValidationResult == PasswordValidationResult.VALID_CACHE));
+                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false);
                 break;
             case VALID_EXPIRED:
-                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), true, false);
+                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), true);
                 break;
             case LOCKED:
                 return new ModelAndView("error-password-locked");
+            case INVALID_BAD_PASSWORD:
+    			model.addAttribute("reason", person.getBadPasswordReason().toString());
+    			return new ModelAndView("error-password-bad", model.asMap());
             case INVALID:
                 // password was invalid, so we check if they have not locked themselves out of their account,
                 // otherwise we just return them to the login prompt
@@ -246,14 +256,6 @@ public class LoginService {
         // Remember the person on session since we now know who they are confirmed by username/password
         sessionHelper.setPerson(person);
 
-		// check if the persons password needs to be changed, note that this includes checking if the person has forceChangePassword = true
-		// also note that the last argument is false (perform expires-soon-check), as we want to query the user for a password change here
-        ModelAndView modelAndView = flowService.initiatePasswordExpired(person, model, false);
-        if (modelAndView != null) {
-            sessionHelper.setPassword(password);
-            return modelAndView;
-        }
-
         // Check if the person meets the requirements of the ServiceProvider specified in the AuthnRequest
         RequirementCheckResult meetsRequirementsResult = serviceProvider.personMeetsRequirements(person);
         if (!RequirementCheckResult.OK.equals(meetsRequirementsResult)) {
@@ -274,6 +276,26 @@ public class LoginService {
             return new ModelAndView(PersonService.getCorrectLockedPage(person));
         }
 
+		// check if the persons password needs to be changed, note that this includes checking if the person has forceChangePassword = true
+		// also note that the last argument is false (perform expires-soon-check), as we want to query the user for a password change here
+        ModelAndView modelAndView = flowService.initiatePasswordExpired(person, model, false);
+        if (modelAndView != null) {
+            sessionHelper.setPassword(password);
+            return modelAndView;
+        }
+        
+        if (badPasswordMustBeChanged) {
+        	// need to store it for changing password / skipping change password flow
+			sessionHelper.setPassword(password);
+			// this allows the user to change password without having to use MitID
+			sessionHelper.setInPasswordExpiryFlow(true);
+
+			model.addAttribute("reason", (person.getBadPasswordReason() != null) ? person.getBadPasswordReason().toString() : "");
+			model.addAttribute("deadline", person.getBadPasswordDeadlineTts());
+
+			return new ModelAndView("bad-password-prompt", model.asMap());
+        }
+        
         // If the SP requires NSIS LOW or above, extra checks required
         if (NSISLevel.LOW.equalOrLesser(serviceProvider.nsisLevelRequired(loginRequest))) {
             if (!person.isNsisAllowed()) {
@@ -321,18 +343,13 @@ public class LoginService {
         if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
             return flowService.initiateActivateNSISAccount(model);
         }
-
+        
         // Reaching this endpoint the person have already authenticated with their manually activated password or NemID,
         // so we just continue login flow from here
         return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
     }
 
     public ModelAndView continueLoginChangePasswordDeclined(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
-        if (!sessionHelper.isInPasswordExpiryFlow()) {
-            sessionHelper.clearSession();
-            throw new RequesterException("Bruger tilgik en url de ikke havde adgang til, prøv igen");
-        }
-
         Person person = sessionHelper.getPerson();
         if (person == null) {
             // it seems weird to ever get here without a person on the session, but the endpoint can be accessed directly,
@@ -362,11 +379,14 @@ public class LoginService {
         String password = sessionHelper.getPassword();
         sessionHelper.setPassword(null);
 
-        PasswordValidationResult passwordValidationResult = passwordService.validatePasswordNoCacheUnlessADDown(password, person);
+        PasswordValidationResult passwordValidationResult = passwordService.validatePassword(password, person);
         switch (passwordValidationResult) {
             case VALID:
-            case VALID_CACHE:
+            case VALID_BUT_BAD_PASWORD: // they declined password change, so continue for now
                 return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
+            case INVALID_BAD_PASSWORD:
+    			model.addAttribute("reason", person.getBadPasswordReason().toString());
+    			return new ModelAndView("error-password-bad", model.asMap());
             case INVALID:
             case VALID_EXPIRED:
                 if (person.isLockedByOtherThanPerson()) {

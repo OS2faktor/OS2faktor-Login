@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.PasswordSettingService;
+import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.rest.model.SelectUserDTO;
@@ -26,7 +26,7 @@ import dk.digitalidentity.service.SessionHelper;
 public class ChangePasswordRestController {
 
 	@Autowired
-	private PasswordSettingService passwordSettingService;
+	private PasswordValidationService passwordValidationService;
 
 	@Autowired
 	private SessionHelper sessionHelper;
@@ -41,7 +41,7 @@ public class ChangePasswordRestController {
 			return new ResponseEntity<>("Ikke logget ind", HttpStatus.BAD_REQUEST);
 		}
 
-		ChangePasswordResult result = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, password);
+		ChangePasswordResult result = passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, password);
 
 		if (!result.equals(ChangePasswordResult.OK)) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -58,7 +58,7 @@ public class ChangePasswordRestController {
 		}
 
 		// we just validate against normal password requirements, if a password is invalid due to password history, we wait to tell them until they post (and count up bad password)
-		ChangePasswordResult result = passwordSettingService.validatePasswordRulesWithoutSlowValidationRules(person, userIdPasswordDTO.getPassword());
+		ChangePasswordResult result = passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, userIdPasswordDTO.getPassword());
 		
 		if (!result.equals(ChangePasswordResult.OK)) {
 			return new ResponseEntity<>(getResultText(result),HttpStatus.BAD_REQUEST);

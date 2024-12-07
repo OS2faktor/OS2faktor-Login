@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import javax.persistence.EntityNotFoundException;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Controller;
@@ -24,6 +22,7 @@ import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.service.AuditLogSearchCriteriaService;
 import dk.digitalidentity.service.GeoLocateService;
 import dk.digitalidentity.service.geo.dto.GeoIP;
+import jakarta.persistence.EntityNotFoundException;
 
 @RequireSupporter
 @Controller

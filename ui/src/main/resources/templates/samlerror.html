@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header"/>
+<head th:replace="~{fragments/header :: header}"></head>
 <body class="top-navigation">
 <div id="page-wrapper" class="gray-bg">
-    <div th:replace="fragments/topbar :: topbar (page = 'samlerror')"/>
+    <div th:replace="~{fragments/topbar :: topbar (page = 'samlerror')}"></div>
 
     <div class="wrapper wrapper-content">
         <div class="row">
@@ -14,7 +14,7 @@
                     </div>
 
                     <div class="ibox-content">
-                        <h3 th:if="${message != null}" th:text="${message}"/>
+                        <h3 th:if="${message != null}" th:text="${message}"></h3>
                         <div th:if="${message == null}">
                             <h1>Noget gik galt.</h1>
                             <div>Der opstod en teknisk fejl. Forsøg igen, og hvis fejlen fortsat opstår, så kontakt din it-afdeling.</div>
@@ -37,9 +37,10 @@
             </div>
         </div>
     </div>
-    <div th:replace="fragments/footer :: footer"/>
+
+    <div th:replace="~{fragments/footer :: footer}"></div>
 </div>
 
-<div th:replace="fragments/footer :: scripts"/>
+<div th:replace="~{fragments/footer :: scripts}"></div>
 </body>
 </html>

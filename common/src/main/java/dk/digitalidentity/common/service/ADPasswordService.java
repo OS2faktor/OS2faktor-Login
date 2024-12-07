@@ -22,7 +22,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,8 +29,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.dao.ADPasswordCacheDao;
-import dk.digitalidentity.common.dao.model.ADPasswordCache;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
@@ -64,9 +61,6 @@ public class ADPasswordService {
 	private DomainService domainService;
 	
 	@Autowired
-	private ADPasswordCacheDao passwordCache;
-
-	@Autowired
 	private PersonService personService;
 	
 	// clear max values at 02:00 every night
@@ -75,75 +69,6 @@ public class ADPasswordService {
 		websocketMaxConnections = new HashMap<>();
 	}
 
-	@Transactional
-	public void cleanupCache() {
-		passwordCache.deleteOld();
-	}
-
-	public boolean hasCachedADPassword(Person person) {
-		if (person.getDomain().isStandalone()) {
-			return false;
-		}
-		
-		if (!StringUtils.hasLength(person.getSamaccountName())) {
-			return false;
-		}
-
-		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
-		if (cache == null) {
-			return false;
-		}
-
-		return true;
-	}
-
-	public boolean validateAgainstCache(Person person, String password) {
-		if (person.getDomain().isStandalone()) {
-			return false;
-		}
-
-		if (!StringUtils.hasLength(person.getSamaccountName())) {
-			return false;
-		}
-
-		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
-		if (cache == null) {
-			return false;
-		}
-
-		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-		return encoder.matches(password, cache.getPassword());
-	}
-	
-	public void updateCache(Person person, String password) {
-		if (person.getDomain().isStandalone()) {
-			return;
-		}
-
-		if (!StringUtils.hasLength(person.getSamaccountName())) {
-			return;
-		}
-
-		ADPasswordCache cache = passwordCache.findByDomainIdAndSamAccountName(person.getTopLevelDomain().getId(), person.getSamaccountName());
-		if (cache == null) {
-			cache = new ADPasswordCache();
-			cache.setDomainId(person.getTopLevelDomain().getId());
-			cache.setSamAccountName(person.getSamaccountName());
-		}
-
-		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-		cache.setPassword(encoder.encode(password));
-		cache.setLastUpdated(LocalDateTime.now());		
-		
-		try {
-			passwordCache.save(cache);
-		}
-		catch (Exception ex) {
-			// most likely a constraint issue, due to parallel logins
-			log.warn("Unable to update password cache for " + person.getSamaccountName() , ex);
-		}
-	}
-	
 	public boolean monitorConnection(String domain) {
 		try {
 			int sessionCount = getWebsocketSessionCount(domain);
@@ -202,7 +127,7 @@ public class ADPasswordService {
 
 			ResponseEntity<Integer> response = restTemplate.exchange(getURL("api/sessions?domain=" + domain) , HttpMethod.GET, new HttpEntity<Object>(headers), Integer.class);
 
-			if (response.getStatusCodeValue() == 200) {
+			if (response.getStatusCode().value() == 200) {
 				Integer responseValue = response.getBody();
 				
 				if (responseValue != null) {
@@ -212,7 +137,7 @@ public class ADPasswordService {
 				log.warn("responseValue is null");
 			}
 			else {
-				log.warn("Failed to get sessions: " + response.getStatusCodeValue());
+				log.warn("Failed to get sessions: " + response.getStatusCode().value());
 			}
 		}
 		catch (Exception ex) {
@@ -232,7 +157,7 @@ public class ADPasswordService {
 			RestTemplate restTemplate = new RestTemplate();
 			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL("api/validatePassword"), HttpMethod.POST, getRequest(person, password), ADPasswordResponse.class);
 
-			if (response.getStatusCodeValue() == 200) {
+			if (response.getStatusCode().value() == 200) {
 				ADPasswordResponse result = response.getBody();
 
 				if (result != null) {
@@ -344,14 +269,9 @@ public class ADPasswordService {
 				return ADPasswordStatus.TECHNICAL_ERROR;
 			}
 
-			if (response.getStatusCodeValue() == 200 && ADPasswordStatus.OK.equals(result.getStatus())) {
+			if (response.getStatusCode().value() == 200 && ADPasswordStatus.OK.equals(result.getStatus())) {
 				change.setStatus(ReplicationStatus.SYNCHRONIZED);
 				change.setMessage(null);
-				
-				// it sometimes takes a while before AD updates the users next password change, so we NULL it for now, and
-				// wait for an update on the person from AD to get the updated date
-				person.setNextPasswordChange(null);
-				personService.save(person);
 			}
 			else {
 				// Setting status and message of change
@@ -399,7 +319,7 @@ public class ADPasswordService {
 				return ADPasswordStatus.TECHNICAL_ERROR;
 			}
 
-			if (response.getStatusCodeValue() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
+			if (response.getStatusCode().value() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
 				log.warn("Unlock account failed for person with uuid " + person.getUuid() + " and samaccountName " + person.getSamaccountName() + " with message: " + result.getMessage() + " (" +  result.getStatus() +")");
 			}
 
@@ -422,7 +342,7 @@ public class ADPasswordService {
 				return;
 			}
 
-			if (response.getStatusCodeValue() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
+			if (response.getStatusCode().value() != 200 || !ADPasswordStatus.OK.equals(result.getStatus())) {
 				log.warn("Run password expires soon script failed for person with uuid " + person.getUuid() + " and samaccountName " + person.getSamaccountName() + " with message: " + result.getMessage() + " (" +  result.getStatus() +")");
 			}
 		}

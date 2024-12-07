@@ -27,7 +27,6 @@ public class PasswordConfigurationForm {
 	private String monitoringEmail;
 	private boolean disallowNameAndUsername;
 	private boolean showAdSettings;
-	private String alternativePasswordChangeLink;
 	private Long triesBeforeLockNumber;
 	private Long lockedMinutes;
 	private boolean maxPasswordChangesPrDayEnabled;
@@ -58,7 +57,6 @@ public class PasswordConfigurationForm {
 		this.disallowNameAndUsername = settings.isDisallowNameAndUsername();
 		this.domainId = settings.getDomain().getId();
 		this.showAdSettings = true;
-		this.alternativePasswordChangeLink = settings.getAlternativePasswordChangeLink();
 		this.triesBeforeLockNumber = settings.getTriesBeforeLockNumber();
 		this.lockedMinutes = settings.getLockedMinutes();
 		this.maxPasswordChangesPrDayEnabled = settings.isMaxPasswordChangesPrDayEnabled();

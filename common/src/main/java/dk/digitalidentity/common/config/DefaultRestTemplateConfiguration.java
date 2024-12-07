@@ -1,9 +1,9 @@
 package dk.digitalidentity.common.config;
 
-import org.apache.http.client.config.CookieSpecs;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.cookie.StandardCookieSpec;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
@@ -15,15 +15,16 @@ public class DefaultRestTemplateConfiguration {
 	@Bean(name = "defaultRestTemplate")
 	public RestTemplate defaultRestTemplate() {
 		CloseableHttpClient client = HttpClients.custom()
-				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.DEFAULT).build())
-				.build();
+			.setDefaultRequestConfig(RequestConfig.custom()
+				.setCookieSpec(StandardCookieSpec.RELAXED)
+				.build())
+			.build();
 
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
 		requestFactory.setConnectionRequestTimeout(3 * 60 * 1000);
 		requestFactory.setConnectTimeout(3 * 60 * 1000);
-		requestFactory.setReadTimeout(3 * 60 * 1000);
 		requestFactory.setHttpClient(client);
-		
+
 		return new RestTemplate(requestFactory);
 	}
 }

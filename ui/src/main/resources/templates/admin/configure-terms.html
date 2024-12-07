@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true)" />
+<head th:replace="~{fragments/header :: header (texteditor = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-terms')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.configure-terms')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -25,7 +25,7 @@
 								
 								<form id="termsForm" action="#" th:action="@{/admin/konfiguration/vilkaar}" th:object="${termsAndConditions}" method="post">
 									<input id="must_approve" type="hidden" th:field="*{mustApprove}"></input>
-									<textarea id="content" class="form-control" th:field="*{content}" autocomplete="off"></textarea>
+									<textarea id="content" class="form-control readwrite-message" th:field="*{content}" autocomplete="off"></textarea>
 									
 									<br/>
 
@@ -82,15 +82,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-terms')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.configure-terms')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (texteditor = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (texteditor = true)}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/

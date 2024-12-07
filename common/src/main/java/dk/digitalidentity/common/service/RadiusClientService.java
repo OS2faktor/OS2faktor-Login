@@ -7,8 +7,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.RadiusClientDao;
 import dk.digitalidentity.common.dao.model.RadiusClient;
-
-import javax.transaction.Transactional;
+import jakarta.transaction.Transactional;
 
 @Service
 public class RadiusClientService {
@@ -27,7 +26,6 @@ public class RadiusClientService {
 
 		return all;
 	}
-
 
 	public RadiusClient save(RadiusClient radiusClient) {
 		return radiusClientDao.save(radiusClient);

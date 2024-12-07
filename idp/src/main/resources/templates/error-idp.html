@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header" />
-<div th:replace="fragments/topbar :: topbar"></div>
+<head th:replace="~{fragments/header :: header}" />
+<div th:replace="~{fragments/topbar :: topbar}"></div>
 <body class="gray-bg">
     <div class="loginColumns animated fadeInDown" style="max-width: none;">
         <div class="row">
@@ -43,6 +43,6 @@
         </div>
     </div>
     
-	<div th:replace="fragments/footer :: scripts" />
+	<div th:replace="~{fragments/footer :: scripts}" />
 </body>
 </html>

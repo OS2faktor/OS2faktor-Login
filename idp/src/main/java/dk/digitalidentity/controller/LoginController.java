@@ -9,9 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.messaging.context.SAMLBindingContext;
@@ -45,6 +42,8 @@ import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -84,6 +83,17 @@ public class LoginController {
 	@Autowired
 	private PersonService personService;
 
+	@GetMapping("/fragment/username")
+	public String getLoginUsernameFragment(Model model, @RequestParam(name = "username", required = false, defaultValue = "") String username) {
+		if (!StringUtils.hasText(username)) {
+			return "fragments/username :: unknown";
+		}
+		
+		model.addAttribute("username", username);
+		
+		return "fragments/username :: known";
+	}
+	
 	@RequestMapping(value = "/sso/saml/login", method = { POST, GET } )
 	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
@@ -96,6 +106,8 @@ public class LoginController {
 			log.warn("SAMLRequest was null or empty");
 			return new ModelAndView("redirect:/");
 		}
+
+		sessionHelper.prepareNewLogin();
 
 		// Get MessageContext (Including the saml object) from the HttpServletRequest
 		MessageContext<SAMLObject> messageContext;

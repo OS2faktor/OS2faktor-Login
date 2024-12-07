@@ -10,12 +10,7 @@ import java.util.Objects;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.validation.Valid;
 
-import dk.digitalidentity.service.PasswordService;
-import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -42,10 +37,15 @@ import dk.digitalidentity.controller.dto.PasswordChangeForm;
 import dk.digitalidentity.controller.validator.PasswordChangeValidator;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
+import dk.digitalidentity.service.PasswordService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -97,7 +97,7 @@ public class ChangePasswordController {
         // remember where to redirect to
         sessionHelper.setPasswordChangeSuccessRedirect(url);
 
-        // show NemId login form
+        // show MitID login form
         sessionHelper.setInPasswordChangeFlow(true);
 
         // if there is no person on the session initiate login
@@ -115,7 +115,6 @@ public class ChangePasswordController {
 		// if the user is allowed to activate their NSIS account and have not done so yet,
 		// we should prompt first since they will not set their NSIS password without activating first
 		if (person.isNsisAllowed() && !person.hasActivatedNSISUser() && !person.isLockedPerson()) {
-			// TODO: infinite loop?
 			return flowService.initiateActivateNSISAccount(model, true);
 		}
 		
@@ -317,14 +316,14 @@ public class ChangePasswordController {
 				switch (passwordValidationResult) {
 					case VALID:
 					case VALID_EXPIRED:
+					case VALID_BUT_BAD_PASWORD:
 						return true;
-					case VALID_CACHE: // no cache check, as that is AD
 					case INVALID:
 					case LOCKED:
 					case TECHNICAL_ERROR:
+					case INSUFFICIENT_PERMISSION:
+					case INVALID_BAD_PASSWORD:
 						return false;
-					default:
-						throw new IllegalStateException("Unexpected value: " + passwordValidationResult);
 				}
 			}
 		}
@@ -335,7 +334,7 @@ public class ChangePasswordController {
 
 	// check if a group of people who can not change password is set and if the person is member of it
     private boolean isInCanNotChangePasswordGroup(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
+    	PasswordSetting settings = passwordSettingService.getSettings(person);
     	if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(person, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
     		return true;
         }
@@ -345,7 +344,7 @@ public class ChangePasswordController {
     
 	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded    
     private boolean changedPasswordTooManyTimes(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettingsCached(person.getDomain());
+    	PasswordSetting settings = passwordSettingService.getSettings(person);
     	if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
     		return true;
         }

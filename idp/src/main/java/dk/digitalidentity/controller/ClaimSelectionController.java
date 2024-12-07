@@ -2,11 +2,6 @@ package dk.digitalidentity.controller;
 
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import dk.digitalidentity.controller.dto.LoginRequest;
-import dk.digitalidentity.service.FlowService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -17,11 +12,15 @@ import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
+import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Controller
 public class ClaimSelectionController {

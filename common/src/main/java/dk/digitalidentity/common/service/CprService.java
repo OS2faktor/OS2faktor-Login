@@ -127,7 +127,7 @@ public class CprService {
 		catch (RestClientResponseException ex) {
 			String responseBody = ex.getResponseBodyAsString();
 
-			if (ex.getRawStatusCode() == 404 && responseBody != null && responseBody.contains("PNR not found")) {
+			if (ex.getStatusCode().value() == 404 && responseBody != null && responseBody.contains("PNR not found")) {
 				log.warn("Person cpr does not exists in cpr-register: " + safeCprSubstring(cpr));
 				
 				CprLookupDTO dto = new CprLookupDTO();

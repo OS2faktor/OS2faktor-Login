@@ -7,8 +7,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -37,6 +35,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
@@ -58,6 +57,8 @@ import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
@@ -104,7 +105,10 @@ public class MitIDController {
 
 	@Autowired
 	private WSFederationService wsFederationService;
-
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
+	
 	@GetMapping("/sso/saml/nemlogin/complete")
 	public ModelAndView nemLogInComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
 		TokenUser tokenUser = nemLoginUtil.getTokenUser();
@@ -116,7 +120,7 @@ public class MitIDController {
 		NSISLevel nsisLevel = NSISLevel.NONE;
 		Map<String, Object> attributes = tokenUser.getAttributes();
 		if (!attributes.containsKey(Constants.LEVEL_OF_ASSURANCE)) {
-			log.warn("Token from NemLog-in does not contain an NSIS level - setting it to NONE on session");
+			return handleMitIdErrors(httpServletResponse, "Brugertoken fra NemLog-in indeholder ikke et NSIS sikringsniveau!");
 		}
 		else {
 			String loa = (String) attributes.get(Constants.LEVEL_OF_ASSURANCE);
@@ -127,6 +131,11 @@ public class MitIDController {
 			catch (IllegalArgumentException e) {
 				return handleMitIdErrors(httpServletResponse, "NSIS sikringsniveau fra login token er ukendt: " + loa);
 			}
+		}
+
+		// we need a cpr for further validation
+		if (nemLoginUtil.getCpr() == null && !(commonConfiguration.getMitIdErhverv().isEnabled() && commonConfiguration.getMitIdErhverv().isAllowMissingCpr())) {
+			return handleMitIdErrors(httpServletResponse, "Brugertoken fra NemLog-in indeholder ikke personnummer!");
 		}
 
 		// if the originating AuthnRequest (from the upstream ServiceProvider) was a forced NemLog-in flow, then
@@ -189,7 +198,9 @@ public class MitIDController {
 				if (loginRequest == null) {
 					return invalidateSessionAndSendRedirect();
 				}
+				
 				errorResponseService.sendError(httpServletResponse, loginRequest, new ResponderException("Bruger foretog MitID login med et andet CPR end der allerede var gemt på sessionen"));
+
 				return null;
 			}
 		}
@@ -228,9 +239,12 @@ public class MitIDController {
 				return oidcAuthorizationCodeService.createAndSendBrokeredAuthorizationCode(httpServletResponse, assertion, serviceProvider, loginRequest);
 			case WSFED:
 				return wsFederationService.createAndSendBrokeredSecurityTokenResponse(model, loginRequest, assertion, serviceProvider);
-			default:
-				throw new IllegalStateException("Unexpected value: " + serviceProvider.getProtocol());
+			case ENTRAMFA:
+				// TODO: should we support this?
+				throw new IllegalStateException("NemLog-in brokering for EntraMFA is not supported");
 		}
+		
+		throw new IllegalStateException("Unexpected value: " + serviceProvider.getProtocol());
 	}
 
 	private static Assertion getNemLogInAssertion(String rawToken) throws ParserConfigurationException, SAXException, IOException, UnmarshallingException {
@@ -290,7 +304,7 @@ public class MitIDController {
 
 		// Deflating and sending the message
 		try {
-			if (SAMLConstants.SAML2_POST_BINDING_URI.equals(logoutEndpoint.getBinding())) {
+			if (SAMLConstants.SAML2_REDIRECT_BINDING_URI.equals(logoutEndpoint.getBinding())) {
 				HTTPRedirectDeflateEncoder encoder = new HTTPRedirectDeflateEncoder();
 
 				encoder.setMessageContext(messageContext);
@@ -299,7 +313,7 @@ public class MitIDController {
 				encoder.initialize();
 				encoder.encode();
 			}
-			else if (SAMLConstants.SAML2_REDIRECT_BINDING_URI.equals(logoutEndpoint.getBinding())) {
+			else if (SAMLConstants.SAML2_POST_BINDING_URI.equals(logoutEndpoint.getBinding())) {
 				HTTPPostEncoder encoder = new HTTPPostEncoder();
 
 				encoder.setHttpServletResponse(httpServletResponse);

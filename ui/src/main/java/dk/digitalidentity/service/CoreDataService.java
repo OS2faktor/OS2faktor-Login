@@ -49,10 +49,12 @@ import dk.digitalidentity.api.dto.CoreDataStatus;
 import dk.digitalidentity.api.dto.CoreDataStatusEntry;
 import dk.digitalidentity.api.dto.Jfr;
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.PersonStatistics;
 import dk.digitalidentity.common.dao.model.Supporter;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
@@ -62,6 +64,7 @@ import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.PersonStatisticsService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
@@ -95,6 +98,9 @@ public class CoreDataService {
 	
 	@Autowired
 	private MessageQueueService messageQueueService;
+	
+	@Autowired
+	private PersonStatisticsService personStatisticsService;
 		
 	// thread-safe formatter
 	private DateTimeFormatter formatter = new DateTimeFormatterBuilder()
@@ -158,7 +164,7 @@ public class CoreDataService {
 			// in the special case that we have an existing user in the DB with the same sAMAccountName, but that account
 			// is locked (dataset), then we will only allow reactivation if the cpr+uuid matches, otherwise it is a fresh person
 			if (person != null && person.isLockedDataset()) {
-				if (!Objects.equals(person.getCpr(), coreDataEntry.getCpr()) || !Objects.equals(person.getUuid(), coreDataEntry.getUuid())) {
+				if (!compareCpr(person, coreDataEntry) || !Objects.equals(person.getUuid(), coreDataEntry.getUuid())) {
 					// delete (side-effect it gets auditlogged)
 					personService.delete(person, null);
 
@@ -166,9 +172,9 @@ public class CoreDataService {
 					person = null;
 				}
 			}
-			
+
 			// in the special case that the CPR changes on an existing person, it should be treated as a delete followed by a create
-			if (person != null && !Objects.equals(person.getCpr(), coreDataEntry.getCpr())) {
+			if (person != null && !compareCpr(person, coreDataEntry)) {
 				// delete (side-effect it gets auditlogged)
 				personService.delete(person, null);
 
@@ -244,6 +250,22 @@ public class CoreDataService {
 		}
 	}
 
+	private boolean compareCpr(Person person, CoreDataEntry entry) {
+		
+		// special case for MitID Erhverv users - for these the CPR number is updated
+		// during activation, so CoreData might still get the original 0000000000 value
+		// for the CPR, but the registered CPR on the person has been updated - here a match
+		// on the NemLog-in UUID is enough to constistute a match for updating purposes
+		if (commonConfiguration.getMitIdErhverv().isEnabled() &&
+			Objects.equals(entry.getCpr(), Constants.NO_CPR_VALUE) &&
+			StringUtils.hasText(entry.getExternalNemloginUserUuid())) {
+
+			return (Objects.equals(person.getCpr(), entry.getCpr()) || Objects.equals(person.getExternalNemloginUserUuid(), entry.getExternalNemloginUserUuid()));
+		}
+		
+		return (Objects.equals(person.getCpr(), entry.getCpr()));
+	}
+
 	private void sendDeactivateEmail(Person person) {
 		EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_DEACTIVATED_CORE_DATA);
 
@@ -292,8 +314,11 @@ public class CoreDataService {
 			return coreData;
 		}
 
+		List<PersonStatistics> personStatistics = personStatisticsService.getAll();
+		Map<Long, PersonStatistics> personStatisticsMap = personStatistics.stream().collect(Collectors.toMap(PersonStatistics::getPersonId, Function.identity()));
+		
 		// Convert Person objects to CoreData entries
-		List<CoreDataStatusEntry> matches = persons.stream().map(CoreDataStatusEntry::new).collect(Collectors.toList());
+		List<CoreDataStatusEntry> matches = persons.stream().map(p -> new CoreDataStatusEntry(p, personStatisticsMap.get(p.getId()))).collect(Collectors.toList());
 		coreData.setEntryList(matches);
 
 		return coreData;
@@ -746,9 +771,9 @@ public class CoreDataService {
 		person.setUuid(coreDataEntry.getUuid());
 		person.setAttributes(coreDataEntry.getAttributes());
 		person.setExpireTimestamp(coreDataEntry.getExpireTimestamp() != null ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
-		person.setNextPasswordChange(coreDataEntry.getNextPasswordChange() != null ? LocalDateTime.parse(coreDataEntry.getNextPasswordChange(), formatter) : null);
 		person.setDepartment(coreDataEntry.getDepartment());
 		person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
+		person.setPrivateMitId(coreDataEntry.isPrivateMitId());
 		person.setEan(coreDataEntry.getEan());
 		
 		if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
@@ -769,6 +794,14 @@ public class CoreDataService {
 			person.setDomain(domain);
 		}
 		
+		if (commonConfiguration.getMitIdErhverv().isEnabled()) {
+			person.setExternalNemloginUserUuid(coreDataEntry.getExternalNemloginUserUuid());
+		}
+		
+		if (configuration.getCoreData().isTrustedEmployeeEnabled()) {
+			person.setTrustedEmployee(coreDataEntry.isTrustedEmployee());
+		}
+
 		if (configuration.getCoreData().isRoleApiEnabled()) {
 			if (coreDataEntry.getRoles() != null) {
 				for (String role : coreDataEntry.getRoles()) {
@@ -847,6 +880,18 @@ public class CoreDataService {
 			person.setEmail(!StringUtils.hasLength(coreDataEntry.getEmail()) ? null : coreDataEntry.getEmail());
 			modified = true;
 		}
+		
+		if (commonConfiguration.getMitIdErhverv().isEnabled()) {
+			if (!Objects.equals(person.getExternalNemloginUserUuid(), coreDataEntry.getExternalNemloginUserUuid())) {
+				person.setExternalNemloginUserUuid(coreDataEntry.getExternalNemloginUserUuid());
+				modified = true;
+			}
+		}
+		else if (person.getExternalNemloginUserUuid() != null) {
+			// if the feature has been disabled, some persons might have a value set, so remove that value
+			person.setExternalNemloginUserUuid(null);
+			modified = true;
+		}
 
 		String dateToCompare = (person.getExpireTimestamp() == null) ? null : person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 		if (!Objects.equals(dateToCompare, coreDataEntry.getExpireTimestamp())) {
@@ -862,19 +907,11 @@ public class CoreDataService {
 			modified = true;
 		}
 
-		String dateToCompareNextPasswordChange = (person.getNextPasswordChange() == null) ? null : person.getNextPasswordChange().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-		if (!Objects.equals(dateToCompareNextPasswordChange, coreDataEntry.getNextPasswordChange())) {
-			person.setNextPasswordChange((coreDataEntry.getNextPasswordChange() != null) ? LocalDateTime.parse(coreDataEntry.getNextPasswordChange(), formatter) : null);
-
-			modified = true;
-		}
-
 		if (person.isLockedDataset()) {
 			person.setLockedDataset(false);
 			person.setApprovedConditions(false);
 			person.setApprovedConditionsTts(null);
 			person.setNsisLevel(NSISLevel.NONE);
-			person.setNsisPassword(null);
 
 			// make sure any messages in the queue about being locked are removed (just in case this user was locked previously, and the message has not actually
 			// been processed yet - no reason to send the message, as it was a mistake that the user was locked
@@ -900,6 +937,14 @@ public class CoreDataService {
 
 			modified = true;
 		}
+
+		if (coreDataEntry.isPrivateMitId() != person.isPrivateMitId()) {
+			person.setPrivateMitId(coreDataEntry.isPrivateMitId());
+
+			auditLogger.allowPrivateMitIdChanged(person, person.isPrivateMitId());
+
+			modified = true;
+		}
 		
 		if (!Objects.equals(person.getDepartment(), coreDataEntry.getDepartment())) {
 			person.setDepartment(coreDataEntry.getDepartment());
@@ -909,6 +954,13 @@ public class CoreDataService {
 		if (!Objects.equals(person.getEan(), coreDataEntry.getEan())) {
 			person.setEan(coreDataEntry.getEan());
 			modified = true;
+		}
+
+		if (configuration.getCoreData().isTrustedEmployeeEnabled()) {
+			if (person.isTrustedEmployee() != coreDataEntry.isTrustedEmployee()) {
+				person.setTrustedEmployee(coreDataEntry.isTrustedEmployee());
+				modified = true;
+			}
 		}
 
 		if (configuration.getCoreData().isRoleApiEnabled()) {
@@ -1489,7 +1541,6 @@ public class CoreDataService {
 			if (newNsisState == true) {
 				person.setNsisAllowed(true);
 				person.setNsisLevel(NSISLevel.NONE);
-				person.setNsisPassword(null);
 				
 				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NSIS_ALLOWED);
 				for (EmailTemplateChild child : emailTemplate.getChildren()) {
@@ -1514,7 +1565,6 @@ public class CoreDataService {
 			else {
 				person.setNsisAllowed(false);
 				person.setNsisLevel(NSISLevel.NONE);
-				person.setNsisPassword(null);
 				
 				// if the person is not locked, we should send a deactivate mail (note that when a person is locked, one is also send,
 				// so we do this to avoid sending it twice

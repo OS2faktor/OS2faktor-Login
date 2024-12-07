@@ -84,7 +84,7 @@ public class SchoolClassService {
 			}
 		}
 	}
-	
+
 	public List<SchoolClass> getClassesPasswordCanBeChangedOnFromIndskoling(Person loggedInPerson) {
 		List<SchoolClass> result = new ArrayList<>();
 

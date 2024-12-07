@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true)" />
+<head th:replace="~{fragments/header :: header (texteditor = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')" />
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.cms-edit')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -33,15 +33,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.cms-edit')" />
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.cms-edit')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (texteditor = true)" />
+	<div th:replace="~{fragments/footer :: scripts (texteditor = true)}"></div>
 	
 	<script>
 		$(document).ready(function() {

@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
 
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +25,7 @@ import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.eboks.dto.EboksMessage;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -92,13 +91,13 @@ public class EboksService {
 
 			ResponseEntity<String> response = restTemplate.postForEntity(configuration.getEboks().getUrl(), request, String.class);
 			
-			if (response.getStatusCodeValue() != 200) {
-				if (response.getStatusCodeValue() == 409) {
+			if (response.getStatusCode().value() != 200) {
+				if (response.getStatusCode().value() == 409) {
 					log.warn("Failed to send e-boks message to: " + PersonService.maskCpr(cpr) + " - person not subscribed");
 					return SendStatus.RECIPIENT_NOT_SUBSCRIBED;
 				}
 				else {
-					log.error("Failed to send e-boks message to: " + PersonService.maskCpr(cpr) + ". HTTP: " + response.getStatusCodeValue());
+					log.error("Failed to send e-boks message to: " + PersonService.maskCpr(cpr) + ". HTTP: " + response.getStatusCode().value());
 					return SendStatus.TECHNICAL_ERROR;
 				}
 			}
@@ -106,7 +105,7 @@ public class EboksService {
 			auditLogger.sentEBoks(person, subject);
 		}
 		catch (HttpStatusCodeException ex) {
-			if (ex.getRawStatusCode() == 409) {
+			if (ex.getStatusCode().value() == 409) {
 				log.warn("e-boks not subscribed: " + PersonService.maskCpr(cpr));
 				return SendStatus.RECIPIENT_NOT_SUBSCRIBED;
 			}

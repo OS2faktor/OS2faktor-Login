@@ -1,13 +1,9 @@
 package dk.digitalidentity.controller;
 
-import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
-import dk.digitalidentity.common.dao.model.mapping.TemporaryClientSessionMapping;
-import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
-import dk.digitalidentity.common.service.TemporaryClientSessionMappingService;
-import dk.digitalidentity.service.SessionHelper;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+import java.util.Objects;
+
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -15,15 +11,22 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
-import java.time.LocalDateTime;
-import java.util.Objects;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
+import dk.digitalidentity.common.dao.model.mapping.TemporaryClientSessionMapping;
+import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
+import dk.digitalidentity.common.service.TemporaryClientSessionMappingService;
+import dk.digitalidentity.service.SessionHelper;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Controller
 public class WindowsClientTokenLoginController {
 	private static final String AUTO_CLOSING_PAGE = "clientLoginSuccess";
+	private static final String REMAIN_OPEN_PAGE = "clientLoginSuccessRemainOpen";
 
 	@Autowired
 	private SessionHelper sessionHelper;
@@ -36,6 +39,9 @@ public class WindowsClientTokenLoginController {
 
 	@Autowired
 	private AuditLogger auditLogger;
+
+	@Autowired
+	private OS2faktorConfiguration configuration;
 
 	@GetMapping("/sso/saml/client/login")
 	public String continueClientLogin(@RequestParam("sessionKey") String sessionKey, @RequestParam(value = "info", required = false, defaultValue = "") String info, @RequestParam(value = "version", required = false, defaultValue = "") String version, HttpServletRequest request) {
@@ -101,6 +107,15 @@ public class WindowsClientTokenLoginController {
 		sessionHelper.setAuthnInstant(DateTime.now());
 		sessionHelper.setPerson(temporaryClient.getPerson());
 
-		return AUTO_CLOSING_PAGE;
+		return remainOpenForDebugging(temporaryClient.getPerson()) ? REMAIN_OPEN_PAGE : AUTO_CLOSING_PAGE;
+	}
+
+	// If we keep this for further debugging in the future,
+	// we should make this setting changeable from the database,
+	// so we don't need to restart docker.
+	private boolean remainOpenForDebugging(Person sessionPerson) {
+		return configuration.getWcpRemainOpenForSamAccountName() != null
+				&& sessionPerson != null && sessionPerson.getLowerSamAccountName() != null
+				&& sessionPerson.getSamaccountName().equalsIgnoreCase(configuration.getWcpRemainOpenForSamAccountName());
 	}
 }

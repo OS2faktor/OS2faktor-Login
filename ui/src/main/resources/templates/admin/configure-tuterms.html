@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true)" />
+<head th:replace="~{fragments/header :: header (texteditor = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-tuterms')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.configure-tuterms')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -40,15 +40,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-tuterms')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.configure-tuterms')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (texteditor = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (texteditor = true)}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/

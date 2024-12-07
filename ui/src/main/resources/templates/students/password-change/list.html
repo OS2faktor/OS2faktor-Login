@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true, checkbox = true)"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'otherUsers.change-password-list')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'otherUsers.change-password-list')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -80,7 +80,7 @@
 
 							<div class="ibox-content">
 								<p>
-									Nedenfor listes alle de hele klasser / hold, som du udprinte kodeordsord for.
+									Nedenfor listes alle de hele klasser / hold, som du printe.
 								</p>
 								<p>
 									Man kan anvende søgefelter over hver kolonne for at filtrere listen af klasser, samt
@@ -111,7 +111,8 @@
 												<td th:text="${class.name}"/>
 												<td th:text="${class.level}"/>
 												<td>
-													<a th:href="'/andre-brugere/klasser/' + ${class.id} + '/print'" target="_blank" style="color: black;" title="Print ord"><em class="fa fa-fw fa-print"></em></a>
+													<a th:if="${passwordMatrixEnabled}" th:href="'/andre-brugere/klasser/' + ${class.id} + '/print'" target="_blank" style="color: black;" title="Print kodeords-matrix"><em class="fa fa-fw fa-key"></em></a>
+													<a href="#" th:onclick="'return changePasswordListService.printClass(' + ${class.id} + ');'" style="color: black;" title="Print klasse"><em class="fa fa-fw fa-table"></em></a>
 												</td>
 											</tr>
 										</tbody>
@@ -121,15 +122,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: otherUsers (page = 'otherUsers.change-password-list')"></div>
+					<div th:replace="~{fragments/rightbar :: otherUsers (page = 'otherUsers.change-password-list')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true, checkbox = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -139,6 +140,7 @@
 		var flashSuccess = [[${flashSuccess}]];
 		var flashWarning = [[${flashWarning}]];
 		var flashError = [[${flashError}]];
+		var printClassUrl = [[@{/andre-brugere/klasser/}]];
 		+]*/
 
 		var token = $("meta[name='_csrf']").attr("content");
@@ -256,6 +258,27 @@
 							column.search(this.value).draw();
 						}
 					});
+				});
+			}
+			
+			this.printClass = function(classId) {
+				swal({
+					title: 'Print klasse',
+					text: 'Hvis muligt, ønsker du så også at printe elevernes kodeord?',
+					showCancelButton: true,
+					confirmButtonColor: "#1ab394",
+					cancelButtonText: 'Med kodeord',
+					confirmButtonText: 'Uden kodeord',
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						window.open(printClassUrl + classId + "/print-students?withPassword=false");
+					}
+					else {
+						window.open(printClassUrl + classId + "/print-students?withPassword=true");
+					}
 				});
 			}
 		}

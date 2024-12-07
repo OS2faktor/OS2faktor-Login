@@ -54,8 +54,14 @@ namespace OS2faktorADSync
         [JsonProperty(PropertyName = "subDomain")]
         public string SubDomain { get; set; }
 
+        [JsonProperty(PropertyName = "externalNemloginUserUuid")]
+        public string ExternalNemloginUserUuid { get; set; }
+
         [JsonProperty(PropertyName = "nsisAllowed")]
         public bool NSISAllowed { get; set; }
+
+        [JsonProperty(PropertyName = "trustedEmployee")]
+        public bool TrustedEmployee { get; set; }
 
         [JsonProperty(PropertyName = "attributes")]
         public Dictionary<string, string> Attributes { get; set; }
@@ -68,6 +74,9 @@ namespace OS2faktorADSync
 
         [JsonProperty(PropertyName = "transferToNemlogin")]
         public bool TransferToNemlogin { get; set; }
+
+        [JsonProperty(PropertyName = "privateMitID")]
+        public bool PrivateMitID { get; set; }
 
         [JsonProperty(PropertyName = "department")]
         public string Department { get; set; }

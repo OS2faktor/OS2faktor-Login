@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true)" />
+<head th:replace="~{fragments/header :: header (datatables = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.wincredentialproviderclients')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.wincredentialproviderclients')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -45,15 +45,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.wincredentialproviderclients')" />
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.wincredentialproviderclients')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer" />
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (datatables = true)" />
+	<div th:replace="~{fragments/footer :: scripts (datatables = true)}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (datatables = true)" />
+<head th:replace="~{fragments/header :: header (datatables = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'selfservice.index')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'selfservice.index')}"></div>
 			<div class="wrapper wrapper-content">
 				<div class="row">
 					<div class="column col-lg-9">
@@ -26,10 +26,10 @@
 	
 									<!-- Hidden on mobile -->
 									<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
-										<a th:if="${@commonConfiguration.customer.enableRegistrant == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+										<a th:if="${@commonConfiguration.customer.showRegisterMfaClient == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
 											<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
 										</a>
-										<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
+										<a id="primaryMfaBtn" href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
 											<em class="fa fa-heart"></em> &nbsp; Vælg primær 2-faktor enhed
 										</a>
 										<a th:if="@{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'YUBIKEY')}__}" href="/selvbetjening/tilfoej?type=yubikey" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px;">
@@ -94,7 +94,7 @@
 							</div>
 						</div>
 						
-						<div th:replace="fragments/school-data :: schoolData (schoolRoles = ${form.schoolRoles})"></div>
+						<div th:replace="~{fragments/school-data :: schoolData (schoolRoles = ${form.schoolRoles})}"></div>
 					</div>
 					<div class="column col-lg-3">
 						<div>
@@ -129,12 +129,12 @@
 							</div>
 						</div>
 						
-						<div th:replace="fragments/rightbar :: selfservice (page = 'selfservice.index')"></div>
+						<div th:replace="~{fragments/rightbar :: selfservice (page = 'selfservice.index')}"></div>
 					</div>
 	            </div>
 	        </div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 	
@@ -257,7 +257,7 @@
 	</div>
 	<!-- End Edit MFA Modal -->
 	
-	<div th:replace="fragments/footer :: scripts (datatables = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true)}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
@@ -372,7 +372,7 @@
 
 		function loadMfaDevicesDataTable() {
 			$('#mfa-devices-holder').load('/selvbetjening/fragment/mfa-devices', function() {
-				$('#mfa-devices-holder .mfa-devices').DataTable({
+				var mfaTable = $('#mfa-devices-holder .mfa-devices').DataTable({
 					"pageLength": 10,
 					"bSort": false,
 					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
@@ -387,6 +387,11 @@
 						}
 					}
 				});
+				
+				// only hide if no rows - can we test
+				if (!mfaTable.rows().count()) {
+					$('#primaryMfaBtn').hide();
+				}
 			});
 		}
 

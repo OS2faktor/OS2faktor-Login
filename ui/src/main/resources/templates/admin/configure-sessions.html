@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (checkbox = true, slider = true)" />
+<head th:replace="~{fragments/header :: header (checkbox = true, slider = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.configure-sessions')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.configure-sessions')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -91,15 +91,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.configure-sessions')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.configure-sessions')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts"></div>
+	<div th:replace="~{fragments/footer :: scripts}"></div>
 	
 	<script th:inline="javascript">
 		/*<![CDATA[*/

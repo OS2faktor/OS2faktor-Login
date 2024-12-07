@@ -4,21 +4,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
-
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.samlmodule.model.TokenUser;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class NemLoginUtil {
 
@@ -29,7 +32,7 @@ public class NemLoginUtil {
 	private PersonService personService;
 
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private CommonConfiguration commonConfiguration;
 
 	/**
 	 * returns true if a person is currently logged in
@@ -59,13 +62,14 @@ public class NemLoginUtil {
 	 * Update the tokenUser object on the session with the supplied people
 	 */
 	public void updateTokenUser(TokenUser tokenUser) {
+		
 		// so spring really likes caching this object, so we need to make sure Spring knows about the new version
 		if (SecurityContextHolder.getContext() != null &&
 			SecurityContextHolder.getContext().getAuthentication() != null &&
-			SecurityContextHolder.getContext().getAuthentication() instanceof UsernamePasswordAuthenticationToken) {
-
+			SecurityContextHolder.getContext().getAuthentication() instanceof AbstractAuthenticationToken) {
+			
 			SecurityContext securityContext = SecurityContextHolder.getContext();
-			UsernamePasswordAuthenticationToken authentication = (UsernamePasswordAuthenticationToken) securityContext.getAuthentication();
+			AbstractAuthenticationToken authentication = (AbstractAuthenticationToken) securityContext.getAuthentication();
 			
 			authentication.setDetails(tokenUser);
 			SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -91,22 +95,9 @@ public class NemLoginUtil {
 
 		Object cprObj = attributes.get("https://data.gov.dk/model/core/eid/cprNumber");
 		if (cprObj == null || !(cprObj instanceof String)) {
-
-			// if pure MitID UUID match is enabled, then use that find to find the cpr, otherwise the cpr attribute IS required
-			if (configuration.getMitid().isAllowCachedUuidLookup()) {
-				String uuid = getPersonUuid();
-
-				if (uuid != null) {
-					List<Person> persons = personService.getByMitIdNameId(uuid);
-					if (persons != null && persons.size() > 0) {
-						return persons.get(0).getCpr();
-					}
-				}
-			}
-
 			return null;
 		}
-		
+
 		return (String) cprObj;
 	}
 
@@ -124,7 +115,27 @@ public class NemLoginUtil {
 
 		return mitIdName;
 	}
-	
+
+	public String getCorporateNemLoginUuid() {
+		if (!isAuthenticated()) {
+			return null;
+		}
+
+		TokenUser tokenUser = (TokenUser) SecurityContextHolder.getContext().getAuthentication().getDetails();
+
+		Map<String, Object> attributes = tokenUser.getAttributes();
+		if (attributes == null || attributes.isEmpty()) {
+			return null;
+		}
+
+		Object uuidObj = attributes.get("https://data.gov.dk/model/core/eid/professional/uuid/persistent");
+		if (uuidObj == null || !(uuidObj instanceof String)) {
+			return null;
+		}
+
+		return (String) uuidObj;
+	}
+
 	public List<Person> getAvailablePeople() {
 		ArrayList<Person> people = new ArrayList<>();
 		if (!isAuthenticated()) {
@@ -133,6 +144,38 @@ public class NemLoginUtil {
 
 		String cpr = getCpr();
 
-		return personService.getByCpr(cpr);
+		// first find by CPR
+		if (StringUtils.hasText(cpr)) {
+			List<Person> persons = personService.getByCpr(cpr);
+			people.addAll(persons);
+		}
+
+		// then, if enabled, find by NemLog-in UUID
+		if (commonConfiguration.getMitIdErhverv().isEnabled()) {
+			String uuid = getCorporateNemLoginUuid();
+			if (StringUtils.hasText(uuid)) {
+				List<Person> corporatePersons = personService.getByExternalNemloginUserUuid(uuid);
+				
+				for (Person corporatePerson : corporatePersons) {
+					// if we get a cpr - and none is stored on the person, we should update
+					if (StringUtils.hasText(cpr) && Constants.NO_CPR_VALUE.equals(corporatePerson.getCpr())) {
+						corporatePerson.setCpr(cpr);
+						corporatePerson.setMitIdNameId(uuid);
+						personService.save(corporatePerson);
+					}
+					
+					// if we get a CPR from NL3, and this CPR does not match the person, we log a warn and skip,
+					// as this indicates bad data
+					if (StringUtils.hasText(cpr) && !cpr.equals(corporatePerson.getCpr())) {
+						log.warn("Got a CPR from NL3 that does not match the CPR on person " + corporatePerson.getId() + " with userId " + corporatePerson.getSamaccountName());
+						continue;
+					}
+
+					people.add(corporatePerson);
+				}
+			}
+		}
+
+		return people;
 	}
 }

@@ -1,0 +1,22 @@
+<html xmlns:th="http://www.w3.org/1999/html">
+
+<div class="form-group" th:fragment="unknown">
+	<label for="username">Brugernavn:</label>
+	<input id="username" name="username" th:value="${username}" type="text" class="form-control" placeholder="Brugernavn" autofocus="autofocus" aria-required="true" />
+</div>
+                                        
+<div class="form-group" th:fragment="known">
+	<label for="username">Brugernavn:</label>
+	<div class="input-group m-b">
+		<div class="input-group-prepend">
+			<button data-toggle="dropdown" class="btn btn-primary dropdown-toggle wcag-btn-primary" type="button"></button>
+
+			<ul class="dropdown-menu">
+				<li><a href="#" onclick="formService.resetUser(); return false;">Skift bruger</a></li>
+			</ul>
+		</div>
+		<input id="username" name="username" th:value="${username}" type="text" class="form-control" readonly="readonly" style="background: #f9f9f9f9; caret-color: transparent;" />
+	</div>
+</div>
+
+</html>

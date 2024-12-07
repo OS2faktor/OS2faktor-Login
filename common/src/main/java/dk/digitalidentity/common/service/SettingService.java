@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.SettingDao;
 import dk.digitalidentity.common.dao.model.Setting;
-import dk.digitalidentity.common.dao.model.enums.SettingsKey;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 
 @EnableCaching
 @Service
@@ -25,7 +25,7 @@ public class SettingService {
 	private SettingService self;
 	
 	@Cacheable("booleanSetting")
-	public boolean getBoolean(SettingsKey key) {
+	public boolean getBoolean(SettingKey key) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -37,8 +37,23 @@ public class SettingService {
 
 		return Boolean.parseBoolean(setting.getValue());
 	}
+	
+	@Cacheable("stringSetting")
+	public String getString(SettingKey key) {
+		Setting setting = settingDao.getByKey(key);
+		if (setting == null) {
+			setting = new Setting();
+			setting.setKey(key);
+			setting.setValue(key.getDefaultValue());
 
-	public LocalDateTime getLocalDateTimeSetting(SettingsKey key) {
+			settingDao.save(setting);
+		}
+
+		return setting.getValue();
+	}
+
+	@Cacheable("dateSetting")
+	public LocalDateTime getLocalDateTimeSetting(SettingKey key) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -51,7 +66,7 @@ public class SettingService {
 		return LocalDateTime.parse(setting.getValue());
 	}
 	
-	public void setLocalDateTimeSetting(SettingsKey key, LocalDateTime tts) {
+	public void setLocalDateTimeSetting(SettingKey key, LocalDateTime tts) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -60,9 +75,11 @@ public class SettingService {
 
 		setting.setValue(tts.toString());
 		settingDao.save(setting);
+		
+		self.cleanupCache();
 	}
 
-	public void setBoolean(SettingsKey key, boolean value) {
+	public void setBoolean(SettingKey key, boolean value) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -71,10 +88,27 @@ public class SettingService {
 
 		setting.setValue(Boolean.toString(value));
 		settingDao.save(setting);
+		
+		self.cleanupCache();
+	}
+	
+	public void setString(SettingKey key, String value) {
+		Setting setting = settingDao.getByKey(key);
+		if (setting == null) {
+			setting = new Setting();
+			setting.setKey(key);
+		}
+
+		setting.setValue(value);
+		settingDao.save(setting);
+		
+		self.cleanupCache();
 	}
 	
 	@Caching(evict = {
-		@CacheEvict(value = "booleanSetting", allEntries = true)
+		@CacheEvict(value = "booleanSetting", allEntries = true),
+		@CacheEvict(value = "stringSetting", allEntries = true),
+		@CacheEvict(value = "dateSetting", allEntries = true)
 	})
 	public void cleanupCache() {
 

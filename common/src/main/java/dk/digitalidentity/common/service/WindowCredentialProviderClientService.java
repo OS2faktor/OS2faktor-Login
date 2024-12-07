@@ -3,9 +3,6 @@ package dk.digitalidentity.common.service;
 import java.util.List;
 import java.util.UUID;
 
-import javax.annotation.PostConstruct;
-import javax.transaction.Transactional;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
@@ -14,6 +11,8 @@ import org.springframework.stereotype.Service;
 import dk.digitalidentity.common.dao.WindowCredentialProviderClientDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
+import jakarta.annotation.PostConstruct;
+import jakarta.transaction.Transactional;
 
 @EnableCaching
 @Service

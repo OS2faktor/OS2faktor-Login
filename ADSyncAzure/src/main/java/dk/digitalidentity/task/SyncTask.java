@@ -27,29 +27,31 @@ public class SyncTask {
 
 	@Scheduled(cron = "0 0/5 5-21 * * ?")
 	public void sync() throws Exception {
-		// perform a full sync every 4 hours, and then delta every 5 minutes
-		boolean fullSync = (counter % (4 * 12) == 0);
-		counter++;
-
-		if (fullSync) {
-			log.info("CoreData sync running (full)");
-			azureAdService.fullSync();
-
-			if (configuration.getScheduled().isKombitRolesEnabled()) {
-				log.info("KombitRole sync running (full)");
-				kombitRoleAdService.fullSync();
+		if (configuration.getScheduled().isEnabled()) {
+			// perform a full sync every 4 hours, and then delta every 5 minutes
+			boolean fullSync = (counter % (4 * 12) == 0);
+			counter++;
+	
+			if (fullSync) {
+				log.info("CoreData sync running (full)");
+				azureAdService.fullSync();
+	
+				if (configuration.getScheduled().isKombitRolesEnabled()) {
+					log.info("KombitRole sync running (full)");
+					kombitRoleAdService.fullSync();
+				}
+	
+				log.info("CoreData sync completed (full)");
 			}
-
-			log.info("CoreData sync completed (full)");
-		}
-		else {
-			azureAdService.deltaSync();
-
-			if (configuration.getScheduled().isKombitRolesEnabled()) {
-				kombitRoleAdService.deltaSync();
+			else {
+				azureAdService.deltaSync();
+	
+				if (configuration.getScheduled().isKombitRolesEnabled()) {
+					kombitRoleAdService.deltaSync();
+				}
+				
+				log.info("CoreData sync completed (delta)");
 			}
-			
-			log.info("CoreData sync completed (delta)");
 		}
 	}
 }

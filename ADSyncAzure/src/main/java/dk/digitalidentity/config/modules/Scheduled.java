@@ -7,4 +7,5 @@ import lombok.Setter;
 @Setter
 public class Scheduled {
 	private boolean kombitRolesEnabled = false;
+	private boolean enabled = false;
 }

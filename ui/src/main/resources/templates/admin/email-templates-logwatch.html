@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="fragments/header :: header (texteditor = true, checkbox = true)"></head>
+<head th:replace="~{fragments/header :: header (texteditor = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
-			<div th:replace="fragments/topbar :: topbar (page = 'admin.cms-edit')"></div>
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.cms-edit')}"></div>
 
 			<div class="wrapper wrapper-content">
 				<div class="row">
@@ -65,15 +65,15 @@
 						</div>
 					</div>
 					
-					<div th:replace="fragments/rightbar :: admin (page = 'admin.email-template')"></div>
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.email-template')}"></div>
 				</div>
 			</div>
 
-			<div th:replace="fragments/footer :: footer"></div>
+			<div th:replace="~{fragments/footer :: footer}"></div>
 		</div>
 	</div>
 
-	<div th:replace="fragments/footer :: scripts (checkbox = true, texteditor = true)"></div>
+	<div th:replace="~{fragments/footer :: scripts (checkbox = true, texteditor = true)}"></div>
 	
 	<script th:inline="javascript">
 	/*<![CDATA[*/

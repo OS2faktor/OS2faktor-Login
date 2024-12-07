@@ -3,14 +3,13 @@ package dk.digitalidentity.controller;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.springframework.boot.web.error.ErrorAttributeOptions;
 import org.springframework.boot.web.servlet.error.DefaultErrorAttributes;
 import org.springframework.boot.web.servlet.error.ErrorAttributes;
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.web.WebAttributes;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,6 +19,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import dk.digitalidentity.samlmodule.util.exceptions.NSISLevelTooLowException;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Controller
 public class DefaultController implements ErrorController {
@@ -46,6 +46,15 @@ public class DefaultController implements ErrorController {
 	
 					if (authException != null && authException instanceof NSISLevelTooLowException) {
 						return "error-nsis-level";
+					}
+
+					if (authException instanceof OAuth2Error oAuth2Error) {
+						model.addAttribute("origin", "requester");
+						model.addAttribute("errorMessage", oAuth2Error.getDescription());
+						model.addAttribute("errorCode", oAuth2Error.getErrorCode());
+						model.addAttribute("helpMessage", oAuth2Error.getUri());
+
+						return "error-idp";
 					}
 				}
 			}

@@ -19,10 +19,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PersonDao;
+import dk.digitalidentity.common.dao.SchoolClassDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SchoolClass;
+import dk.digitalidentity.common.dao.model.SchoolRole;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.SchoolClassType;
+import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
+import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.service.DomainService;
+import dk.digitalidentity.common.service.PasswordChangeQueueService;
 
 @Controller
 @Component
@@ -33,6 +40,9 @@ public class DevBootstrapper {
 	private PersonDao personDao;
 	
 	@Autowired
+	private SchoolClassDao schoolClassDao;
+	
+	@Autowired
 	private CommonConfiguration configuration;
 
 	@Autowired
@@ -40,12 +50,33 @@ public class DevBootstrapper {
 
 	@Autowired
 	private Flyway flyway;
+	
+	@Autowired
+	private PasswordChangeQueueService passwordChangeQueueService;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void init() {
 		if (configuration.getDev().isEnabled()) {
 			if (personDao.findAll().isEmpty()) {
 				Domain domain = domainService.getByName("OS2faktor", true);
+
+				// create a few classes
+				
+				SchoolClass class1A = new SchoolClass();
+				class1A.setClassIdentifier("1A");
+				class1A.setInstitutionId("12345678");
+				class1A.setLevel("1");
+				class1A.setName("1.A");
+				class1A.setType(SchoolClassType.MAIN_GROUP);
+				class1A = schoolClassDao.save(class1A);
+
+				SchoolClass class7B = new SchoolClass();
+				class7B.setClassIdentifier("7B");
+				class7B.setInstitutionId("12345678");
+				class7B.setLevel("7");
+				class7B.setName("7.B");
+				class7B.setType(SchoolClassType.MAIN_GROUP);
+				class7B = schoolClassDao.save(class7B);
 
 				Person person = new Person();
 				person.setUuid("14deef62-b5ff-49d8-a1bd-e1e256043f5c");
@@ -70,8 +101,28 @@ public class DevBootstrapper {
 				person.setNsisAllowed(true);
 				person.setSamaccountName("bsg");
 				person.setDomain(domain);
-				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
+				person.setPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
+				SchoolRole teacherRole = new SchoolRole();
+				teacherRole.setInstitutionId("12345678");
+				teacherRole.setInstitutionName("Folkeskolen");
+				teacherRole.setPerson(person);
+				teacherRole.setRole(SchoolRoleValue.TEACHER);
+				teacherRole.setSchoolClasses(new ArrayList<>());
+				
+				SchoolRoleSchoolClassMapping mapping1 = new SchoolRoleSchoolClassMapping();
+				mapping1.setSchoolClass(class1A);
+				mapping1.setSchoolRole(teacherRole);
+				teacherRole.getSchoolClasses().add(mapping1);
+
+				SchoolRoleSchoolClassMapping mapping2 = new SchoolRoleSchoolClassMapping();
+				mapping2.setSchoolClass(class7B);
+				mapping2.setSchoolRole(teacherRole);
+				teacherRole.getSchoolClasses().add(mapping2);
+
+				person.setSchoolRoles(new ArrayList<>());
+				person.getSchoolRoles().add(teacherRole);
+				
 				person = personDao.save(person);
 				
 				// add another Person
@@ -85,7 +136,7 @@ public class DevBootstrapper {
 				person.setNsisAllowed(true);
 				person.setDomain(domain);
 				person.setSamaccountName("psu");
-				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
+				person.setPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 	
 				person = personDao.save(person);
 				
@@ -100,7 +151,7 @@ public class DevBootstrapper {
 				person.setNsisAllowed(true);
 				person.setSamaccountName("mpo");
 				person.setDomain(domain);
-				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
+				person.setPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
 				person = personDao.save(person);
 
@@ -113,7 +164,7 @@ public class DevBootstrapper {
 				person.setNsisAllowed(true);
 				person.setSamaccountName("abo");
 				person.setDomain(domain);
-				person.setNsisPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
+				person.setPassword("$2a$10$4z1bRdjRX8VMmJWi3taJeu3Nu6ig24IvU4.swD5Sh.V2UJKki8Hva");
 
 				person = personDao.save(person);
 
@@ -128,7 +179,7 @@ public class DevBootstrapper {
 				person.setDomain(domain);
 
 				person = personDao.save(person);
-				
+
 				List<Person> persons = new ArrayList<>();
 				for (int i = 0; i < 5000; i++) {
 					person = new Person();
@@ -139,6 +190,49 @@ public class DevBootstrapper {
 					person.setNsisAllowed(random.nextBoolean());
 					person.setSamaccountName(randomUserId());
 					person.setDomain(domain);
+					
+					if (i % 100 == 0) {
+						if (i % 200 == 0) {
+							SchoolRole schoolRole = new SchoolRole();
+							schoolRole.setInstitutionId("12345678");
+							schoolRole.setInstitutionName("Folkeskolen");
+							schoolRole.setPerson(person);
+							schoolRole.setRole(SchoolRoleValue.STUDENT);
+							schoolRole.setSchoolClasses(new ArrayList<>());
+							
+							SchoolRoleSchoolClassMapping mapping = new SchoolRoleSchoolClassMapping();
+							mapping.setSchoolClass(class1A);
+							mapping.setSchoolRole(schoolRole);
+							schoolRole.getSchoolClasses().add(mapping);
+							
+							person.setSchoolRoles(new ArrayList<>());
+							person.getSchoolRoles().add(schoolRole);
+							
+							try {
+								String encrypted = passwordChangeQueueService.encryptPassword("Test1234-" + i);
+								person.setStudentPassword(encrypted);
+							}
+							catch (Exception ignored) {
+								;
+							}
+						}
+						else {
+							SchoolRole schoolRole = new SchoolRole();
+							schoolRole.setInstitutionId("12345678");
+							schoolRole.setInstitutionName("Folkeskolen");
+							schoolRole.setPerson(person);
+							schoolRole.setRole(SchoolRoleValue.STUDENT);
+							schoolRole.setSchoolClasses(new ArrayList<>());
+							
+							SchoolRoleSchoolClassMapping mapping = new SchoolRoleSchoolClassMapping();
+							mapping.setSchoolClass(class7B);
+							mapping.setSchoolRole(schoolRole);
+							schoolRole.getSchoolClasses().add(mapping);
+							
+							person.setSchoolRoles(new ArrayList<>());
+							person.getSchoolRoles().add(schoolRole);
+						}
+					}
 					
 					persons.add(person);
 				}
@@ -236,7 +330,7 @@ public class DevBootstrapper {
 		List<Person> all = personDao.findAll();
 		for (Person person : all) {
 			person.setNsisLevel(NSISLevel.SUBSTANTIAL);
-			person.setNsisPassword(encoder.encode("Test123456"));
+			person.setPassword(encoder.encode("Test123456"));
 		}
 
 		personDao.saveAll(all);

@@ -3,8 +3,6 @@ package dk.digitalidentity.controller;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-
 import org.opensaml.saml.common.SAMLException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +27,7 @@ import dk.digitalidentity.common.service.TUTermsAndConditionsService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.security.SecurityUtil;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Controller
 @PropertySource("classpath:git.properties")
@@ -50,14 +49,14 @@ public class DefaultController implements ErrorController {
 	@Autowired
 	private OS2faktorConfiguration config;
 	
-	@Value(value = "${git.commit.id.abbrev}")
+	@Value(value = "${git.commit.id.abbrev:}")
 	private String gitCommitId;
 
-	@Value(value = "${git.build.time}")
+	@Value(value = "${git.build.time:}")
 	private String gitBuildTime;
 	
 	@GetMapping("/")
-	public String defaultPage() {
+	public String defaultPage(Model model, HttpServletRequest request) {
 		if (securityUtil.isAuthenticated()) {
 			if (securityUtil.hasAnyAdminRole()) {
 				return "redirect:/admin";
@@ -70,6 +69,8 @@ public class DefaultController implements ErrorController {
 		if (config.isLandingPageEnabled()) {
 			return "landingpage/index";
 		}
+
+		model.addAttribute("httpServletRequestRequestUrl", request.getRequestURL().toString());
 
 		return "index";
 	}

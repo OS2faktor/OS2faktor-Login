@@ -353,8 +353,8 @@ public class PersonService {
 		return personAuthorityRoles;
 	}
 
-	// this method does some heavy lifting, so only call from UI when listing students
-	public List<Person> getStudentsThatPasswordCanBeChangedOnByPerson(Person person) {
+	// this method does some heavy lifting, so only call from UI when listing students (optionalClassFilter can be null)
+	public List<Person> getStudentsThatPasswordCanBeChangedOnByPerson(Person person, SchoolClass optionalClassFilter) {
 		List<Person> result = new ArrayList<>();
 		List<SchoolRole> personAuthorityRoles = getSchoolRolesThatAllowChangingPassword(person);
 
@@ -409,6 +409,13 @@ public class PersonService {
 					// check for same institution, otherwise not relevant (cross-institution is never allowed)
 					if (!role.getInstitutionId().equals(loggedInPersonSchoolRole.getInstitutionId())) {
 						continue;
+					}
+					
+					// if an optional filter is supplied, ignore any studentRole that does not point to the class we are filtering on
+					if (optionalClassFilter != null) {
+						if (!role.getSchoolClasses().stream().anyMatch(r -> r.getSchoolClass().getId() == optionalClassFilter.getId())) {
+							continue;
+						}
 					}
 
 					switch (roleSetting.getType()) {
@@ -465,7 +472,7 @@ public class PersonService {
 	public void badPasswordAttempt(Person person, boolean isWCP) {
 		auditLogger.badPassword(person, isWCP);
 		person.setBadPasswordCount(person.getBadPasswordCount() + 1);
-		PasswordSetting setting = passwordSettingService.getSettingsCached(person.getDomain());
+		PasswordSetting setting = passwordSettingService.getSettings(person);
 
 		if (person.getBadPasswordCount() >= setting.getTriesBeforeLockNumber()) {
 			auditLogger.tooManyBadPasswordAttempts(person, setting.getLockedMinutes());
@@ -476,8 +483,8 @@ public class PersonService {
 		save(person);
 	}
 
-	public void correctPasswordAttempt(Person person, boolean authenticatedWithADPassword, boolean expired, boolean againstCache) {
-		auditLogger.goodPassword(person, authenticatedWithADPassword, expired, againstCache);
+	public void correctPasswordAttempt(Person person, boolean authenticatedWithADPassword, boolean expired) {
+		auditLogger.goodPassword(person, authenticatedWithADPassword, expired);
 		if (person.getBadPasswordCount() > 0) {
 			person.setBadPasswordCount(0L);
 
@@ -521,7 +528,12 @@ public class PersonService {
 		boolean replicateToAD = false;
 		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
 		
-		// if not flagged with bypass, attempt to change password in Active Directory
+		/*
+		 * we normally want to replicate the password change to Active Directory, but in certain cases we skip this
+		 * - caller explicitly blocks replication (bypassReplication == true)
+		 * - the person is prohibited from changing password in AD (person.isDoNotReplicatePassword() == true)
+		 * - the person is from a domain that does not have a backend AD (person.getDomain().isStandalone == true)
+		 */
 		if (!bypassReplication && !person.isDoNotReplicatePassword() && !person.getDomain().isStandalone()) {
 			if (StringUtils.hasLength(person.getSamaccountName())) {
 				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword, forceChangePassword);
@@ -567,33 +579,28 @@ public class PersonService {
 		passwordHistory.setPassword(encodedPassword);
 		passwordHistoryService.save(passwordHistory);
 
-		// set new password locally if NSIS is enabled for this user
-		boolean nsisPasswordChanged = false;
-		if (person.isNsisAllowed()) {
-			person.setNsisPassword(encodedPassword);
-			person.setNsisPasswordTimestamp(LocalDateTime.now());
-			person.setLockedPassword(false);
-			person.setLockedPasswordUntil(null);
-
-			nsisPasswordChanged = true;
-
-			save(person);
-		}
+		// set new password locally
+		person.setPassword(encodedPassword);
+		person.setPasswordTimestamp(LocalDateTime.now());
+		person.setLockedPassword(false);
+		person.setLockedPasswordUntil(null);
+		
+		// reset bad-password indicator
+		person.setBadPassword(false);
+		person.setBadPasswordDeadlineTts(null);
+		person.setBadPasswordReason(null);
 
 		// if the changePassword was performed with a requested change-password-on-next-login, set that flag,
 		// otherwise remove the flag if set already
-		if (forceChangePassword && StringUtils.hasLength(person.getNsisPassword())) {
+		if (forceChangePassword) {
 			person.setForceChangePassword(true);
-			save(person);
 		}
 		else if (person.isForceChangePassword()) {
 			person.setForceChangePassword(false);
-			save(person);
 		}
 
 		// for students in Indskoling and SpecialNeeds classes we keep an encrypted copy for local usage,
-		// and if the domain is standalone we only keep the password locally, there's no NSIS password
-		if (isStudentInIndskolingOrSpecialNeedsClass(person) || person.getDomain().isStandalone()) {
+		if (isStudentInIndskolingOrSpecialNeedsClass(person)) {
 			try {
 				String encrypted = passwordChangeQueueService.encryptPassword(newPassword);
 				if (encrypted == null) {
@@ -608,6 +615,8 @@ public class PersonService {
 			}
 		}
 
+		save(person);
+
 		// auditlog it
 		if (parentCpr != null) {
 			auditLogger.changePasswordByParent(person, parentCpr);
@@ -616,7 +625,7 @@ public class PersonService {
 			auditLogger.changePasswordByAdmin(admin, person, replicateToAD);
 		}
 		else {
-			auditLogger.changePasswordByPerson(person, nsisPasswordChanged, replicateToAD);
+			auditLogger.changePasswordByPerson(person, replicateToAD);
 		}
 
 		return adPasswordStatus;
@@ -758,8 +767,6 @@ public class PersonService {
 		person.setNsisLevel(NSISLevel.NONE);
 		person.setApprovedConditions(false);
 		person.setApprovedConditionsTts(null);
-		person.setNsisPassword(null);
-		person.setNsisPasswordTimestamp(null);
 	}
 
 	public static String getUsername(Person person) {
@@ -854,7 +861,7 @@ public class PersonService {
 	
 	@Transactional
 	public void cleanupOldStudentsPasswords() {
-		if (!commonConfiguration.getStilStudent().isEnabled() || commonConfiguration.getStilStudent().isIndskolingSpecialEnabled()) {
+		if (!commonConfiguration.getStilStudent().isEnabled()) {
 			return;
 		}
 		
@@ -870,9 +877,10 @@ public class PersonService {
 			}
 		}
 	}
+
 	@Transactional
 	public void resetNSISLevelOnIncompleteActivations(){
-		List<Person> peopleToFix = personDao.findByNsisLevelAndNsisPasswordNull(NSISLevel.SUBSTANTIAL);
+		List<Person> peopleToFix = personDao.findByNsisLevelAndPasswordNull(NSISLevel.SUBSTANTIAL);
 		for (Person p : peopleToFix) {
 			p.setNsisLevel(NSISLevel.NONE);
 		}
@@ -976,5 +984,9 @@ public class PersonService {
 		}
 		
 		return LocalDate.of(century + yearPart, monthPart, datePart);
+	}
+
+	public List<Person> getByExternalNemloginUserUuid(String uuid) {
+		return personDao.findByExternalNemloginUserUuid(uuid);
 	}
 }

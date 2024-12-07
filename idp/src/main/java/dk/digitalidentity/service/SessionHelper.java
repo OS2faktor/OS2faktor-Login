@@ -19,15 +19,7 @@ import java.util.stream.Collectors;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
 
-import dk.digitalidentity.common.dao.model.SessionSetting;
-import dk.digitalidentity.controller.dto.ClaimValueDTO;
-import dk.digitalidentity.controller.dto.LoginRequest;
-import dk.digitalidentity.controller.dto.LoginRequestDTO;
-import dk.digitalidentity.samlmodule.util.SessionConstant;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import org.joda.time.DateTime;
 import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.io.UnmarshallingException;
@@ -47,6 +39,7 @@ import org.w3c.dom.Element;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
@@ -54,8 +47,16 @@ import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.controller.dto.ClaimValueDTO;
+import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.controller.dto.LoginRequestDTO;
+import dk.digitalidentity.samlmodule.util.SessionConstant;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.ResponderException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -142,7 +143,8 @@ public class SessionHelper {
 		setAuthenticatedWithNemIdOrMitId(false);
 		setPasswordChangeFailureReason(null);
 		setInDedicatedActivateAccountFlow(false);
-		
+		setInEntraMfaFlow(null, null);
+
 		if (clearPasswordChangeSuccessRedirect) {
 			setPasswordChangeSuccessRedirect(null);
 		}
@@ -185,9 +187,14 @@ public class SessionHelper {
 			return;
 		}
 
+		// when password level is set, we blank mfa.level, as MFA authentication comes AFTER pwd-auth,
+		// and when NULL'ing password-level, we should also NULL mfa-level
+		setMFALevel(null);
+
 		if (nsisLevel == null) {
 			httpServletRequest.getSession().setAttribute(Constants.PASSWORD_AUTHENTIFICATION_LEVEL, null);
 			setPasswordLevelTimestamp(null);
+
 			return;
 		}
 
@@ -579,7 +586,9 @@ public class SessionHelper {
 			return null;
 		}
 
-		Object attribute = httpServletRequest.getSession().getAttribute(Constants.PERSON_ID);
+		Object attribute = (isInEntraMfaFlow())
+				? httpServletRequest.getSession().getAttribute(Constants.ENTRAID_MFA_PERSON)
+				: httpServletRequest.getSession().getAttribute(Constants.PERSON_ID);
 
 		if (attribute != null) {
 			long personId = (long) attribute;
@@ -1385,7 +1394,8 @@ public class SessionHelper {
 		setInNemIdOrMitIDAuthenticationFlow(false);
 		setInChoosePasswordResetOrUnlockAccountFlow(false);
 		setInSelectClaimsFlow(false);
-
+		setInEntraMfaFlow(null, null);
+		
 		// bit of a special case, but we ONLY use this field for the login-flow, so it IS a flow-state
 		setNemIDMitIDNSISLevel(null);
 	}
@@ -1578,5 +1588,53 @@ public class SessionHelper {
 		}
 
 		return Math.max(sessionSettingService.getSettings(person.getDomain()).getMfaExpiry(), 10);
+	}
+
+	public boolean isInEntraMfaFlow() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return false;
+		}
+
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.ENTRAID_MFA_IN_FLOW);
+		return (boolean) (attribute != null ? attribute : false);
+	}
+
+	// no AuthnRequst, so no exception - ignore by adding sneaky throws
+	@SneakyThrows
+	public void setInEntraMfaFlow(Person person, LoginRequest loginRequest) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (person == null || loginRequest == null) {
+			httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_IN_FLOW, false);
+			httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_PERSON, null);
+			
+			if (log.isDebugEnabled()) {
+				log.debug("setInEntraMfaFlow: false");
+			}
+
+			return;
+		}
+
+		httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_IN_FLOW, true);
+		httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_PERSON, person.getId());
+		setLoginRequest(loginRequest);
+
+		if (log.isDebugEnabled()) {
+			log.debug("setInEntraMfaFlow: true");
+		}
+	}
+
+	// should be called at the start of a new login, so we clear any residual states
+	public void prepareNewLogin() {
+		// make sure any previous MFA login from EntraID MFA is cleared
+		if (isInEntraMfaFlow()) {
+			setMFALevel(null);
+		}
+
+		clearFlowStates();
 	}
 }

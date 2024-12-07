@@ -36,6 +36,7 @@ public class EmailTemplateService {
 	
 	// full service IdP only
 	public static final String MUNICIPALITY_PLACEHOLDER = "{kommune}";
+	public static final String MUNICIPALITY_CONTACT_LOCATION = "{kontaktpunkt}";
 	public static final String ACTIVATION_LINK_PLACEHOLDER = "{aktiveringslink}";
 	public static final String LOGO_PLACEHOLDER = "{logo}";
 	
@@ -186,15 +187,19 @@ public class EmailTemplateService {
 				title = "Brugerkonto oprettet";
 				message = "Kære {modtager}\n<br/>\n<br/>Du er blevet tildelt en brugerkonto.<br/><br/>\n\nDit brugernavn er: {brugernavn}<br/><br/>\n\n";
 				break;
+			case PASSWORD_LEAKED:
+				title = "Kodeord ikke sikkert";
+				message = "Kære {modtager}\n<br/>\n<br/>Dit kodeord til nedenstående brugerkonto, er blevet fundet i lister med lækkede kodeord. Det anbefales at du får skiftet dit kodeord så snart som muligt.<br/><br/>\n\nDit brugernavn er: {brugernavn}<br/><br/>\n\n";
+				break;
 			case FULL_SERVICE_IDP_ASSIGNED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet tildelt";
-				message = "<b>Til {modtager}</b><br/><br/>Du er blevet tildelt en erhvervsidentitet af {kommune}, som er knyttet til din it-konto {brugernavn}.<br/><br/>Før du kan anvende din erhvervsidentitet skal den aktiveres. Aktiveringen foretages ved at logge ind på nedenstående aktiveringsside, og anvende dit MitID til at gennemføre aktiveringen.<br/><br/><b>Aktivering</b>\n<br/><a href=\"{aktiveringslink}\">Klik her for at aktivere din erhvervsidentitet</a><br/><br/>Med venlig hilsen<br/>{kommune}<br/>{logo}";
+				message = "<b>Kære {modtager}</b><br/><br/>Du har fået tildelt en erhvervsidentitet i {kommune}.<br/><br/>En erhvervsidentitet er nødvendig for at tilgå en række af it-systemer som anvendes i {kommune}. Din erhvervsidentitet skal aktiveres, før den kan anvendes. Dette gøres via nedenstående link.<br/><br/>{aktiveringslink}<br/><br/>I forbindelse med aktiveringen skal du validere dig med dit MitID.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}";
 				break;
 			case FULL_SERVICE_IDP_REMOVED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet spærret";
-				message = "<b>Til {modtager}</b><br/><br/>Din erhvervsidentitet knyttet til din it-konto {brugernavn}, er blevet spærret af {kommune}.<br/><br/>Med venlig hilsen<br/>{kommune}<br/>{logo}<br/>";
+				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommunen}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
 				break;
 		}
 
@@ -264,6 +269,7 @@ public class EmailTemplateService {
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.ACTIVATION_LINK_PLACEHOLDER, commonConfiguration.getSelfService().getBaseUrl());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_PLACEHOLDER, commonConfiguration.getEmail().getFromName());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_CONTACT_LOCATION, commonConfiguration.getCustomer().getContactLocationForMails());
 
 		String logo = bundle.getText("cms.logo");
 		if (StringUtils.hasLength(logo)) {

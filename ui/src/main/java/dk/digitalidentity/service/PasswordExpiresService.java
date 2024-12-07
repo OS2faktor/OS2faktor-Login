@@ -46,25 +46,17 @@ public class PasswordExpiresService {
 
 		for (Person person : personService.getAll()) {
 			boolean notify = false;
-			PasswordSetting settings = passwordSettingService.getSettings(person.getDomain());
+			PasswordSetting settings = passwordSettingService.getSettings(person);
 			
-			if (person.hasActivatedNSISUser() && settings.isForceChangePasswordEnabled() && person.getNsisPasswordTimestamp() != null) {
-				LocalDateTime expiredTimestamp = person.getNsisPasswordTimestamp().plusDays(settings.getForceChangePasswordInterval());
+			if (settings.isForceChangePasswordEnabled() && person.getPasswordTimestamp() != null) {
+				LocalDateTime expiredTimestamp = person.getPasswordTimestamp().plusDays(settings.getForceChangePasswordInterval());
 				LocalDateTime almostExpiredTimestamp = expiredTimestamp.minusDays(reminderDaysBeforeExpired);
 
 				if (LocalDate.now().equals(almostExpiredTimestamp.toLocalDate())) {
 					notify = true;
 				}
 			}
-			
-			if (person.getNextPasswordChange() != null) {
-				LocalDateTime almostExpiredTimestamp = person.getNextPasswordChange().minusDays(reminderDaysBeforeExpired);
 
-				if (LocalDate.now().equals(almostExpiredTimestamp.toLocalDate())) {
-					notify = true;
-				}
-			}
-			
 			if (notify) {
 				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PASSWORD_EXPIRES);
 				for (EmailTemplateChild child : emailTemplate.getChildren()) {

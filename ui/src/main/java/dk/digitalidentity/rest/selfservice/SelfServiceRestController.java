@@ -5,10 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
-import javax.validation.Valid;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
@@ -43,6 +39,9 @@ import dk.digitalidentity.rest.selfservice.dto.MfaRenameRequest;
 import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.MFAManagementService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

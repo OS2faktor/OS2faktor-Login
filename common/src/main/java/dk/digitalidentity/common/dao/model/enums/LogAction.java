@@ -53,6 +53,7 @@ public enum LogAction {
 	DELETED_FROM_DATASET("enum.logaction.deletedFromDataset", ReportType.GENERAL_HISTORY),
 	CHANGED_NSIS_ALLOWED("enum.logaction.nsisAllowed", ReportType.GENERAL_HISTORY),
 	CHANGED_TRANSFER_TO_NEMLOGIN("enum.logaction.transferToNemlogin", ReportType.GENERAL_HISTORY),
+	CHANGED_ALLOW_PRIVATE_MITID("enum.logaction.allowPrivateMitID", ReportType.GENERAL_HISTORY),
 	CHANGE_PASSWORD("enum.logaction.changePassword", ReportType.GENERAL_HISTORY),
 	CHANGE_PASSWORD_FAILED("enum.logaction.changePasswordFailed", ReportType.GENERAL_HISTORY),
 	ASSOCIATE_MFA("enum.logaction.associateMfa", ReportType.GENERAL_HISTORY),

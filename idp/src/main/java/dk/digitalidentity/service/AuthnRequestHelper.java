@@ -24,6 +24,10 @@ public class AuthnRequestHelper {
 
 		if (!StringUtils.hasLength(assertionConsumerServiceURL)) {
 			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+			if (serviceProvider == null) {
+				throw new ResponderException("Kunne ikke finde AssertionConsumerServiceURL fordi tjenesteudbyderen ikke var gyldig");
+			}
+
 			assertionConsumerServiceURL = serviceProvider.getMetadata().getSPSSODescriptor(SAMLConstants.SAML20P_NS).getDefaultAssertionConsumerService().getLocation();
 		}
 

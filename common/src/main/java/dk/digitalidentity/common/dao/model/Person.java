@@ -1,28 +1,10 @@
 package dk.digitalidentity.common.dao.model;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import javax.persistence.CascadeType;
-import javax.persistence.CollectionTable;
-import javax.persistence.Column;
-import javax.persistence.ElementCollection;
-import javax.persistence.Entity;
-import javax.persistence.EnumType;
-import javax.persistence.Enumerated;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.MapKeyColumn;
-import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
-import javax.persistence.Table;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
 
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.envers.Audited;
@@ -31,8 +13,27 @@ import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -121,6 +122,10 @@ public class Person {
 
 	@Column
 	private boolean lockedExpired;
+	
+	// flag that is set on users that have a more strict password policy
+	@Column
+	private boolean trustedEmployee;
 
 	@Column
 	private LocalDateTime expireTimestamp;
@@ -135,14 +140,28 @@ public class Person {
 
 	@Size(max = 255)
 	@Column
-	private String nsisPassword;
+	private String password;
 
 	@Column
-	private LocalDateTime nsisPasswordTimestamp;
+	private LocalDateTime passwordTimestamp;
 
 	@Column
 	private boolean doNotReplicatePassword;
 
+	@NotAudited
+	@Column
+	private LocalDate badPasswordLeakCheckTts;
+	
+	@Column
+	private boolean badPassword;
+	
+	@Enumerated(EnumType.STRING)
+	@Column
+	private BadPasswordReason badPasswordReason;
+	
+	@Column
+	private LocalDate badPasswordDeadlineTts;
+	
 	@Column
 	private String samaccountName;
 
@@ -156,6 +175,9 @@ public class Person {
 	
 	@Column
 	private boolean transferToNemlogin;
+
+	@Column
+	private boolean privateMitId;
 	
 	@Column
 	private boolean cprNameUpdated;
@@ -165,11 +187,13 @@ public class Person {
 	
 	@Column
 	private String nemloginUserUuid;
-
-	// Important to note that this field is an expiry date, NOT a "when-was-the-password-set"-date which is how nsisPasswordTimestamp works.
-	@NotAudited
+	
+	// special field used to store the UUID from MitID Erhverv on external consultants, that are
+	// allowed to use their corporate MitID to activate/reset the account. This requires that the
+	// corporate account is registered at NSIS Substantial and that the CPR number is registered on
+	// it, as we need to store that for other purposes (cpr name/civilstate validation, digital post integration, etc)
 	@Column
-	private LocalDateTime nextPasswordChange;
+	private String externalNemloginUserUuid;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")

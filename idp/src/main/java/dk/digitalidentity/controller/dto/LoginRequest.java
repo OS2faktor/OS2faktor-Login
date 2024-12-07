@@ -2,11 +2,11 @@ package dk.digitalidentity.controller.dto;
 
 import java.util.Objects;
 
-import dk.digitalidentity.controller.wsfederation.dto.WSFedRequestDTO;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 
 import dk.digitalidentity.common.dao.model.enums.Protocol;
+import dk.digitalidentity.controller.wsfederation.dto.WSFedRequestDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -35,6 +35,7 @@ public class LoginRequest {
 	// protocol specific
 	private AuthnRequest authnRequest;
 	private OAuth2AuthorizationCodeRequestAuthenticationToken token;
+	private EntraPayload entraPayload;
 
 	public LoginRequest(AuthnRequest authnRequest, String userAgent) {
 		protocol = Protocol.SAML20;
@@ -56,13 +57,13 @@ public class LoginRequest {
 	}
 
 	public LoginRequest(OAuth2AuthorizationCodeRequestAuthenticationToken token, String userAgent) {
-		protocol = Protocol.OIDC10;
-		serviceProviderId = token.getClientId();
-		returnURL = token.getRedirectUri();
-		destination = token.getAuthorizationUri();
-		forceAuthn = false;
-		passive = false;
-		requireBrokering = false;
+		this.protocol = Protocol.OIDC10;
+		this.serviceProviderId = token.getClientId();
+		this.returnURL = token.getRedirectUri();
+		this.destination = token.getAuthorizationUri();
+		this.forceAuthn = false;
+		this.passive = false;
+		this.requireBrokering = false;
 		this.userAgent = userAgent;
 		this.token = token;
 	}
@@ -94,5 +95,16 @@ public class LoginRequest {
 		this.relayState = loginRequestDTO.getRelayState();
 		this.userAgent = userAgent;
 		this.authnRequest = authnRequest;
+		this.entraPayload = loginRequestDTO.getEntraPayload();
+	}
+
+	public LoginRequest(EntraPayload payload, String userAgent) {
+		this.protocol = Protocol.ENTRAMFA;
+
+		this.entraPayload = payload;
+		this.forceAuthn = false;
+		this.passive = false;
+		this.requireBrokering = false;
+		this.userAgent = userAgent;
 	}
 }

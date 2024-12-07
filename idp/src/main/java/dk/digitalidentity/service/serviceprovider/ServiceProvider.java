@@ -153,6 +153,8 @@ public abstract class ServiceProvider {
         try {
             HTTPMetadataResolver resolver = new HTTPMetadataResolver(httpClient, metadataURL);
             resolver.setId(entityId);
+            // allow expired metadata
+            resolver.setRequireValidMetadata(false);
             
             resolver.setMinRefreshDelay(3 * 60 * 60 * 1000);
             resolver.setMaxRefreshDelay(3 * 60 * 60 * 1000);

@@ -10,8 +10,7 @@ namespace OS2faktorADSync
 {
     class Program
     {
-        static int hour = 2;
-        static int minute = 0;
+        static string cron = "";
 
         static void Main(string[] args)
         {
@@ -45,7 +44,7 @@ namespace OS2faktorADSync
                     s.ScheduleQuartzJob(q =>
                         q.WithJob(() => JobBuilder.Create<ResetDirSyncJob>().Build())
                             .AddTrigger(() => TriggerBuilder.Create()
-                            .WithCronSchedule("0 " + minute + " " + hour + " ? * * *")
+                            .WithCronSchedule(cron)
                         .Build()));
 
                     string kombitCron = Settings.GetStringValue("Scheduled.Kombit.cron");
@@ -130,7 +129,17 @@ namespace OS2faktorADSync
 
         private static void InitCronSchedule()
         {
-            // use password as random seed
+            // explicit set Cron value
+            string overrideCron = Settings.GetStringValue("SyncJob.FullSyncOverrideCron");
+            if (!string.IsNullOrEmpty(overrideCron))
+            {
+                cron = overrideCron;
+                return;
+            }
+
+            // use password as random seed, then fuzz a bit
+            int hour = 2;
+            int minute = 0;
             string tmp = Settings.GetStringValue("Backend.Password");
             if (!string.IsNullOrEmpty(tmp) && tmp.Length >= 2)
             {
@@ -142,6 +151,8 @@ namespace OS2faktorADSync
 
                 if (hour == 5) { minute += 30; }
             }
+
+            cron = "0 " + minute + " " + hour + " ? * * *";
         }
     }
 }

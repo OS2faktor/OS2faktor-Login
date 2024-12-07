@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="~{fragments/header :: header}"></head>
+<body>
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<h1 th:text="${className}"></h1>
+			<div class="row">
+				<table class="table table-striped">
+					<thead>
+						<tr>
+							<th>Elev</th>
+							<th style="width: 300px">Brugernavn</th>
+							<th th:if="${withPassword}" style="width: 300px">Kodeord</th>
+						</tr>
+					</thead>
+					
+					<tbody>
+						<tr th:each="student : ${students}">
+							<td th:text="${student.name}"></td>
+							<td th:text="${student.samaccountName}"></td>
+							<td th:if="${withPassword}" th:text="${student.password}"></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+	
+	<style>
+	@page { margin: 0; }
+	@media print {
+  		@page { margin: 0; }
+  		body { margin: 1.6cm; }
+	}
+	</style>
+
+	<div th:replace="~{fragments/footer :: scripts}"></div>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		var printService;
+		$(document).ready(function(){
+			printService = new PrintService();
+			printService.init();
+		});
+		
+		function PrintService() {
+			this.init = function() {
+				print();
+			}
+		}
+		/*]]>*/
+	</script>
+</body>
+</html>

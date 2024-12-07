@@ -9,10 +9,8 @@ import lombok.Setter;
 @Setter
 @Getter
 public class IdPKeystoreConfiguration {
+	// this is only ever used for bootstrapping - the certificate is loaded into the database, and then this setting
+	// is never used again.
 	private String location;
 	private String password;
-	
-	// temporary code until NSIS-533 is merged
-	private String secondaryLocation;
-	private String secondaryPassword;
 }

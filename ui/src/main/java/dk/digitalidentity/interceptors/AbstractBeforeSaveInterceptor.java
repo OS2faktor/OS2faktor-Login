@@ -15,7 +15,9 @@ import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.NemloginQueueService;
+import dk.digitalidentity.common.service.SettingService;
 
 @Component
 public class AbstractBeforeSaveInterceptor {
@@ -31,6 +33,9 @@ public class AbstractBeforeSaveInterceptor {
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+	
+	@Autowired
+	private SettingService settingService;
 
 	@Transactional
 	public void handleSavePerson(Person person) {
@@ -64,7 +69,7 @@ public class AbstractBeforeSaveInterceptor {
 
 					if (oldTransferToNemlogin && !transferToNemlogin) {
 						// deactivate - no reason to perform any other updates
-						
+
 						actions.add(new NemloginQueue(person, NemloginAction.SUSPEND));
 					}
 					else if (!oldTransferToNemlogin && transferToNemlogin) {
@@ -74,9 +79,17 @@ public class AbstractBeforeSaveInterceptor {
 					}
 					else if (transferToNemlogin) {
 						// generic updates on single fields
-						
+
 						if (!Objects.equals(oldPerson.getEmail(), person.getEmail())) {
 							actions.add(new NemloginQueue(person, NemloginAction.CHANGE_EMAIL));
+						}
+					}
+
+					if (commonConfiguration.getNemLoginApi().isPrivateMitIdEnabled() && settingService.getBoolean(SettingKey.MIGRATED_PRIVATE_MITID)) {
+						boolean oldPrivateMitId = oldPerson.isPrivateMitId() && oldTransferToNemlogin;
+						boolean privateMitId = person.isPrivateMitId() && transferToNemlogin;
+						if (!Objects.equals(oldPrivateMitId, privateMitId)) {
+							actions.add(new NemloginQueue(person, privateMitId ? NemloginAction.ASSIGN_PRIVATE_MIT_ID : NemloginAction.REVOKE_PRIVATE_MIT_ID));
 						}
 					}
 				}

@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import javax.transaction.Transactional;
-
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
@@ -23,6 +21,7 @@ import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.dto.AuditLogDTO;
+import jakarta.transaction.Transactional;
 
 @Service
 public class AuditLogReportXlsService {
