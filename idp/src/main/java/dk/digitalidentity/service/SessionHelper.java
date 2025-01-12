@@ -30,6 +30,7 @@ import org.opensaml.saml.saml2.core.impl.AuthnRequestUnmarshaller;
 import org.opensaml.saml.saml2.core.impl.LogoutRequestMarshaller;
 import org.opensaml.saml.saml2.core.impl.LogoutRequestUnmarshaller;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestAttributes;
@@ -42,6 +43,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.KnownNetworkService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SessionSettingService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
@@ -81,6 +83,9 @@ public class SessionHelper {
 
 	@Autowired
 	private SessionSettingService sessionSettingService;
+	
+	@Autowired
+	private KnownNetworkService knownNetworkService;
 	
 	public NSISLevel getLoginState() {
 		return getLoginState(null, null);
@@ -444,7 +449,7 @@ public class SessionHelper {
 		}
 
 		// Get stored IP
-		Object attribute = httpServletRequest.getSession().getAttribute(Constants.IP_ADDRESS);
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.IP_ADDRESS);	
 
 		// Validate IP against one stored on session
 		if (attribute == null) {
@@ -453,7 +458,13 @@ public class SessionHelper {
 			return true;
 		}
 		else {
+			final String finalAddr = remoteAddr;
+
 			if (Objects.equals((String) attribute, remoteAddr)) {
+				return true;
+			}
+			else if (knownNetworkService.getAllIPs().stream().map(IpAddressMatcher::new).toList().stream().anyMatch(ip -> ip.matches(finalAddr))) {
+				//checks if new IP is in knownNetwork and passes if so
 				return true;
 			}
 			else {

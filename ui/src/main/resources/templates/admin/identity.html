@@ -104,9 +104,17 @@
 									<h5><em class="fa fa-mobile"></em> &nbsp; 2-faktor enheder</h5>
 								</div>
 	
-								<div id="mfa-devices-holder" class="ibox-content">
-									<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
-										<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+								<div class="ibox-content">
+									<div id="mfa-devices-holder">
+										<div style="text-align: center; padding-top: 20px; padding-bottom: 20px;">
+											<i class="fa fa-spinner fa-pulse fa-3x fa-fw"></i>
+										</div>
+									</div>
+									
+									<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
+										<a id="RobotMFABtn" th:if="${form.isRobot} and @{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" onclick="roboClientService.register()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px; color: white;">
+											<em class="fa fa-android"></em> &nbsp; Tilføj Robot MFA
+										</a>
 									</div>
 								</div>
 							</div>
@@ -245,8 +253,10 @@
 		var token = $("meta[name='_csrf']").attr("content");
 
 		var clientService;
+		var roboClientService;
 		$(document).ready(function(){
 			clientService = new ClientService();
+			roboClientService = new RoboClientService();
 			var eventLogTable = $('#eventlog').DataTable({
 				"destroy": true,
 				"ajax": {
@@ -426,13 +436,57 @@
 							clientService.loadMfaDevicesDataTable();
 							toastr.success("Enheden er slettet");
 						}).fail(function(jqXHR, textStatus, errorThrown) {
+							console.log(textStatus);
 							toastr.warning("Der opstod en teknisk fejl");
 						});
 					}
 				});
 			}
 		}
-		
+
+		function RoboClientService () {
+			this.register = function() {
+				swal({
+					title: 'Tilføj MFA?',
+					text: 'Ønsker du at tilføje en MFA klient til denne robot?',
+					showCancelButton: true,
+					confirmButtonColor: "#1ab394",
+					confirmButtonText: 'Ja',
+					cancelButtonText: 'Nej',
+					closeOnConfirm: true,
+					closeOnCancel: true
+				 },
+				 function (isConfirm) {
+					if (isConfirm) {
+						setTimeout(function() {
+							$.ajax({
+								method: "POST",
+								url: "/admin/robotMFA/register/" + personId,
+								headers: {
+									"content-type": "application/json",
+									'X-CSRF-TOKEN': token
+								}
+							}).done(function (data) {
+								console.log("hey...");
+	
+								swal({
+									title: 'Gem nøgle',
+									text: 'Gem den hemmelige nøgle "' + data + '" - den vises ikke igen. Den skal bruges af RPA udvikleren',
+									confirmButtonColor: "#1ab394",
+									confirmButtonText: 'OK',
+									closeOnConfirm: true
+								 },
+								 function (isConfirm) {
+								 	clientService.loadMfaDevicesDataTable();
+								 });
+							}).fail(function(jqXHR, textStatus, errorThrown) {
+								toastr.error(jqXHR.responseText);
+							});
+						}, 100);
+					}
+				 });
+			}
+		}
 
 		/*]]>*/
 	</script>

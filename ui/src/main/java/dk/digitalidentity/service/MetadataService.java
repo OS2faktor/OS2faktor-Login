@@ -207,6 +207,7 @@ public class MetadataService {
         config.setEnabled(serviceProviderDTO.isEnabled());
         config.setAllowMitidErvhervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
         config.setAllowAnonymousUsers(serviceProviderDTO.isAllowAnonymousUsers());
+        config.setCertificateAlias(serviceProviderDTO.getCertificate());
 
 		if (serviceProviderDTO.getPasswordExpiry() != null && serviceProviderDTO.getMfaExpiry() != null) {
 			Long passwordExpiry = serviceProviderDTO.getPasswordExpiry();

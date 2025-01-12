@@ -13,14 +13,15 @@
     <ROW Property="AI_REQUIRED_DOTNET_DISPLAY" MultiBuildValue="DefaultBuild:2.0" ValueLocId="-"/>
     <ROW Property="AI_REQUIRED_DOTNET_VERSION" MultiBuildValue="DefaultBuild:2.0" ValueLocId="-"/>
     <ROW Property="ALLUSERS" Value="1"/>
+    <ROW Property="ARPCOMMENTS" Value=" (Evaluation)" ValueLocId="*"/>
     <ROW Property="ARPNOMODIFY" Value="1"/>
     <ROW Property="ARPNOREPAIR" Value="1"/>
     <ROW Property="LIMITUI" Value="1"/>
     <ROW Property="Manufacturer" Value="Digital Identity"/>
-    <ROW Property="ProductCode" Value="1030:{0608E12F-9456-4884-958F-AFE16D78595A} 1033:{0608E12F-9456-4884-958F-AFE16D78595A} " Type="16"/>
+    <ROW Property="ProductCode" Value="1030:{7D0F14C1-78FF-4DE4-9DA5-4E7E8DC1C9B3} 1033:{7D0F14C1-78FF-4DE4-9DA5-4E7E8DC1C9B3} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1030"/>
     <ROW Property="ProductName" Value="OS2faktorLogin CredentialProvider"/>
-    <ROW Property="ProductVersion" Value="3.1.4" Type="32"/>
+    <ROW Property="ProductVersion" Value="3.2.0" Type="32"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND"/>
     <ROW Property="UpgradeCode" Value="{90CEC6F9-4C3D-4CA0-B13E-E18FDE712E2C}"/>
     <ROW Property="WindowsType9X" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>

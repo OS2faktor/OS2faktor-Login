@@ -13,6 +13,7 @@ import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,7 @@ import org.springframework.util.StringUtils;
 import dk.digitalidentity.aws.kms.jce.provider.KmsProvider;
 import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.MetadataController;
 import dk.digitalidentity.samlmodule.service.DISAML_CredentialService;
@@ -39,7 +41,6 @@ import software.amazon.awssdk.services.kms.KmsClient;
 @EnableScheduling
 @Service
 public class KeystoreService {
-	public enum KNOWN_CERTIFICATE_ALIASES { OCES, OCES_SECONDARY, NEMLOGIN, NEMLOGIN_SECONDARY };
 
 	private LocalDateTime lastLoaded = LocalDateTime.of(1970, 1, 1, 0, 0);
 	private boolean initialized = false, classInitialized = false;
@@ -111,18 +112,39 @@ public class KeystoreService {
 		KmsProvider kmsProvider = new KmsProvider(kmsClient);			
 		Security.addProvider(kmsProvider);
 
-		// TODO: this code can go away when we move 100% to KMS created keystores
 		// bootstrap database if empty
-		if (keystoreDao.findAll().size() == 0) {
+		List<Keystore> keystores = keystoreDao.findAll();
+		if (keystores.size() == 0) {
 			Keystore primaryKeystore = getKeystoreFromConfiguration(configuration.getKeystore().getLocation(), configuration.getKeystore().getPassword(), true);
+			
+			// TODO: this code can go away when we move 100% to KMS created keystores
+			// make sure we have a NemLog-in Keystore as well			
 			if (primaryKeystore != null) {
 				keystoreDao.save(primaryKeystore);
 				
 				// save a copy of the same information for the NemLogin keystore
 				primaryKeystore.setId(0);
-				primaryKeystore.setAlias(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN.toString());
+				primaryKeystore.setAlias(KnownCertificateAliases.NEMLOGIN.toString());
 				keystoreDao.save(primaryKeystore);
 			}
+		}
+		else {
+			// TODO: this code can go away when we move 100% to KMS created keystores
+			// make sure we have a NemLog-in Keystore as well
+			if (!keystores.stream().anyMatch(k -> Objects.equals(k.getAlias(), KnownCertificateAliases.NEMLOGIN.toString()))) {
+				Keystore oces = keystores.stream().filter(k -> Objects.equals(k.getAlias(), KnownCertificateAliases.OCES.toString())).findFirst().orElse(null);
+				if (oces != null) {
+					// save a non-KMS version of this keystore
+					oces.setId(0);
+					oces.setKms(false);
+					oces.setKmsAlias(null);
+					oces.setAlias(KnownCertificateAliases.NEMLOGIN.toString());
+					keystoreDao.save(oces);					
+				}
+				else {
+					log.error("Unable to find an OCES keystore in keystores table to migrate to a NemLog-in keystore");
+				}
+			}			
 		}
 		
 		classInitialized = true;
@@ -260,7 +282,7 @@ public class KeystoreService {
 			keystore.setKeystore(content);
 			keystore.setLastUpdated(LocalDateTime.now());
 			keystore.setPassword(password);
-			keystore.setAlias("OCES");
+			keystore.setAlias(KnownCertificateAliases.OCES.toString());
 			keystore.setExpires(expires);
 			keystore.setSubjectDn(subject);
 

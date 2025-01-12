@@ -3,6 +3,7 @@ package dk.digitalidentity.mvc.admin;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +19,7 @@ import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
@@ -90,11 +92,14 @@ public class ServiceProviderController {
 		
 		List<Keystore> keystores = keystoreService.findAll();
 		for (Keystore keystore : keystores) {
-			if (keystore.isPrimary()) {
+			if (Objects.equals(keystore.getAlias(), KnownCertificateAliases.OCES.toString())) {
 				model.addAttribute("primaryCertName", keystore.getSubjectDn());
 			}
-			else if (keystore.isSecondary()) {
+			else if (Objects.equals(keystore.getAlias(), KnownCertificateAliases.OCES_SECONDARY.toString())) {
 				model.addAttribute("secondaryCertName", keystore.getSubjectDn());
+			}
+			else if (Objects.equals(keystore.getAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+				model.addAttribute("selfsignedCertName", keystore.getSubjectDn());
 			}
 		}
 		

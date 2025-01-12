@@ -2,12 +2,15 @@ package dk.digitalidentity.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -101,6 +104,31 @@ public class MFAManagementService {
 		return false;
 	}
 
+	public record RobotMfaRegistrationRequest (String name) {};
+	public record RobotMfaRegistrationResponse (String secret, String deviceId) {};
+
+	public RobotMfaRegistrationResponse robotRegistionRequester(RobotMfaRegistrationRequest request) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		
+		HttpEntity<RobotMfaRegistrationRequest> entity = new HttpEntity<>(request, headers);
+		
+		try {
+			String url = configuration.getMfa().getBaseUrl() + "/api/login/robo/register";
+			
+			ResponseEntity<RobotMfaRegistrationResponse> response = restTemplate.exchange(url, HttpMethod.POST, entity, new ParameterizedTypeReference<RobotMfaRegistrationResponse>() {});
+			
+			return response.getBody();
+		}
+		catch (HttpClientErrorException ex) {
+			log.error("Failed to call MFA robot register endpoint", ex);
+		}
+		
+		return null;
+	}
+	
 	public String authenticateUser(String cpr, NSISLevel nsisLevel, String type) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
@@ -124,7 +152,6 @@ public class MFAManagementService {
 
 		return null;
 	}
-
 
 	public HardwareTokenDTO getHardwareToken(String serial) {
 		HttpHeaders headers = new HttpHeaders();

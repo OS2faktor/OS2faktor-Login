@@ -33,15 +33,15 @@ public class EntraMfaServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) {
-		return person.getAttributes().get("upn");
+		return getUpn(person);
 	}
 
 	@SneakyThrows
 	@Override
 	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
 		Map<String, Object> map = new HashMap<>();
-
-		map.put("upn", person.getAttributes().get("upn"));
+		
+		map.put("upn", getUpn(person));
 
 		return map;
 	}
@@ -135,5 +135,15 @@ public class EntraMfaServiceProvider extends ServiceProvider {
 	@Override
 	public Long getMfaExpiry() {
 		return null;
+	}
+	
+	// different casing across munis, oh well :)
+	private String getUpn(Person person) {
+		String upn = person.getAttributes().get("upn");
+		if (upn == null) {
+			upn = person.getAttributes().get("UPN");
+		}
+		
+		return upn;
 	}
 }

@@ -21,6 +21,7 @@ import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.serviceprovider.StilServiceProviderConfig;
 import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -36,6 +37,9 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Autowired
 	private StilServiceProviderConfig stilConfig;
+	
+	@Autowired
+	private SessionHelper sessionHelper;
 	
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
@@ -97,6 +101,14 @@ public class StilServiceProvider extends ServiceProvider {
 
 		if ("cpr".equals(commonConfig.getStil().getUniloginAttribute())) {
 			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
+		}
+
+		// supplement to LoA, as STIL needs these for mapping to OpenID Connect serviceproviders
+		if (sessionHelper.hasUsedMFA()) {
+			map.put("dk:unilogin:loa", "ToFaktor");
+		}
+		else {
+			map.put("dk:unilogin:loa", "EnFaktor");
 		}
 
 		return map;

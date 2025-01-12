@@ -2,6 +2,7 @@ package dk.digitalidentity.controller;
 
 import java.io.StringWriter;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.opensaml.core.xml.io.MarshallingException;
@@ -37,6 +38,7 @@ import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSOutput;
 import org.w3c.dom.ls.LSSerializer;
 
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.CredentialService;
 import dk.digitalidentity.service.OpenSAMLHelperService;
@@ -58,7 +60,7 @@ public class MetadataController {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
-	@CacheEvict(value = { "primaryCert", "secondaryCert", "IdP_Metadata" }, allEntries = true)
+	@CacheEvict(value = { "primaryCert", "secondaryCert", "selfsignedCert", "IdP_Metadata" }, allEntries = true)
 	public void evictCache() {
 		;
 	}
@@ -88,7 +90,7 @@ public class MetadataController {
 	}
 	
 	@ResponseBody
-	@Cacheable(value = "primaryCert")
+	@Cacheable(value = "secondaryCert")
 	@GetMapping(value = "/sso/saml/secondaryCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
 	public ResponseEntity<StreamingResponseBody> getSecondaryCertificate() throws Exception {		
 		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"os2faktor-idp-secondary.cer\"") 
@@ -112,9 +114,33 @@ public class MetadataController {
 	}
 	
 	@ResponseBody
+	@Cacheable(value = "selfsignedCert")
+	@GetMapping(value = "/sso/saml/selfsignedCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+	public ResponseEntity<StreamingResponseBody> getSelfsignedCertificate() throws Exception {		
+		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"os2faktor-idp-selfsigned.cer\"") 
+			.body(out -> { 
+				try {
+					BasicX509Credential credential = credentialService.getSelfsignedX509Credential();
+					if (credential != null) {
+						out.write(credential.getEntityCertificate().getEncoded());						
+					}
+					else {
+						log.warn("Could not find selfsigned certificate!");
+					}
+				}
+				catch (Exception ex) {
+					log.error("Failed to serialize selfsigned certificate", ex);
+				}
+
+				out.close();
+			} 
+		);
+	}
+	
+	@ResponseBody
 	@Cacheable(value = "IdP_Metadata")
 	@GetMapping(value = "/sso/saml/metadata", produces = MediaType.APPLICATION_XML_VALUE)
-	public String getIdPMetadata(@RequestParam(name = "MitIDErhverv", required = false, defaultValue = "false") boolean mitIDErhverv, @RequestParam(name = "KOMBIT", required = false, defaultValue = "false") boolean kombit) throws ResponderException {
+	public String getIdPMetadata(@RequestParam(name = "MitIDErhverv", required = false, defaultValue = "false") boolean mitIDErhverv, @RequestParam(name = "KOMBIT", required = false, defaultValue = "false") boolean kombit, @RequestParam(name = "cert", required = false, defaultValue = "OCES") String cert) throws ResponderException {
 		EntityDescriptor entityDescriptor = createEntityDescriptor();
 
 		// Create IdPSSODescriptor
@@ -144,20 +170,26 @@ public class MetadataController {
 			}
 		}
 		else {
-			keyDescriptors.add(getKeyDescriptor(UsageType.SIGNING));
-
-			// prefer secondary encryption over primary (even though encryption for IdP's is not super important in metadata)
-			KeyDescriptor secondaryEncryption = getSecondaryKeyDescriptor(UsageType.ENCRYPTION);
-			if (secondaryEncryption != null) {
-				keyDescriptors.add(secondaryEncryption);
+			if (cert != null && !cert.isEmpty() && Objects.equals(cert, KnownCertificateAliases.SELFSIGNED.toString())) {
+				keyDescriptors.add(getSelfsignedKeyDescriptor(UsageType.SIGNING));
+				keyDescriptors.add(getSelfsignedKeyDescriptor(UsageType.ENCRYPTION));
 			}
 			else {
-				keyDescriptors.add(getKeyDescriptor(UsageType.ENCRYPTION));
-			}
-			
-			KeyDescriptor secondaryKeyDescriptor = getSecondaryKeyDescriptor(UsageType.SIGNING);
-			if (secondaryKeyDescriptor != null) {
-				keyDescriptors.add(secondaryKeyDescriptor);
+				keyDescriptors.add(getKeyDescriptor(UsageType.SIGNING));
+				
+				// prefer secondary encryption over primary (even though encryption for IdP's is not super important in metadata)
+				KeyDescriptor secondaryEncryption = getSecondaryKeyDescriptor(UsageType.ENCRYPTION);
+				if (secondaryEncryption != null) {
+					keyDescriptors.add(secondaryEncryption);
+				}
+				else {
+					keyDescriptors.add(getKeyDescriptor(UsageType.ENCRYPTION));
+				}
+				
+				KeyDescriptor secondaryKeyDescriptor = getSecondaryKeyDescriptor(UsageType.SIGNING);
+				if (secondaryKeyDescriptor != null) {
+					keyDescriptors.add(secondaryKeyDescriptor);
+				}
 			}
 		}
 
@@ -264,6 +296,20 @@ public class MetadataController {
 
 		keyDescriptor.setUse(usageType);
 		keyDescriptor.setKeyInfo(secondaryCredentials);
+
+		return keyDescriptor;
+	}
+
+	private KeyDescriptor getSelfsignedKeyDescriptor(UsageType usageType) throws ResponderException {
+		KeyInfo selfsignedCredentials = credentialService.getSelfsignedPublicKeyInfo();
+		if (selfsignedCredentials == null) {
+			return null;
+		}
+
+		KeyDescriptor keyDescriptor = samlHelper.buildSAMLObject(KeyDescriptor.class);
+
+		keyDescriptor.setUse(usageType);
+		keyDescriptor.setKeyInfo(selfsignedCredentials);
 
 		return keyDescriptor;
 	}

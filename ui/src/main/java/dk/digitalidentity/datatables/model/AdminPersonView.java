@@ -66,6 +66,9 @@ public class AdminPersonView {
 	
 	@Column
 	private String approvedConditions;
+	
+	@Column
+	private boolean robot;
 
 	@BatchSize(size = 100)
 	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")

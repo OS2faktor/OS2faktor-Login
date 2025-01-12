@@ -58,7 +58,7 @@ public class PasswordService {
 	 * 1) against person.getPassword()
 	 */
 	public PasswordValidationResult validatePasswordFromWcp(String password, Person person) {
-		return validatePassword(password, person, true, false);
+		return validatePassword(password, person, true, false, true);
 	}
 
 	/**
@@ -67,7 +67,7 @@ public class PasswordService {
 	 * 1) against person.getPassword()
 	 */
 	public PasswordValidationResult validatePasswordNoAD(String password, Person person) {
-		return validatePassword(password, person, false, false);
+		return validatePassword(password, person, false, false, true);
 	}
 
 	/**
@@ -77,7 +77,14 @@ public class PasswordService {
 	 * 2) against AD password
 	 */
 	public PasswordValidationResult validatePassword(String password, Person person) {
-		return validatePassword(password, person, false, true);
+		return validatePassword(password, person, false, true, true);
+	}
+	
+	/**
+	 * just validate the password, but do not create any session (nor invalidate any)
+	 */
+	public PasswordValidationResult validatePasswordWithoutLogin(String password, Person person) {
+		return validatePassword(password, person, false, true, false);
 	}
 	
 	public PasswordExpireStatus getPasswordExpireStatus(Person person) {
@@ -126,19 +133,23 @@ public class PasswordService {
 		return PasswordExpireStatus.OK;
 	}
 
-	private PasswordValidationResult validatePassword(String password, Person person, boolean isWcp, boolean allowFallbackToAD) {
+	private PasswordValidationResult validatePassword(String password, Person person, boolean isWcp, boolean allowFallbackToAD, boolean modifySession) {
 		
 		// special case - if no password is supplied, just abort. This does not count as an invalid attempt though,
 		// so no increase in bad_password_attempts
 		if (!StringUtils.hasLength(password)) {
-			sessionHelper.setPasswordLevel(null);
+			if (modifySession) {
+				sessionHelper.setPasswordLevel(null);
+			}
 			return PasswordValidationResult.INVALID;
 		}
 
 		// if the account is locked, we just abort here, and we do not log an invalid password attempt, so
 		// no actual validation is performed (the password might be correct, but it IS locked)
 		if (person.isLockedPassword()) {
-			sessionHelper.setPasswordLevel(null);
+			if (modifySession) {
+				sessionHelper.setPasswordLevel(null);
+			}
 			return PasswordValidationResult.LOCKED;
 		}
 		
@@ -159,8 +170,11 @@ public class PasswordService {
 					case FORCE_CHANGE:
 						log.warn("Local password validation failed due to expired password for person " + person.getId());
 
-						sessionHelper.setPasswordLevel(person.getNsisLevel());
-						sessionHelper.setAuthnInstant(new DateTime());
+						if (modifySession) {
+							sessionHelper.setPasswordLevel(person.getNsisLevel());
+							sessionHelper.setAuthnInstant(new DateTime());
+						}
+
 						result = PasswordValidationResult.VALID_EXPIRED;
 					default:
 						break;
@@ -172,8 +186,10 @@ public class PasswordService {
 					// which ensures that we set it to NONE or SUBSTANTIAL, depending on the type of user that logged in.
 					// note that when we validate against AD further down, it is always set to NONE
 
-					sessionHelper.setPasswordLevel(person.getNsisLevel());
-					sessionHelper.setAuthnInstant(new DateTime());
+					if (modifySession) {
+						sessionHelper.setPasswordLevel(person.getNsisLevel());
+						sessionHelper.setAuthnInstant(new DateTime());
+					}
 					
 					result = PasswordValidationResult.VALID;
 				}
@@ -193,11 +209,13 @@ public class PasswordService {
 				String pwd = passwordChangeQueueService.decryptPassword(person.getStudentPassword());
 				
 				if (Objects.equals(pwd, password)) {
-					sessionHelper.setAuthenticatedWithADPassword(true);
-					sessionHelper.setADPerson(person);
-					sessionHelper.setPasswordLevel(NSISLevel.NONE);
-					sessionHelper.setAuthnInstant(new DateTime());
-					sessionHelper.setPassword(password);
+					if (modifySession) {
+						sessionHelper.setAuthenticatedWithADPassword(true);
+						sessionHelper.setADPerson(person);
+						sessionHelper.setPasswordLevel(NSISLevel.NONE);
+						sessionHelper.setAuthnInstant(new DateTime());
+						sessionHelper.setPassword(password);
+					}
 					
 					// not actually a cache, as this is the student pwd database
 					result = PasswordValidationResult.VALID;
@@ -214,11 +232,14 @@ public class PasswordService {
 			ADPasswordStatus adResult = adPasswordService.validatePassword(person, password);
 
 			if (ADPasswordResponse.ADPasswordStatus.OK.equals(adResult)) {
-				sessionHelper.setAuthenticatedWithADPassword(true);
-				sessionHelper.setADPerson(person);
-				sessionHelper.setPasswordLevel(NSISLevel.NONE);
-				sessionHelper.setAuthnInstant(new DateTime());
-				sessionHelper.setPassword(password);
+				if (modifySession) {
+					sessionHelper.setAuthenticatedWithADPassword(true);
+					sessionHelper.setADPerson(person);
+					sessionHelper.setPasswordLevel(NSISLevel.NONE);
+					sessionHelper.setAuthnInstant(new DateTime());
+					sessionHelper.setPassword(password);
+				}
+
 				result = PasswordValidationResult.VALID;
 
 				// if the person is a non-nsis user, we also store the password in the database for later validation purposes
@@ -238,7 +259,9 @@ public class PasswordService {
 
 		// still no result from any validation, well then the password is invalid :(
 		if (result == null) {
-			sessionHelper.setPasswordLevel(null);
+			if (modifySession) {
+				sessionHelper.setPasswordLevel(null);
+			}
 			result = PasswordValidationResult.INVALID;
 		}
 
@@ -263,7 +286,7 @@ public class PasswordService {
 				if (passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, password) != ChangePasswordResult.OK) {
 
 					// flag user if not already flagged
-					if (person.getBadPasswordDeadlineTts() == null) {
+					if (person.getBadPasswordDeadlineTts() == null || person.getBadPasswordReason() == null || person.getBadPasswordDeadlineTts() == null) {
 						person.setBadPassword(true);
 						person.setBadPasswordReason(BadPasswordReason.COMPLEXITY);
 						person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordComplexityConformityGracePeriod()));

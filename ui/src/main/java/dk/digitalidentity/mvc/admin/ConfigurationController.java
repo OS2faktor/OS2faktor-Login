@@ -242,6 +242,7 @@ public class ConfigurationController {
 		model.addAttribute("kodevisereEnabled", commonConfiguration.getMfa().getEnabledClients().contains(ClientType.TOTPH.toString()));
 		model.addAttribute("passwordResetEnabled", os2faktorConfiguration.getAdminFeatures().isPasswordResetEnabled());
 		model.addAttribute("stilStudentEnabled", commonConfiguration.getStilStudent().isEnabled());
+		model.addAttribute("admin", securityUtil.isAdmin());
 
 		List<DomainDTO> domains = domainService.getAllParents().stream().map(d -> new DomainDTO(d)).collect(Collectors.toList());
 		model.addAttribute("domains", domains);
@@ -255,6 +256,10 @@ public class ConfigurationController {
 	@GetMapping("/admin/konfiguration/administratorer/tilfoej")
 	public String addAdmin(Model model, @RequestParam("type") String type) {
 		if (!type.equals(Constants.ROLE_ADMIN) && !type.equals(Constants.ROLE_SUPPORTER) && !type.equals(Constants.ROLE_REGISTRANT) && !type.equals(Constants.ROLE_SERVICE_PROVIDER_ADMIN) && !type.equals(Constants.ROLE_USER_ADMIN) && !type.equals(Constants.ROLE_KODEVISER_ADMIN) && !type.equals(Constants.ROLE_PASSWORD_RESET_ADMIN) && !type.equals(Constants.ROLE_INSTITUTION_STUDENT_PASSWORD_ADMIN)) {
+			return "redirect:/admin/konfiguration/administratorer";
+		}
+		
+		if (type.equals(Constants.ROLE_ADMIN) && !securityUtil.isAdmin()) {
 			return "redirect:/admin/konfiguration/administratorer";
 		}
 		

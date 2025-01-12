@@ -384,6 +384,23 @@ public class PersonService {
 
 			// if the "teacher" isInstitutionStudentPasswordAdmin password change is allowed on all students inside its own institutions
 			if (person.isInstitutionStudentPasswordAdmin()) {
+				// we still have to respect any optional classFilter though
+				if (optionalClassFilter != null) {
+					boolean match = false;
+
+					for (SchoolRole role : studentRoles) {
+						if (!role.getSchoolClasses().stream().anyMatch(r -> r.getSchoolClass().getId() == optionalClassFilter.getId())) {
+							continue;
+						}
+						
+						match = true;
+					}
+					
+					if (!match) {
+						continue;
+					}
+				}
+
 				result.add(student);
 				continue;
 			}
@@ -691,6 +708,19 @@ public class PersonService {
 			if (unlockedPersons.size() > 0) {
 				saveAll(unlockedPersons);
 			}
+		}
+	}
+
+	@Transactional(rollbackFor = Exception.class)
+	public void clearBadPasswordCounter() {
+		List<Person> all = personDao.findByBadPasswordCountGreaterThan(0);
+
+		if (all != null && all.size() > 0) {
+			for (Person person : all) {
+				person.setBadPasswordCount(0);
+			}
+
+			saveAll(all);
 		}
 	}
 

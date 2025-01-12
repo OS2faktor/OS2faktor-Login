@@ -71,7 +71,7 @@ public class LogoutResponseService {
 		// Create message context
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
 
-		// Create AuthnRequest
+		// Create LogoutResponse
 		LogoutResponse logoutResponse = createLogoutResponse(destination, logoutRequest, SAMLConstants.SAML2_POST_BINDING_URI.equals(binding));
 		messageContext.setMessage(logoutResponse);
 

@@ -9,7 +9,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -32,7 +31,6 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@EnableCaching
 public class PasswordValidationService {
 
 	@Autowired

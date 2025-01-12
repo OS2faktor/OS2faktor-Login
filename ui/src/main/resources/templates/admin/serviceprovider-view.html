@@ -116,6 +116,18 @@
 										</div>
 									</div>
 
+									<div class="hr-line-dashed"></div>
+
+									<div class="form-group row" th:if="${serviceprovider.protocol} != 'OIDC10'">
+										<label class="col-sm-3 col-form-label">IdP Certifikat</label>
+										<div class="col-sm-9">
+											<select class="form-control m-b" disabled="disabled">
+												<option th:with="cert = ${T(dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases).OCES}" th:value="${cert}" th:text="#{__${cert.message}__}" th:selected="${cert.name} == ${serviceprovider.certificate}"></option>
+												<option th:with="cert = ${T(dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases).SELFSIGNED}" th:value="${cert}" th:text="#{__${cert.message}__}" th:selected="${cert.name} == ${serviceprovider.certificate}"></option>
+											</select>
+										</div>
+									</div>
+
 									<th:block th:if="${serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
 										<div class="hr-line-dashed"></div>
 										
@@ -142,7 +154,7 @@
 
 									<div class="hr-line-dashed"></div>
 
-									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+									<div class="form-group row">
 										<label class="col-sm-3 col-form-label">Gennemstil logins til NemLog-In</label>
 										<div class="col-sm-9">
 											<label>
@@ -151,7 +163,7 @@
 										</div>
 									</div>
 									
-									<div class="form-group row allowMitidErhvervLogin" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+									<div class="form-group row allowMitidErhvervLogin">
 										<label class="col-sm-3 col-form-label">Tillad erhvervsidentiteter</label>
 										<div class="col-sm-9">
 											<label>

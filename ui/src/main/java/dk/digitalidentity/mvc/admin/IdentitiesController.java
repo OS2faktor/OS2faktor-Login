@@ -126,7 +126,8 @@ public class IdentitiesController {
 		else {
 			form.setNsisStatus(NSISStatus.NOT_ISSUED);
 		}
-		
+
+		form.setRobot(person.isRobot());
 		form.setName((person.isNameProtected() == true && StringUtils.hasLength(person.getNameAlias())) ? person.getNameAlias() : person.getName());
 		form.setNameProtected(person.isNameProtected());
 		form.setNemloginUserUuid(person.getNemloginUserUuid());
@@ -145,7 +146,7 @@ public class IdentitiesController {
 		model.addAttribute("form", form);
 
 		List<String> roles = new ArrayList<>();
-		if (commonConfiguration.getRoleCatalogue().isEnabled()) {
+		if (commonConfiguration.getRoleCatalogue().isEnabled() && commonConfiguration.getRoleCatalogue().isKombitRolesEnabled()) {
 			roles = roleCatalogueService.getUserRoles(person, "KOMBIT");
 		}
 		else {

@@ -145,6 +145,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private boolean allowAnonymousUsers;
 
+    @Column
+    private String certificateAlias;
+
     public void loadFully() {
         this.requiredFields.size();
         this.staticClaims.size();
@@ -169,5 +172,10 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
                 }
             });
         }
+    }
+
+    @Override
+    public String getCertificateAlias() {
+    	return this.certificateAlias;
     }
 }

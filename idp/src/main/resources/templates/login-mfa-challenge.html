@@ -80,10 +80,25 @@
 		$(document).ready(function() {
             mfaService = new MfaService();
             mfaService.init();
+            
+            try {
+	            // catch app browsers returning from hibernate, and force a poll
+	            window.addEventListener('visibilitychange', function(ev) {
+	            	//alert('welcome back');
+	            	window.setTimeout(function() {
+						mfaService.poll();
+	            	}, 500);
+				});
+            }
+            catch (err) {
+				;
+            }
 		});
 
         function MfaService() {
 			var submitting = false;
+	        var pollingFn;
+	        var tries = 0;
 
             this.init = function() {
             	// extra check to avoid double-submitting
@@ -97,38 +112,12 @@
 					window.setTimeout(function() {
 						submitting = false;
 					}, 5000);
-					
+
 					return true;
                 });
-                
-                // Init polling
-                var tries = 0;
 
-                var pollingFn = setInterval(function() {
-                    if (tries++ > 60 * 5) {
-                        clearInterval(pollingFn);
-                    }
+            	this.initPolling();
 
-                    $.ajax({
-                        url: os2faktorBackend + "/api/notification/" + pollingKey + "/poll",
-                        success: function(data, textStatus, xhr) {
-                            if (data && data.stateChange == true) {
-                            	// prevent double-submits if the form is slow
-                            	clearInterval(pollingFn);
-
-                                if (delayedLogin) {
-                                	// hack for Tønder - should be replaced by good code once we know it works
-                                    var insideBrowserElem = document.getElementById('finishLoginBlock');
-                                    insideBrowserElem.style.cssText = 'display: block;';
-                                }
-                                else {
-                                	mfaService.finishLoginFlow();
-                                }
-                            }
-                        }
-                    });
-                }, 1000);
-                
                 // open yubikey window if needed
                 if (redirectUrl != null && redirectUrl.length > 0) {
                     mfaService.openRedirect();
@@ -144,10 +133,50 @@
                 }
             }
 
-            this.openRedirect = function () {
-            	window.location.href = redirectUrl + "?redirectUrl=" + finishUrl;
+            this.initPolling = function() {
+            	tries = 0;
+
+            	// clear any other intervals
+            	try {
+            		clearInterval(pollingFn);
+            	} catch (err) {
+            		; // ignored
+            	}
+
+            	// setup new interval
+                pollingFn = setInterval(function() {
+                    if (tries++ > 60 * 5) {
+                         clearInterval(pollingFn);
+                    }
+
+                    mfaService.poll();
+                }, 1000);
             }
             
+            this.poll = function() {
+                $.ajax({
+                    url: os2faktorBackend + "/api/notification/" + pollingKey + "/poll",
+                    success: function(data, textStatus, xhr) {
+                        if (data && data.stateChange == true) {
+                           // prevent double-submits if the form is slow
+                           clearInterval(pollingFn);
+
+                            if (delayedLogin) {
+                                var insideBrowserElem = document.getElementById('finishLoginBlock');
+                                insideBrowserElem.style.cssText = 'display: block;';
+                            }
+                            else {
+                                mfaService.finishLoginFlow();
+                            }
+                        }
+                    }
+                });
+            }
+
+            this.openRedirect = function() {
+            	window.location.href = redirectUrl + "?redirectUrl=" + finishUrl;
+            }
+
             this.finishLoginFlow = function() {
             	$("#loginForm").submit();
             }

@@ -24,7 +24,7 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.controller.dto.EntraIdTokenHint;
+import dk.digitalidentity.controller.dto.EntraClaimHint;
 import dk.digitalidentity.controller.dto.EntraPayload;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.FlowService;
@@ -95,24 +95,29 @@ public class EntraMfaController {
 		Map<String, String[]> parameters = request.getParameterMap();
 		String upn = extractTokenHintField("upn", parameters);
 		if (upn == null) {
+			log.warn("No UPN in token_hint");
 			throw new RequesterException("Der er ikke angivet et UPN i forespørgslen fra EntraID");
 		}
 
 		String redirectUrl = extractField("redirect_uri", parameters);
 		if (redirectUrl == null) {
+			log.warn("No redirect_uri in token_hint");
 			throw new RequesterException("Der er ikke angivet en redirectUrl i forespørgslen fra EntraID");
 		}
 
 		if (!commonConfiguration.getEntraMfa().getRedirectUrl().equals(redirectUrl)) {
+			log.warn("Invalid redirect_uri: " + redirectUrl);
 			throw new RequesterException("Ugyldig redirectUrl: " + redirectUrl);
 		}
 
 		List<Person> persons = personService.getByUPN(upn);
 		if (persons == null || persons.size() == 0) {
+			log.warn("No users with upn: " + upn);
 			throw new ResponderException("Der findes ingen brugere med det angivne UPN: " + upn);
 		}
 		
 		if (persons.size() > 1) {
+			log.warn("More than one user with: " + upn);
 			throw new ResponderException("Der findes mere end én bruger med det angivne UPN: " + upn);
 		}
 
@@ -158,9 +163,9 @@ public class EntraMfaController {
 		if (claims != null) {
 			try {
 				ObjectMapper mapper = new ObjectMapper();
-				EntraIdTokenHint hint = mapper.readValue(claims, EntraIdTokenHint.class);
+				EntraClaimHint hint = mapper.readValue(claims, EntraClaimHint.class);
 
-				return hint.getAcr().getValues().get(0);
+				return hint.getIdToken().getAcr().getValues().get(0);
 			}
 			catch (Exception ex) {
 				log.warn("Failed to parse claims: " + claims, ex);
@@ -181,9 +186,6 @@ public class EntraMfaController {
 			
 			if ("aud".equals(field)) {
 				return jwt.getJWTClaimsSet().getAudience().get(0);
-			}
-			else if ("acr".equals(field)) {
-				
 			}
 	
 			return (String) jwt.getJWTClaimsSet().getClaim(field);

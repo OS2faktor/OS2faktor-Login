@@ -67,6 +67,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.log.AuditLogger;
@@ -75,6 +76,7 @@ import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.opensaml.CustomHTTPPostEncoder;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
@@ -187,11 +189,18 @@ public class AssertionService {
 		return null;
 	}
 
-	public void signAssertion(Assertion assertion) throws ResponderException {
+	public void signAssertion(Assertion assertion, ServiceProvider serviceProvider) throws ResponderException {
 		// Prepare Assertion for Signing
 		Signature signature = samlHelper.buildSAMLObject(Signature.class);
 
-		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
 
 		signature.setSigningCredential(x509Credential);
@@ -326,7 +335,7 @@ public class AssertionService {
 
 		auditLogger.login(person, serviceProvider.getName(loginRequest), samlHelper.prettyPrint(assertion), loginRequest.getUserAgent());
 
-		signAssertion(assertion);
+		signAssertion(assertion, serviceProvider);
 
 		return createResponse(assertion, serviceProvider, authnRequest, location, issueInstant, person);
 	}
@@ -349,7 +358,7 @@ public class AssertionService {
 		// Create and sign Assertion
 		Assertion brokerAssertion = createBrokeredAssertion(id, issueInstant, authnRequest, assertion, serviceProvider);
 
-		signAssertion(brokerAssertion);
+		signAssertion(brokerAssertion, serviceProvider);
 
 		return createResponse(brokerAssertion, serviceProvider, authnRequest, location, issueInstant, null);
 	}

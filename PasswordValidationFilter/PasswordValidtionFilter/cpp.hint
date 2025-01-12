@@ -1,0 +1,2 @@
+#define PASSWORDVALIDATIONFILTER_API __declspec(dllexport)
+#define PASSWORDVALIDATIONFILTER_API __declspec(dllimport)

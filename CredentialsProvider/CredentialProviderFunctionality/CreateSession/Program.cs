@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Security.Principal;
 using System.Security.Cryptography;
+using System.Net;
 
 namespace CreateSession
 {
@@ -80,7 +81,7 @@ namespace CreateSession
                         //   "username": "xxxx",
                         //   "password": "xxxx",
                         //   "version": "xxxx",
-                        //   "base64": true
+                        //   "base64": "true"
                         // }
                         string body = "{\"username\":\"" + args[0] + "\",\"password\":\"" + getPassword(args[1]) + "\"";
                         if (version != null)
@@ -88,7 +89,7 @@ namespace CreateSession
                             string versionParameter = version.Replace(".", "").Trim();
                             if (!String.IsNullOrWhiteSpace(versionParameter))
                             {
-                                body += ",\"version\":\"" + versionParameter + "\",\"base64\":true";
+                                body += ",\"version\":\"" + versionParameter + "\",\"base64\":\"true\"";
                             }
                         }
                         body += "}";
@@ -105,7 +106,7 @@ namespace CreateSession
 
                             HttpResponseMessage response = await client.PostAsync(url, content);
 
-                            Log.Verbose("Response recieved");
+                            Log.Verbose("Response received");
 
                             if (response.IsSuccessStatusCode)
                             {
@@ -148,8 +149,9 @@ namespace CreateSession
         private static string getPassword(string encodedPassword)
         {
             byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
-
-            return Convert.ToBase64String(bytes);
+            // Makes sure the password is encoded in UTF-8 and not UTF-16LE
+            byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.Unicode.GetString(bytes));
+            return Convert.ToBase64String(utf8Bytes);
         }
     }
 }

@@ -127,8 +127,23 @@
 										</div>
 									</div>
 
+                                    <div class="hr-line-dashed samlSpecific wsfedSpecific"></div>
+
+                                    <div class="form-group row samlSpecific wsfedSpecific">
+                                        <label class="col-sm-3 col-form-label">
+											IdP Certifikat
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Det certifikat som OS2faktor IdP anvender til at signere tokens til denne tjenesteudbyder. Hvis der vælges et andet end standard-certifikatet, skal tjenesten trække metadata via en anden URL - se under Metadata oplysninger i højre menuen"></em>
+										</label>
+                                        <div class="col-sm-9">
+                                            <select class="form-control m-b" id="certificateSelect">
+                                                <option th:with="cert = ${T(dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases).OCES}" th:value="${cert}" th:text="#{__${cert.message}__}" th:selected="${cert.name} == ${serviceprovider.certificate}"></option>
+                                                <option th:with="cert = ${T(dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases).SELFSIGNED}" th:value="${cert}" th:text="#{__${cert.message}__}" th:selected="${cert.name} == ${serviceprovider.certificate}"></option>
+                                            </select>
+                                        </div>
+                                    </div>
+
 									<div id="customSessionSettings">
-										<div class="hr-line-dashed"></div>
+										<div class="hr-line-dashed samlSpecific"></div>
 										
 										<div class="form-group row samlSpecific">
 											<label class="col-sm-3 col-form-label">Alternative sessionslevetider</label>
@@ -169,7 +184,7 @@
 
 									<div class="hr-line-dashed"></div>
 
-									<div class="form-group row" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+									<div class="form-group row">
 										<label class="col-sm-3 col-form-label">
 											Gennemstil logins til NemLog-In
 											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, viderestilles der automatisk til NemLog-in under login, og alene login med MitID er muligt - der udstedes ikke claims, men gennemstilles blot oplysninger fra NemLog-in til tjenesteudbyderen."></em>
@@ -181,7 +196,7 @@
 										</div>
 									</div>
 
-									<div class="form-group row allowMitidErhvervLogin enabledByBrokerFunctionality" th:if="${@commonConfiguration.nemlogin.brokerEnabled}" style="display: none;">
+									<div class="form-group row allowMitidErhvervLogin enabledByBrokerFunctionality" style="display: none;">
 										<label class="col-sm-3 col-form-label">
 											Tillad erhvervsidentiteter
 											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, kan NemLog-in login foretages både med privat MitID og erhvervsidentiter. Ellers er kun privat MitID tilladt."></em>
@@ -193,7 +208,7 @@
 										</div>
 									</div>
 
-									<div class="form-group row allowAnonymous disabledByBrokerFunctionality" th:if="${@commonConfiguration.nemlogin.brokerEnabled}">
+									<div class="form-group row allowAnonymous disabledByBrokerFunctionality">
 										<label class="col-sm-3 col-form-label">
 											Tillad anonyme bruger
 											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tilvalgt, er login med MitID muligt for brugere der ikke findes i OS2faktor. Brugerens data fra NemLog-in gennemstilles direkte til den opsatte tjenesteudbyder."></em>
@@ -718,13 +733,13 @@
 		/*[+
 		var rcEnabled = [[${@commonConfiguration.roleCatalogue.enabled}]];
 		var groupEnabled = [[${showGroups}]];
-		var nemLoginEnabled = [[${@commonConfiguration.nemlogin.brokerEnabled}]];
 		var rootUrl = [[@{/}]];
 		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
 		var claimTypes = [[${T(dk.digitalidentity.common.dao.model.enums.ClaimType).values()}]];
 
 		var buttonConfirm = [[#{shared.button.save}]];
 		var buttonCancel = [[#{shared.button.cancel}]];
+		var buttonOk = [[#{shared.button.yes}]];
 
 		var nameIdValue = [[${serviceprovider.nameIdValue}]];
 		var forceMfaRequired = [[${serviceprovider.forceMfaRequired}]];
@@ -755,6 +770,7 @@
 		var protocolService;
 		var oidcService;
 		var mfaExemptionService;
+		var certificateWarnShown = false;
 
 		$(document).ready(function() {
 			protocolService = new ProtocolService();	
@@ -853,6 +869,26 @@
 				}
 			});
 			$('input[name="hasCustomSessionExpiry"]').trigger('ifChanged');
+			
+			//Warn about certificate change
+			$('#certificateSelect').on('change', function() {
+				if (!certificateWarnShown) {
+					swal({
+						title: "Certifikatskifte",
+						text: "Hvis du skifter certifikat, er det vigtigt at tjenesten henter metadata fra den opdaterede metadata adresse. Find alle metadata adresser i højremenuen under metadata oplysninger",
+						type: 'warning',
+						showCancelButton: false,
+						confirmButtonColor: "#3085d6",
+						confirmButtonText: 'OK',
+						closeOnConfirm: true
+					},
+					function(isConfirm) {
+						if (isConfirm) {
+							certificateWarnShown = true;
+						}
+					});
+				}
+			});
 		});
 
 		function MfaExemptionService() {
@@ -1115,6 +1151,7 @@
 							data.forceMfaRequired = $('#forceMfaRequiredSelect option:selected').val();
 							data.nsisLevelRequired = $('#nsisLevelRequiredSelect option:selected').val();
 							data.protocol = $('#protocolSelect option:selected').val();
+							data.certificate = $('#certificateSelect option:selected').val();
 								
 							// Handle iCheck
 							data.preferNemid = $('input[name=preferNemid]').iCheck('update')[0].checked;
@@ -1132,16 +1169,9 @@
 								data.mfaExpiry =  null;
 							}
 
-							if (nemLoginEnabled) {
-								data.nemLogInBrokerEnabled = $('input[name=nemLogInBrokerEnabled]').iCheck('update')[0].checked;
-								data.allowMitidErhvervLogin = $('input[name=allowMitidErhvervLogin]').iCheck('update')[0].checked;
-								data.allowAnonymousUsers = $('input[name=allowAnonymousUsers]').iCheck('update')[0].checked;
-							}
-							else {
-								data.nemLogInBrokerEnabled = nemLogInBrokerEnabled;
-								data.allowMitidErhvervLogin = false;
-								data.allowAnonymousUsers = false;
-							}
+							data.nemLogInBrokerEnabled = $('input[name=nemLogInBrokerEnabled]').iCheck('update')[0].checked;
+							data.allowMitidErhvervLogin = $('input[name=allowMitidErhvervLogin]').iCheck('update')[0].checked;
+							data.allowAnonymousUsers = $('input[name=allowAnonymousUsers]').iCheck('update')[0].checked;
 
 							// Handle metadata
 							var selectedMetadataOption = $(".checked input[name=metadataRadios]").val();

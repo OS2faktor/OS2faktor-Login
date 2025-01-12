@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.SettingService;
 import jakarta.transaction.Transactional;
@@ -45,12 +46,12 @@ public class KeystoreService {
 				return;
 			}
 
-			primary.setAlias("OCES_SECONDARY");
+			primary.setAlias(KnownCertificateAliases.OCES_SECONDARY.toString());
 			primary.setDisabled(true);
 			primary.setLastUpdated(LocalDateTime.now());
 			keystoreDao.save(primary);
 
-			secondary.setAlias("OCES");
+			secondary.setAlias(KnownCertificateAliases.OCES.toString());
 			secondary.setDisabled(false);
 			secondary.setLastUpdated(LocalDateTime.now());
 			keystoreDao.save(secondary);

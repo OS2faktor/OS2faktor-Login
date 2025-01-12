@@ -45,6 +45,7 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findBySchoolRolesRoleAndStudentPasswordNotNull(SchoolRoleValue role);
 	List<Person> findByTransferToNemloginTrue();
 	List<Person> findByExternalNemloginUserUuid(String uuid);
+	List<Person> findByBadPasswordCountGreaterThan(long count);
 	long countByLockedPasswordTrue();
 
 	@Query("SELECT person FROM Person person JOIN person.attributes a WHERE (KEY(a) = :key AND a = :value)")

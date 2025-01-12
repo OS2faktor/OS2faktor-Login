@@ -22,6 +22,8 @@ namespace OS2faktorADSync
         private readonly string trustedEmployeesGroup;
         private readonly string transferToNemloginGroup;
         private readonly string privateMitIdGroup;
+        private readonly string qualifiedSignatureGroup;
+        private readonly string robotGroup;
         private readonly string rolesRoot;
         private readonly string rootMembershipGroup;
         private readonly Boolean groupsInGroups;
@@ -40,6 +42,8 @@ namespace OS2faktorADSync
             nsisAllowedGroup = Settings.GetStringValue("ActiveDirectory.NSISAllowed.Group");
             transferToNemloginGroup = Settings.GetStringValue("ActiveDirectory.TransferToNemlogin.Group");
             privateMitIdGroup = Settings.GetStringValue("ActiveDirectory.PrivateMitID.Group");
+            qualifiedSignatureGroup = Settings.GetStringValue("ActiveDirectory.QualifiedSignature.Group");
+            robotGroup = Settings.GetStringValue("ActiveDirectory.Robot.Group");
             rootMembershipGroup = Settings.GetStringValue("ActiveDirectory.Group.Root");
             rolesRoot = Settings.GetStringValue("Kombit.RoleOU");
             defaultDomain = Settings.GetStringValue("Kombit.RoleDomainDefault");
@@ -142,6 +146,24 @@ namespace OS2faktorADSync
                     if (result.ContainsKey(guid))
                     {
                         result[guid].PrivateMitID = true;
+                    }
+                }
+
+                List<string> qualifiedSignatureUsers = GetTransativeGroupMembership(directoryEntry, "qualifiedSignatureGroup", qualifiedSignatureGroup);
+                foreach (string guid in qualifiedSignatureUsers)
+                {
+                    if (result.ContainsKey(guid))
+                    {
+                        result[guid].QualifiedSignature = true;
+                    }
+                }
+
+                List<string> robotUsers = GetTransativeGroupMembership(directoryEntry, "robotGroup", robotGroup);
+                foreach (string guid in robotUsers)
+                {
+                    if (result.ContainsKey(guid))
+                    {
+                        result[guid].Robot = true;
                     }
                 }
 
@@ -283,12 +305,24 @@ namespace OS2faktorADSync
                     throw new Exception("privateMitIdGroup was configured, but a matching group was not found, aborting");
                 }
 
+                if (!string.IsNullOrEmpty(qualifiedSignatureGroup) && !GroupExists(qualifiedSignatureGroup))
+                {
+                    throw new Exception("qualifiedSignatureGroup was configured, but a matching group was not found, aborting");
+                }
+
+                if (!string.IsNullOrEmpty(robotGroup) && !GroupExists(robotGroup))
+                {
+                    throw new Exception("robotGroup was configured, but a matching group was not found, aborting");
+                }
+
                 foreach (CoredataEntry entry in result.CreateEntries)
                 {
                     entry.NSISAllowed = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "nsisAllowedGroup", nsisAllowedGroup);
                     entry.TransferToNemlogin = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "transferToNemloginGroup", transferToNemloginGroup);
                     entry.PrivateMitID = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "privateMitIdGroup", privateMitIdGroup);
+                    entry.QualifiedSignature = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "qualifiedSignatureGroup", qualifiedSignatureGroup);
                     entry.TrustedEmployee = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "trustedEmployeeGroup", trustedEmployeesGroup);
+                    entry.Robot = GetTransativeMembershipForEntry(directoryEntry, entry.SamAccountName, "robotGroup", robotGroup);
                 }
 
                 return result;

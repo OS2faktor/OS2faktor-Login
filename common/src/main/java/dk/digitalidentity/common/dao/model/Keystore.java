@@ -57,7 +57,7 @@ public class Keystore {
 	
 	// only set if KMS is true
 	private String kmsAlias;
-	
+
 	@Transient
 	public boolean isPrimary() {
 		return "OCES".equals(alias);

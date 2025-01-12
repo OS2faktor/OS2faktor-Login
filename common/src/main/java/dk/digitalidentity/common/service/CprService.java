@@ -57,6 +57,11 @@ public class CprService {
 			return false;
 		}
 		
+		// robots are never dead
+		if (person.isRobot()) {
+			return false;
+		}
+
 		Future<CprLookupDTO> cprFuture = self.getByCpr(person.getCpr());
 		CprLookupDTO dto = null;
 
@@ -102,7 +107,7 @@ public class CprService {
 			log.warn("Called method getByCpr, but cpr is disabled");
 			return null;
 		}
-		
+
 		RestTemplate restTemplate = new RestTemplate();
 		// no reason to lookup invalid cpr numbers
 		if (!validCpr(cpr) || isFictionalCpr(cpr)) {

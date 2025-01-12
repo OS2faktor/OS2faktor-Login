@@ -22,10 +22,19 @@ public class UnlockAccountTask {
 
     // check every minute
     @Scheduled(fixedRate = 60 * 1000)
-    public void processChanges() {
+    public void unlockAccounts() {
     	if (configuration.getScheduled().isEnabled()) {
 	        log.debug("Unlocking of locked accounts started");
 	        personService.unlockAccounts();
+    	}
+    }
+    
+    // clear counter at "midnight"
+    @Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 0 * * ?")
+    public void clearBadPasswordCounter() {
+    	if (configuration.getScheduled().isEnabled()) {
+	        log.debug("Clear bad password counter");
+	        personService.clearBadPasswordCounter();
     	}
     }
 }

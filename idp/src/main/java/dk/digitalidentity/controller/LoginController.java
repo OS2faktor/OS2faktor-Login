@@ -94,7 +94,7 @@ public class LoginController {
 		return "fragments/username :: known";
 	}
 	
-	@RequestMapping(value = "/sso/saml/login", method = { POST, GET } )
+	@RequestMapping(value = { "/sso/saml/login", "/sso/saml/login/" }, method = { POST, GET } )
 	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");

@@ -85,11 +85,19 @@ public class AbstractBeforeSaveInterceptor {
 						}
 					}
 
-					if (commonConfiguration.getNemLoginApi().isPrivateMitIdEnabled() && settingService.getBoolean(SettingKey.MIGRATED_PRIVATE_MITID)) {
+					if (commonConfiguration.getNemLoginApi().isPrivateMitIdEnabled()) {
 						boolean oldPrivateMitId = oldPerson.isPrivateMitId() && oldTransferToNemlogin;
 						boolean privateMitId = person.isPrivateMitId() && transferToNemlogin;
 						if (!Objects.equals(oldPrivateMitId, privateMitId)) {
 							actions.add(new NemloginQueue(person, privateMitId ? NemloginAction.ASSIGN_PRIVATE_MIT_ID : NemloginAction.REVOKE_PRIVATE_MIT_ID));
+						}
+					}
+					
+					if (commonConfiguration.getNemLoginApi().isQualifiedSignatureEnabled()) {
+						boolean oldQualifiedSignature = oldPerson.isQualifiedSignature();
+						boolean qualifiedSignature = person.isQualifiedSignature();
+						if (!Objects.equals(oldQualifiedSignature, qualifiedSignature)) {
+							actions.add(new NemloginQueue(person, qualifiedSignature ? NemloginAction.ASSIGN_QUALIFIED_SIGNATURE : NemloginAction.REVOKE_QUALIFIED_SIGNATURE));
 						}
 					}
 				}

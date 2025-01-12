@@ -25,4 +25,6 @@ public class AdminPersonDTO {
 	private Map<String, String> attributes;
 	private String nemloginUserUuid;
 	private List<SchoolRole> schoolRoles;
+	
+	private boolean robot = false;
 }

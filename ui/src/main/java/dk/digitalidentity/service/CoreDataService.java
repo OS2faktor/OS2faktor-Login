@@ -774,6 +774,7 @@ public class CoreDataService {
 		person.setDepartment(coreDataEntry.getDepartment());
 		person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
 		person.setPrivateMitId(coreDataEntry.isPrivateMitId());
+		person.setQualifiedSignature(coreDataEntry.isQualifiedSignature());
 		person.setEan(coreDataEntry.getEan());
 		
 		if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
@@ -801,6 +802,8 @@ public class CoreDataService {
 		if (configuration.getCoreData().isTrustedEmployeeEnabled()) {
 			person.setTrustedEmployee(coreDataEntry.isTrustedEmployee());
 		}
+
+		person.setRobot(coreDataEntry.isRobot());
 
 		if (configuration.getCoreData().isRoleApiEnabled()) {
 			if (coreDataEntry.getRoles() != null) {
@@ -847,6 +850,18 @@ public class CoreDataService {
 
 	private boolean updatePerson(CoreDataEntry coreDataEntry, Domain domain, Person person, HashMap<String, Domain> subDomainMap) {
 		boolean modified = false;
+
+		// a person can be UPDATED to a ROBOT, if and only if, the person does not have an nsis-level or is created in NemLog-in
+		if (coreDataEntry.isRobot()) {
+			if (person.isNsisAllowed() || person.isTransferToNemlogin()) {
+				coreDataEntry.setRobot(false);
+			}
+		}
+
+		// a person that is a ROBOT can never stop being a ROBOT. Then the person needs to be deleted and re-created
+		if (person.isRobot() && !coreDataEntry.isRobot()) {
+			coreDataEntry.setRobot(true);
+		}
 
 		// find the associated domain for this user (might be a subdomain)
 		Domain coreDataEntryDomain = domain;
@@ -938,10 +953,23 @@ public class CoreDataService {
 			modified = true;
 		}
 
+		if (coreDataEntry.isRobot() != person.isRobot()) {
+			person.setRobot(coreDataEntry.isRobot());
+			modified = true;
+		}
+
 		if (coreDataEntry.isPrivateMitId() != person.isPrivateMitId()) {
 			person.setPrivateMitId(coreDataEntry.isPrivateMitId());
 
 			auditLogger.allowPrivateMitIdChanged(person, person.isPrivateMitId());
+
+			modified = true;
+		}
+
+		if (coreDataEntry.isQualifiedSignature() != person.isQualifiedSignature()) {
+			person.setQualifiedSignature(coreDataEntry.isQualifiedSignature());
+
+			auditLogger.allowQualifiedSignatureChanged(person, person.isQualifiedSignature());
 
 			modified = true;
 		}

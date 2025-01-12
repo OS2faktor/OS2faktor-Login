@@ -58,6 +58,7 @@ import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.nemlogin.service.model.ActivationOrderRequest;
+import dk.digitalidentity.nemlogin.service.model.AllowSigningUpdate;
 import dk.digitalidentity.nemlogin.service.model.Authenticator;
 import dk.digitalidentity.nemlogin.service.model.AuthenticatorsResponse;
 import dk.digitalidentity.nemlogin.service.model.CredentialsRequest;
@@ -133,31 +134,6 @@ public class NemLoginService {
 			// migrate existing users if needed
 			if (config.getNemLoginApi().isMigrateExistingUsers()) {
 				migrateExistingNemloginUsers();
-			}
-			
-			// migrate private MitID setting - ONCE - during startup
-			if (config.getNemLoginApi().isPrivateMitIdEnabled() && !settingService.getBoolean(SettingKey.MIGRATED_PRIVATE_MITID)) {
-				List<MitidErhvervCache> cache = mitidErhvervCacheService.findAll();
-				
-				// NemLog-in UUID should be unique, but there is no DB constraint, so we try to be safe
-				Map<String, List<Person>> persons = personService.getAll().stream().collect(Collectors.groupingBy(Person::getNemloginUserUuid));
-
-				for (MitidErhvervCache cacheEntry : cache) {
-					if (cacheEntry.isMitidPrivatCredential()) {
-						List<Person> personHits = persons.get(cacheEntry.getUuid());
-						
-						if (personHits != null && personHits.size() > 0) {
-							for (Person person : personHits) {
-								// this is a heavy operation if we do it 1000+ times, but we suspect the amount to be low, and
-								// it IS a one-off, so no bulk saving this change
-								person.setPrivateMitId(true);
-								personService.save(person);
-							}
-						}
-					}
-				}
-
-				settingService.setBoolean(SettingKey.MIGRATED_PRIVATE_MITID, true);
 			}
 		}
 	}
@@ -285,6 +261,12 @@ public class NemLoginService {
 					break;
 				case REVOKE_PRIVATE_MIT_ID:
 					failureReason = revokePrivateMitId(queue.getPerson());
+					break;
+				case ASSIGN_QUALIFIED_SIGNATURE :
+					failureReason = assignOrRevokeQualifiedSignature(queue.getPerson(), true);
+					break;
+				case REVOKE_QUALIFIED_SIGNATURE :
+					failureReason = assignOrRevokeQualifiedSignature(queue.getPerson(), false);
 					break;
 			}
 
@@ -617,7 +599,7 @@ public class NemLoginService {
 
 		HttpEntity<Object> fetchAuthenticatorsRequest = new HttpEntity<>(headers);
 
-		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.GET, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
+		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.POST, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
 
 		if (!response.getStatusCode().is2xxSuccessful()) {
 			throw new Exception("Failed to remove MitID - statusCode " + response.getStatusCode().value());
@@ -671,6 +653,51 @@ public class NemLoginService {
 		}
 		catch (Exception ex) {
 			log.error("Failed to assign private MitID to " + person.getId() + " / " + person.getSamaccountName(), ex);
+			return "Technical error: " + ex.getMessage();
+		}
+
+		return null;
+	}
+
+	private String assignOrRevokeQualifiedSignature(Person person, boolean qualifiedSignature) {
+		if (person == null) {
+			log.error("Will not assign QualifiedSignature. Person was null");
+			return "person is null";
+		}
+
+		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
+			log.warn("Will not assign QualifiedSignature for person " + person.getId() + ". The person does not have a nemloginUserUuid");
+			return "nemloginUserUuid is null";
+		}
+
+		log.info("Assigning QualifiedSignature on person " + person.getId());
+
+		if (!StringUtils.hasLength(person.getSamaccountName())) {
+			log.error("Will not assign QualifiedSignature for person " + person.getId() + ". The person does not have a sAMAccountName");
+			return "sAMAccountName is not null";
+		}
+		
+		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/allowsigning";
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Content-Type", "application/json");
+		headers.add("Authorization", "Bearer " + self.fetchToken());
+
+		AllowSigningUpdate body = new AllowSigningUpdate();
+		body.setAllowSigning(qualifiedSignature);
+
+		HttpEntity<AllowSigningUpdate> requestForQualifiedSignature = new HttpEntity<>(body, headers);
+
+		try {
+			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestForQualifiedSignature, String.class);
+
+			if (!response.getStatusCode().is2xxSuccessful()) {
+				log.error("Failed to assign QualifiedSignature to person with uuid " + person.getUuid() + ". Error: " + response.getBody());
+				return "Technical error: " + response.getBody();
+			}
+		}
+		catch (Exception ex) {
+			log.error("Failed to assign QualifiedSignature to " + person.getId() + " / " + person.getSamaccountName(), ex);
 			return "Technical error: " + ex.getMessage();
 		}
 
@@ -755,7 +782,9 @@ public class NemLoginService {
 		identityProfile.setSurname(surname);
 		identityProfile.setEmailAddress(email);
 		identityProfile.setCprNumber(person.getCpr());
-		identityProfile.setPseudonym(person.isNameProtected());
+		if (config.getNemLoginApi().isPseudonymEnabled()) {
+			identityProfile.setPseudonym(person.isNameProtected());
+		}
 		
 		if (!config.getNemLoginApi().isDisableSendingRid()) {
 			identityProfile.setRid(person.getRid());
@@ -772,6 +801,8 @@ public class NemLoginService {
 		IdentityAuthenticators identityAuthenticators = new IdentityAuthenticators();
 
 		if (person.isPrivateMitId()) {
+			identityAuthenticators.setAuthenticatorTypes(new ArrayList<String>());
+			identityAuthenticators.getAuthenticatorTypes().add("LocalIdentityProvider");
 			identityAuthenticators.getAuthenticatorTypes().add("PrivateNemIdMitId");
 		}
 

@@ -36,7 +36,6 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
-import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.IPUtil;
@@ -117,6 +116,7 @@ public class LoginService {
                 break;
             case WSFED:
                 auditLogger.wsFederationLoginRequest(sessionHelper.getPerson(), serviceProvider.getName(loginRequest), loginRequest.getWsFedLoginParameters());
+                break;
             case ENTRAMFA:
             	throw new RequesterException("EntraID MFA login flow er startet forkert");
         }
@@ -126,7 +126,7 @@ public class LoginService {
         // a ServiceProvider can be configured to just proxy straight to NemLog-in, skipping the build-in IdP login mechanisms.
         // In this case we will always just forward the request, and ignore any existing sessions, as NemLog-in is required here
         // Start login flow against NemLog-in no matter the session
-        if (commonConfiguration.getNemlogin().isBrokerEnabled() && (serviceProvider.nemLogInBrokerEnabled()) || loginRequest.isRequireBrokering()) {
+        if (serviceProvider.nemLogInBrokerEnabled() || loginRequest.isRequireBrokering()) {
             sessionHelper.setInNemLogInBrokerFlow(true);
 
             if (serviceProvider.isAllowMitidErvhervLogin()) {
@@ -479,43 +479,23 @@ public class LoginService {
     }
 
     public boolean showNemLogIn() {
-        if (commonConfiguration.getNemlogin().isBrokerEnabled()) {
-        	// we should prevent showing MitID if the request is from NemLog-in, as NL3 gets confused with 2 parallel logins
-            // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
-            try {
-                LoginRequest loginRequest = sessionHelper.getLoginRequest();
-                if (loginRequest != null) {
-                    ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
-                    if (serviceProvider != null && Objects.equals(NemLoginServiceProvider.SP_NAME, serviceProvider.getName(null))) {
-                        return false;
-                    }
+    	// we should prevent showing MitID if the request is from NemLog-in, as NL3 gets confused with 2 parallel logins
+        // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
+        try {
+            LoginRequest loginRequest = sessionHelper.getLoginRequest();
+            if (loginRequest != null) {
+                ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+                if (serviceProvider != null && Objects.equals(NemLoginServiceProvider.SP_NAME, serviceProvider.getName(null))) {
+                    return false;
                 }
             }
-            catch (RequesterException | ResponderException ex) {
-                log.warn("Could not determine where user is trying to login to", ex);
-            }
-        	
-        	// otherwise show it
-            return true;
         }
-        else {
-            // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
-            try {
-                LoginRequest loginRequest = sessionHelper.getLoginRequest();
-                if (loginRequest != null) {
-                    ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
-                    if (serviceProvider != null && serviceProvider instanceof SelfServiceServiceProvider) {
-                        return true;
-                    }
-                }
-            }
-            catch (RequesterException | ResponderException ex) {
-                log.warn("Could not determine where user is trying to login to", ex);
-            }
+        catch (RequesterException | ResponderException ex) {
+            log.warn("Could not determine where user is trying to login to", ex);
+        }
 
-            // if broker is not enabled, default to deny access if we can't determine ServiceProvider OR it is not SelfService
-            return false;
-        }
+    	// otherwise show it
+        return true;
     }
 
     public ModelAndView continueLoginWithMitIdOrNemId(Person person, NSISLevel authenticationLevel, @Nullable LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {

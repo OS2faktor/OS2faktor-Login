@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.serviceprovider;
 
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 
@@ -23,5 +24,9 @@ public interface ServiceProviderConfig {
 
     default boolean isAllowAnonymousUsers() {
     	return false;
+    }
+
+    default String getCertificateAlias() {
+    	return KnownCertificateAliases.OCES.toString();
     }
 }

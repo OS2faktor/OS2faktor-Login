@@ -286,6 +286,7 @@ public class ChangePasswordController {
     	// if the user has logged in using an MFA device (including MitID) with NSIS level substantial,
     	// they are always allowed to change password
         NSISLevel mfaLevel = sessionHelper.getMFALevel();
+        
         if (NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
         	return true;
         }

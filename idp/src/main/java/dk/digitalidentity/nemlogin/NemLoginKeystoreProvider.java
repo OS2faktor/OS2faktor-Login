@@ -5,9 +5,9 @@ import java.security.KeyStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.samlmodule.service.DISAML_KeystoreProvider;
 import dk.digitalidentity.service.KeystoreService;
-import dk.digitalidentity.service.KeystoreService.KNOWN_CERTIFICATE_ALIASES;
 
 @Component
 public class NemLoginKeystoreProvider implements DISAML_KeystoreProvider {
@@ -17,22 +17,22 @@ public class NemLoginKeystoreProvider implements DISAML_KeystoreProvider {
 	
 	@Override
 	public KeyStore getPrimaryKeystore() {
-		return keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN.toString());
+		return keystoreService.getJavaKeystore(KnownCertificateAliases.NEMLOGIN.toString());
 	}
 
 	@Override
 	public String getPrimaryKeystorePassword() {
-		return keystoreService.getJavaKeystorePassword(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN.toString());
+		return keystoreService.getJavaKeystorePassword(KnownCertificateAliases.NEMLOGIN.toString());
 	}
 
 	@Override
 	public KeyStore getSecondaryKeystore() {
-		return keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN_SECONDARY.toString());
+		return keystoreService.getJavaKeystore(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
 	}
 
 	@Override
 	public String getSecondaryKeystorePassword() {
-		return keystoreService.getJavaKeystorePassword(KNOWN_CERTIFICATE_ALIASES.NEMLOGIN_SECONDARY.toString());
+		return keystoreService.getJavaKeystorePassword(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
 	}
 	
 	/* TODO: only needed if/when we move NL3 serviceprovider keys to KMS

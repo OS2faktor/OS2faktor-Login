@@ -117,3 +117,10 @@
 - Fixed issue preventing SSO from being established when not connected to the DC (WFH scenario)
 - Fixed potential issue in remote logins where filtering would stop sso
 
+## v3.1.5
+- Fixed compatibility issues by base64 encoding content before sending to OS2faktor backend
+
+## v3.2.0
+- Fixed issues with establishing a session in the browsers taking too long by making some code run async
+- Made sure that browser is in use before establishing session
+

@@ -54,6 +54,11 @@ public class EmailTemplateSenderService {
 	}
 	
 	private void sendEboks(String subject, String message, EmailTemplateChild child, boolean bypassQueue, String cpr, Person recipient, long delayMinutes) {
+		// do not send messages to robots
+		if (recipient.isRobot()) {
+			return;
+		}
+
 		if (bypassQueue && delayMinutes == 0) {
 			SendStatus status = eboksService.sendMessage(cpr, subject, message, recipient);
 

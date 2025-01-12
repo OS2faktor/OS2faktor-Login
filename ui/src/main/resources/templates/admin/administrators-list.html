@@ -85,7 +85,7 @@
 								</div>
 
 								<th:block th:if="${readonly == false}">
-								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
+								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj administrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SERVICE_PROVIDER_ADMIN" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj TU administrator</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_SUPPORTER" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj supporter</a>
 								<a href="/admin/konfiguration/administratorer/tilfoej?type=ROLE_REGISTRANT" type="button" class="btn btn-primary" style="width: 250px; margin-bottom: 5px;" th:if="${@commonConfiguration.customer.enableRegistrant}"><em class="fa fa-plus"></em>&nbsp;&nbsp; Tilføj registrant</a>
@@ -196,6 +196,7 @@
 	
 		/*[+
 			var domains = [[${domains}]];
+			var admin = [[${admin}]]
 		+]*/
 		var token = $("meta[name='_csrf']").attr("content");
 		var modalService;
@@ -309,6 +310,10 @@
 				
 				if($(elem).data("self")) {
 					modalService.disableAll();
+				}
+				
+				if (!admin) {
+					$('#adminCheck').prop('disabled', true).iCheck('update');
 				}
 				
 				modalService.turnListenersOn();

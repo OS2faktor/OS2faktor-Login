@@ -156,8 +156,8 @@ public class OS2faktorRadiusService {
 
 				if (canBeUsed) {
 					if (radiusClient.getNsisLevelRequired().equalOrLesser(person.getNsisLevel())) {
-						if (PasswordValidationResult.VALID.equals(passwordService.validatePassword(password, person))) {
-	
+						PasswordValidationResult validPassword = passwordService.validatePassword(password, person);
+						if (validPassword.isNoErrors()) {	
 							if (!person.isLockedByOtherThanPerson()) {
 	
 								if (requireMfa) {

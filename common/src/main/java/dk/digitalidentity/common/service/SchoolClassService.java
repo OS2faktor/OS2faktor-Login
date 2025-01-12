@@ -151,6 +151,10 @@ public class SchoolClassService {
 						.findFirst()
 						.orElse(null);
 
+				if (roleSetting == null) {
+					continue;
+				}
+
 				switch (roleSetting.getType()) {
 					case CAN_CHANGE_PASSWORD_ON_GROUP_MATCH:
 						// make sure there is a match on the type of class (MAIN_GROUP is the usual configuration here, but it could be any)

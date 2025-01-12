@@ -2,11 +2,15 @@
 using Serilog;
 using System;
 using System.Buffers.Text;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Principal;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Shell;
 
 namespace SessionEstablisher
 {
@@ -42,42 +46,7 @@ namespace SessionEstablisher
                     string token = e.Args[0];
                     if (token != null)
                     {
-                        Log.Information("New token ready for establishing session");
-
-                        bool chromeEnabled = true;
-                        bool edgeEnabled = true;
-                        bool firefoxEnabled = false;
-                        UpdateDefaultSettings(ref chromeEnabled, ref edgeEnabled, ref firefoxEnabled);
-
-                        if (chromeEnabled)
-                        {
-                            Log.Information("Establishing session in chrome");
-                            string chromePath = fetchExePath(@"HKEY_CLASSES_ROOT\ChromeHTML\shell\open\command", "chrome.exe", "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\"");
-                            if (chromePath != null)
-                            {
-                                runBrowserWithToken(chromePath, token);
-                            }
-                        }
-
-                        if (edgeEnabled)
-                        {
-                            Log.Information("Establishing session in edge");
-                            string edgePath = fetchExePath(@"HKEY_CLASSES_ROOT\MSEdgeHTM\shell\open\command", "msedge.exe", "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\"");
-                            if (edgePath != null)
-                            {
-                                runBrowserWithToken(edgePath, token);
-                            }
-                        }
-
-                        if (firefoxEnabled)
-                        {
-                            Log.Information("Establishing session in firefox");
-                            string firefoxPath = fetchExePath(@"HKEY_CLASSES_ROOT\firefox\shell\open\command", "firefox.exe", "\"C:\\Program Files\\Mozilla Firefox\\firefox.exe\"");
-                            if (firefoxPath != null)
-                            {
-                                runBrowserWithToken(firefoxPath, token);
-                            }
-                        }
+                        InitiateAsyncSessions(token);
                     }
                 }
                 catch (Exception ex)
@@ -93,7 +62,100 @@ namespace SessionEstablisher
             Shutdown();
         }
 
-        private static void UpdateDefaultSettings(ref bool chromeEnabled, ref bool edgeEnabled, ref bool firefoxEnabled)
+        private async void InitiateAsyncSessions(String token)
+        {
+            Log.Information("New token ready for establishing session");
+
+            bool chromeEnabled = true;
+            bool edgeEnabled = true;
+            bool firefoxEnabled = false;
+            bool checkUsage = true;
+            UpdateDefaultSettings(ref chromeEnabled, ref edgeEnabled, ref firefoxEnabled, ref checkUsage);
+
+            if (!checkUsage)
+            {
+                Log.Information("Not checking for browser usage before running");
+            }
+
+            List<Task> tasks = new List<Task>();
+
+            if (chromeEnabled)
+            {
+                string chromePath = fetchExePath(@"HKEY_CLASSES_ROOT\ChromeHTML\shell\open\command", "chrome.exe", "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\"");
+                string chromeRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Google\Chrome", "UserDataDir");
+                string chromeUserDataPath = chromeRegSetting != null ? Environment.ExpandEnvironmentVariables(chromeRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Google\Chrome\User Data\");
+                tasks.Add(InitiateBrowserSession("Chrome", chromePath, chromeUserDataPath, token, checkUsage));
+            }
+
+            if (edgeEnabled)
+            {
+                string edgePath = fetchExePath(@"HKEY_CLASSES_ROOT\MSEdgeHTM\shell\open\command", "msedge.exe", "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\"");
+                string edgeRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Microsoft\Edge", "UserDataDir");
+                string edgeUserDataPath = edgeRegSetting != null ? Environment.ExpandEnvironmentVariables(edgeRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Microsoft\Edge\User Data\");
+                tasks.Add(InitiateBrowserSession("Edge", edgePath, edgeUserDataPath, token, checkUsage));
+            }
+
+            if (firefoxEnabled)
+            {
+                // Current firefox doesn't allow firefox to change it's profile folder, but code implemented to when is it is
+                string firefoxPath = fetchExePath(@"HKEY_CLASSES_ROOT\firefox\shell\open\command", "firefox.exe", "\"C:\\Program Files\\Mozilla Firefox\\firefox.exe\"");
+                string firefoxRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Mozilla\Firefox", "ProfilePath");
+                string firefoxUserDataPath = firefoxRegSetting != null ? Environment.ExpandEnvironmentVariables(firefoxRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Mozilla\Firefox\Profiles\");
+                tasks.Add(InitiateBrowserSession("Firefox", firefoxPath, firefoxUserDataPath, token, checkUsage));
+            }
+
+            // calls all enabled browsers async
+            await Task.WhenAll(tasks);
+        }
+
+
+        private async Task InitiateBrowserSession(String browserName, String exePath, String UserDataDirectory, String token, bool checkUsage)
+        {
+            Log.Information($"Trying to establishing session in {browserName}");
+            if(exePath != null && (!checkUsage || Directory.Exists(UserDataDirectory)))
+            {
+                Log.Information($"Running {browserName} with token");
+                await Task.Run(() => runBrowserWithToken(exePath, token));
+            }
+            else
+            {
+                Log.Information($"Didn't run {browserName}. exePath = {exePath}; directory exist: {Directory.Exists(UserDataDirectory)}; userDataDirectory = {UserDataDirectory}");
+            }
+        }
+
+        private string GetBrowserProfileFromRegistry(string registryKey, string value)
+        {
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(registryKey))
+                {
+                    if (key != null)
+                    {
+                        String valueString = key.GetValue(value)?.ToString();
+
+                        if (valueString != null)
+                        {
+                            Log.Information("Found registry key for " + registryKey + ": " + valueString);
+                            //Change the GPO format to a format readable by our program
+                            if(valueString.StartsWith("${local_app_data}"))
+                            {
+                                valueString = valueString.Replace("${local_app_data}", "%localappdata%");
+                            }
+                            return valueString;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Error trying to read from registry job: " + ex);
+            }
+
+            Log.Information("Didn't find registry key for: " + registryKey);
+            return null;
+        }
+
+        private static void UpdateDefaultSettings(ref bool chromeEnabled, ref bool edgeEnabled, ref bool firefoxEnabled, ref bool checkUsage)
         {
             try
             {
@@ -128,6 +190,12 @@ namespace SessionEstablisher
                         {
                             firefoxEnabled = (int)logPathObj == 1;
                         }
+                        logPathObj = settingsKey.GetValue("CheckBrowserUsage");
+                        if (logPathObj != null)
+                        {
+                            checkUsage = (int)logPathObj == 1;
+                        }
+
                     }
                 }
             }

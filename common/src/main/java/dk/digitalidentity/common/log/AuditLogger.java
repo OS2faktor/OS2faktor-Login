@@ -360,6 +360,22 @@ public class AuditLogger {
 
 				logs.add(auditLog);
 			}
+
+			// only called for bulk-create, and here we need to ensure that this field is auditlogged as well
+			if (person.isQualifiedSignature()) {
+				auditLog = new AuditLog();
+				auditLog.setLogAction(LogAction.CHANGED_ALLOW_QUALIFIED_SIGNATURE);
+				auditLog.setMessage("Bruger må udføre kvalificeret underskrift");
+
+				auditLog.setCorrelationId(correlationId);
+				auditLog.setIpAddress(ipAddress);
+				auditLog.setPerson(person);
+				auditLog.setPersonName(person.getName());
+				auditLog.setPersonDomain(person.getDomain().getName());
+				auditLog.setCpr(person.getCpr());
+
+				logs.add(auditLog);
+			}
 		}
 
 		auditLogDao.saveAll(logs);
@@ -510,6 +526,19 @@ public class AuditLogger {
 		auditLog.setMessage("Kodeordsskifte afvist");
 
 		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent(reason);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, null);
+	}
+
+	public void passwordFilterValidationFailed(Person person, String reason) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.PASSWORD_FILTER_VALIDATION_FAILED);
+		auditLog.setMessage("Kontrol af valideringsregler på kodeord resulterede i afvisning til AD");
+
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailType(DetailType.TEXT);
 		detail.setDetailContent(reason);
@@ -1075,6 +1104,14 @@ public class AuditLogger {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGED_ALLOW_PRIVATE_MITID);
 		auditLog.setMessage(allowPrivateMitID ? "Bruger må anvende privat MitID til NemLog-in" : "Bruger må ikke længere anvende privat MitID til NemLog-in");
+
+		log(auditLog, person, null);
+	}
+
+	public void allowQualifiedSignatureChanged(Person person, boolean allowQualifiedSignature) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGED_ALLOW_QUALIFIED_SIGNATURE);
+		auditLog.setMessage(allowQualifiedSignature ? "Bruger må udføre kvalificeret underskrift" : "Bruger må ikke længere udføre kvalificeret underskrift");
 
 		log(auditLog, person, null);
 	}

@@ -53,17 +53,32 @@
 											<td th:text="${secondaryCertName}"></td>
 											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/secondaryCert'}">PEM</a></td>
 										</tr>
+										
+										<tr th:if="${selfsignedCertName != null}">
+											<td>Selfsigned</td>
+											<td th:text="${selfsignedCertName}"></td>
+											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/selfsignedCert'}">PEM</a></td>
+										</tr>
 									</tbody>
 								</table>
 								
 								<h2>SAML 2.0</h2>
 								<p>
-									Tjenesteudbyderen kan hente alle SAML metadata via nedenstående link. Data opdateres autoamtisk ved certifikatskifte,
+									Tjenesteudbyderen kan hente alle SAML metadata via nedenstående link. Data opdateres automatisk ved certifikatskifte,
 									og tjenesteudbyderen kan på den måde automatisk opdage når certifikater opdateres i OS2faktor Identity Provideren.
 								</p>
 								
 								<p>
 									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}"></a>
+								</p>
+								
+								<p>
+									Hvis en tjenesteudbyder er opsat, så OS2faktor IdP anvedner et 30 års selfsigneret certifikat, så skal tjenesten hente metadata
+									fra nedenstående endpoint. Disse metadata ændrer sig ikke, og vil altid indeholde det samme certifikat.
+								</p>
+
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}"></a>
 								</p>
 
 								<p>
@@ -141,6 +156,15 @@
 								
 								<p>
 									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}"></a>
+								</p>
+								
+								<p>
+									Hvis en tjenesteudbyder er opsat, så OS2faktor IdP anvedner et 30 års selfsigneret certifikat, så skal tjenesten hente metadata
+									fra nedenstående endpoint. Disse metadata ændrer sig ikke, og vil altid indeholde det samme certifikat.
+								</p>
+								
+								<p>
+									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}"></a>
 								</p>
 							</div>
 						</div>

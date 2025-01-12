@@ -11,6 +11,7 @@ import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.encoder.MessageEncodingException;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.binding.encoding.impl.HTTPPostEncoder;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -40,8 +41,10 @@ public class CustomHTTPPostEncoder extends HTTPPostEncoder {
             out.flush();
         }
         catch (final Exception e) {
-        	// this is the change
-        	if (e instanceof ClientAbortException || e instanceof VelocityException) {
+        	if (e instanceof AsyncRequestNotUsableException) {
+        		log.warn("Unable to send message to " + endpointURL + " because: " + e.getMessage());
+        	}
+        	else if (e instanceof ClientAbortException || e instanceof VelocityException) {
         		log.warn("Error invoking Velocity template", e);
         	}
         	else {

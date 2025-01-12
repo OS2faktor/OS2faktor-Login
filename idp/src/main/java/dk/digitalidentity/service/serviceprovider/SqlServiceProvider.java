@@ -563,4 +563,8 @@ public class SqlServiceProvider extends ServiceProvider {
 	public boolean isAllowMitidErvhervLogin() {
 		return config.isAllowMitidErvhervLogin();
 	}
+
+	public String getCertificateAlias() {
+		return config.getCertificateAlias();
+	}
 }

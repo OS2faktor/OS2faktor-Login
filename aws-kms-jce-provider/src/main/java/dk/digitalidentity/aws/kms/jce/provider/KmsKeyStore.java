@@ -74,7 +74,7 @@ public class KmsKeyStore extends KeyStoreSpi {
 
         DescribeKeyResponse describeKeyResponse = kmsClient.describeKey(builder -> builder.keyId(aliasListEntry.targetKeyId()));
         if (!describeKeyResponse.keyMetadata().hasSigningAlgorithms()) {
-            throw new IllegalStateException("Unsupported Key type. Only signing keys are supported.");
+            throw new IllegalStateException("Unsupported Key type. Only signing keys are supported. Alias = " + alias);
         }
 
         boolean rsa = describeKeyResponse.keyMetadata().signingAlgorithmsAsStrings().stream().filter(a -> a.startsWith("RSA")).findAny().isPresent();

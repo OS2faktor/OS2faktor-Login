@@ -75,6 +75,7 @@ import jakarta.persistence.metamodel.Type;
  */
 
 // TODO: har kommenteret en ERROR log ud nedenfor med en TODO kommentar på - eneste ændring
+@SuppressWarnings( { "unchecked", "rawtypes" })
 @Internal
 public class MetadataContext {
 	private static final EntityManagerMessageLogger LOG = HEMLogging.messageLogger( MetadataContext.class );
@@ -250,7 +251,6 @@ public class MetadataContext {
 	 *
 	 * @return The corresponding JPA {@link org.hibernate.type.EntityType}, or null.
 	 */
-	@SuppressWarnings("unchecked")
 	public <E> IdentifiableDomainType<E> locateIdentifiableType(String entityName) {
 		return (IdentifiableDomainType<E>) identifiableTypesByName.get( entityName );
 	}
@@ -286,7 +286,6 @@ public class MetadataContext {
 		return attribute;
 	}
 
-	@SuppressWarnings("unchecked")
 	public void wrapUp() {
 		if ( LOG.isTraceEnabled() ) {
 			LOG.trace( "Wrapping up metadata context..." );

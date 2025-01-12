@@ -14,6 +14,12 @@ public class NemLoginIdMConfiguration {
 	@FeatureDocumentation(name = "Privat MitID / NemLog-in", description = "Overfør anvendelsen af privat MitID som loginmiddel i MitID Erhverv")
 	private boolean privateMitIdEnabled = false;
 
+	@FeatureDocumentation(name = "Kvalificeret underskrift", description = "Styring af hvilke brugere som må udføre underskrifter i MitID Erhverv")
+	private boolean qualifiedSignatureEnabled = false;
+
+	@FeatureDocumentation(name = "Navnebeskyttelse i MitID Erhverv", description = "Sæt navnebeskyttelse på brugere i MitID Erhverv hvis de har navnebeskyttelse i CPR registeret (OBS! skal også slås til inde i MitID Erhverv før funktionen kan bruges)")
+	private boolean pseudonymEnabled = false;
+
 	private String keystoreLocation;
 	private String keystorePassword;
 	private String invoiceMethodUuid;

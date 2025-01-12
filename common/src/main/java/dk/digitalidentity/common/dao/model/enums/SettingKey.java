@@ -6,9 +6,9 @@ import lombok.Getter;
 public enum SettingKey {
 	TRACE_LOGGING("false"),
 	FULL_SERVICE_IDP_MIGRATED("false"),
-	MIGRATED_PRIVATE_MITID("false"),
 	KOMBIT_DEFAULT_MFA("DEPENDS"),
-	CERTIFICATE_ROLLOVER_TTS("2099-12-31T23:59");
+	CERTIFICATE_ROLLOVER_TTS("2099-12-31T23:59"),
+	SELFSIGNED_CERTIFICATE_GENERATED("false");
 	
 	private String defaultValue;
 	

@@ -112,6 +112,9 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 			map.put("dk:gov:saml:attribute:KombitSpecVer", "1.0");
 			map.put("dk:gov:saml:attribute:CvrNumberIdentifier", commonConfig.getCustomer().getCvr());
 			map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
+			
+			// needed for SEB
+			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
 		}
 		else {
 			map.put("dk:gov:saml:attribute:KombitSpecVer", "2.0");
@@ -126,11 +129,14 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 			if (!person.hasActivatedNSISUser()) {
 				map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
 			}
-			
-			// persistent identifier attribute (KOMBIT will forward this to SEB who needs it for NL3 mapping)
+
+			// persistent identifier attribute and cpr (KOMBIT will forward this to SEB who needs it for NL3 mapping)
 			if (StringUtils.hasLength(person.getNemloginUserUuid())) {
 				map.put("https://data.gov.dk/model/core/eid/professional/uuid/persistent", "urn:uuid:" + person.getNemloginUserUuid());
 			}
+			
+			// needed for SEB
+			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
 		}
 
 		String lookupIdentifier = "KOMBIT";

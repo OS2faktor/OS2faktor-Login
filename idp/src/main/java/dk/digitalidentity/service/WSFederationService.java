@@ -296,7 +296,7 @@ public class WSFederationService {
 		String assertionId = secureRandomIdGenerator.generateIdentifier();
 		DateTime issueInstant = DateTime.now();
 		Assertion assertion = assertionService.createAssertion(assertionId, issueInstant, loginRequest, person, serviceProvider, loginRequest.getReturnURL(), loginRequest.getServiceProviderId(), null, null);
-		assertionService.signAssertion(assertion);
+		assertionService.signAssertion(assertion, serviceProvider);
 
 		insertAssertion(response, assertionId, assertion);
 
@@ -315,7 +315,7 @@ public class WSFederationService {
 		String assertionId = secureRandomIdGenerator.generateIdentifier();
 		DateTime issueInstant = DateTime.now();
 		Assertion assertion = createBrokeredAssertionForWSFed(loginRequest, assertionId, issueInstant, nemLogInAssertion, serviceProvider);
-		assertionService.signAssertion(assertion);
+		assertionService.signAssertion(assertion, serviceProvider);
 
 		insertAssertion(response, assertionId, assertion);
 

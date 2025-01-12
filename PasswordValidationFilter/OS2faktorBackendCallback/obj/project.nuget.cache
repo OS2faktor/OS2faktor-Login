@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "chw/Ltk61ypHMMmvwI46OPj839GKeSPetFLK+C5omBB1W0v5opgin3NOAP8GCjnz7sTtd3AXaSeGQce6R7RVRQ==",
+  "success": true,
+  "projectFilePath": "Y:\\os2faktor-nsis\\PasswordValidationFilter\\OS2faktorBackendCallback\\OS2faktorBackendCallback.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mpo.DIGITALIDENTITY\\.nuget\\packages\\serilog\\4.0.1\\serilog.4.0.1.nupkg.sha512",
+    "C:\\Users\\mpo.DIGITALIDENTITY\\.nuget\\packages\\serilog.sinks.file\\6.0.0\\serilog.sinks.file.6.0.0.nupkg.sha512",
+    "C:\\Users\\mpo.DIGITALIDENTITY\\.nuget\\packages\\system.security.cryptography.protecteddata\\8.0.0\\system.security.cryptography.protecteddata.8.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

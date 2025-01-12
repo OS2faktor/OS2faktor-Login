@@ -47,7 +47,7 @@ public class PasswordChangeValidator implements Validator {
 		if (!sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
 			ValidationUtils.rejectIfEmptyOrWhitespace(errors, "oldPassword", "page.selfservice.changePassword.error.required");
 
-			if (!passwordService.validatePassword(form.getOldPassword(), person).isNoErrors()) {
+			if (!passwordService.validatePasswordWithoutLogin(form.getOldPassword(), person).isNoErrors()) {
 				errors.rejectValue("oldPassword", "page.selfservice.changePassword.error.oldPasswordWrong");
 			}
 		}

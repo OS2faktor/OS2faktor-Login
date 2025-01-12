@@ -23,7 +23,6 @@ import dk.digitalidentity.common.config.modules.SelfServiceConfiguration;
 import dk.digitalidentity.common.config.modules.StilPersonCreationConfiguration;
 import dk.digitalidentity.common.config.modules.nemlogin.NemLoginIdMConfiguration;
 import dk.digitalidentity.common.config.modules.nemlogin.NemLoginSPConfiguration;
-import dk.digitalidentity.common.config.modules.nemlogin.NemloginBrokerConfiguration;
 import dk.digitalidentity.common.config.modules.school.StilSPConfiguration;
 import dk.digitalidentity.common.config.modules.school.StudentPwdConfiguration;
 import lombok.Getter;
@@ -45,7 +44,6 @@ public class CommonConfiguration {
 	private RoleCatalogueConfiguration roleCatalogue = new RoleCatalogueConfiguration();
 	private RadiusConfiguration radiusConfiguration = new RadiusConfiguration();
 	private CprConfiguration cpr = new CprConfiguration();
-	private NemloginBrokerConfiguration nemlogin = new NemloginBrokerConfiguration();
 	private MfaDatabaseConfiguration mfaDatabase = new MfaDatabaseConfiguration();
 	private NemLoginIdMConfiguration nemLoginApi = new NemLoginIdMConfiguration();
 	private NemLoginSPConfiguration nemLoginTU = new NemLoginSPConfiguration();

@@ -136,16 +136,30 @@ public class ChangePasswordOnStudentsController {
 			return "redirect:/andre-brugere/kodeord/skift/list";
 		}
 
+		// sanity check, to make sure password cannot be requested for older classes
+		try {
+			int level = Integer.parseInt(schoolClass.getLevel());
+			if (level >= 4) {
+				withPassword = false;
+			}
+		}
+		catch (Exception ignored) {
+			withPassword = false;
+		}
+		
+		final boolean fWithPassword = withPassword;
 		List<StudentDTO> students = personService.getStudentsThatPasswordCanBeChangedOnByPerson(loggedInPerson, schoolClass)
 			.stream()
-			.map(p -> new StudentDTO(p, (personService.isYoungStudent(p) != null)))
+			.map(p -> new StudentDTO(p, fWithPassword))
 			.collect(Collectors.toList());
 
 		if (withPassword) {
 			for (StudentDTO student : students) {
 				if (student.isCanSeePassword()) {
 					try {
-						student.setPassword(passwordChangeQueueService.decryptPassword(student.getPassword()));
+						if (StringUtils.hasLength(student.getPassword())) {
+							student.setPassword(passwordChangeQueueService.decryptPassword(student.getPassword()));
+						}
 					}
 					catch (Exception ex) {
 						log.warn("Cannot decrypt student password for " + student.getSamaccountName() + " : " + ex.getMessage());

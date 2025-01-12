@@ -13,7 +13,8 @@ CREATE OR REPLACE VIEW view_person_admin_identities AS
          p.nsis_level,
          IF (d.parent_domain_id IS NULL, d.name, CONCAT(pd.name, " - ", d.name)) `domain`,
          IF (COUNT(c.person_id) > 0, 'Ja', 'Nej') AS mfa_clients,
-         IF (p.approved_conditions IS FALSE OR p.approved_conditions_tts IS NULL OR (SELECT must_approve_tts FROM terms_and_conditions LIMIT 1) > p.approved_conditions_tts, 'Nej', 'Ja' ) AS approved_conditions
+         IF (p.approved_conditions IS FALSE OR p.approved_conditions_tts IS NULL OR (SELECT must_approve_tts FROM terms_and_conditions LIMIT 1) > p.approved_conditions_tts, 'Nej', 'Ja' ) AS approved_conditions,
+         p.robot
   FROM persons p
   JOIN domains d ON p.domain_id = d.id
   LEFT JOIN domains AS pd ON d.parent_domain_id = pd.id

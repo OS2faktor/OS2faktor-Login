@@ -30,8 +30,8 @@ import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.Base64;
 import com.nimbusds.jose.util.Base64URL;
 
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.service.KeystoreService;
-import dk.digitalidentity.service.KeystoreService.KNOWN_CERTIFICATE_ALIASES;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -74,10 +74,10 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 	}
 	
 	public KeyPair getKeyPair() throws CertificateException, IOException, NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException {
-		KeyStore ks = keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.OCES.toString());
+		KeyStore ks = keystoreService.getJavaKeystore(KnownCertificateAliases.OCES.toString());
 		String alias = ks.aliases().nextElement();
 
-		String pwd = keystoreService.getJavaKeystorePassword(KNOWN_CERTIFICATE_ALIASES.OCES.toString());
+		String pwd = keystoreService.getJavaKeystorePassword(KnownCertificateAliases.OCES.toString());
 		
 		Key key = ks.getKey(alias, (pwd != null) ? pwd.toCharArray() : null);
 		if (key instanceof PrivateKey) {
@@ -88,7 +88,7 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 	}
 	
 	private X509Certificate getCertificate() throws KeyStoreException {
-		KeyStore ks = keystoreService.getJavaKeystore(KNOWN_CERTIFICATE_ALIASES.OCES.toString());
+		KeyStore ks = keystoreService.getJavaKeystore(KnownCertificateAliases.OCES.toString());
 		String alias = ks.aliases().nextElement();
 
 		return (X509Certificate) ks.getCertificate(alias);

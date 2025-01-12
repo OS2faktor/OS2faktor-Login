@@ -14,11 +14,13 @@ import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
 import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
 import dk.digitalidentity.common.serviceprovider.ServiceProviderConfig;
+import dk.digitalidentity.service.KeystoreService;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -61,6 +63,7 @@ public class ServiceProviderDTO {
 	private boolean allowAnonymousUsers;
 	private boolean publicClient;
 	private boolean requirePKCE;
+	private String certificate;
 
 	public ServiceProviderDTO() {
 		this.id = "0";
@@ -71,6 +74,7 @@ public class ServiceProviderDTO {
 		this.conditionsGroups = new ArrayList<>();
 		this.exemptedDomains = new ArrayList<>();
 		this.allowAnonymousUsers = false;
+		this.certificate = KnownCertificateAliases.OCES.name();
 	}
 
 	public ServiceProviderDTO(ServiceProviderConfig config, List<CertificateDTO> certificates, List<EndpointDTO> endpoints) {
@@ -91,6 +95,7 @@ public class ServiceProviderDTO {
 		this.hasCustomSessionExpiry = false;
 		this.allowMitidErhvervLogin = config.isAllowMitidErvhervLogin();
 		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
+		this.certificate = config.getCertificateAlias();
 
 		for (NameIdFormat format : NameIdFormat.values()) {
 			if (Objects.equals(format.value, config.getNameIdFormat().value)) {
@@ -112,7 +117,6 @@ public class ServiceProviderDTO {
 			if (passwordExpiry != null && mfaExpiry != null) {
 				this.hasCustomSessionExpiry = true;
 			}
-
 
 			// Add all claims together
 			this.claims = new ArrayList<>();

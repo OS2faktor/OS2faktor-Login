@@ -73,6 +73,7 @@ import dk.digitalidentity.datatables.model.AdminPersonView;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.RadiusClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.RadiusClientDTO;
+import dk.digitalidentity.mvc.admin.dto.serviceprovider.ClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.mvc.selfservice.NSISStatus;
@@ -592,6 +593,9 @@ public class AdminRestController {
 
 		switch (body.getType()) {
 			case Constants.ROLE_ADMIN:
+				if (!securityUtil.isAdmin()) {
+					return new ResponseEntity<>("Kun admin kan tildele admin role", HttpStatus.BAD_REQUEST);
+				}
 				person.setAdmin(body.isState());
 				auditLogger.toggleRoleByAdmin(person, admin, Constants.ROLE_ADMIN, body.isState());
 				personService.save(person);
@@ -700,6 +704,11 @@ public class AdminRestController {
 	@ResponseBody
 	public ResponseEntity<?> editServiceProvider(@RequestBody ServiceProviderDTO serviceProviderDTO) {
 		try {
+			// Throws exception if claims attribute conains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
+			if(serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
+				throw new Exception("Det er ikke tilladt at tilføje claims indeholdende 'data.gov.dk/concept/core/nsis/aal' eller 'data.gov.dk/concept/core/nsis/aal'"); 
+			}
+			
 			SqlServiceProviderConfiguration config = metadataService.saveConfiguration(serviceProviderDTO);
 
 			return ResponseEntity.ok(config.getId());

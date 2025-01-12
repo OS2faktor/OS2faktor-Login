@@ -74,9 +74,14 @@ namespace OS2faktorADSync
 
         [JsonProperty(PropertyName = "transferToNemlogin")]
         public bool TransferToNemlogin { get; set; }
+        [JsonProperty(PropertyName = "robot")]
+        public bool Robot { get; set; }
 
         [JsonProperty(PropertyName = "privateMitID")]
         public bool PrivateMitID { get; set; }
+
+        [JsonProperty(PropertyName = "qualifiedSignature")]
+        public bool QualifiedSignature { get; set; }
 
         [JsonProperty(PropertyName = "department")]
         public string Department { get; set; }

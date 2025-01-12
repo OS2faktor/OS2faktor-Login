@@ -43,7 +43,7 @@ public class WSFederationController {
 	@Autowired
 	private ServiceProviderFactory serviceProviderFactory;
 
-	@RequestMapping(value = "/ws/login", method = { RequestMethod.GET, RequestMethod.POST})
+	@RequestMapping(value = { "/ws/login", "/ws/login/", }, method = { RequestMethod.GET, RequestMethod.POST})
 	public ModelAndView login(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO parameters) throws RequesterException, ResponderException {
 		// handle logout case
 		if ("wsignout1.0".equals(parameters.getWa()) || "wsignoutcleanup1.0".equals(parameters.getWa())) {

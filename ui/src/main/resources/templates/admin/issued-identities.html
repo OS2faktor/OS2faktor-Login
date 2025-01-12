@@ -201,7 +201,14 @@
 					},
 					{
 						"data": "name",
-						"orderable": false
+						"orderable": false,
+						"render": function (data, type, row, meta) {
+							if (row.robot) {
+								return row.name + ' <label class="label label-primary"><em class="fa fa-android"></em> &nbsp; ROBOT</label>';
+							}
+
+							return row.name
+						}
 					},
 					{
 						"data": "mfaClients",

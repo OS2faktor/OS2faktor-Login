@@ -28,8 +28,10 @@ public class CoreDataEntry {
 	private String expireTimestamp;
 	private boolean transferToNemlogin;
 	private boolean privateMitId;
+	private boolean qualifiedSignature;
 	private boolean lockedDataset;
 	private boolean trustedEmployee;
+	private boolean robot;
 	private String department;
 	private String externalNemloginUserUuid;
 	private Set<String> roles;
@@ -50,10 +52,12 @@ public class CoreDataEntry {
 		this.nsisAllowed = person.isNsisAllowed();
 		this.transferToNemlogin = person.isTransferToNemlogin();
 		this.privateMitId = person.isPrivateMitId();
+		this.qualifiedSignature = person.isQualifiedSignature();
 		this.lockedDataset = person.isLockedDataset();
 		this.department = person.getDepartment();
 		this.externalNemloginUserUuid = person.getExternalNemloginUserUuid();
 		this.trustedEmployee = person.isTrustedEmployee();
+		this.robot = person.isRobot();
 		this.roles = new HashSet<>();
 		this.ean = person.getEan();
 
@@ -101,5 +105,15 @@ public class CoreDataEntry {
 		}
 		
 		return null;
+	}
+	
+	// make sure robot overrides any nsis/nemlogin stuff
+
+	public boolean isNsisAllowed() {
+		return nsisAllowed && !robot;
+	}
+
+	public boolean isTransferToNemlogin() {
+		return transferToNemlogin && !robot;
 	}
 }

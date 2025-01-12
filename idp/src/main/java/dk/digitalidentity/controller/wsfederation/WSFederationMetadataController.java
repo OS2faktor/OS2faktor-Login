@@ -1,6 +1,7 @@
 package dk.digitalidentity.controller.wsfederation;
 
 import java.io.StringWriter;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.opensaml.core.xml.io.MarshallingException;
@@ -9,7 +10,9 @@ import org.opensaml.saml.saml2.metadata.impl.KeyDescriptorMarshaller;
 import org.opensaml.security.credential.UsageType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
@@ -17,6 +20,7 @@ import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSOutput;
 import org.w3c.dom.ls.LSSerializer;
 
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.CredentialService;
 import dk.digitalidentity.service.OpenSAMLHelperService;
@@ -35,14 +39,14 @@ public class WSFederationMetadataController {
 	private CredentialService credentialService;
 
 	@GetMapping(value = "/ws/metadata", produces = MediaType.TEXT_XML_VALUE)
-	public String metadata() throws ResponderException, MarshallingException {
+	public String metadata(@RequestParam(name = "cert", required = false, defaultValue = "OCES") String cert) throws ResponderException, MarshallingException {
 		StringBuilder sb = new StringBuilder();
 
 		sb.append("<?xml version=\"1.0\"?>\n");
 		sb.append("<EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\" ID=\"").append("_").append(UUID.nameUUIDFromBytes(configuration.getEntityId().getBytes()).toString()).append("\" entityID=\"").append(configuration.getEntityId()).append("\">\n");
 		sb.append("<RoleDescriptor xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:fed=\"http://docs.oasis-open.org/wsfed/federation/200706\" xsi:type=\"fed:SecurityTokenServiceType\" protocolSupportEnumeration=\"http://docs.oasis-open.org/ws-sx/ws-trust/200512 http://schemas.xmlsoap.org/ws/2005/02/trust http://docs.oasis-open.org/wsfed/federation/200706\" ServiceDisplayName=\"OS2faktor Login\">\n");
 
-		addKeyDescriptor(sb);
+		addKeyDescriptor(sb, cert);
 
 		sb
 			.append("<fed:TokenTypesOffered>\n")
@@ -69,11 +73,18 @@ public class WSFederationMetadataController {
 		return sb.toString();
 	}
 
-	private void addKeyDescriptor(StringBuilder sb) throws ResponderException, MarshallingException {
-		KeyDescriptor keyDescriptor = getKeyDescriptor(UsageType.SIGNING);
+	private void addKeyDescriptor(StringBuilder sb, String cert) throws ResponderException, MarshallingException {
+		KeyDescriptor keyDescriptor = null;
+
+		if (StringUtils.hasText(cert) && Objects.equals(cert, KnownCertificateAliases.SELFSIGNED.toString())) {
+			keyDescriptor = getSelfsignedKeyDescriptor(UsageType.SIGNING);
+		}
+		else {
+			keyDescriptor = getKeyDescriptor(UsageType.SIGNING);
+		}
+
 		KeyDescriptorMarshaller keyDescriptorMarshaller = new KeyDescriptorMarshaller();
 		Element marshalled = keyDescriptorMarshaller.marshall(keyDescriptor);
-
 
 		StringWriter writer = new StringWriter();
 
@@ -87,6 +98,15 @@ public class WSFederationMetadataController {
 		serializer.getDomConfig().setParameter("xml-declaration", false);
 		serializer.write(marshalled, serializerOut);
 		sb.append(writer.toString());
+	}
+
+	private KeyDescriptor getSelfsignedKeyDescriptor(UsageType usageType) throws ResponderException {
+		KeyDescriptor keyDescriptor = samlHelper.buildSAMLObject(KeyDescriptor.class);
+
+		keyDescriptor.setUse(usageType);
+		keyDescriptor.setKeyInfo(credentialService.getSelfsignedPublicKeyInfo());
+
+		return keyDescriptor;
 	}
 
 	private KeyDescriptor getKeyDescriptor(UsageType usageType) throws ResponderException {

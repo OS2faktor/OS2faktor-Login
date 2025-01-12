@@ -65,6 +65,7 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 		headers.add("Navn");
 		headers.add("Brugernavn");
 		headers.add("Personnummer");
+		headers.add("Robot");
 		headers.add("Domæne");
 		headers.add("Dato for godkendt vilkår");
 		headers.add("NSIS sikringsniveau");
@@ -101,6 +102,9 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 
 			// Personnummer
 			createCell(dataRow, column++, entry.getCpr().substring(0, 6) + "-xxxx", null);
+
+			// Robot
+			createCell(dataRow, column++, entry.isRobot() ? "Ja" : "Nej", null);
 
 			// Domæne
 			createCell(dataRow, column++, entry.getDomain().getName(), null);

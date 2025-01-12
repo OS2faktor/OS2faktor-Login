@@ -178,6 +178,9 @@ public class Person {
 
 	@Column
 	private boolean privateMitId;
+
+	@Column
+	private boolean qualifiedSignature;
 	
 	@Column
 	private boolean cprNameUpdated;
@@ -194,6 +197,9 @@ public class Person {
 	// it, as we need to store that for other purposes (cpr name/civilstate validation, digital post integration, etc)
 	@Column
 	private String externalNemloginUserUuid;
+	
+	@Column
+	private boolean robot;
 
 	@OneToOne
 	@JoinColumn(name = "domain_id")
