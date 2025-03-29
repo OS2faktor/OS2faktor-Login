@@ -37,9 +37,6 @@ public class Domain {
 	@Column
 	private String name;
 
-	@Column
-	private boolean monitored;
-
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JsonIgnore
 	@JoinColumn(name = "parent_domain_id", nullable = true)

@@ -418,6 +418,7 @@
 											<th style="display:none;">Id</th>
 											<th style="width: 200px;">Type</th>
 											<th>Attribut</th>
+											<th style="width: 80px;">Én værdi</th>
 											<th style="width: 300px;">Værdi</th>
 											<th style="width: 200px;">Parameter</th>
 											<th style="width: 80px;">Handlinger</th>
@@ -439,6 +440,7 @@
 
 											<td th:text="${claim.type.message}" />
 											<td th:text="${claim.attribute}" />
+											<td class="text-center"><em th:if="${claim.singleValueOnly}" class="fa fa-check"></em></td>
 											<td th:text="${claim.value}" />
 											<td th:text="${claim.parameter}" />
 											<td>
@@ -602,8 +604,8 @@
 								</p>
 								
 								<div class="form-group row" style="margin-right:0px;">
-									<label class="col-sm-12 col-form-label" id="modalSingleValueOnlyLabel">
-										<input id="modalSingleValueOnlyField" name="modalSingleValueOnlyField" type="checkbox" class="i-checks">
+									<label class="col-sm-12 col-form-label" id="modalDynamicSingleValueOnlyLabel">
+										<input id="modalDynamicSingleValueOnlyField" name="modalDynamicSingleValueOnlyField" type="checkbox" class="i-checks">
 										&nbsp;
 										send kun én værdi
 									</label>
@@ -652,6 +654,25 @@
 										<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimValueRC"></input>
 									</div>
 								</div>
+
+								<div id="modalRCSingleValueBox" style="display: none;">
+								<hr>
+
+								<h3>Send kun én rolle</h3>
+								<p>
+									Hvis denne indstilling vælges, og brugeren er tildelt flere roller, så præsenteres brugeren for en liste over tildelte
+									roller, og skal vælge hvilken der sendes med på logintidspunktet.
+								</p>
+								
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="col-sm-12 col-form-label" id="modalRCSingleValueOnlyLabel">
+										<input id="modalRCSingleValueOnlyField" name="modalRCSingleValueOnlyField" type="checkbox" class="i-checks">
+										&nbsp;
+										send kun én værdi
+									</label>
+								</div>
+								</div>
+
 							</block>
 							
 							<block id="modalClaimTypeAdvanced"  class="modalClaimTypeSection">
@@ -668,6 +689,22 @@
 								
 								<div class="form-group row" style="margin-right:0px;">
 									<label class="offset-3 col-form-label" id="modalExternalOperationArgumentErrorMessage" style="color: red;"></label>
+								</div>
+
+								<hr/>
+
+								<h3>Send kun én værdi</h3>
+								<p>
+									Hvis der konfigureres flere avancerede claims med samme navn, og mindst én af disse har hak i "Send kun én værdi", så præsenteres
+									brugeren for en valgside under login, hvor de skal vælge hvilken af værdierne der skal sendes med på logintidspunktet.
+								</p>
+								
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="col-sm-12 col-form-label" id="modalAdvancedSingleValueOnlyLabel">
+										<input id="modalAdvancedSingleValueOnlyField" name="modalAdvancedSingleValueOnlyField" type="checkbox" class="i-checks">
+										&nbsp;
+										send kun én værdi
+									</label>
 								</div>
 							</block>
 							
@@ -687,6 +724,21 @@
 									<input class="col-sm-9 form-control" placeholder="Indtast værdi" id="modalClaimRuleGroupValueField"></input>
 								</div>
 
+								<hr/>
+
+								<h3>Send kun én værdi</h3>
+								<p>
+									Hvis der konfigureres flere gruppe-claims med samme navn, og mindst én af disse har hak i "Send kun én værdi", så præsenteres
+									brugeren for en valgside under login, hvor de skal vælge hvilken af grupperne der skal sendes med på logintidspunktet.
+								</p>
+								
+								<div class="form-group row" style="margin-right:0px;">
+									<label class="col-sm-12 col-form-label" id="modalGroupSingleValueOnlyLabel">
+										<input id="modalGroupSingleValueOnlyField" name="modalGroupSingleValueOnlyField" type="checkbox" class="i-checks">
+										&nbsp;
+										send kun én værdi
+									</label>
+								</div>
 							</block>
 						</div>
 
@@ -1574,6 +1626,9 @@
 					$('input[value="GROUP"]').parents('label').remove();
 					$('#groupFeatureDescription').remove();
 				}
+				
+				// default onlySingleValue visibility
+				$('#modalExternalOperationField').change();
 			}
 
 			this.externalOperationChanged = function(obj) {
@@ -1581,22 +1636,27 @@
 				if (operationType == 'CONDITION_MEMBER_OF_USER_ROLE') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på jobfunktionsrolle');
 					$('#modalClaimValueRCOptionalValue').show();
+					$('#modalRCSingleValueBox').hide();
 				}
 				else if (operationType == 'CONDITION_MEMBER_OF_SYSTEM_ROLE') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på systemrolle');
 					$('#modalClaimValueRCOptionalValue').show();
+					$('#modalRCSingleValueBox').hide();
 				}
 				else if (operationType == 'GET_USER_ROLES') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
 					$('#modalClaimValueRCOptionalValue').hide();
+					$('#modalRCSingleValueBox').show();
 				}
 				else if (operationType == 'GET_SYSTEM_ROLES') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
 					$('#modalClaimValueRCOptionalValue').hide();
+					$('#modalRCSingleValueBox').show();
 				}
 				else if (operationType == 'GET_SYSTEM_ROLES_OIOBPP') {
 					$('#modalExternalOperationArgumentField').attr('placeholder', 'ID på it-system');
 					$('#modalClaimValueRCOptionalValue').hide();
+					$('#modalRCSingleValueBox').hide();
 				}
 			}
 
@@ -1607,7 +1667,10 @@
 				for (let label of $('#modalTypeSelector label')) {
 					$(label).children('div').replaceWith($(label).find('.i-checks[name=modalTypeSelect]').clone())
 				}
-				$('#modalSingleValueOnlyLabel').children('div').replaceWith($('#modalSingleValueOnlyLabel').find('.i-checks').clone())
+				$('#modalDynamicSingleValueOnlyLabel').children('div').replaceWith($('#modalDynamicSingleValueOnlyLabel').find('.i-checks').clone())
+				$('#modalAdvancedSingleValueOnlyLabel').children('div').replaceWith($('#modalAdvancedSingleValueOnlyLabel').find('.i-checks').clone())
+				$('#modalRCSingleValueOnlyLabel').children('div').replaceWith($('#modalRCSingleValueOnlyLabel').find('.i-checks').clone())
+				$('#modalGroupSingleValueOnlyLabel').children('div').replaceWith($('#modalGroupSingleValueOnlyLabel').find('.i-checks').clone())
 
 				modalService.init()
 				
@@ -1655,7 +1718,7 @@
 					claimValue = $("#modalClaimValueDynamic option:selected").val();
 				}
 				else if (type == 'ROLE_CATALOGUE') {
-					claimValue = $("#modalExternalOperationArgumentField").val();
+					claimValue = $("#modalClaimValueRC").val();
 					parameterName = $('#modalExternalOperationField').find(":selected").text();
 				}
 				else if (type == 'ADVANCED') {
@@ -1685,7 +1748,7 @@
 					' data-extoparg="' + $('#modalExternalOperationArgumentField').val() + '"' +
 					
 					// personal hidden attributes
-					' data-singlevalueonly="' + $('input[name=modalSingleValueOnlyField]').iCheck('update')[0].checked + '"' +
+					' data-singlevalueonly="' + this.getSingleOnlyValueForClaimType(type) + '"' +
 					
 					// group claim hidden attributes
 					' data-groupid="' +  groupId + '"' +
@@ -1696,6 +1759,7 @@
 					// shown parameters
 					'<td>' + $('.i-checks[name=modalTypeSelect]:checked').data('type-name') + '</td>' +
 					'<td>' + $('#modalClaimName').val() + '</td>' +
+					'<td class="text-center">' + (this.getSingleOnlyValueForClaimType(type) ? '<em class="fa fa-check"></em>' : '' ) + '</td>' +
 					'<td>' + claimValue + '</td>' +
 					'<td>' + parameterName + '</td>' +
 					'<td><a onclick="modalService.edit(this)" style="color: black;" title="Rediger claim"><em class="fa fa-fw fa-pencil"></em></a>&nbsp;<a onclick="modalService.delete(this)" title="Slet claim"><em class="fa fa-fw fa-times"></em></a></td>';
@@ -1713,7 +1777,25 @@
 
 				$('#modalClaim').modal("hide");
 			}
+			
+			this.getSingleOnlyValueForClaimType = function (type) {
+				let result = false;
+				if (type == 'DYNAMIC') {
+					result = $('input[name=modalDynamicSingleValueOnlyField]').iCheck('update')[0].checked;
+				}
+				else if (type == 'ROLE_CATALOGUE') {
+					result = $('input[name=modalRCSingleValueOnlyField]').iCheck('update')[0].checked;
+				}
+				else if (type == 'ADVANCED') {
+					result = $('input[name=modalAdvancedSingleValueOnlyField]').iCheck('update')[0].checked;
+				}
+				else if (type == 'GROUP') {
+					result = $('input[name=modalGroupSingleValueOnlyField]').iCheck('update')[0].checked;
+				}
 
+				return result;
+			}
+			
 			this.edit = function(obj) {
 				modalService.editedRow = obj;
 				modalService.showModal();
@@ -1746,6 +1828,7 @@
 				}
 				else if (type == 'DYNAMIC') {
 					$("#modalClaimValueDynamic").val(attributeValue);
+					$('input[name=modalDynamicSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 				}
 				else if (type == 'ROLE_CATALOGUE') {
 					$("#modalClaimValueRC").val(attributeValue);
@@ -1753,12 +1836,16 @@
 					// set selected operation
 					$('#modalExternalOperationField').val(extop);
 					$("#modalExternalOperationField").trigger("change");
+					
+					$('input[name=modalRCSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 				}
 				else if (type == 'ADVANCED') {
 					$("#modalClaimRuleAdvancedArgumentField").val(attributeValue);
+					$('input[name=modalAdvancedSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 				}
 				else if (type == 'GROUP') {
 					$("#modalClaimRuleGroupValueField").val(attributeValue);
+					$('input[name=modalGroupSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 					
 					// set selected group
 					$('#modalClaimRuleGroupGroupField').val(groupId);
@@ -1768,7 +1855,6 @@
 				$('#modalIDField').val(id);
 				$('#modalExternalOperationArgumentField').val(extoparg);
 				$('#modalClaimName').val(attributeName);
-				$('input[name=modalSingleValueOnlyField]').iCheck(singleValueOnly ? 'check' : "uncheck");
 			}
 
 			this.delete = function(obj) {

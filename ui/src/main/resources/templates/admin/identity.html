@@ -112,7 +112,7 @@
 									</div>
 									
 									<div class="d-none d-lg-block" style="text-align: right; margin-right: 15px">
-										<a id="RobotMFABtn" th:if="${form.isRobot} and @{__${#lists.contains(@commonConfiguration.mfa.enabledClients, 'TOTP')}__}" onclick="roboClientService.register()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px; color: white;">
+										<a id="RobotMFABtn" th:if="${form.isRobot}" onclick="roboClientService.register()" class="btn btn-primary btn-lg" style="margin-left:15px; margin-top: 8px; width: 230px; color: white;">
 											<em class="fa fa-android"></em> &nbsp; Tilføj Robot MFA
 										</a>
 									</div>

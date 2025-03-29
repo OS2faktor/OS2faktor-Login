@@ -47,6 +47,9 @@ public class CachedMfaClient {
 	@Column
 	@NotNull
 	private NSISLevel nsisLevel;
+	
+	@Column
+	private boolean passwordless;
 
 	@Column
 	private String serialnumber;

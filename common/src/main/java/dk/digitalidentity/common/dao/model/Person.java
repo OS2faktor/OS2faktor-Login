@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
+import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -159,6 +160,10 @@ public class Person {
 	@Column
 	private BadPasswordReason badPasswordReason;
 	
+	@Enumerated(EnumType.STRING)
+	@Column
+	private ChangePasswordResult badPasswordRule;
+
 	@Column
 	private LocalDate badPasswordDeadlineTts;
 	

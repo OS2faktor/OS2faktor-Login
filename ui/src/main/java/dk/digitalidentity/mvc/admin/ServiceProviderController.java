@@ -12,6 +12,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import dk.digitalidentity.common.dao.model.Group;
@@ -128,6 +129,10 @@ public class ServiceProviderController {
 		if (serviceProviderDTO.isKombitServiceProvider()) {
 			model.addAttribute("kombitSubsystems", kombitSubsystemService.findAll());
 			model.addAttribute("kombitSubSystemMfa", settingService.getString(SettingKey.KOMBIT_DEFAULT_MFA));
+			
+			serviceProviderDTO.setPasswordExpiry(settingService.getLong(SettingKey.KOMBIT_PASSWORD_EXPIRY));
+			serviceProviderDTO.setMfaExpiry(settingService.getLong(SettingKey.KOMBIT_MFA_EXPIRY));
+			serviceProviderDTO.setHasCustomSessionExpiry(settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY));
 		}
 		
 		model.addAttribute("serviceprovider", serviceProviderDTO);
@@ -169,6 +174,32 @@ public class ServiceProviderController {
 
 		model.addAttribute("attributes", allPersonAttributes);
 		return "admin/configure-person-attributes";
+	}
+
+	record CustomSessionExpiry(Long passwordExpiry, Long mfaExpiry) {}
+	
+	@PostMapping("/rest/admin/konfiguration/tjenesteudbydere/customSessionExpiry")
+	@ResponseBody
+	public ResponseEntity<String> setKombitSessionExpiry(@RequestBody CustomSessionExpiry body) {
+		if (body.passwordExpiry != null && body.mfaExpiry != null) {
+			if (body.passwordExpiry < body.mfaExpiry) {
+				return ResponseEntity.badRequest().body("Sessionsudløb for kodeord må ikke være mindre end sessionsudløb for 2-faktor");
+			}
+
+			settingService.setLong(SettingKey.KOMBIT_PASSWORD_EXPIRY, body.passwordExpiry);
+			settingService.setLong(SettingKey.KOMBIT_MFA_EXPIRY, body.mfaExpiry);
+			settingService.setBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY, true);
+		}
+		else if (body.passwordExpiry == null && body.mfaExpiry == null) {
+			settingService.setLong(SettingKey.KOMBIT_PASSWORD_EXPIRY, 180L);
+			settingService.setLong(SettingKey.KOMBIT_MFA_EXPIRY, 60L);
+			settingService.setBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY, false);
+		}
+		else {
+			return ResponseEntity.badRequest().body("Begge felter skal være udfyldt");
+		}
+		
+		return ResponseEntity.ok("");
 	}
 	
 	@PostMapping("/rest/admin/konfiguration/tjenesteudbydere/kombitMfa/{rule}")

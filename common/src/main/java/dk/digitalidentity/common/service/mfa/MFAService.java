@@ -116,6 +116,29 @@ public class MFAService {
 	}
 
 	public List<MfaClient> getClients(String cpr) {
+		return getClients(cpr, false);
+	}
+
+	public boolean hasPasswordlessMfa(Person person) {
+		// if disabled, the person will never "have" any such MFA clients
+		if (!configuration.getCustomer().isEnablePasswordlessMfa()) {
+			return false;
+		}
+
+		// this is a simply precheck to optimize loginflow - the first login with a freshly registered passwordless MFA
+		// will not trigger the flow, but we avoid having to lookup MFA clients every single login for other users
+		boolean cachedHit = person.getMfaClients().stream().anyMatch(m -> m.isPasswordless());
+		if (!cachedHit) {
+			return false;
+		}
+		
+		// TODO: can we cache this?
+		List<MfaClient> clients = getClients(person.getCpr(), person.isRobot());
+		
+		return clients.stream().anyMatch(m -> m.isPasswordless());
+	}
+
+	public List<MfaClient> getClients(String cpr, boolean isRobot) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -160,7 +183,10 @@ public class MFAService {
 			}
 
 			if (mfaClients != null) {
-				mfaClients = mfaClients.stream().filter(c -> configuration.getMfa().getEnabledClients().contains(c.getType().toString())).collect(Collectors.toList());
+				mfaClients = mfaClients.stream()
+						// robots are not filtered
+						.filter(c -> isRobot || configuration.getMfa().getEnabledClients().contains(c.getType().toString()))
+						.collect(Collectors.toList());
 			}
 
 			// update cached MFA clients
@@ -306,7 +332,7 @@ public class MFAService {
 		return response;
 	}
 
-	public MfaAuthenticationResponseDTO authenticate(String deviceId) {
+	public MfaAuthenticationResponseDTO authenticate(String deviceId, boolean passwordless) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -315,6 +341,9 @@ public class MFAService {
 
 		try {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + deviceId + "/authenticate";
+			if (passwordless) {
+				url = url + "?passwordless=true";
+			}
 
 			ResponseEntity<MfaAuthenticationResponse> response = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 			dto.setMfaAuthenticationResponse(response.getBody());
@@ -580,13 +609,17 @@ public class MFAService {
 						if (cachedClientToUpdate == null) {
 							continue;
 						}
-						
-						// name cannot currently change in OS2faktor MFA, but let's support it here
+
 						if (!Objects.equals(mfaClient.getName(), cachedClientToUpdate.getName())) {
 							changes = true;
 							cachedClientToUpdate.setName(mfaClient.getName());
 						}
-						
+
+						if (mfaClient.isPasswordless() != cachedClientToUpdate.isPasswordless()) {
+							changes = true;
+							cachedClientToUpdate.setPasswordless(mfaClient.isPasswordless());
+						}
+
 						if (!Objects.equals(mfaClient.getSerialnumber(), cachedClientToUpdate.getSerialnumber())) {
 							changes = true;
 							cachedClientToUpdate.setSerialnumber(mfaClient.getSerialnumber());
@@ -639,6 +672,7 @@ public class MFAService {
 			cachedClient.setPerson(person);
 			cachedClient.setSerialnumber(client.getSerialnumber());
 			cachedClient.setLastUsed(client.getLastUsed());
+			cachedClient.setPasswordless(client.isPasswordless());
 			cachedClient.setAssociatedUserTimestamp(client.getAssociatedUserTimestamp());
 
 			newCachedMFAClients.add(cachedClient);

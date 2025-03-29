@@ -440,7 +440,9 @@ public class AssertionService {
 		}
 		else if (StringUtils.hasLength(requestedAuthnContextClassRef)) {
 			// it is not NSIS, and the requester asked for something specific, so we will just proxy it to be kind to their validation
-			authnContextClassRef = requestedAuthnContextClassRef;
+			if (!requestedAuthnContextClassRef.startsWith("https://data.gov.dk/concept/core/nsis")) {
+				authnContextClassRef = requestedAuthnContextClassRef;
+			}
 		}
 
 		// NameID
@@ -624,6 +626,10 @@ public class AssertionService {
 	
 				if (nsisLevel != null && nsisLevel.toClaimValue() != null) {
 					attributeStatement.getAttributes().add(createSimpleAttribute(Constants.LEVEL_OF_ASSURANCE, nsisLevel.toClaimValue(), serviceProvider.requireOiosaml3Profile()));
+					
+					if (serviceProvider.alwaysIssueNistClaim()) {
+						addNistClaim(attributeStatement, serviceProvider);						
+					}
 				}
 				else {
 					addNistClaim(attributeStatement, serviceProvider);

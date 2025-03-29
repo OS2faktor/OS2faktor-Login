@@ -1,8 +1,12 @@
 package dk.digitalidentity.service;
 
 import java.io.IOException;
+import java.security.Security;
+
+import javax.xml.crypto.dsig.CanonicalizationMethod;
 
 import org.joda.time.DateTime;
+import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.common.binding.SAMLBindingSupport;
@@ -15,7 +19,13 @@ import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.Status;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.saml.saml2.core.StatusMessage;
+import org.opensaml.saml.saml2.core.impl.StatusResponseTypeMarshaller;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
+import org.opensaml.security.x509.BasicX509Credential;
+import org.opensaml.xmlsec.algorithm.descriptors.SignatureRSASHA256;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -27,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.log.ErrorLogDto;
@@ -58,6 +69,9 @@ public class ErrorResponseService {
 
 	@Autowired
 	private AuthnRequestHelper authnRequestHelper;
+
+	@Autowired
+	private CredentialService credentialService;
 
 	public void sendError(HttpServletResponse response, LoginRequest loginRequest, Exception ex) throws RequesterException, ResponderException {
 		sendError(response, loginRequest, ex, true, false);
@@ -217,12 +231,12 @@ public class ErrorResponseService {
 		catch (Exception ex) {
 			log.warn("Failed to send error response", ex);
 			if (e != null) {
-				log.warn("Inner exception", e);				
+				log.warn("Inner exception", e);
 			}
 		}
 	}
 
-	private MessageContext<SAMLObject> createErrorMessageContext(String destination, String inResponseTo, String statusCode, Exception e) {
+	private MessageContext<SAMLObject> createErrorMessageContext(String destination, String inResponseTo, String statusCode, Exception e) throws ResponderException {
 
 		// Create MessageContext
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
@@ -255,6 +269,8 @@ public class ErrorResponseService {
 		status.setStatusMessage(statusMessage);
 
 		statusMessage.setMessage(e.getMessage());
+		
+		signErrorResponse(response);
 
 		// Set destination
 		SAMLPeerEntityContext peerEntityContext = messageContext.getSubcontext(SAMLPeerEntityContext.class, true);
@@ -267,5 +283,37 @@ public class ErrorResponseService {
 		endpointContext.setEndpoint(endpoint);
 
 		return messageContext;
+	}
+	
+	private void signErrorResponse(Response response) throws ResponderException {
+		Signature signature = samlHelper.buildSAMLObject(Signature.class);
+
+		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
+
+		signature.setSigningCredential(x509Credential);
+		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
+		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		response.setSignature(signature);
+
+		try {
+			StatusResponseTypeMarshaller marshaller = new StatusResponseTypeMarshaller() {};
+			
+			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
+				marshaller.marshall(response, Security.getProvider("KMS"));
+			}
+			else {
+				marshaller.marshall(response);
+			}
+
+			Signer.signObject(signature);
+		}
+		catch (MarshallingException e) {
+			throw new ResponderException("Kunne ikke omforme Error svar før signering", e);
+		}
+		catch (SignatureException e) {
+			throw new ResponderException("Kunne ikke signere Error svar", e);
+		}
 	}
 }

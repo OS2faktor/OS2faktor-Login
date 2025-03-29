@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="~{fragments/header :: header (datatables = true)}"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, datepicker = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 	    <div id="page-wrapper" class="gray-bg">
@@ -102,10 +102,11 @@
 							<div class="modal-content">
 								<div class="modal-header">
 									<h5 class="modal-title" id="datePickerModalLabel">Vælg en dato</h5>
-									<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Luk"></button>
 								</div>
 								<div class="modal-body">
-									<input type="date" id="selectedDate" class="form-control" />
+                                    <div class="input-group date">
+                                        <div class="input-group-addon" id="calendarBtn"><i class="fa fa-calendar"></i></div><input id="selectedDate" type="text" class="form-control">
+                                    </div>
 								</div>
 								<div class="modal-footer">
 									<button type="button" class="btn btn-secondary"onclick=calendarModalService.close()>Luk</button>
@@ -123,12 +124,28 @@
 	    </div>
 	</div>
 
-	<div th:replace="~{fragments/footer :: scripts (datatables = true)}"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, datepicker = true)}"></div>
 	
 	<script type="text/javascript">
         var calendarModalService;
 
 		$(document).ready(function(){
+			$('#selectedDate').datepicker({
+		        keyboardNavigation: false,
+		        forceParse: false,
+		        autoclose: true,
+		        weekStart: 1,
+		        format: "dd/mm/yyyy",
+		        todayBtn: "linked",
+		        orientation: "bottom",
+		        language: "da",
+		        clearBtn: true
+		    });
+			
+			$("#calendarBtn").click(function() {
+			    $("#selectedDate").datepicker('show');
+		    });
+
             $('#reports').DataTable({
                 "pageLength": 100,
                 "lengthChange": false,
@@ -169,7 +186,7 @@
 				}
 
 				// Konstruer URL med den valgte dato
-				const url = `/ui/report/download/auditLog/` + $('#selectedDate').val();
+				const url = `/ui/report/download/auditLog/` + encodeURIComponent(new Date($('#selectedDate').datepicker("getDate")).toISOString().substring(0,10));
 
 				// Opret en form og post anmodningen
 				const form = document.createElement('form');

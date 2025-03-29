@@ -18,6 +18,8 @@ public class SecurityConfig  {
                 .ignoringRequestMatchers("/sso/saml/login")
                 .ignoringRequestMatchers("/sso/saml/logout")
                 .ignoringRequestMatchers("/sso/login")
+                .ignoringRequestMatchers("/sso/login/password")
+                .ignoringRequestMatchers("/sso/login-passwordless")
                 .ignoringRequestMatchers("/api/client/login")
                 .ignoringRequestMatchers("/api/client/loginWithBody")
                 .ignoringRequestMatchers("/api/client/changePassword")
@@ -37,6 +39,8 @@ public class SecurityConfig  {
         	req
             	.requestMatchers("/").permitAll()
             	.requestMatchers("/sso/login").permitAll()
+            	.requestMatchers("/sso/login/password").permitAll()
+            	.requestMatchers("/sso/login-passwordless").permitAll()
             	.requestMatchers("/sso/saml/**").permitAll()
             	.requestMatchers("/oidc/**").permitAll()
             	.requestMatchers("/ws/**").permitAll()
@@ -60,6 +64,7 @@ public class SecurityConfig  {
             	.requestMatchers(HttpMethod.POST,"/api/client/login").permitAll()
             	.requestMatchers(HttpMethod.POST,"/api/client/loginWithBody").permitAll()
             	.requestMatchers(HttpMethod.POST,"/api/client/changePassword").permitAll()
+            	.requestMatchers(HttpMethod.POST,"/api/internal/").permitAll()
             	.requestMatchers(HttpMethod.POST,"/api/client/changePasswordWithBody").permitAll()
                 .requestMatchers(HttpMethod.POST,"/api/password/filter/v1/validate").permitAll()
             	.requestMatchers("/elevkode").permitAll()
@@ -72,7 +77,8 @@ public class SecurityConfig  {
             	.requestMatchers("/userinfo").permitAll()
             	.requestMatchers("/.well-known/oauth-authorization-server").permitAll()
             	.requestMatchers("/.well-known/openid-configuration").permitAll()
-            	.requestMatchers("/entraMfa/**").permitAll();
+            	.requestMatchers("/badPasswords").permitAll()
+        		.requestMatchers("/entraMfa/**").permitAll();
 
         	req.anyRequest().denyAll();
         });

@@ -25,6 +25,7 @@ public class MfaClient implements Serializable {
 	private boolean roaming;
 	private boolean localClient = false;
 	private boolean locked;
+	private boolean passwordless;
 	private Date lockedUntil;
 	private String serialnumber;
 

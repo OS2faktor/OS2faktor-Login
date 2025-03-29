@@ -697,6 +697,12 @@ public class MetadataService {
                     rcClaim.setClaimValue(claimDTO.getValue());
                     rcClaim.setExternalOperation(RoleCatalogueOperation.valueOf(claimDTO.getExternalOperation()));
                     rcClaim.setExternalOperationArgument(claimDTO.getExternalOperationArgument());
+                    if (rcClaim.getExternalOperation() == RoleCatalogueOperation.GET_USER_ROLES || rcClaim.getExternalOperation() == RoleCatalogueOperation.GET_SYSTEM_ROLES) {
+                        rcClaim.setSingleValueOnly(claimDTO.isSingleValueOnly());
+                    }
+                    else {
+                        rcClaim.setSingleValueOnly(false);
+                    }
                     rcResult.add(rcClaim);
                     break;
                 case ADVANCED:
@@ -708,6 +714,7 @@ public class MetadataService {
 
                     advClaim.setClaimName(claimDTO.getAttribute());
                     advClaim.setClaimValue(claimDTO.getValue());
+                    advClaim.setSingleValueOnly(claimDTO.isSingleValueOnly());
                     advResult.add(advClaim);
                     break;
                 case GROUP:
@@ -719,6 +726,8 @@ public class MetadataService {
 
                     groupClaim.setClaimName(claimDTO.getAttribute());
                     groupClaim.setClaimValue(claimDTO.getValue());
+                    groupClaim.setSingleValueOnly(claimDTO.isSingleValueOnly());
+
                     Group group = groupService.getById(claimDTO.getGroupId());
                     if (group != null) {
                     	groupClaim.setGroup(group);
@@ -764,6 +773,7 @@ public class MetadataService {
     	try {
     		DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
     		documentBuilderFactory.setNamespaceAware(true);
+    		documentBuilderFactory.setIgnoringComments(true);
     		DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
 
 	    	InputSource is = new InputSource();

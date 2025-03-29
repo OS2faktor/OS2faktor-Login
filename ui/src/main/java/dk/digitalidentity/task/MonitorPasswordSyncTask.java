@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.service.ADPasswordService;
@@ -50,10 +51,10 @@ public class MonitorPasswordSyncTask {
 		
 		List<PasswordSetting> allSettings = passwordSettingService.getAllSettings();
 		for (PasswordSetting setting : allSettings) {
-
-			// if we have disabled monitoring on this domain directly in the database, we will not attempt to detect missing
-			// connections. This makes sense for trial setups and stuff that is not quite ready yet...
-			if (!setting.getDomain().isMonitored()) {
+			Domain domain = setting.getDomain();
+			
+			// only monitor parent domains (no explicit WebSocket connection on child domains)
+			if (domain.getParent() != null) {
 				continue;
 			}
 

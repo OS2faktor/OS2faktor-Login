@@ -129,31 +129,6 @@ public class SessionHelper {
 		log.debug("LoginState evaluated to null");
 		return null;
 	}
-	
-	public void clearSession() {
-		clearSession(true);
-	}
-	
-	public void clearSession(boolean clearPasswordChangeSuccessRedirect) {
-		if (log.isDebugEnabled()) {
-			log.debug("Clearing session");
-		}
-
-		setPasswordLevel(null);
-		setMFALevel(null);
-		setPerson(null);
-		setMFAClients(null);
-		setServiceProviderSessions(null);
-		setAuthenticatedWithADPassword(false);
-		setAuthenticatedWithNemIdOrMitId(false);
-		setPasswordChangeFailureReason(null);
-		setInDedicatedActivateAccountFlow(false);
-		setInEntraMfaFlow(null, null);
-
-		if (clearPasswordChangeSuccessRedirect) {
-			setPasswordChangeSuccessRedirect(null);
-		}
-	}
 
 	public NSISLevel getPasswordLevel() {
 		return getPasswordLevel(null, null);
@@ -1392,6 +1367,38 @@ public class SessionHelper {
 		}
 	}
 
+	public void clearAuthentication() {
+		setPasswordLevel(null);
+		setMFALevel(null);
+		setPerson(null);
+		setMFAClients(null);
+		setAuthenticatedWithADPassword(false);
+		setAuthenticatedWithNemIdOrMitId(false);
+	}
+
+	public void clearSession() {
+		clearSession(true);
+	}
+	
+	public void clearSession(boolean clearPasswordChangeSuccessRedirect) {
+		if (log.isDebugEnabled()) {
+			log.debug("Clearing session");
+		}
+
+		clearAuthentication();
+
+		setServiceProviderSessions(null);
+		setPasswordChangeFailureReason(null);
+
+		// minimal flowstate clearing (could we clear all states?)
+		setInDedicatedActivateAccountFlow(false);
+		setInEntraMfaFlow(null, null);
+
+		if (clearPasswordChangeSuccessRedirect) {
+			setPasswordChangeSuccessRedirect(null);
+		}
+	}
+
 	public void clearFlowStates() {
 		setInPasswordChangeFlow(false);
 		setInPasswordExpiryFlow(false);
@@ -1406,6 +1413,7 @@ public class SessionHelper {
 		setInChoosePasswordResetOrUnlockAccountFlow(false);
 		setInSelectClaimsFlow(false);
 		setInEntraMfaFlow(null, null);
+		setInPasswordlessMfaFlow(false, null);
 		
 		// bit of a special case, but we ONLY use this field for the login-flow, so it IS a flow-state
 		setNemIDMitIDNSISLevel(null);
@@ -1439,6 +1447,7 @@ public class SessionHelper {
 		setInPasswordExpiryFlow(false);
 		setInApproveConditionsFlow(false);
 		setRequestedUsername(null);
+		setInPasswordlessMfaFlow(false, null);
 
 		// Save LogoutRequest to session if one is provided
 		if (logoutRequest != null) {
@@ -1637,6 +1646,46 @@ public class SessionHelper {
 		if (log.isDebugEnabled()) {
 			log.debug("setInEntraMfaFlow: true");
 		}
+	}
+	
+	public void setInPasswordlessMfaFlow(boolean inPasswordlessMfaFlow, String username) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (inPasswordlessMfaFlow) {
+			httpServletRequest.getSession().setAttribute(Constants.PASSWORDLESS_MFA_FLOW, true);
+			httpServletRequest.getSession().setAttribute(Constants.PASSWORDLESS_MFA_FLOW_USERNAME, username);
+		}
+		else {
+			httpServletRequest.getSession().removeAttribute(Constants.PASSWORDLESS_MFA_FLOW);
+			httpServletRequest.getSession().removeAttribute(Constants.PASSWORDLESS_MFA_FLOW_USERNAME);
+		}
+
+		if (log.isDebugEnabled()) {
+			log.debug("InPasswordlessMfaFlow: " + inPasswordlessMfaFlow);
+		}
+	}
+
+	public boolean isInPasswordlessMfaFlow() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return false;
+		}
+
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.PASSWORDLESS_MFA_FLOW);
+
+		return (boolean) (attribute != null ? attribute : false);
+	}
+
+	public String getPasswordlessMfaFlowUsername() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return null;
+		}
+
+		return (String) httpServletRequest.getSession().getAttribute(Constants.PASSWORDLESS_MFA_FLOW_USERNAME);
 	}
 
 	// should be called at the start of a new login, so we clear any residual states

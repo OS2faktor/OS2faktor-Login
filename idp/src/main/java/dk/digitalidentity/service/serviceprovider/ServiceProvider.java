@@ -250,6 +250,11 @@ public abstract class ServiceProvider {
 	public boolean isAllowMitidErvhervLogin() {
 		return false;
 	}
+	
+	public boolean alwaysIssueNistClaim() {
+		// certain SPs always wants the NIST claim, even when issuing NSIS claims
+		return false;
+	}
 
 	// END-SECTION
 

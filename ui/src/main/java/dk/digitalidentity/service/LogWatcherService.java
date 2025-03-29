@@ -55,6 +55,7 @@ public class LogWatcherService {
 
 	private static final String SELECT_LOGIN_AUDITLOGS_WITH_LOCATION =
 			"SELECT person_id, location FROM auditlogs a " +
+			" INNER JOIN domains d ON (d.name = a.person_domain AND d.non_nsis = 0) " +
 			" WHERE a.log_action = 'LOGIN' " +
 			" AND a.tts > ? " +
 			" AND a.tts < ? " +
@@ -155,7 +156,7 @@ public class LogWatcherService {
 			return;
 		}
 
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		String emails = logWatchSettingService.getAlarmEmailRecipients(true);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}
@@ -240,7 +241,7 @@ public class LogWatcherService {
 		boolean translateGermany = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED);
 		boolean translateSweeden = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED);
 		
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		String emails = logWatchSettingService.getAlarmEmailRecipients(false);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}
@@ -319,7 +320,7 @@ public class LogWatcherService {
 			return;
 		}
 
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		String emails = logWatchSettingService.getAlarmEmailRecipients(true);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}

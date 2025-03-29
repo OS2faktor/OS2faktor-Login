@@ -72,6 +72,11 @@ namespace SessionEstablisher
             bool checkUsage = true;
             UpdateDefaultSettings(ref chromeEnabled, ref edgeEnabled, ref firefoxEnabled, ref checkUsage);
 
+            string chromeParameter = "";
+            string edgeParameter = "";
+            string firefoxParameter = "";
+            FetchCustomBrowserParams(ref chromeParameter, ref edgeParameter, ref firefoxParameter);
+
             if (!checkUsage)
             {
                 Log.Information("Not checking for browser usage before running");
@@ -84,7 +89,7 @@ namespace SessionEstablisher
                 string chromePath = fetchExePath(@"HKEY_CLASSES_ROOT\ChromeHTML\shell\open\command", "chrome.exe", "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\"");
                 string chromeRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Google\Chrome", "UserDataDir");
                 string chromeUserDataPath = chromeRegSetting != null ? Environment.ExpandEnvironmentVariables(chromeRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Google\Chrome\User Data\");
-                tasks.Add(InitiateBrowserSession("Chrome", chromePath, chromeUserDataPath, token, checkUsage));
+                tasks.Add(InitiateBrowserSession("Chrome", chromePath, chromeUserDataPath, token, checkUsage, chromeParameter));
             }
 
             if (edgeEnabled)
@@ -92,7 +97,7 @@ namespace SessionEstablisher
                 string edgePath = fetchExePath(@"HKEY_CLASSES_ROOT\MSEdgeHTM\shell\open\command", "msedge.exe", "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\"");
                 string edgeRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Microsoft\Edge", "UserDataDir");
                 string edgeUserDataPath = edgeRegSetting != null ? Environment.ExpandEnvironmentVariables(edgeRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Microsoft\Edge\User Data\");
-                tasks.Add(InitiateBrowserSession("Edge", edgePath, edgeUserDataPath, token, checkUsage));
+                tasks.Add(InitiateBrowserSession("Edge", edgePath, edgeUserDataPath, token, checkUsage, edgeParameter));
             }
 
             if (firefoxEnabled)
@@ -101,21 +106,65 @@ namespace SessionEstablisher
                 string firefoxPath = fetchExePath(@"HKEY_CLASSES_ROOT\firefox\shell\open\command", "firefox.exe", "\"C:\\Program Files\\Mozilla Firefox\\firefox.exe\"");
                 string firefoxRegSetting = GetBrowserProfileFromRegistry(@"SOFTWARE\Policies\Mozilla\Firefox", "ProfilePath");
                 string firefoxUserDataPath = firefoxRegSetting != null ? Environment.ExpandEnvironmentVariables(firefoxRegSetting) : Environment.ExpandEnvironmentVariables(@"%localappdata%\Mozilla\Firefox\Profiles\");
-                tasks.Add(InitiateBrowserSession("Firefox", firefoxPath, firefoxUserDataPath, token, checkUsage));
+                tasks.Add(InitiateBrowserSession("Firefox", firefoxPath, firefoxUserDataPath, token, checkUsage, firefoxParameter));
             }
 
             // calls all enabled browsers async
             await Task.WhenAll(tasks);
         }
 
+        private void FetchCustomBrowserParams(ref string chromeParameters, ref string edgeParameters, ref string firefoxParameters)
+        {
+            try
+            {
+                using (RegistryKey rootKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64))
+                {
+                    if (rootKey == null)
+                    {
+                        return;
+                    }
 
-        private async Task InitiateBrowserSession(String browserName, String exePath, String UserDataDirectory, String token, bool checkUsage)
+                    using (RegistryKey settingsKey = rootKey.OpenSubKey(@"SOFTWARE\DigitalIdentity\OS2faktorLogin", false))
+                    {
+                        if (settingsKey == null || !(settingsKey.GetValueNames().Length > 0))
+                        {
+                            return;
+                        }
+
+                        object logPathObj = settingsKey.GetValue("CustomParametersChrome");
+                        if (logPathObj != null)
+                        {
+                            chromeParameters = (string)logPathObj;
+                        }
+
+                        logPathObj = settingsKey.GetValue("CustomParametersEdge");
+                        if (logPathObj != null)
+                        {
+                            edgeParameters = (string)logPathObj;
+                        }
+
+                        logPathObj = settingsKey.GetValue("CustomParametersFirefox");
+                        if (logPathObj != null)
+                        {
+                            firefoxParameters = (string)logPathObj;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                Log.Error("Could not fetch Session establisher settings from registry");
+                return;
+            }
+        }
+
+        private async Task InitiateBrowserSession(String browserName, String exePath, String UserDataDirectory, String token, bool checkUsage, string customParameters)
         {
             Log.Information($"Trying to establishing session in {browserName}");
             if(exePath != null && (!checkUsage || Directory.Exists(UserDataDirectory)))
             {
                 Log.Information($"Running {browserName} with token");
-                await Task.Run(() => runBrowserWithToken(exePath, token));
+                await Task.Run(() => runBrowserWithToken(exePath, token, customParameters));
             }
             else
             {
@@ -322,13 +371,15 @@ namespace SessionEstablisher
             }
         }
 
-        private static void runBrowserWithToken(string exePath, string token)
+        private static void runBrowserWithToken(string exePath, string token, string customParameters)
         {
             // Process to run
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = exePath;
 
-            startInfo.Arguments = $" \"{token}\"";
+            startInfo.Arguments = $" {customParameters} \"{token}\"";
+            //startInfo.Arguments = $" --no-first-run \"{token}\"";
+            //startInfo.Arguments = $" \"{token}\"";
 
             // Settings
             startInfo.UseShellExecute = true;

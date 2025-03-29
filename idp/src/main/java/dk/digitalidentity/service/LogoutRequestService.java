@@ -1,9 +1,13 @@
 package dk.digitalidentity.service;
 
+import java.security.Security;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.xml.crypto.dsig.CanonicalizationMethod;
+
 import org.joda.time.DateTime;
+import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.messaging.context.MessageContext;
 import org.opensaml.messaging.decoder.MessageDecodingException;
 import org.opensaml.messaging.decoder.servlet.BaseHttpServletRequestXMLMessageDecoder;
@@ -17,15 +21,22 @@ import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.SessionIndex;
+import org.opensaml.saml.saml2.core.impl.LogoutRequestMarshaller;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
+import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.SignatureSigningParameters;
+import org.opensaml.xmlsec.algorithm.descriptors.SignatureRSASHA256;
 import org.opensaml.xmlsec.context.SecurityParametersContext;
+import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.validation.LogoutRequestValidationService;
@@ -55,6 +66,7 @@ public class LogoutRequestService {
 	private OS2faktorConfiguration configuration;
 
 	public MessageContext<SAMLObject> getMessageContext(HttpServletRequest request) throws ResponderException, RequesterException {
+
 		try {
 			BaseHttpServletRequestXMLMessageDecoder<SAMLObject> decoder = "POST".equals(request.getMethod()) ? new HTTPPostDecoder() : new HTTPRedirectDeflateDecoder();
 
@@ -84,21 +96,23 @@ public class LogoutRequestService {
 		// Sometimes we receive LogoutResponses on the LogoutRequest endpoint,
 		// this will show a nice error message if that happens
 		SAMLObject message = messageContext.getMessage();
-		if (!(message instanceof  LogoutRequest)) {
+
+		if (!(message instanceof LogoutRequest)) {
 			String errMsg = "Besked indhold burde være LogoutRequest";
-			if (message != null && message.getClass() != null ) {
+
+			if (message != null && message.getClass() != null) {
 				errMsg += " men er af typen: " + message.getClass().getName();
 			}
 			throw new RequesterException(errMsg);
 		}
-		
+
 		return (LogoutRequest) message;
 	}
 
 	public void validateLogoutRequest(HttpServletRequest request, MessageContext<SAMLObject> messageContext, EntityDescriptor metadata, ServiceProvider serviceProvider) throws RequesterException, ResponderException {
 		validationService.validate(request, messageContext, metadata, serviceProvider);
 	}
-	
+
 	public MessageContext<SAMLObject> createMessageContextWithLogoutRequest(LogoutRequest logoutRequest, String destination, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
 		// Create message context
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
@@ -160,12 +174,47 @@ public class LogoutRequestService {
 		nameID.setValue(serviceProvider.getNameId(sessionHelper.getPerson()));
 
 		Map<String, String> map = sessionHelper.getServiceProviderSessions().get(serviceProvider.getEntityId());
+
 		if (map != null) {
 			SessionIndex sessionIndex = samlHelper.buildSAMLObject(SessionIndex.class);
 			outgoingLR.getSessionIndexes().add(sessionIndex);
 			sessionIndex.setSessionIndex(map.get(Constants.SESSION_INDEX));
 		}
+		
+		signLogoutRequest(outgoingLR);
 
 		return outgoingLR;
+	}
+
+	private void signLogoutRequest(LogoutRequest logoutRequest) throws ResponderException {
+		Signature signature = samlHelper.buildSAMLObject(Signature.class);
+
+		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
+
+		signature.setSigningCredential(x509Credential);
+		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
+		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		logoutRequest.setSignature(signature);
+
+		try {
+			LogoutRequestMarshaller marshaller = new LogoutRequestMarshaller();
+			
+			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
+				marshaller.marshall(logoutRequest, Security.getProvider("KMS"));
+			}
+			else {
+				marshaller.marshall(logoutRequest);
+			}
+
+			Signer.signObject(signature);
+		}
+		catch (MarshallingException e) {
+			throw new ResponderException("Kunne ikke omforme Logud anmodning før signering", e);
+		}
+		catch (SignatureException e) {
+			throw new ResponderException("Kunne ikke signere Logud anmodning", e);
+		}
 	}
 }

@@ -337,6 +337,9 @@ public class ClientApiController {
 					personService.changePassword(person, newPassword, true, null, null, false); // No reason to replicate to AD, we just came from there
 					return ResponseEntity.ok().build();
 				}
+				else {
+					auditLogger.changePasswordFailed(person, "Kodeordsskifte foretaget i Windows er blevet afvist under replikeringen til OS2faktor, da det angivne gamle kodeord ikke var korrekt");
+				}
 			}
 			else {
 				if (passwordService.validatePassword(oldPassword, person).isNoErrors() || passwordService.validatePassword(newPassword, person).isNoErrors()) {
@@ -348,7 +351,11 @@ public class ClientApiController {
 					personService.changePassword(person, newPassword, true, null, null, false);
 					return ResponseEntity.ok().build();
 				}
+				else {
+					auditLogger.changePasswordFailed(person, "Kodeordsskifte foretaget i Windows er blevet afvist under replikeringen til OS2faktor, da det angivne gamle kodeord ikke var korrekt");
+				}
 			}
+
         	return new ResponseEntity<>(HttpStatus.NOT_ACCEPTABLE);
 		}
 		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException ex) {

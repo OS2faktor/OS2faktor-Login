@@ -25,10 +25,6 @@ import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
-import dk.digitalidentity.service.serviceprovider.KombitServiceProvider;
-import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProvider;
-import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,9 +56,6 @@ public class MultiFactorAuthenticationController {
 	@Autowired
 	private AuditLogger auditlogger;
 	
-	@Autowired
-	private ServiceProviderFactory serviceProviderFactory;
-
 	@GetMapping("/sso/saml/mfa/{deviceId}")
 	public ModelAndView mfaChallengePage(HttpServletResponse response, HttpServletRequest httpServletRequest, Model model, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
 		List<MfaClient> mfaClients = sessionHelper.getMFAClients();
@@ -106,7 +99,7 @@ public class MultiFactorAuthenticationController {
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId());
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId(), sessionHelper.isInPasswordlessMfaFlow());
 		if (!mfaResponseDto.isSuccess()) {
 			// Handle error in initialising MFA authentication
 			log.warn("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
@@ -147,36 +140,8 @@ public class MultiFactorAuthenticationController {
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 		
-		// TODO: hack, replace by good code later
-		boolean delayedLogin = false;
-		if (configuration.getMfa().isDelayedLogin()) {
-			try {
-				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(sessionHelper.getLoginRequest().getServiceProviderId());
-				if (serviceProvider != null) {
-					if (serviceProvider instanceof KombitServiceProvider) {
-						delayedLogin = true;
-					}
-				}
-			}
-			catch (Exception ignored) {
-				;
-			}
-		}
-		if (configuration.getMfa().isDelayedLoginNemLogin()) {
-			try {
-				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(sessionHelper.getLoginRequest().getServiceProviderId());
-				if (serviceProvider != null) {
-					if (serviceProvider instanceof NemLoginServiceProvider) {
-						delayedLogin = true;
-					}
-				}
-			}
-			catch (Exception ignored) {
-				;
-			}
-		}
-
-		model.addAttribute("delayedLogin", delayedLogin);
+		// TODO: make this configurable
+		model.addAttribute("delayedLoginOnMobile", configuration.getMfa().isDelayedLoginOnMobile());
 
 		return new ModelAndView("login-mfa-challenge", model.asMap());
 	}
@@ -191,7 +156,7 @@ public class MultiFactorAuthenticationController {
 		}
 		
 		// we allow a null loginState for the entraMfaFlow only
-		if (sessionHelper.getLoginState() == null && !sessionHelper.isInEntraMfaFlow()) {
+		if (sessionHelper.getLoginState() == null && !sessionHelper.isInEntraMfaFlow() && !sessionHelper.isInPasswordlessMfaFlow()) {
 			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Bruger tilgik 2-faktor login uden at have gennemført brugernavn og kodeord login", model);
 			sessionHelper.invalidateSession();
 			return modelAndView;			
@@ -223,6 +188,18 @@ public class MultiFactorAuthenticationController {
 		}
 
 		auditlogger.acceptedMFA(person, selectedMFAClient);
+		
+		if (sessionHelper.isInPasswordlessMfaFlow()) {
+			// set the NSIS level on the "password login" to the lowest of MFA and Person levels
+			NSISLevel personLevel = person.getNsisLevel();
+			NSISLevel mfaLevel = selectedMFAClient.getNsisLevel();
+			if (personLevel.isGreater(mfaLevel)) {
+				personLevel = mfaLevel;
+			}
+
+			sessionHelper.setPasswordLevel(personLevel);
+			sessionHelper.setInPasswordlessMfaFlow(false, null);
+		}
 
 		sessionHelper.setMFALevel(selectedMFAClient.getNsisLevel());
 		sessionHelper.setAuthnInstant(new DateTime());

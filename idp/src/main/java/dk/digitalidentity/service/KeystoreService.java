@@ -41,7 +41,6 @@ import software.amazon.awssdk.services.kms.KmsClient;
 @EnableScheduling
 @Service
 public class KeystoreService {
-
 	private LocalDateTime lastLoaded = LocalDateTime.of(1970, 1, 1, 0, 0);
 	private boolean initialized = false, classInitialized = false;
 	private Map<String, KeystoreEntry> keyStoreMap = new HashMap<>();
@@ -112,8 +111,11 @@ public class KeystoreService {
 		KmsProvider kmsProvider = new KmsProvider(kmsClient);			
 		Security.addProvider(kmsProvider);
 
-		// bootstrap database if empty
-		List<Keystore> keystores = keystoreDao.findAll();
+		// bootstrap database if empty (selfsigned certificate does not count)
+		List<Keystore> keystores = keystoreDao.findAll().stream()
+				.filter(k -> !Objects.equals(k.getAlias(), KnownCertificateAliases.SELFSIGNED.toString()))
+				.collect(Collectors.toList());
+
 		if (keystores.size() == 0) {
 			Keystore primaryKeystore = getKeystoreFromConfiguration(configuration.getKeystore().getLocation(), configuration.getKeystore().getPassword(), true);
 			

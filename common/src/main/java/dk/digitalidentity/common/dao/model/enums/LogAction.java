@@ -82,6 +82,7 @@ public enum LogAction {
 	SENT_MAIL("enum.logaction.sentEmail", ReportType.GENERAL_HISTORY),
 	TRACE_LOG("enum.logaction.tracelogging", ReportType.NONE),
 	MITID_ERVHERV_ACTION("enum.logaction.mitiderhverv.action", ReportType.GENERAL_HISTORY),
+	MUST_CHANGE_PASSWORD("enum.logaction.must.change.password", ReportType.GENERAL_HISTORY),
 
 	// can be removed at some future point in time, when we know that NONE are present in the DB
 	SESSION_KEY_ISSUED("enum.logaction.sessionKeyIssued", false, ReportType.NONE),

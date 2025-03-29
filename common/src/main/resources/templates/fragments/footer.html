@@ -65,6 +65,11 @@
 		<th:block th:if="${validate == true}">
 		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/validate/jquery.validate.min.js}"></script>
 		</th:block>
+
+        <th:block th:if="${datepicker == true}">
+            <script th:src="@{/webjars/inspinia/2.9.3/js/plugins/datapicker/bootstrap-datepicker.js}"></script>
+            <script type="text/javascript" th:src="@{/js/bootstrap-datepicker.da.js}"></script>
+        </th:block>
 	</div>
 	
 	<div class="footer" th:fragment="footer">

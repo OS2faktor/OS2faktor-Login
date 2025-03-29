@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +20,7 @@ import dk.digitalidentity.api.dto.CoreDataDeltaJfr;
 import dk.digitalidentity.api.dto.CoreDataEntryLight;
 import dk.digitalidentity.api.dto.CoreDataFullJfr;
 import dk.digitalidentity.api.dto.CoreDataGroupLoad;
+import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
 import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
 import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
@@ -399,6 +401,56 @@ public class CoreDataApi {
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for getGroupsByDomain", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	record GroupPersonMappingRecord(String groupUuid, String sAMAccountName) {};
+	
+	@PutMapping("/api/coredata/groups/single")
+	public ResponseEntity<?> addPersonToGroup(@RequestParam String domain, @RequestBody GroupPersonMappingRecord body) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+			
+			coreDataService.addPersonToGroup(oDomain, body.groupUuid, body.sAMAccountName);
+			
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for addPersonToGroup", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@DeleteMapping("/api/coredata/groups/single")
+	public ResponseEntity<?> removePersonFromGroup(@RequestParam String domain, @RequestBody GroupPersonMappingRecord body) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			coreDataService.deletePersonFromGroup(oDomain, body.groupUuid, body.sAMAccountName);
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for removePersonFromGroup", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+
+	@PostMapping("/api/coredata/kombitAttributes/single")
+	public ResponseEntity<?> loadKombitAttributesSingle(@RequestParam String domain, @RequestBody CoreDataKombitAttributeEntry kombitAttribute) {
+		try {
+			coreDataService.loadKombitAttributesSingle(domain, kombitAttribute);
+
+			return ResponseEntity.ok().build();
+		}
+		catch (Exception ex) {
+			log.error("Failed to parse payload for KombitAttribute single load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

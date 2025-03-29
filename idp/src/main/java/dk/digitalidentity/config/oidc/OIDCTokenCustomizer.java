@@ -18,7 +18,11 @@ public class OIDCTokenCustomizer {
 	@Bean
 	public OAuth2TokenCustomizer<JwtEncodingContext> jwtTokenCustomizer() {
 		return (context) -> {
-			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+			if (log.isDebugEnabled()) {
+				log.debug("JWT token customizer called");
+				log.debug("JWT token type: {}", context.getTokenType().getValue());
+			}
+			if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType()) || new OAuth2TokenType("id_token").equals(context.getTokenType())) {
 				OAuth2Authorization authorization = context.getAuthorization();
 				if (authorization == null) {
 					log.warn("Could not get authorization, no custom claims were added");

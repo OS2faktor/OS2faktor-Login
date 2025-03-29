@@ -128,7 +128,7 @@
 										</div>
 									</div>
 
-									<th:block th:if="${serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
+									<th:block th:if="${serviceprovider.sqlServiceProvider && serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
 										<div class="hr-line-dashed"></div>
 										
 										<div class="form-group row">
@@ -150,6 +150,48 @@
 												</div>
 											</div>
 										</div>
+									</th:block>
+
+									<th:block th:if="${serviceprovider.kombitServiceProvider}">
+									<div id="customSessionSettings">
+										<div class="hr-line-dashed samlSpecific"></div>
+										
+										<div class="form-group row samlSpecific">
+											<label class="col-sm-3 col-form-label">Alternative sessionslevetider</label>
+											<div class="col-sm-9">
+												<label>
+													<input th:field="${serviceprovider.hasCustomSessionExpiry}" type="checkbox" class="i-checks">
+												</label>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for kodeord</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.passwordExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for 2-faktor</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.mfaExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label"></label>
+											<div class="col-sm-9">
+												<button type="button" class="btn btn-primary" onclick="updateCustomSessionExpiry()">Gem</button>
+											</div>
+										</div>
+									</div>
 									</th:block>
 
 									<div class="hr-line-dashed"></div>
@@ -398,6 +440,7 @@
 											<th style="display:none;">Id</th>
 											<th style="width: 200px;">Type</th>
 											<th>Attribut</th>
+											<th style="width: 80px;">Én værdi</th>
 											<th style="width: 300px;">Værdi</th>
 											<th style="width: 200px;">Parameter</th>
 										</tr>
@@ -407,6 +450,7 @@
 										<tr th:each="claim : ${serviceprovider.claims}">
 											<td th:text="${claim.type.message}" />
 											<td th:text="${claim.attribute}" />
+											<td class="text-center"><em th:if="${claim.singleValueOnly}" class="fa fa-check"></em></td>
 											<td th:text="${claim.value}" />
 											<td th:text="${claim.parameter}" />
 										</tr>
@@ -640,9 +684,51 @@
      			   	}
 				});				
 			});
+
+			// set custom session expiry only KombitServiceProviders
+            $('input[name="hasCustomSessionExpiry"]').on('ifChanged', function(event){
+                if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+                    $(".customSession").show();
+                }
+                else {
+                    $(".customSession").hide();
+                    $('#passwordExpiry').val(null);
+                    $('#mfaExpiry').val(null);
+                    updateCustomSessionExpiry();
+                }
+            });
+			
+			// set initial state of CustomSessionExpiry without posting changes
+            if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+                $(".customSession").show();
+            }
+            else {
+                $(".customSession").hide();
+            }
 		});
 		
-		this.reloadMetadata = function () {
+		function updateCustomSessionExpiry() {
+			var passwordExpiry = $('#passwordExpiry').val();
+			var mfaExpiry = $('#mfaExpiry').val();
+            $.ajax({
+            	url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/customSessionExpiry',
+                method: "POST",
+                headers: {
+                    'X-CSRF-TOKEN': token
+                },
+                contentType: 'application/json',
+                
+                data: JSON.stringify({'passwordExpiry': passwordExpiry, 'mfaExpiry': mfaExpiry }),
+                success: function(data, textStatus, jQxhr) {
+                    toastr.success("Successfuly set custom expiry times");
+                },
+                error: function(jQxhr, textStatus, errorThrown) {
+                    toastr.error("Fejl: " + jQxhr.responseText);
+                }
+            });
+		}
+		
+		function reloadMetadata() {
 			var id = $('#id').val();
 			$.ajax({
 				url: spUrl + id + "/reload",

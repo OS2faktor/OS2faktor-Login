@@ -38,13 +38,13 @@
                         <div class="tab-content">
                             <div role="tabpanel" id="tab-1" class="tab-pane" th:classappend="${preferNemid} ? '' : 'active'">
                                 <div class="panel-body">
-                                    <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
+                                    <form class="m-t" id="login" role="form" th:action="${passwordless and forceShowPasswordDialogue == false} ? @{/sso/login-passwordless} : @{/sso/login}" method="post">
                                         <div id="usernameSection" class="form-group">
 											<label for="username">Brugernavn:</label>
 											<input id="username" name="username" th:value="${username}" type="text" class="form-control" placeholder="Brugernavn" autofocus="autofocus" aria-required="true" />
                                         </div>
 
-                                        <div class="form-group">
+                                        <div class="form-group" th:if="${passwordless == false or forceShowPasswordDialogue}">
                                         	<label for="password">Kodeord:</label>
                                             <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" aria-required="true" />
                                         </div>
@@ -53,7 +53,7 @@
                                             <p class="text-danger wcag-text-danger">Brugernavn eller kodeord er forkert</p>
                                         </div>
 
-                                        <button onclick="formService.save()" class="btn btn-primary block full-width m-b wcag-btn-primary">Login</button>
+                                        <button onclick="formService.save()" class="btn btn-primary block full-width m-b wcag-btn-primary"><th:block th:if="${passwordless == false}">Login</th:block><th:block th:if="${passwordless == true}">Fortsæt</th:block></button>
                                         <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b wcag-btn-danger">Afbryd login</a>
 
                                         <br>
@@ -73,7 +73,7 @@
                             <div th:if="${showNemLogIn}" role="tabpanel" id="tab-3" class="tab-pane" th:classappend="${preferNemid} ? 'active' : ''">
                                 <div class="panel-body">
 
-                                    <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
+                                    <form class="m-t" id="login2" role="form" th:action="@{/sso/login}" method="post">
                                         <div class="form-group">
                                             <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}" />
                                         </div>
@@ -118,6 +118,7 @@
 
 		/*[+
 			var url = [[@{/fragment/username}]];
+			var username = [[${username != null ? username : ''}]];
 			var requestedUsername = [[${@sessionHelper.getRequestedUsername()}]];
 		+]*/
 
@@ -179,7 +180,7 @@
 					localUsername = requestedUsername;
                 }
 				else {
-					localUsername = '';
+					localUsername = username;
 				}
 
 				$("#usernameSection").load(url + "?username=" + localUsername, function() {

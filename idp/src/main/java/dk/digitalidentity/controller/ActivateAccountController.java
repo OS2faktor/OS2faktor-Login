@@ -149,7 +149,8 @@ public class ActivateAccountController {
 			}
 		}
 
-		// check if the person has authorized with nemid, if so both PasswordLevel and MFALevel should be SUBSTANTIAL and nemidpid should be saved on session
+		// check if the person has authorized with MitID, if so both PasswordLevel and MFALevel should be SUBSTANTIAL
+		// and MitID NameID should be saved on session
 		String mitIDNameID = sessionHelper.getMitIDNameID();
 		NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
 		NSISLevel mfaLevel = sessionHelper.getMFALevel();
@@ -318,6 +319,7 @@ public class ActivateAccountController {
 
 		model.addAttribute("settings", settings);
 		model.addAttribute("passwordForm", new PasswordChangeForm());
+		model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
 
 		return "activateAccount/activate-select-password";
 	}
@@ -348,6 +350,8 @@ public class ActivateAccountController {
 
 		if (bindingResult.hasErrors()) {
 			model.addAttribute("settings", passwordService.getSettings(person));
+			model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
+
 			return new ModelAndView("activateAccount/activate-select-password");
 		}
 
@@ -356,7 +360,8 @@ public class ActivateAccountController {
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
 				model.addAttribute("settings", passwordService.getSettings(person));
-				
+				model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
+
 				return new ModelAndView("activateAccount/activate-select-password");
 			}
 		}

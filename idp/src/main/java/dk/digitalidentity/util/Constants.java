@@ -32,6 +32,8 @@ public class Constants {
     public static final String LOGIN_REQUEST = "SP_LOGIN_REQUEST";
     public static final String APPROVE_CONDITIONS_FLOW = "APPROVE_CONDITIONS_FLOW";
     public static final String DECLINE_USER_ACTIVATION = "DECLINE_USER_ACTIVATION";
+    public static final String PASSWORDLESS_MFA_FLOW = "PASSWORDLESS_MFA_FLOW";
+    public static final String PASSWORDLESS_MFA_FLOW_USERNAME = "PASSWORDLESS_MFA_FLOW_USERNAME";
 
     public static final String NEMID_OR_MITID_AUTHENTICATION_FLOW = "NEMID_OR_MITID_AUTHENTICATION_FLOW";
     public static final String AUTHENTICATED_WITH_NEMID_OR_MITID = "AUTHENTICATED_WITH_NEMID_OR_MITID";

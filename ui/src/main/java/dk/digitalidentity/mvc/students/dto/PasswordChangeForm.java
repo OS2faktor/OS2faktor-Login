@@ -14,7 +14,7 @@ import java.io.Serializable;
 public class PasswordChangeForm implements Serializable {
 	private static final long serialVersionUID = -286544720952319815L;
 
-	private Long personId;
+	private long personId;
 	private String personName;
 	private String password;
 	private String confirmPassword;

@@ -60,7 +60,9 @@ public class ClaimSelectionController {
 		for (Map.Entry<String, String> claim : selectedParameters.entrySet()) {
 			ClaimValueDTO claimValueDTO = selectableClaims.get(claim.getKey());
 
-			if (claimValueDTO == null || claimValueDTO.getAcceptedValues() == null || !claimValueDTO.getAcceptedValues().contains(claim.getValue())) {
+			if (claimValueDTO == null
+					|| (!claimValueDTO.isHasNames() && (claimValueDTO.getAcceptedValues() == null || !claimValueDTO.getAcceptedValues().contains(claim.getValue())))
+					|| (claimValueDTO.isHasNames() && (claimValueDTO.getAcceptedValuesWithNames() == null || !claimValueDTO.getAcceptedValuesWithNames().containsKey(claim.getValue())))) {
 				return handleError(httpServletRequest, httpServletResponse, model, "/sso/saml/claims/completed", "Fandt claim valg der ikke er gyldig");
 			}
 		}

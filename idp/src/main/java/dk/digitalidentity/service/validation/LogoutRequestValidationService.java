@@ -92,7 +92,7 @@ public class LogoutRequestValidationService {
 			throw new ResponderException("Kunne ikke initialisere MessageLifetimeSecurityHandler", e);
 		}
 		catch (MessageHandlerException e) {
-			throw new RequesterException("Besked 'lifetime' forkert", e);
+			throw new RequesterException("Det modtage logoutRequest er udløbet - det kan evt være et bookmark eller cache som er skyld i fejlen", e);
 		}
 		finally {
 			if (lifetimeHandler != null && lifetimeHandler.isInitialized() && !lifetimeHandler.isDestroyed()) {

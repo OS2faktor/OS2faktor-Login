@@ -13,4 +13,7 @@ public class IdPKeystoreConfiguration {
 	// is never used again.
 	private String location;
 	private String password;
+	
+	// this flag is used to migrate our OIDC keystore to SELFSIGNED from OCES - can be removed once noone uses OCES anymore
+	private String oidcAlias = "SELFSIGNED";
 }

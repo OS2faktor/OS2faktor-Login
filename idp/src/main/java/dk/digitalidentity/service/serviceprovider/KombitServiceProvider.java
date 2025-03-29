@@ -27,8 +27,8 @@ import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
-import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.RequesterException;
@@ -330,11 +330,19 @@ public class KombitServiceProvider extends ServiceProvider {
 
 	@Override
 	public Long getPasswordExpiry() {
+		if (settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY)) {
+			return settingService.getLong(SettingKey.KOMBIT_PASSWORD_EXPIRY);
+		}
+		
 		return null;
 	}
 
 	@Override
 	public Long getMfaExpiry() {
+		if (settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY)) {
+			return settingService.getLong(SettingKey.KOMBIT_MFA_EXPIRY);
+		}
+		
 		return null;
 	}
 }

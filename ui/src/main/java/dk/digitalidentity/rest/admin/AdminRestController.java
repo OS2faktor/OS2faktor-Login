@@ -524,8 +524,7 @@ public class AdminRestController {
 				emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
 				for (EmailTemplateChild child : emailTemplate.getChildren()) {
 					if (child.getDomain().getId() == person.getDomain().getId()) {
-						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
 	
 						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
 					}
@@ -704,8 +703,8 @@ public class AdminRestController {
 	@ResponseBody
 	public ResponseEntity<?> editServiceProvider(@RequestBody ServiceProviderDTO serviceProviderDTO) {
 		try {
-			// Throws exception if claims attribute conains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
-			if(serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
+			// Throws exception if claims attribute contains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
+			if (serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
 				throw new Exception("Det er ikke tilladt at tilføje claims indeholdende 'data.gov.dk/concept/core/nsis/aal' eller 'data.gov.dk/concept/core/nsis/aal'"); 
 			}
 			

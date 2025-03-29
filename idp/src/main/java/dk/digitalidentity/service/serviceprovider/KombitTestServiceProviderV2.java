@@ -1,7 +1,5 @@
 package dk.digitalidentity.service.serviceprovider;
 
-import dk.digitalidentity.controller.dto.LoginRequest;
-
 import java.nio.charset.Charset;
 import java.util.Base64;
 import java.util.Collections;
@@ -19,8 +17,11 @@ import org.springframework.util.StringUtils;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
+import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import lombok.SneakyThrows;
@@ -39,6 +40,9 @@ public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
 
 	@Autowired
 	private CommonConfiguration commonConfig;
+
+	@Autowired
+	private SettingService settingService;
 
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
@@ -94,7 +98,7 @@ public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
 
 		String lookupIdentifier = "KOMBITTEST";
 		String oiobpp = null;
-		if (commonConfig.getRoleCatalogue().isEnabled()) {
+		if (commonConfig.getRoleCatalogue().isEnabled() && commonConfig.getRoleCatalogue().isKombitRolesEnabled()) {
 			oiobpp = roleCatalogueService.getOIOBPP(person, lookupIdentifier);
 		}
 		else {
@@ -162,5 +166,23 @@ public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
 		String oiobpp = builder.toString();
 		
 		return Base64.getEncoder().encodeToString(oiobpp.getBytes(Charset.forName("UTF-8")));
+	}
+
+	@Override
+	public Long getPasswordExpiry() {
+		if (settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY)) {
+			return settingService.getLong(SettingKey.KOMBIT_PASSWORD_EXPIRY);
+		}
+
+		return null;
+	}
+
+	@Override
+	public Long getMfaExpiry() {
+		if (settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY)) {
+			return settingService.getLong(SettingKey.KOMBIT_MFA_EXPIRY);
+		}
+		
+		return null;
 	}
 }

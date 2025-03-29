@@ -65,6 +65,20 @@ public class SettingService {
 
 		return LocalDateTime.parse(setting.getValue());
 	}
+
+	@Cacheable("longSetting")
+	public Long getLong(SettingKey key) {
+		Setting setting = settingDao.getByKey(key);
+		if (setting == null) {
+			setting = new Setting();
+			setting.setKey(key);
+			setting.setValue(key.getDefaultValue());
+
+			settingDao.save(setting);
+		}
+
+		return setting.getValue() == null || setting.getValue().isEmpty() ? null : Long.parseLong(setting.getValue());
+	}
 	
 	public void setLocalDateTimeSetting(SettingKey key, LocalDateTime tts) {
 		Setting setting = settingDao.getByKey(key);
@@ -104,11 +118,25 @@ public class SettingService {
 		
 		self.cleanupCache();
 	}
+
+	public void setLong(SettingKey key, Long value) {
+		Setting setting = settingDao.getByKey(key);
+		if (setting == null) {
+			setting = new Setting();
+			setting.setKey(key);
+		}
+
+		setting.setValue(value == null ? "" : value.toString());
+		settingDao.save(setting);
+		
+		self.cleanupCache();
+	}
 	
 	@Caching(evict = {
 		@CacheEvict(value = "booleanSetting", allEntries = true),
 		@CacheEvict(value = "stringSetting", allEntries = true),
-		@CacheEvict(value = "dateSetting", allEntries = true)
+		@CacheEvict(value = "dateSetting", allEntries = true),
+		@CacheEvict(value = "longSetting", allEntries = true)
 	})
 	public void cleanupCache() {
 

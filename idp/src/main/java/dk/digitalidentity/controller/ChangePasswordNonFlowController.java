@@ -93,6 +93,7 @@ public class ChangePasswordNonFlowController {
 
 			PasswordSetting passwordSettings = passwordSettingService.getAllSettings().stream().findFirst().orElse(null);
 			model.addAttribute("settings", passwordSettings);
+			model.addAttribute("disallowNameAndUsernameContent", "");
 
 			return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
 		}
@@ -102,6 +103,7 @@ public class ChangePasswordNonFlowController {
 
 			PasswordSetting passwordSettings = passwordSettingService.getSettings(person);
 			model.addAttribute("settings", passwordSettings);
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 			return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
 		}
@@ -120,6 +122,7 @@ public class ChangePasswordNonFlowController {
 		if (person != null) {
 			PasswordSetting settingsCached = passwordSettingService.getSettings(person);
 			model.addAttribute("settings", settingsCached);
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 		}
 
 		return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
@@ -137,6 +140,7 @@ public class ChangePasswordNonFlowController {
 		if (!result.equals(ChangePasswordResult.OK)) {
 			model.addAttribute("personId", personId);
 			model.addAttribute("failureReason", result.getMessage());
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 			return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
 		}
@@ -192,6 +196,7 @@ public class ChangePasswordNonFlowController {
 		model.addAttribute("settings", passwordSettingService.getSettings(person));		
 		model.addAttribute("personId", personId);
 		model.addAttribute("failureReason", failureReason);
+		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 		return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
 	}

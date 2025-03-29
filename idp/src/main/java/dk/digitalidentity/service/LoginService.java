@@ -29,7 +29,6 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.KnownNetworkService;
 import dk.digitalidentity.common.service.LoginInfoMessageService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
@@ -38,7 +37,6 @@ import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
-import dk.digitalidentity.util.IPUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,9 +82,6 @@ public class LoginService {
 
     @Autowired
     private PasswordService passwordService;
-
-    @Autowired
-    private KnownNetworkService knownNetworkService;
 
     /**
      * This method handles receiving any login request, and will then determine based on session what to do with the user
@@ -145,7 +140,7 @@ public class LoginService {
         }
 
         // if forceAuthn and MFA required we need to force a new MFA auth
-        if (loginRequest.isForceAuthn() && serviceProvider.mfaRequired(loginRequest, null, IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), httpServletRequest))) {
+        if (loginRequest.isForceAuthn()) {
             sessionHelper.setMFALevel(null);
         }
 
@@ -207,53 +202,58 @@ public class LoginService {
      */
     public ModelAndView continueLoginFlow(Person person, String username, String password, LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
         // Check that AuthnRequest is present and fetch the ServiceProvider by the AuthnRequest
-        // 	This check is done before validating password, Fetching the service provider can fail because the SP is not supported
-        // 	This error would not give any information about the user that is in the process of login.
+        // This check is done before validating password, Fetching the service provider can fail because the SP is not supported
+        // This error would not give any information about the user that is in the process of login.
         if (loginRequest == null) {
             log.warn("No loginRequest found on session");
             return new ModelAndView("redirect:/");
         }
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
 
-        // Check password
         boolean badPasswordMustBeChanged = false;
-        PasswordValidationResult passwordValidationResult = passwordService.validatePassword(password, person);
-        switch (passwordValidationResult) {
-        	case VALID_BUT_BAD_PASWORD:
-        		badPasswordMustBeChanged = true;
-        		// fallthrough to VALID case on purpose
-            case VALID:
-                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false);
-                break;
-            case VALID_EXPIRED:
-                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), true);
-                break;
-            case LOCKED:
-                return new ModelAndView("error-password-locked");
-            case INVALID_BAD_PASSWORD:
-    			model.addAttribute("reason", person.getBadPasswordReason().toString());
-    			return new ModelAndView("error-password-bad", model.asMap());
-            case INVALID:
-                // password was invalid, so we check if they have not locked themselves out of their account,
-                // otherwise we just return them to the login prompt
-                if (person.isLocked()) {
-                    return new ModelAndView(PersonService.getCorrectLockedPage(person));
-                }
-                else {
-                    return initiateLogin(model, httpServletRequest, false, true, (username != null ? username : ""));
-                }
-            case INSUFFICIENT_PERMISSION:
-            case TECHNICAL_ERROR:
-                try {
-                    errorResponseService.sendError(httpServletResponse, loginRequest, new ResponderException("Der opstod en teknisk fejl i forbindelse med login"));
-                    return null;
-                }
-                catch (RequesterException | ResponderException ex) {
-                    return errorHandlingService.modelAndViewError(httpServletRequest.getRequestURI(), httpServletRequest, "Der opstod en teknisk fejl i forbindelse med login", model, true);
-                }
-        }
 
-        // Remember the person on session since we now know who they are confirmed by username/password
+    	if (!sessionHelper.isInPasswordlessMfaFlow()) {
+	        PasswordValidationResult passwordValidationResult = passwordService.validatePassword(password, person);
+	        switch (passwordValidationResult) {
+	        	case VALID_BUT_BAD_PASWORD:
+	        		badPasswordMustBeChanged = true;
+	        		// fallthrough to VALID case on purpose
+	            case VALID:
+	                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), false);
+	                break;
+	            case VALID_EXPIRED:
+	                personService.correctPasswordAttempt(person, sessionHelper.isAuthenticatedWithADPassword(), true);
+	                break;
+	            case LOCKED:
+	                return new ModelAndView("error-password-locked");
+	            case INVALID_BAD_PASSWORD:
+	    			model.addAttribute("reason", person.getBadPasswordReason().toString());
+	    			model.addAttribute("rule", person.getBadPasswordRule());
+
+	    			return new ModelAndView("error-password-bad", model.asMap());
+	            case INVALID:
+	                // password was invalid, so we check if they have not locked themselves out of their account,
+	                // otherwise we just return them to the login prompt
+	                if (person.isLocked()) {
+	                    return new ModelAndView(PersonService.getCorrectLockedPage(person));
+	                }
+	                else {
+	                    return initiateLogin(model, httpServletRequest, false, true, (username != null ? username : ""), false);
+	                }
+	            case INSUFFICIENT_PERMISSION:
+	            case TECHNICAL_ERROR:
+	                try {
+	                    errorResponseService.sendError(httpServletResponse, loginRequest, new ResponderException("Der opstod en teknisk fejl i forbindelse med login"));
+	                    return null;
+	                }
+	                catch (RequesterException | ResponderException ex) {
+	                    return errorHandlingService.modelAndViewError(httpServletRequest.getRequestURI(), httpServletRequest, "Der opstod en teknisk fejl i forbindelse med login", model, true);
+	                }
+	        }
+    	}
+    	
+
+        // Remember the person on session since we now know who they are confirmed by username/password (TODO: what about passwordless, this comment is wrong in that case)
         sessionHelper.setPerson(person);
 
         // Check if the person meets the requirements of the ServiceProvider specified in the AuthnRequest
@@ -262,12 +262,13 @@ public class LoginService {
             auditLogger.loginRejectedByConditions(person, meetsRequirementsResult);
             ResponderException e = new ResponderException("Login afbrudt, da brugeren ikke opfylder kravene til denne tjenesteudbyder");
             errorResponseService.sendError(httpServletResponse, loginRequest, e);
+
             return null;
         }
 
         // If we have to re-authenticate MFA: Instead of starting MFA we clear any previous MFA Level,
         // and let login service handle mfa since it chooses between multiple options
-        if (loginRequest.isForceAuthn() && serviceProvider.mfaRequired(loginRequest, person.getDomain(), IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), httpServletRequest))) {
+        if (loginRequest.isForceAuthn()) {
             sessionHelper.setMFALevel(null);
         }
 
@@ -292,6 +293,7 @@ public class LoginService {
 
 			model.addAttribute("reason", (person.getBadPasswordReason() != null) ? person.getBadPasswordReason().toString() : "");
 			model.addAttribute("deadline", person.getBadPasswordDeadlineTts());
+			model.addAttribute("rule", person.getBadPasswordRule());
 
 			return new ModelAndView("bad-password-prompt", model.asMap());
         }
@@ -312,6 +314,7 @@ public class LoginService {
                 if (sessionHelper.isAuthenticatedWithADPassword()) {
                     sessionHelper.setPassword(password);
                 }
+
                 return flowService.initiateActivateNSISAccount(model);
             }
         }
@@ -386,6 +389,8 @@ public class LoginService {
                 return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
             case INVALID_BAD_PASSWORD:
     			model.addAttribute("reason", person.getBadPasswordReason().toString());
+    			model.addAttribute("rule", person.getBadPasswordRule());
+
     			return new ModelAndView("error-password-bad", model.asMap());
             case INVALID:
             case VALID_EXPIRED:
@@ -393,7 +398,7 @@ public class LoginService {
                     return new ModelAndView(PersonService.getCorrectLockedPage(person));
                 }
                 else {
-                    return initiateLogin(model, httpServletRequest, false, true, "");
+                    return initiateLogin(model, httpServletRequest, false, true, "", false);
                 }
             case LOCKED:
                 return new ModelAndView("error-password-locked");
@@ -439,10 +444,10 @@ public class LoginService {
     }
 
     public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid) {
-        return initiateLogin(model, request, preferNemid, false, null);
+        return initiateLogin(model, request, preferNemid, false, null, false);
     }
 
-    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid, boolean incorrectInput, String username) {
+    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid, boolean incorrectInput, String username, boolean forceShowPasswordDialogue) {
         model.addAttribute("infobox", loginInfoMessageService.getInfobox());
 
         String changePasswordUrl = "/sso/saml/forgotpworlocked";
@@ -452,10 +457,11 @@ public class LoginService {
         }
         model.addAttribute("changePasswordUrl", changePasswordUrl);
 
+        model.addAttribute("username", username);
+
         if (incorrectInput) {
             model.addAttribute("incorrectInput", true);
             model.addAttribute("preferNemid", false);
-            model.addAttribute("username", username);
         }
         else {
             model.addAttribute("preferNemid", preferNemid);
@@ -474,6 +480,9 @@ public class LoginService {
         catch (Exception ignored) {
         	;
         }
+        
+    	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa());
+    	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
         
         return new ModelAndView("login", model.asMap());
     }

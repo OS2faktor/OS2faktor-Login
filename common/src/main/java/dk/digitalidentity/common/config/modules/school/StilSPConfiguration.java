@@ -23,8 +23,7 @@ public class StilSPConfiguration {
 	private String metadataBaseUrl = "https://stil-metadata.digital-identity.dk/metadata/";
 	private String municipalityId = "TODO";
 	private String uniloginAttribute = "cpr";
-	private boolean encryptAssertion = false;
-	private boolean nsisEnabled = false;
+
 	private List<Long> domainIdsThatRequireMfa = new ArrayList<>();
 	
 	public String getMetadataUrl() {

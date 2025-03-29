@@ -25,10 +25,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.AuthnRequestHelper;
 import dk.digitalidentity.service.AuthnRequestService;
@@ -82,6 +84,12 @@ public class LoginController {
 
 	@Autowired
 	private PersonService personService;
+	
+	@Autowired
+	private MFAService mfaService;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
 	@GetMapping("/fragment/username")
 	public String getLoginUsernameFragment(Model model, @RequestParam(name = "username", required = false, defaultValue = "") String username) {
@@ -192,6 +200,62 @@ public class LoginController {
 		return null;
 	}
 
+	@PostMapping(value = "/sso/login-passwordless")
+	public ModelAndView loginPasswordless(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+		// if passwordless is not enabled, handle this request with the normal login
+		if (!commonConfiguration.getCustomer().isEnablePasswordlessMfa()) {
+			log.warn("Attempted to access /sso/login-passwordless when not enabled");
+			return login(model, body, httpServletResponse, httpServletRequest);
+		}
+
+		// get post data
+		String username = body.get("username");
+
+		// get potential people based on username
+		List<Person> people = loginService.getPeople(username);
+
+		// persons locked by 3rd party (municipality, admin or cpr) are filtered out
+		people = people.stream()
+				.filter(p -> !(p.isLockedAdmin() || p.isLockedCivilState() || p.isLockedDataset()))
+				.collect(Collectors.toList());
+
+		// if no match go back to login page
+		if (people.size() == 0) {
+			return loginService.initiateLogin(model, httpServletRequest, false, true, username, false);
+		}
+
+		// if more than one person, ask for password and enter "normal" loginflow without passwordless
+		if (people.size() != 1) {
+			return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+		}
+
+		// if only one match continue login flow
+		Person person = people.get(0);
+
+		if (mfaService.hasPasswordlessMfa(person)) {
+			// if there is already a session with a different person, clear that
+			Person existingPersonOnSession = sessionHelper.getPerson();
+			if (existingPersonOnSession != null && existingPersonOnSession.getId() != person.getId()) {
+				sessionHelper.clearAuthentication();
+			}
+			
+			sessionHelper.setInPasswordlessMfaFlow(true, person.getSamaccountName());
+
+			return loginService.continueLoginFlow(person, username, null, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse, model);
+		}
+
+		// if no passwordless, ask for password
+		return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+	}
+
+	@GetMapping(value = "/sso/login/password")
+	public ModelAndView loginForcePassword(Model model, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+		String username = sessionHelper.getPasswordlessMfaFlowUsername();
+		sessionHelper.setInPasswordlessMfaFlow(false, null);
+
+		return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+	}
+	
 	@PostMapping(value = "/sso/login")
 	public ModelAndView login(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
 		// get post data
@@ -208,7 +272,7 @@ public class LoginController {
 
 		// if no match go back to login page
 		if (people.size() == 0) {
-			return loginService.initiateLogin(model, httpServletRequest, false, true, username);
+			return loginService.initiateLogin(model, httpServletRequest, false, true, username, false);
 		}
 
 		// if more than one match go to select user page

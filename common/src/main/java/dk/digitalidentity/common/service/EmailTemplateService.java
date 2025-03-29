@@ -32,6 +32,7 @@ public class EmailTemplateService {
 	
 	// users
 	public static final String USERID_PLACEHOLDER = "{brugernavn}";
+	public static final String NL3UUID_PLACEHOLDER = "{nemloginuuid}";
 	public static final String RECIPIENT_PLACEHOLDER = "{modtager}";
 	
 	// full service IdP only
@@ -267,6 +268,7 @@ public class EmailTemplateService {
 	public String safeReplaceEverything(String message, Person person) {
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, (person.getNemloginUserUuid() != null) ? person.getNemloginUserUuid() : "");
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.ACTIVATION_LINK_PLACEHOLDER, commonConfiguration.getSelfService().getBaseUrl());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_PLACEHOLDER, commonConfiguration.getEmail().getFromName());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_CONTACT_LOCATION, commonConfiguration.getCustomer().getContactLocationForMails());

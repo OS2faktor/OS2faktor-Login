@@ -8,5 +8,6 @@ import org.springframework.stereotype.Component;
 @Setter
 @Getter
 public class OIDCConfiguration {
-	private String enabled;
+	// string so replace works easier :)
+	private String cleanupRefreshTokensAfterDays = "7";
 }

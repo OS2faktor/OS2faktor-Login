@@ -205,6 +205,8 @@ public class PasswordValidationService {
 			person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordLeakConformityGracePeriod()));
 			person.setBadPasswordReason(BadPasswordReason.LEAKED);
 			
+			auditLogger.badPasswordMustChange(person, null);
+			
 			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PASSWORD_LEAKED);
 			if (emailTemplate.getChildren().stream().anyMatch(c -> c.isEnabled())) {
 				for (EmailTemplateChild emailTemplateChild : emailTemplate.getChildren()) {
@@ -300,7 +302,7 @@ public class PasswordValidationService {
 	private boolean containsName(Person person, String password) {
 		String lowerPwd = password.toLowerCase();
 		for (String name : person.getName().toLowerCase().split(" ")) {
-			if (StringUtils.hasLength(name) && lowerPwd.contains(name)) {
+			if (StringUtils.hasLength(name) && name.length() > 2 && lowerPwd.contains(name)) {
 				return true;
 			}
 		}

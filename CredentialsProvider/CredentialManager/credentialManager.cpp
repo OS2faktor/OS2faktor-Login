@@ -216,7 +216,7 @@ void GetSessionToken(PUNICODE_STRING PUSUsername, PUNICODE_STRING PUSPassword, P
 
 		// Assemble commandline
 		wstring createSessionCommandline = L"\"";
-		createSessionCommandline = createSessionCommandline + installPath + L"\" " + username + L" " + base64EncodedString + L" " + domain;
+		createSessionCommandline = createSessionCommandline + installPath + L"\" " + username + L" " + base64EncodedString;
 		createSessionCommandline.push_back(0); //make sure path is null-terminated
 
 		// Start C# process
