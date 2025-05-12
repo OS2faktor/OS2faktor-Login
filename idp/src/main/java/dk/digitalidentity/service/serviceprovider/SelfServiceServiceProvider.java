@@ -5,10 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import dk.digitalidentity.common.dao.model.enums.Protocol;
-import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
-import dk.digitalidentity.controller.dto.LoginRequest;
-import lombok.SneakyThrows;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
@@ -20,11 +16,15 @@ import org.springframework.stereotype.Component;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
+import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.serviceprovider.SelfServiceServiceProviderConfig;
+import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import lombok.SneakyThrows;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 

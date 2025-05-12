@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.CachedMfaClientService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.mvc.admin.xlsview.AdminKodeviserReportXlsView;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,9 +24,13 @@ public class KodeviserController {
 
 	@Autowired
 	private CachedMfaClientService cachedMfaClientService;
+	
+	@Autowired
+	private SettingService settingsService;
 
 	@GetMapping("/admin/konfiguration/kodeviser")
 	public String listHardwareDevices(Model model) {
+		model.addAttribute("removeDeviceSetting", settingsService.getBoolean(SettingKey.REMOVE_DEVICE_WHEN_PERSON_LOCKED));
 		return "admin/kodeviser-manage";
 	}
 

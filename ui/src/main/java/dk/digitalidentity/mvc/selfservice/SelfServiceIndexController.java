@@ -160,7 +160,7 @@ public class SelfServiceIndexController {
 	public String mfaDevices(Model model) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person != null) {
-			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 			clients.sort(Comparator.comparing(MfaClient::getDeviceId));
 			model.addAttribute("clients", clients);
 		}
@@ -170,6 +170,7 @@ public class SelfServiceIndexController {
 		model.addAttribute("showPrimaryAction", false);
 		model.addAttribute("showDetailsAction", false);
 		model.addAttribute("showLocalDeleteAction", false);
+		model.addAttribute("showPasswordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa());
 
 		return "selfservice/fragments/mfa-devices :: table";
 	}
@@ -178,7 +179,7 @@ public class SelfServiceIndexController {
 	public String mfaDevicesPrimary(Model model) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person != null) {
-			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 			clients.sort(Comparator.comparing(MfaClient::getDeviceId));
 			model.addAttribute("clients", clients);
 		}
@@ -188,6 +189,7 @@ public class SelfServiceIndexController {
 		model.addAttribute("showPrimaryAction", true);
 		model.addAttribute("showDetailsAction", false);
 		model.addAttribute("showLocalDeleteAction", false);
+		model.addAttribute("showPasswordless", false);
 		
 		return "selfservice/fragments/mfa-devices :: table";
 	}

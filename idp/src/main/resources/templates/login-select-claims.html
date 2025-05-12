@@ -20,15 +20,21 @@
 
                         <div class="radioButtonSet" th:each="claim : ${selectableClaims.entrySet()}">
                             <div>
-                                <h4 th:text="${claim.value.displayName}"></h4>
+                                <h4 th:text="${claim.value.claimDisplayName}"></h4>
                             </div>
-                            <div th:each="claimValue : ${claim.value.acceptedValues}">
+                            <div th:if="${claim.value.hasNames == true}" th:each="claimEntry : ${claim.value.acceptedValuesWithNames}">
+                                <label class="col-sm-12 col-form-label">
+                                    <input class="i-checks" type="radio" th:value="${claimEntry.key}" th:name="${claim.key}" required>
+                                    &nbsp;
+                                    <th:block th:text="${claimEntry.value}"></th:block>
+                                </label>
+                            </div>
+                            <div th:if="${claim.value.hasNames == false}" th:each="claimValue : ${claim.value.acceptedValues}">
                                 <label class="col-sm-12 col-form-label">
                                     <input class="i-checks" type="radio" th:value="${claimValue}" th:name="${claim.key}" required>
                                     &nbsp;
                                     <th:block th:text="${claimValue}"></th:block>
                                 </label>
-                               
                             </div>
                             <div class="hr-line-dashed"></div>
                         </div>

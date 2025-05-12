@@ -1,6 +1,8 @@
 package dk.digitalidentity.common.service;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -48,6 +50,15 @@ public class PasswordSettingService {
 		}
 
 		return self.getSettings(person.getDomain());
+	}
+
+	public String getDisallowedNames(Person person) {
+		List<String> disallowedNames = Arrays.stream(person.getName().toLowerCase().split(" ")).collect(Collectors.toList());
+		if (person.getSamaccountName() != null) {
+			disallowedNames.add(person.getLowerSamAccountName());
+		}
+
+		return disallowedNames.stream().collect(Collectors.joining(", "));
 	}
 
 	@Cacheable("passwordSettingsByDomain")

@@ -21,6 +21,10 @@ public class OS2faktorConfiguration {
 	private String entityId;
 	private String baseUrl;
 
+	// iFrameCspPolicy is only possible if XFrameOptions are disabled
+	private boolean disableXFrameOptions = false;
+	private String iFrameCspPolicy = null;
+	
 	// for debugging specific users - browser-window is not closed for these users during WCP login
 	private String wcpRemainOpenForSamAccountName;
 	

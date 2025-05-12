@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Security.Principal;
 using System.Security.Cryptography;
 using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace CreateSession
 {
@@ -63,7 +65,7 @@ namespace CreateSession
                         Log.Verbose($"Running as: {WindowsIdentity.GetCurrent().Name}");
 
                         // Check that the args are correct
-                        if (args.Length != 3)
+                        if (args.Length != 2)
                         {
                             Log.Error("Incorrect amount of args ({0}) passed to CreateSession", args.Length);
                             return;
@@ -83,18 +85,16 @@ namespace CreateSession
                         //   "version": "xxxx",
                         //   "base64": "true"
                         // }
-                        string body = "{\"username\":\"" + args[0] + "\",\"password\":\"" + getPassword(args[1]) + "\"";
-                        if (version != null)
+                        string versionStr = version == null ? "0" : version.Replace(".", "").Trim();
+                        var body = new
                         {
-                            string versionParameter = version.Replace(".", "").Trim();
-                            if (!String.IsNullOrWhiteSpace(versionParameter))
-                            {
-                                body += ",\"version\":\"" + versionParameter + "\",\"base64\":\"true\"";
-                            }
-                        }
-                        body += "}";
-                        HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
-
+                            username = args[0],
+                            password = getPassword(args[1]),
+                            version = !String.IsNullOrWhiteSpace(versionStr) ? versionStr : "0",
+                            base64 = false
+                        };
+                        string bodyString = JsonSerializer.Serialize(body);
+                        HttpContent content = new StringContent(bodyString, System.Text.Encoding.UTF8, "application/json");
 
                         // Call the service and wait for the response
                         try
@@ -122,6 +122,7 @@ namespace CreateSession
                             {
                                 var responseBody = await response.Content.ReadAsStringAsync();
                                 Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, responseBody);
+                                Log.Information($"User: {args[0]}, Password non-zero length: {getPassword(args[1]).Length > 0}");
                                 return;
                             }
                         }
@@ -149,9 +150,7 @@ namespace CreateSession
         private static string getPassword(string encodedPassword)
         {
             byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
-            // Makes sure the password is encoded in UTF-8 and not UTF-16LE
-            byte[] utf8Bytes = System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.Unicode.GetString(bytes));
-            return Convert.ToBase64String(utf8Bytes);
+            return System.Text.Encoding.Unicode.GetString(bytes);
         }
     }
 }

@@ -48,7 +48,7 @@ public class ClaimDTO {
 		this.id = advancedClaim.getId();
 		this.attribute = advancedClaim.getClaimName();
 		this.value = advancedClaim.getClaimValue();
-		this.singleValueOnly = false;
+		this.singleValueOnly = advancedClaim.isSingleValueOnly();
 
 		this.type = ClaimType.ADVANCED;
 	}
@@ -59,7 +59,7 @@ public class ClaimDTO {
 		this.value = rcClaim.getClaimValue();
 		this.externalOperation = rcClaim.getExternalOperation().toString();
 		this.externalOperationArgument = rcClaim.getExternalOperationArgument();
-		this.singleValueOnly = false;
+		this.singleValueOnly = rcClaim.isSingleValueOnly();
 
 		// ui shown only
 		this.parameter = rcClaim.getExternalOperation().getMessage();
@@ -72,7 +72,7 @@ public class ClaimDTO {
 		this.attribute = groupClaim.getClaimName();
 		this.value = groupClaim.getClaimValue();
 		this.groupId = groupClaim.getGroup().getId();
-		this.singleValueOnly = false;
+		this.singleValueOnly = groupClaim.isSingleValueOnly();
 
 		// ui shown only
 		this.parameter = groupClaim.getGroup().getName();

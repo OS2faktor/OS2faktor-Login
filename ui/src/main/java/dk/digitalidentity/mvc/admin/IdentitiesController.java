@@ -35,11 +35,11 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.common.service.RoleCatalogueService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.mvc.admin.dto.AdminPersonDTO;
 import dk.digitalidentity.mvc.selfservice.NSISStatus;
 import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
@@ -100,6 +100,7 @@ public class IdentitiesController {
 		form.setUserId(PersonService.getUsername(person));
 		form.setEmail(person.getEmail());
 		form.setAttributes(person.getAttributes());
+		form.setKombitAttributes(person.getKombitAttributes());
 		
 		if (person.isLocked()) {
 			if (person.isLockedAdmin() || person.isLockedDataset()) {
@@ -147,7 +148,7 @@ public class IdentitiesController {
 
 		List<String> roles = new ArrayList<>();
 		if (commonConfiguration.getRoleCatalogue().isEnabled() && commonConfiguration.getRoleCatalogue().isKombitRolesEnabled()) {
-			roles = roleCatalogueService.getUserRoles(person, "KOMBIT");
+			roles = roleCatalogueService.getUserRoleNames(person, "KOMBIT");
 		}
 		else {
 			for (KombitJfr kombitJfr : person.getKombitJfrs()) {
@@ -173,6 +174,7 @@ public class IdentitiesController {
 
 		model.addAttribute("settings", passwordSettingService.getSettings(person));
 		model.addAttribute("passwordForm", new PasswordChangeForm(person, false));
+		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 		return "admin/change-password";
 	}
@@ -194,6 +196,7 @@ public class IdentitiesController {
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
 			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 			return "admin/change-password";
 		}
@@ -221,6 +224,7 @@ public class IdentitiesController {
 				}
 
 				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 				return "admin/change-password";
 			}
@@ -243,7 +247,7 @@ public class IdentitiesController {
 
 		Person person = personService.getById(id);
 		if (person != null) {
-			clients = mfaService.getClients(person.getCpr());
+			clients = mfaService.getClients(person.getCpr(), person.isRobot());
 		}
 
 		model.addAttribute("clients", clients);
@@ -251,6 +255,7 @@ public class IdentitiesController {
 		model.addAttribute("showDetailsAction", true);
 		model.addAttribute("showLocalDeleteAction", true);
 		model.addAttribute("showPrimaryAction", false);
+		model.addAttribute("showPasswordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa());
 
 		// re-use fragment from selfservice...
 		return "selfservice/fragments/mfa-devices :: table";

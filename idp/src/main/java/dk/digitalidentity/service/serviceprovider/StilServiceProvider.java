@@ -40,7 +40,7 @@ public class StilServiceProvider extends ServiceProvider {
 	
 	@Autowired
 	private SessionHelper sessionHelper;
-	
+
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
@@ -103,7 +103,7 @@ public class StilServiceProvider extends ServiceProvider {
 			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
 		}
 
-		// supplement to LoA, as STIL needs these for mapping to OpenID Connect serviceproviders
+		// supplement to LoA, as STIL needs these for mapping to OpenID Connect ServiceProviders
 		if (sessionHelper.hasUsedMFA()) {
 			map.put("dk:unilogin:loa", "ToFaktor");
 		}
@@ -131,6 +131,11 @@ public class StilServiceProvider extends ServiceProvider {
                 if (Constants.STIL_LEVEL_OF_ASSURANCE_TOFAKTOR.equals(authnContextClassRef.getAuthnContextClassRef())) {
                     return true;
                 }
+
+                // not sure if STIL ever uses this, but better safe than sorry
+                if ("urn:dk:gov:saml:attribute:AssuranceLevel:3".equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    return true;
+                }
             }
         }
 
@@ -139,7 +144,10 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
-		// TODO: eventually, but not yet
+		// even if the AuthnRequest contains a required level, we will simply map it to NONE, to ensure
+		// that everyone CAN perform a login. This might result in a login that only issues a NIST claim,
+		// even though STIL requires an NSIS level, but that is okay, as STIL will then perform a step-up
+		// at their end (this has been agreed upon with STIL)
 		return NSISLevel.NONE;
 	}
 
@@ -195,12 +203,19 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean supportsNsisLoaClaim() {
-		return false;
+		return true;
 	}
 	
 	@Override
 	public boolean preferNIST() {
-		return stilConfig.isPreferNIST();
+		return false;
+	}
+	
+	@Override
+	public boolean alwaysIssueNistClaim() {
+		// for legacy reasons, we need to issue BOTH a NIST and NSIS claim to STIL if the authenticated
+		// user has a NSIS level - this probably goes away at some point
+		return true;
 	}
 	
 	@Override

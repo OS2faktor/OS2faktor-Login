@@ -23,6 +23,7 @@ public class AdminPersonDTO {
 	private Long personId;
 	private boolean nameProtected;
 	private Map<String, String> attributes;
+	private Map<String, String> kombitAttributes;
 	private String nemloginUserUuid;
 	private List<SchoolRole> schoolRoles;
 	

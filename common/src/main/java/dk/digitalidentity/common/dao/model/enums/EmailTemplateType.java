@@ -21,6 +21,7 @@ public enum EmailTemplateType {
 	NEW_LOGIN_FOREIGN_COUNTRY("html.enum.email.type.new_login_foreign_country", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                             // Login i nyt land registreret
 	NEW_USER("html.enum.email.type.new_user", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                                               // Brugerkonto oprettet
 	PASSWORD_LEAKED("html.enum.email.type.password_leaked", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                                 // Brugers kodeord er fundet i liste over lækkede kodeord
+	PERSON_SET_RANDOM_PASSWORD("html.enum.email.type.random_password_set", Arrays.asList(Flags.EBOKS, Flags.EMAIL)),                                  // Brugers kodeord blev tilfældigt
 	
 	// logwatch
 	TOO_MANY_WRONG_PASSWORD("html.enum.email.type.too_many_wrong_password", Arrays.asList(Flags.EMAIL, Flags.LOG_WATCH)),

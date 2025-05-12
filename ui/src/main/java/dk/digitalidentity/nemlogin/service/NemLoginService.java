@@ -47,14 +47,12 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.MitIdErhvervAccountErrorType;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
-import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.MitIdErhvervAccountErrorService;
 import dk.digitalidentity.common.service.NemloginQueueService;
 import dk.digitalidentity.common.service.PersonService;
-import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.nemlogin.service.model.ActivationOrderRequest;
@@ -120,9 +118,6 @@ public class NemLoginService {
 
 	@Autowired
 	private MitIdErhvervAccountErrorService mitIdErhvervAccountErrorService;
-	
-	@Autowired
-	private SettingService settingService;
 	
 	@Autowired
 	private CprService cprService;
@@ -834,6 +829,8 @@ public class NemLoginService {
 							if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
 								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
 								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
+
 								emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
 							}
 						}
@@ -1048,6 +1045,7 @@ public class NemLoginService {
 					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
 						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
 						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
 						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
 					}
 				}

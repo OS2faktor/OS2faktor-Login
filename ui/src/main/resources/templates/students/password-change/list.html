@@ -65,6 +65,7 @@
 												<td>
 													<a th:href="'/andre-brugere/' + ${person.id} + '/kodeord/skift'" style="color: black;" title="Skift kodeord"><em class="fa fa-fw fa-key"></em></a>
 													<a th:if="${person.canSeePassword}" th:href="'/andre-brugere/' + ${person.id} + '/kodeord/se'" style="color: black;" title="Se kodeord"><em class="fa fa-fw fa-search"></em></a>
+													<a th:data-pid="${person.id}" onclick="changePasswordListService.unlock(this.getAttribute('data-pid'));" style="color: black;" title="Lås op"><em class="fa fa-fw fa-unlock-alt"></em></a>
 												</td>
 											</tr>
 										</tbody>
@@ -131,7 +132,7 @@
 	</div>
 
 	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
-
+	
 	<script th:inline="javascript">
 		/*<![CDATA[*/
 
@@ -140,6 +141,8 @@
 		var flashSuccess = [[${flashSuccess}]];
 		var flashWarning = [[${flashWarning}]];
 		var flashError = [[${flashError}]];
+		var btnCancel = [[#{shared.button.cancel}]];
+		var btnYes = [[#{shared.button.yes}]];
 		var printClassUrl = [[@{/andre-brugere/klasser/}]];
 		+]*/
 
@@ -281,7 +284,37 @@
 					}
 				});
 			}
+
+			this.unlock = function(personId) {
+				swal({
+					title: 'Lås op',
+					text: 'Er du sikker på, at du vil låse elevens konto op?',
+					type: 'info',
+					showCancelButton: true,
+					confirmButtonColor: "#1ab394",
+					cancelButtonText: btnCancel,
+					confirmButtonText: btnYes,
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					if (isConfirm) {
+						$.ajax({
+							method : "POST",
+							url: "/rest/student/" + personId + "/unlockAccount",
+							headers: {
+								'X-CSRF-TOKEN': token
+							}
+						}).done(function (data) {
+							toastr.success("Kontoen er nu låst op");
+						}).fail(function(jqXHR, textStatus, errorThrown) {
+							toastr.error(jqXHR.responseText);
+						});
+					}
+				});
+			}
 		}
+		
 		/*]]>*/
 	</script>
 </body>

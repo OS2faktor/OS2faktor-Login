@@ -1,8 +1,6 @@
 package dk.digitalidentity.common.config;
 
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.modules.AdConfiguration;
@@ -53,12 +51,4 @@ public class CommonConfiguration {
 	private FullServiceIdPConfiguration fullServiceIdP = new FullServiceIdPConfiguration();
 	private MitIDErhvervConfiguration mitIdErhverv = new MitIDErhvervConfiguration();
 	private EntraMfaConfiguration entraMfa = new EntraMfaConfiguration();
-
-	@EventListener(ApplicationReadyEvent.class)
-	public void runOnStartup() {
-		// when running in fullServiceIdP mode, always disable registrant feature
-		if (fullServiceIdP.isEnabled()) {
-			customer.setEnableRegistrant(false);
-		}
-	}
 }

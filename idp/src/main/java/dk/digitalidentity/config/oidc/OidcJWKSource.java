@@ -18,6 +18,7 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;
@@ -30,7 +31,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.Base64;
 import com.nimbusds.jose.util.Base64URL;
 
-import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.KeystoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,11 +40,21 @@ import lombok.extern.slf4j.Slf4j;
 public class OidcJWKSource implements JWKSource<SecurityContext> {
 	public static final String KEYID = "oidc-key-1";
 
+	// cache
+	private JWKSet jwkSet = null; 
+	
 	@Autowired
 	private KeystoreService keystoreService;
+	
+	@Autowired
+	private OS2faktorConfiguration configuration;
 
 	@Override
 	public List<JWK> get(JWKSelector jwkSelector, SecurityContext context) throws KeySourceException {
+		if (jwkSet != null) {
+			return jwkSelector.select(jwkSet);
+		}
+
 		KeyPair keyPair = null;
 		MessageDigest sha256 = null;
 		byte[] encodedCert = null;
@@ -68,16 +79,22 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 				.privateKey((RSAPrivateKey) keyPair.getPrivate())
 				.build();
 
-		JWKSet jwkSet = new JWKSet(rsaKey);
+		jwkSet = new JWKSet(rsaKey);
 
 		return jwkSelector.select(jwkSet);
 	}
 	
+	@SuppressWarnings("deprecation")
 	public KeyPair getKeyPair() throws CertificateException, IOException, NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException {
-		KeyStore ks = keystoreService.getJavaKeystore(KnownCertificateAliases.OCES.toString());
-		String alias = ks.aliases().nextElement();
+		KeyStore ks = keystoreService.getJavaKeystore(configuration.getKeystore().getOidcAlias());
+		
+		String alias = keystoreService.getKmsAlias(configuration.getKeystore().getOidcAlias());
+		// if no alias to KMS is available, load from keystore and find first
+		if (!StringUtils.hasLength(alias)) {
+			alias = ks.aliases().nextElement();
+		}
 
-		String pwd = keystoreService.getJavaKeystorePassword(KnownCertificateAliases.OCES.toString());
+		String pwd = keystoreService.getJavaKeystorePassword(configuration.getKeystore().getOidcAlias());
 		
 		Key key = ks.getKey(alias, (pwd != null) ? pwd.toCharArray() : null);
 		if (key instanceof PrivateKey) {
@@ -87,8 +104,9 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 		return null;
 	}
 	
+	@SuppressWarnings("deprecation")
 	private X509Certificate getCertificate() throws KeyStoreException {
-		KeyStore ks = keystoreService.getJavaKeystore(KnownCertificateAliases.OCES.toString());
+		KeyStore ks = keystoreService.getJavaKeystore(configuration.getKeystore().getOidcAlias());
 		String alias = ks.aliases().nextElement();
 
 		return (X509Certificate) ks.getCertificate(alias);

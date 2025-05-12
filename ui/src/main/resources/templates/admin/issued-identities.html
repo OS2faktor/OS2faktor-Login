@@ -27,7 +27,7 @@
 								
 								<h4>Brugere</h4>
 								<div class="table-responsive">
-									<table id="persons" class="table table-striped table-bordered table-hover" >
+									<table id="persons" width="100%" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
 												<th style="width: 100px;">Brugernavn</th>
@@ -128,6 +128,39 @@
 	</div>
 	<!-- End unlock Modal -->
 
+    <!-- block access Modal -->
+    <div class="modal inmodal" id="modalRandomPassword" tabindex="-1" role="dialog" style="display: none;" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content animated fadeIn">
+                <div class="modal-header">
+                    <h4 class="modal-title">Nulstil kodeord</h4>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="form-group col-md-12">
+                        <span>Er du sikker på, at du vil nulstille brugerens kodeord, og dermed tvinge brugeren til at danne et nyt kodeord?</span>
+                    </div>
+
+                    <div class="form-group col-md-12" style="margin-bottom: 0px;">
+                        <b>Angiv begrundelse</b>
+                    </div>
+                    
+                    <div class="form-group col-md-12 mt-1">
+                        <textarea id="randomPasswordReason" rows="6" class="col-sm-12 form-control" style="max-width: 100%; max-height: 400px;"></textarea>
+                        <ul class="error stat-list text-danger mt-1 d-none">
+                            <li>Dette felt er påkrævet.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-white" style="width: 80px;" onclick="$(modalRandomPassword).hide();">Nej</button>
+                    <button type="button" class="btn btn-primary" style="width: 80px;" onclick="modalService.saveRandomPasswordModal()">Ja</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- End block access Modal -->
+
 	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true, select2 = true)}"></div>
 
 	<script th:inline="javascript">
@@ -144,6 +177,7 @@
 		var lockText = "Er du sikker på at du vil spærre denne konto?";
 		var unlockText = "Er du sikker på at du vil låse denne konto op?";
 		var lockFail = "Der opstod en teknisk fejl, handlingen blev ikke udført!";
+		var passwordChangeFail = "Der opstod en teknisk fejl under nulstilling af kodeord";
 		
 		var token = $("meta[name='_csrf']").attr("content");
 	
@@ -265,6 +299,8 @@
 						"render": function (data, type, row, meta) {
 							var content =  '<a onclick="lock(' + data + ',' + row.lockedAdmin + ')" style="color: black;" title="' + ((row.lockedAdmin) ? 'Fjern spærring' : 'Spær identitet') + '"><em class="fa fa-fw ' + ((row.lockedAdmin) ? 'fa-unlock-alt' : 'fa-lock') + '"></em></a>&nbsp;' +
 							'<a href="' + baseUrl + 'admin/identiteter/' + data + '" style="color: black;" title="Vis identitet"><em class="fa fa-fw fa-search"></em></a>';
+
+							content += '&nbsp;<a href="javascript:;" onclick="randomizePassword(' + data + ')" style="color: black;" title="Nulstil kodeord"><em class="fa fa-fw fa-ban"></em></a>';
 							
 							if ([[${#authorization.expression('hasRole("ROLE_PASSWORD_RESET_ADMIN")')}]] && !row.nsisAllowed) {
 								content += '&nbsp;<a href="' + baseUrl + 'admin/identiteter/resetPassword/' + data + '" style="color: black;" title="Nulstil kodeord"><em class="fa fa-fw fa-key"></em></a>';
@@ -313,24 +349,6 @@
 		});
 
 		function lock(id, isLocked) {
-			$.ajax({
-				method : "GET",
-				url: baseUrl + "rest/admin/lock/check/" + id,
-				headers: {
-					"content-type": "application/json",
-					'X-CSRF-TOKEN': token
-				}
-			}).done(function (data) {
-				if (data) {
-					$("#suspend").iCheck('check');
-				}
-				else {
-					$("#suspend").iCheck('uncheck');
-				}
-			}).fail(function (jqXHR, textStatus, errorThrown) {
-				;
-			});
-			
 			if (isLocked) {
 				$("#modalUnlock").show();
 				$("#modalUnlock").attr("personid", id);
@@ -339,6 +357,13 @@
 				$("#modalLock").attr("personid", id);
 				$("#reason").val("");
 			}
+		}
+
+		function randomizePassword(personId) {
+			$("#modalRandomPassword").show();
+			$("#modalRandomPassword").attr("personid", personId);
+			$("#randomPasswordReason").val("");
+			$("#modalRandomPassword .error").toggleClass("d-none", true);
 		}
 
 		function ModalService() {
@@ -377,6 +402,30 @@
 					table.ajax.reload();
 				}).fail(function (jqXHR, textStatus, errorThrown) {
 					toastr.warning(lockFail);
+				});
+			}
+
+			this.saveRandomPasswordModal = function() {
+				var personId = $("#modalRandomPassword").attr("personid");
+				var reason = $("#randomPasswordReason").val();
+				
+				if (!reason || reason.length == 0) {
+					$("#modalRandomPassword .error").toggleClass("d-none", false);
+					return;
+				}
+				
+				$.ajax({
+					method : "POST",
+					url: baseUrl + "rest/admin/randomPassword/" + personId + "?reason=" + encodeURIComponent(reason),
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					$("#modalRandomPassword").hide();
+					table.ajax.reload();
+				}).fail(function (jqXHR, textStatus, errorThrown) {
+					toastr.warning(passwordChangeFail);
 				});
 			}
 		}

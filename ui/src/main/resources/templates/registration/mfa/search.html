@@ -33,7 +33,6 @@
 									<div class="form-group row">
 										<button type="button" style="width: 125px;" class="btn btn-primary m-b ml-2" onclick="search()">Søg</button>
 										<a th:href="@{/admin/registration/mfa}" style="width: 125px;" type="button" class="btn btn-danger m-b ml-2">Annuller</a>
-										<button type="button" class="btn btn-success m-b ml-2" style="width: 125px;" onclick="yubikey()">Tilføj Yubikey</button>
 									</div>
 								</div>
 
@@ -210,13 +209,6 @@
 				}
 			});
 			
-		}
-
-		function yubikey() {
-			$("#type").text("Yubikey");
-
-			$("#found").show();
-			$("#searchBox").hide();
 		}
 	
 		/*]]>*/

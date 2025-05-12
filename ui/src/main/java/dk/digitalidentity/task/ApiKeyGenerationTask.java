@@ -81,6 +81,10 @@ public class ApiKeyGenerationTask {
 						apiKey = os2faktorConfiguration.getUserAdministration().getApiKey();
 						description = "API til at udføre basale brugeradministrationshandlinger";
 						break;
+					case INTERNAL:
+						apiKey = UUID.randomUUID().toString();
+						description = "API til at lave interne kald til systemet";
+						break;
 				}
 				
 				if (!StringUtils.hasLength(apiKey)) {

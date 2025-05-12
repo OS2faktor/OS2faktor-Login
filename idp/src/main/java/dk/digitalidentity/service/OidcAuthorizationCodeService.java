@@ -66,7 +66,7 @@ public class OidcAuthorizationCodeService {
 			log.debug("Creating OIDC Authorization request response code");
 		}
 
-		Map<String, Object> attributes = serviceProvider.getAttributes(loginRequest, person, false);
+		Map<String, Object> attributes = serviceProvider.getAttributes(loginRequest, person, true);
 		addNISTClaim(serviceProvider, attributes);
 		
 		OAuth2AuthorizationCodeRequestAuthenticationToken token = loginRequest.getToken();
@@ -100,7 +100,7 @@ public class OidcAuthorizationCodeService {
 				NISTValue = "3";
 			}
 			
-			// TODO: there is no official NIST attriubute :(
+			// TODO: there is no official NIST attribute :(
 			attributes.put("loa", NISTValue);
 		}		
 	}
@@ -117,6 +117,14 @@ public class OidcAuthorizationCodeService {
 			if (attributes.containsKey("https://data.gov.dk/model/core/eid/fullName")) {
 				result.put("name", attributes.get("https://data.gov.dk/model/core/eid/fullName"));
 			}
+			
+			if (attributes.containsKey("https://data.gov.dk/model/core/eid/firstName")) {
+				result.put("firstName", attributes.get("https://data.gov.dk/model/core/eid/firstName"));
+			}
+			
+			if (attributes.containsKey("https://data.gov.dk/model/core/eid/lastName")) {
+				result.put("lastName", attributes.get("https://data.gov.dk/model/core/eid/lastName"));
+			}
 
 			if (attributes.containsKey("https://data.gov.dk/model/core/eid/email")) {
 				result.put("email", attributes.get("https://data.gov.dk/model/core/eid/email"));
@@ -124,6 +132,18 @@ public class OidcAuthorizationCodeService {
 
 			if (attributes.containsKey("https://data.gov.dk/model/core/eid/cprNumber")) {
 				result.put("cpr", attributes.get("https://data.gov.dk/model/core/eid/cprNumber"));
+			}
+			
+			if (attributes.containsKey("https://data.gov.dk/model/core/eid/alias")) {
+				result.put("alias", attributes.get("https://data.gov.dk/model/core/eid/alias"));
+			}
+			
+			if (attributes.containsKey("https://data.gov.dk/model/core/eid/professional/cvr")) {
+				result.put("cvr", attributes.get("https://data.gov.dk/model/core/eid/professional/cvr"));
+			}
+			
+			if (attributes.containsKey("https://data.gov.dk/model/core/eid/professional/orgName")) {
+				result.put("organizationName", attributes.get("https://data.gov.dk/model/core/eid/professional/orgName"));
 			}
 		}
 

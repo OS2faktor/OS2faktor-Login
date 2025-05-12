@@ -14,8 +14,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,6 +33,7 @@ public class JwtAuditLogFilter extends OncePerRequestFilter {
 	private AuditLogger auditLogger;
 	private OAuth2AuthorizationService authorizationService;
 	private PersonService personService;
+	private SqlServiceProviderConfigurationService serviceProviderService;
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
@@ -63,9 +66,11 @@ public class JwtAuditLogFilter extends OncePerRequestFilter {
 								String idToken = splitKeyAndValue[1];
 								String[] idTokenParts = idToken.split("\\.");
 								if (idTokenParts.length == 3) {
+									SqlServiceProviderConfiguration sp = serviceProviderService.getByEntityId(token.getRegisteredClientId());
+									
 									byte[] decode = Base64.getUrlDecoder().decode(idTokenParts[1]);
 									String idTokenBody = new String(decode, StandardCharsets.UTF_8);
-									auditLogger.sentJWTIdToken(idTokenBody, person);
+									auditLogger.sentJWTIdToken(idTokenBody, person, (sp != null) ? sp.getName() : token.getRegisteredClientId());
 								}
 							}
 						}
@@ -84,8 +89,14 @@ public class JwtAuditLogFilter extends OncePerRequestFilter {
 			}
 		}
 		else {
-			log.warn("No code supplied");
-			response.sendError(HttpStatus.BAD_REQUEST.value(), "No code supplied");
+			String refreshToken = request.getParameter(OAuth2ParameterNames.REFRESH_TOKEN);
+			if (StringUtils.hasText(refreshToken)) {
+				filterChain.doFilter(request, response);
+			}
+			else {
+				log.warn("No code supplied");
+				response.sendError(HttpStatus.BAD_REQUEST.value(), "No code supplied");
+			}
 		}
 	}
 

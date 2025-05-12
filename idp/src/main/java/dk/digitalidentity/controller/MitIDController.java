@@ -2,6 +2,7 @@ package dk.digitalidentity.controller;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,6 +27,13 @@ import org.opensaml.saml.saml2.core.LogoutResponse;
 import org.opensaml.saml.saml2.core.impl.AssertionUnmarshaller;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -59,6 +67,7 @@ import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
@@ -66,6 +75,9 @@ import net.shibboleth.utilities.java.support.velocity.VelocityEngine;
 @Slf4j
 @Controller
 public class MitIDController {
+
+	@Autowired
+	private HttpServletRequest request;
 
 	@Autowired
 	private AuditLogger auditLogger;
@@ -138,14 +150,37 @@ public class MitIDController {
 			return handleMitIdErrors(httpServletResponse, "Brugertoken fra NemLog-in indeholder ikke personnummer!");
 		}
 
+		// pull all needed data from NemLoginUtil now, as data will be gone from this point on
+		String mitIdName = nemLoginUtil.getPersonUuid();
+		List<Person> availablePeople = nemLoginUtil.getAvailablePeople();
+		String cpr = nemLoginUtil.getCpr();
+		String rawToken = tokenUser.getAndClearRawToken();
+
+		// Spring Authorization Server does not play well with a full authenticated Authentication object, and since we do
+		// not actually need it from this point on, we can just wipe it and replace it with an AnonymousAuthenticationToken
+		// NOTE: after this point, do not access nemLoginUtil.getXXX methods, as they will not work
+		if (SecurityContextHolder.getContext() != null &&
+			SecurityContextHolder.getContext().getAuthentication() != null) {
+
+			SecurityContext securityContext = SecurityContextHolder.getContext();
+			Object principal = securityContext.getAuthentication().getPrincipal();
+
+			ArrayList<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+			authorities.add(new SimpleGrantedAuthority("USER"));
+			Authentication authentication = new AnonymousAuthenticationToken(tokenUser.getUsername(), principal, authorities);
+			SecurityContextHolder.getContext().setAuthentication(authentication);
+			
+			if (request != null) {
+				HttpSession session = request.getSession(true);
+				session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, securityContext);
+			}
+		}
+		
 		// if the originating AuthnRequest (from the upstream ServiceProvider) was a forced NemLog-in flow, then
 		// we handle the request in a separate method, and ignore the rest of the logic
 		if (sessionHelper.isInNemLogInBrokerFlow()) {
-			return handleNemLogInAsBroker(httpServletResponse, model, tokenUser.getRawToken());
+			return handleNemLogInAsBroker(httpServletResponse, model, rawToken);
 		}
-
-		// set nameID as an identifier on the session associated with the MitID login.
-		String mitIdName = nemLoginUtil.getPersonUuid();
 
 		// in case we end up in a sub-flow, we need to know that we are in the middle of a NemID/MitID login flow
 		sessionHelper.setInNemIdOrMitIDAuthenticationFlow(true);
@@ -153,16 +188,13 @@ public class MitIDController {
 		// store for later use
 		sessionHelper.setMitIDNameID(mitIdName);
 		sessionHelper.setNemIDMitIDNSISLevel(nsisLevel);
-		String token = tokenUser.getRawToken();
-		auditLogger.usedNemLogin(sessionHelper.getPerson(), nsisLevel, tokenUser.getAndClearRawToken());
+		auditLogger.usedNemLogin(sessionHelper.getPerson(), nsisLevel, rawToken);
 
 		// check if we have a person on the session, if we do we will only work with this person
 		Person person = sessionHelper.getPerson();
 
 		// if no existing person is found on the session: treat as fresh login
 		if (person == null) {
-			List<Person> availablePeople = nemLoginUtil.getAvailablePeople();
-
 			// persons locked by 3rd party (municipality, admin or cpr) are filtered out
 			availablePeople = availablePeople.stream()
 					.filter(p -> !(p.isLockedAdmin() || p.isLockedCivilState() || p.isLockedDataset()))
@@ -175,10 +207,11 @@ public class MitIDController {
 				if (loginRequest != null) {
 					ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
 					if (serviceProvider.isAllowAnonymousUsers()) {
-						return handleNemLogInAsBroker(httpServletResponse, model, token);
+						return handleNemLogInAsBroker(httpServletResponse, model, rawToken);
 					}
 				}
-				auditLogger.rejectedUnknownPerson(mitIdName, nemLoginUtil.getCpr());
+				
+				auditLogger.rejectedUnknownPerson(mitIdName, cpr);
 				return new ModelAndView("error-unknown-user");
 			}
 
@@ -193,7 +226,7 @@ public class MitIDController {
 		}
 		else {
 			// an existing person was found on the session, validate CPR-Number from NemLog-in against that persons CPR.
-			if (!Objects.equals(nemLoginUtil.getCpr(), person.getCpr())) {
+			if (!Objects.equals(cpr, person.getCpr())) {
 				LoginRequest loginRequest = sessionHelper.getLoginRequest();
 				if (loginRequest == null) {
 					return invalidateSessionAndSendRedirect();
@@ -223,6 +256,7 @@ public class MitIDController {
 
 		Assertion assertion;
 		try {
+			auditLogger.usedNemLoginBrokering(rawToken);
 			assertion = getNemLogInAssertion(rawToken);
 		}
 		catch (ParserConfigurationException | IOException | SAXException e) {

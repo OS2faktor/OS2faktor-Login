@@ -18,10 +18,6 @@ public class MfaConfiguration {
 	private String enabledClients = "WINDOWS,IOS,ANDROID,CHROME,YUBIKEY,EDGE";
 	private List<String> enabledClientsComputedValue = null;
 	
-	// custom hack for showing a button before finishing MFA login (for Tønder, should be replaced by good code later)
-	private boolean delayedLogin = false;
-	private boolean delayedLoginNemLogin = false;
-	
 	public List<String> getEnabledClients() {
 		if (enabledClientsComputedValue == null) {
 			enabledClientsComputedValue = Arrays.asList(enabledClients.trim().split(","));

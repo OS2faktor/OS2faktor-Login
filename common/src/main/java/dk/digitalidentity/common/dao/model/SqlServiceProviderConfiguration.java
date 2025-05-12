@@ -148,6 +148,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private String certificateAlias;
 
+    @Column
+    private boolean delayedMobileLogin;
+
     public void loadFully() {
         this.requiredFields.size();
         this.staticClaims.size();

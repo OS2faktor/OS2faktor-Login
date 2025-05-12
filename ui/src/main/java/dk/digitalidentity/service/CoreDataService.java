@@ -205,6 +205,7 @@ public class CoreDataService {
 
 				if (entry == null && !person.isLockedDataset()) {
 					person.setLockedDataset(true);
+					person.setLockedDatasetTts(LocalDateTime.now());
 					person.getAttributes().clear();
 					person.getKombitJfrs().clear();
 					person.getGroups().clear();
@@ -569,6 +570,7 @@ public class CoreDataService {
 					if (match.getSamaccountName().equalsIgnoreCase(entry.getSamAccountName())) {
 						if (!match.isLockedDataset()) {
 							match.setLockedDataset(true);
+							match.setLockedDatasetTts(LocalDateTime.now());
 							match.getAttributes().clear();
 							match.getKombitJfrs().clear();
 							match.getGroups().clear();
@@ -1549,6 +1551,39 @@ public class CoreDataService {
 			log.info(updatedPersons.size() + " persons were updated with new KOMBIT attributes");
 		}
 	}
+
+	public void loadKombitAttributesSingle(String domainName, CoreDataKombitAttributeEntry kombitAttribute) {
+		Domain domain = domainService.getByName(domainName);
+		if (domain == null) {
+			throw new IllegalArgumentException("Ukendt domæne: " + domainName);
+		}
+		
+		if (domain.getParent() != null) {
+			throw new IllegalArgumentException("Angivne domæne (" + domainName + ") er et sub-domæne");
+		}
+		
+		if (!StringUtils.hasLength(kombitAttribute.getSamAccountName())) {
+			throw new IllegalArgumentException("Person mangler sAMAccountName for domæne " + domainName);
+		}
+		
+		String sAMAccountName = kombitAttribute.getSamAccountName().toLowerCase();
+
+		List<Person> persons = personService.getBySamaccountNameAndDomain(sAMAccountName, domain);
+		if (persons == null || persons.size() == 0) {
+			throw new IllegalArgumentException("No person found with sAMAccountName: " + sAMAccountName);
+		}
+		
+		Person person = persons.stream().filter(p -> !p.isLocked()).findFirst().orElse(null);
+		if (person == null) {
+			throw new IllegalArgumentException("No active person found with sAMAccountName: " + sAMAccountName);
+		}
+
+		// Go through the received list of entries, check if there's a matching person object, then update/create
+		if (!Objects.equals(person.getKombitAttributes(), kombitAttribute.getKombitAttributes())) {
+			person.setKombitAttributes(kombitAttribute.getKombitAttributes());
+			personService.save(person);
+		}
+	}
 	
 	// update the nsisAllowed and/or the nsisOrdered fields depending on input, ensuring correct logging and email sending if needed
 	private boolean setNsisState(Person person, boolean newNsisState) {
@@ -1626,5 +1661,56 @@ public class CoreDataService {
 		}
 
 		return new CoreDataEntryLight(person);
+	}
+
+	public void addPersonToGroup(Domain domain, String groupUuid, String sAMAccountName) {
+		List<Person> persons = personService.getBySamaccountNameAndDomain(sAMAccountName, domain);
+		if (persons == null || persons.size() == 0) {
+			throw new IllegalArgumentException("No person found with sAMAccountName: " + sAMAccountName);
+		}
+		
+		Person person = persons.stream().filter(p -> !p.isLocked()).findFirst().orElse(null);
+		if (person == null) {
+			throw new IllegalArgumentException("No active person found with sAMAccountName: " + sAMAccountName);
+		}
+		
+		Group group = groupService.getByUUID(groupUuid);
+		if (group == null) {
+			throw new IllegalArgumentException("No group found with uuid: " + groupUuid);
+		}
+		
+		// if the person is not already a member, then add
+		if (!group.getMembers().stream().anyMatch(p -> p.getId() == person.getId())) {
+			log.info("Adding user to group (" + group.getName() + ") : " + PersonService.getUsername(person));
+			PersonGroupMapping pgm = new PersonGroupMapping(person, group);
+			group.getMemberMapping().add(pgm);
+			
+			groupService.save(group);
+		}
+	}
+
+	public void deletePersonFromGroup(Domain domain, String groupUuid, String sAMAccountName) {
+		List<Person> persons = personService.getBySamaccountNameAndDomain(sAMAccountName, domain);
+		if (persons == null || persons.size() == 0) {
+			throw new IllegalArgumentException("No person found with sAMAccountName: " + sAMAccountName);
+		}
+		
+		Person person = persons.stream().filter(p -> !p.isLocked()).findFirst().orElse(null);
+		if (person == null) {
+			throw new IllegalArgumentException("No active person found with sAMAccountName: " + sAMAccountName);
+		}
+		
+		Group group = groupService.getByUUID(groupUuid);
+		if (group == null) {
+			throw new IllegalArgumentException("No group found with uuid: " + groupUuid);
+		}
+		
+		if (group.getMembers().stream().noneMatch(p -> p.getSamaccountName().equals(sAMAccountName))) {
+			throw new IllegalArgumentException("Person with sAMAccountName: " + sAMAccountName + " is not a member of group: " +  groupUuid);
+		}
+		
+		group.getMemberMapping().removeIf(m -> m.getPerson().getSamaccountName().equals(sAMAccountName));
+		
+		groupService.save(group);
 	}
 }

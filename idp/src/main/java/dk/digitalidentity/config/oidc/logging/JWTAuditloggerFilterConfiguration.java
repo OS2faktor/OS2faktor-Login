@@ -9,6 +9,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.filter.JwtAuditLogFilter;
 
 @Configuration
@@ -25,6 +26,9 @@ public class JWTAuditloggerFilterConfiguration {
 
 	@Autowired
 	private PersonService personService;
+	
+	@Autowired
+	private SqlServiceProviderConfigurationService serviceProviderService;
 
 	@Bean
 	public FilterRegistrationBean<JwtAuditLogFilter> jwtAuditLogFilterConfig() {
@@ -32,10 +36,11 @@ public class JWTAuditloggerFilterConfiguration {
 		clientAuthenticationFilter.setAuditLogger(auditLogger);
 		clientAuthenticationFilter.setAuthorizationService(authorizationService);
 		clientAuthenticationFilter.setPersonService(personService);
+		clientAuthenticationFilter.setServiceProviderService(serviceProviderService);
 
 		FilterRegistrationBean<JwtAuditLogFilter> filterRegistrationBean = new FilterRegistrationBean<>(clientAuthenticationFilter);
 		filterRegistrationBean.addUrlPatterns(providerSettings.getTokenEndpoint()); 				// default: "/oauth2/token"
-		filterRegistrationBean.setOrder(1210);
+		filterRegistrationBean.setOrder(Integer.MIN_VALUE);
 
 		return filterRegistrationBean;
 	}

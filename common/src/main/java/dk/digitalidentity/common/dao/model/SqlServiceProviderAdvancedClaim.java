@@ -37,4 +37,8 @@ public class SqlServiceProviderAdvancedClaim {
     @Size(max = 65536)
     @Column(name = "claim_value")
     private String claimValue;
+
+    @Column
+    @NotNull
+    private boolean singleValueOnly;
 }

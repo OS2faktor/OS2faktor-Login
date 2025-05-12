@@ -12,12 +12,15 @@ import lombok.Setter;
 public class CustomerConfiguration {
 	private String cvr;
 	
-	@FeatureDocumentation(name = "Registrant funktionalitet", description = "Gør det muligt at tildele Registrant rollen til administratorer, så der kan foretages manuel identitetssikring")
-	private boolean enableRegistrant = true;
+	@FeatureDocumentation(name = "MFA admin-registrering", description = "Gør det muligt at tildele MFA-registrant rollen til administratorer, så der kan tildeles MFA klienter (chrome, edge, windows, ios og android) til brugere uden MitID aktivering. Disse MFA klienter kan IKKE bruges til at lave et NSIS login med")
+	private boolean enableRegistrant = false;
 
 	private boolean enableUnlockAccount = true;
 	
 	private boolean showRegisterMfaClient = false;
+
+	@FeatureDocumentation(name = "Kodeordsløs funktionalitet", description = "Tillad brugen af stærke MFA klienter som fuld 2-faktor login, så kodeord ikke er nødvendigt")
+	private boolean enablePasswordlessMfa = false;
 	
 	private String contactLocationForMails = "";
 }

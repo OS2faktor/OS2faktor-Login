@@ -49,4 +49,7 @@ public class KombitSubsystem {
 	
 	@Column
 	private boolean deleted;
+
+	@Column
+	private boolean delayedMobileLogin;
 }

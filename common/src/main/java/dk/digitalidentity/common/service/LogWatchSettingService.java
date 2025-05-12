@@ -18,7 +18,7 @@ public class LogWatchSettingService {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 	
-	public String getAlarmEmailRecipients() {
+	public String getAlarmEmailRecipients(boolean includeHostProvider) {
 		StringBuilder builder = new StringBuilder();
 		
 		String customerEmail = getString(LogWatchSettingKey.ALARM_EMAIL);
@@ -26,7 +26,7 @@ public class LogWatchSettingService {
 			builder.append(customerEmail);
 		}
 
-		if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+		if (includeHostProvider && commonConfiguration.getFullServiceIdP().isEnabled()) {
 			if (builder.length() > 0) {
 				builder.append(";");
 			}
@@ -62,6 +62,7 @@ public class LogWatchSettingService {
 			// allowed configured by customer
 			case TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED:
 			case TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED:
+			case TWO_COUNTRIES_ONE_HOUR_HOLLAND_ENABLED:
 				break;
 		}
 
@@ -91,6 +92,7 @@ public class LogWatchSettingService {
 			// allowed configured by customer
 			case TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED:
 			case TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED:
+			case TWO_COUNTRIES_ONE_HOUR_HOLLAND_ENABLED:
 				break;
 		}
 

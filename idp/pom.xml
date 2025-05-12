@@ -45,7 +45,7 @@
 		<dependency>
 			<groupId>dk.digitalidentity</groupId>
 			<artifactId>saml-module</artifactId>
-			<version>3.2.2</version>
+			<version>3.2.4</version>
 		</dependency>
 
 		<dependency>

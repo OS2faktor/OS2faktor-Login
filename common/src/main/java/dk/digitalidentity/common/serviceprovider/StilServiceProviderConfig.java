@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.serviceprovider;
 
+import java.util.Objects;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -60,12 +62,12 @@ public class StilServiceProviderConfig implements ServiceProviderConfig {
 
     @Override
     public boolean isEncryptAssertions() {
-        return config.getStil().isEncryptAssertion();
+    	return Objects.equals("cpr", config.getStil().getUniloginAttribute());
     }
     
     @Override
     public boolean isPreferNIST() {
-        return !config.getStil().isNsisEnabled();
+    	return false;
     }
 
 	@Override

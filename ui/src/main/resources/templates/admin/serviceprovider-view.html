@@ -128,7 +128,7 @@
 										</div>
 									</div>
 
-									<th:block th:if="${serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
+									<th:block th:if="${serviceprovider.sqlServiceProvider && serviceprovider.passwordExpiry != null && serviceprovider.mfaExpiry != null}">
 										<div class="hr-line-dashed"></div>
 										
 										<div class="form-group row">
@@ -150,6 +150,48 @@
 												</div>
 											</div>
 										</div>
+									</th:block>
+
+									<th:block th:if="${serviceprovider.kombitServiceProvider}">
+									<div id="customSessionSettings">
+										<div class="hr-line-dashed samlSpecific"></div>
+										
+										<div class="form-group row samlSpecific">
+											<label class="col-sm-3 col-form-label">Alternative sessionslevetider</label>
+											<div class="col-sm-9">
+												<label>
+													<input th:field="${serviceprovider.hasCustomSessionExpiry}" type="checkbox" class="i-checks">
+												</label>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for kodeord</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.passwordExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+										
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label">Sessionsudløb for 2-faktor</label>
+											<div class="col-sm-9">
+												<div class="col-sm-9 row">
+													<input th:field="${serviceprovider.mfaExpiry}" type="number" class="form-control col-sm-4" min="0" max="840"/>
+													<label class="col-sm-4 col-form-label">i minutter</label>
+												</div>
+											</div>
+										</div>
+
+										<div class="form-group row customSession" style="display: none;">
+											<label class="col-sm-3 col-form-label"></label>
+											<div class="col-sm-9">
+												<button type="button" class="btn btn-primary" onclick="updateCustomSessionExpiry()">Gem</button>
+											</div>
+										</div>
+									</div>
 									</th:block>
 
 									<div class="hr-line-dashed"></div>
@@ -227,6 +269,20 @@
 											</label>
 										</div>
 									</div>
+
+									<th:block th:unless="${serviceprovider.kombitServiceProvider}">
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">
+											Forsinket mobil-login
+											<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til, så vises en 'videre' knap efter gennemført MFA på mobile enheder. Dette sikrer at login kan gennemføres i mobile apps som ikke håndterer login korrekt når app'en er i baggrunden."></em>
+										</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.delayedMobileLogin}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
+									</th:block>
 								</form>
 							</div>
 						</div>
@@ -398,6 +454,7 @@
 											<th style="display:none;">Id</th>
 											<th style="width: 200px;">Type</th>
 											<th>Attribut</th>
+											<th style="width: 80px;">Én værdi</th>
 											<th style="width: 300px;">Værdi</th>
 											<th style="width: 200px;">Parameter</th>
 										</tr>
@@ -407,6 +464,7 @@
 										<tr th:each="claim : ${serviceprovider.claims}">
 											<td th:text="${claim.type.message}" />
 											<td th:text="${claim.attribute}" />
+											<td class="text-center"><em th:if="${claim.singleValueOnly}" class="fa fa-check"></em></td>
 											<td th:text="${claim.value}" />
 											<td th:text="${claim.parameter}" />
 										</tr>
@@ -483,6 +541,10 @@
 											<tr>
 												<th style="width: 400px;">Navn</th>
 												<th>EntityId</th>
+                                                <th style="width: 200px;">
+                                                	Forsinket mobil-login
+                                                	<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til, så vises en 'videre' knap efter gennemført MFA på mobile enheder. Dette sikrer at login kan gennemføres i mobile apps som ikke håndterer login korrekt når app'en er i baggrunden."></em>
+                                                </th>
 												<th style="width: 250px;">Kræv 2-faktor login</th>
 											</tr>
 										</thead>
@@ -495,6 +557,9 @@
 							    					<span style="margin-left: 10px;" th:id="'subsystem-name-' + ${subsystem.id}" th:text="${subsystem.name}"></span>
 							    				</td>
 							   			 		<td th:text="${subsystem.entityId}" />
+                                                <td style="text-align: center;">
+    												<input th:checked="${subsystem.delayedMobileLogin}" type="checkbox" class="i-checks delayMobileLoginCheckbox" th:data-id="${subsystem.id}">
+                                                </td>
 							    				<td>
 													<select class="form-control m-b forceMfaRequiredSelect" th:data-id="${subsystem.id}" style="margin-bottom: 0px;">
 														<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${subsystem.forceMfaRequired}"></option>
@@ -638,11 +703,72 @@
      			   	error: function(jQxhr, textStatus, errorThrown) {
 						toastr.error('Opdateringen fejlede');
      			   	}
-				});				
+				});
 			});
+
+			$('.delayMobileLoginCheckbox').on('change', function() {
+				var id = $(this).data('id');
+				var choice = $(this).prop("checked");
+
+				$.ajax({
+					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/delayedMobileLogin/' + choice,
+					method: "POST",
+					headers: {
+	 				  'X-CSRF-TOKEN': token
+	 				},
+	 				success: function(data, textStatus, jQxhr) {
+						toastr.success('Opdateringen gennemført')
+	 				},
+	 				error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error('Opdateringen fejlede');
+	 				}
+				});
+			});
+
+			// set custom session expiry only KombitServiceProviders
+            $('input[name="hasCustomSessionExpiry"]').on('ifChanged', function(event){
+                if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+                    $(".customSession").show();
+                }
+                else {
+                    $(".customSession").hide();
+                    $('#passwordExpiry').val(null);
+                    $('#mfaExpiry').val(null);
+                    updateCustomSessionExpiry();
+                }
+            });
+			
+			// set initial state of CustomSessionExpiry without posting changes
+            if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+                $(".customSession").show();
+            }
+            else {
+                $(".customSession").hide();
+            }
 		});
 		
-		this.reloadMetadata = function () {
+		function updateCustomSessionExpiry() {
+			var passwordExpiry = $('#passwordExpiry').val();
+			var mfaExpiry = $('#mfaExpiry').val();
+            $.ajax({
+            	url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/customSessionExpiry',
+                method: "POST",
+                headers: {
+                    'X-CSRF-TOKEN': token
+                },
+                contentType: 'application/json',
+                
+                data: JSON.stringify({'passwordExpiry': passwordExpiry, 'mfaExpiry': mfaExpiry }),
+                success: function(data, textStatus, jQxhr) {
+                    toastr.success("Successfuly set custom expiry times");
+                },
+                error: function(jQxhr, textStatus, errorThrown) {
+                    toastr.error("Fejl: " + jQxhr.responseText);
+                }
+            });
+		}
+		
+		function reloadMetadata() {
 			var id = $('#id').val();
 			$.ajax({
 				url: spUrl + id + "/reload",

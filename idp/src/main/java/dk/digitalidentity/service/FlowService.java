@@ -7,9 +7,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -25,10 +27,17 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
 import dk.digitalidentity.common.dao.model.SchoolClass;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
+import dk.digitalidentity.common.dao.model.enums.RoleCatalogueOperation;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.AdvancedRuleService;
+import dk.digitalidentity.common.service.EvaluationException;
+import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KnownNetworkService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonAttributeService;
@@ -37,6 +46,7 @@ import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
@@ -111,6 +121,12 @@ public class FlowService {
 
 	@Autowired
 	private EntraMfaService entraMfaService;
+
+	@Autowired
+	private AdvancedRuleService advancedRuleService;
+
+	@Autowired
+	private RoleCatalogueService roleCatalogueService;
 	
 	public ModelAndView initiateFlowOrSendLoginResponse(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
 		ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
@@ -157,8 +173,6 @@ public class FlowService {
 		}
 
 		boolean valid = sessionHelper.handleValidateIP();
-
-		// if no login state or changed IP, initiate login
 		if (!valid || currentNSISLevel == null) {
 			if (loginRequest.isPassive()) {
 				throw cannotPerformPassiveLogin;
@@ -167,6 +181,10 @@ public class FlowService {
 			// Shortcut to NemID login. no reason to go through password login below if NemID is going to be required later in the flow
 			if (requireNemId(loginRequest)) {
 				return initiateNemIDOnlyLogin(model, request, null);
+			}
+
+			if (sessionHelper.isInPasswordlessMfaFlow()) {
+				return initiateMFA(model, person, requiredNSISLevel);
 			}
 
 			return loginService.initiateLogin(model, request, serviceProvider.preferNemId());
@@ -201,7 +219,6 @@ public class FlowService {
 
 		// if the services provider requires NSIS, perform the following controls
 		if (NSISLevel.LOW.equalOrLesser(requiredNSISLevel)) {
-
 			// is user allowed to login to service providers requiring NSIS
 			if (!person.isNsisAllowed()) {
 				throw new ResponderException("Login afbrudt, da brugeren ikke er godkendt til NSIS login");
@@ -209,6 +226,7 @@ public class FlowService {
 
 			// does the user have the required NSIS level?
 			ModelAndView selectClaimsPage = null;
+			
 			switch (currentNSISLevel) {
 				case SUBSTANTIAL:
 					selectClaimsPage = initiateSelectClaims(person, model, serviceProvider);
@@ -277,7 +295,7 @@ public class FlowService {
 
 			return initiateMFA(model, person, NSISLevel.NONE);
 		}
-
+		
 		// check if the persons password needs to be changed, note that this includes checking if the person has forceChangePassword = true
 		// also note that the last argument is true (skip expires-soon-check), as that is not relevant when we are about to issue a loginResponse
 		ModelAndView passwordExpiredPrompt = initiatePasswordExpired(person, model, true);
@@ -290,7 +308,7 @@ public class FlowService {
 		if (selectClaimsPage != null) {
 			return selectClaimsPage;
 		}
-
+		
 		// user is already logged in at the required level
 		return createAndSendLoginResponse(response, person, serviceProvider, loginRequest, model);
 	}
@@ -316,6 +334,10 @@ public class FlowService {
 		}
 
 		// show select-user page with the remaining "people" to choose from
+
+		// filter duplicates
+		HashSet<Long> seen = new HashSet<>();
+		people.removeIf(e -> !seen.add(e.getId()));
 		
 		sessionHelper.setAvailablePeople(people);
 		model.addAttribute("people", people);
@@ -366,12 +388,16 @@ public class FlowService {
 	}
 
 	public ModelAndView initiateMFA(Model model, Person person, NSISLevel requiredNSISLevel) {
-		List<MfaClient> clients = mfaService.getClients(person.getCpr());
+		List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 		if (clients == null) {
 			return new ModelAndView("error-could-not-get-mfa-devices");
 		}
 
-		clients = clients.stream().filter(client -> requiredNSISLevel.equalOrLesser(client.getNsisLevel())).collect(Collectors.toList());
+		boolean passwordless = sessionHelper.isInPasswordlessMfaFlow();
+		
+		clients = clients.stream()
+				.filter(client -> requiredNSISLevel.equalOrLesser(client.getNsisLevel()) && (!passwordless || client.isPasswordless()))
+				.collect(Collectors.toList());
 
 		if (clients.size() == 0) {
 			return new ModelAndView("error-no-mfa-devices");
@@ -464,12 +490,16 @@ public class FlowService {
 		throw new ResponderException("Brugeren var i en uventet tilstand");
 	}
 
-	public ModelAndView initiateSelectClaims(Person person, Model model, ServiceProvider serviceProvider) {
+	public ModelAndView initiateSelectClaims(Person person, Model model, ServiceProvider serviceProvider) throws ResponderException {
 		if (sessionHelper.isInSelectClaimsFlow()) {
 			return null;
 		}
 
-		if (person == null || person.getAttributes() == null || person.getAttributes().isEmpty()) {
+		if (person == null) {
+			return null;
+		}
+
+		if (serviceProvider == null) {
 			return null;
 		}
 
@@ -478,24 +508,30 @@ public class FlowService {
 		}
 
 		SqlServiceProvider sqlSP = (SqlServiceProvider) serviceProvider;
-		if (serviceProvider == null || sqlSP.getRequiredFields() == null || sqlSP.getRequiredFields().isEmpty()) {
-			return null;
-		}
 
 		// Determine the list of claims that the person has where they have multiple values associated with a key delimited by ;
 		// and where the SP requires us to only return a single value
 		Map<String, String> personAttributes = person.getAttributes();
 		Map<String, ClaimValueDTO> toBeDecided = new HashMap<>();
-		sqlSP.getRequiredFields().stream().filter(SqlServiceProviderRequiredField::isSingleValueOnly).filter(requiredField -> personAttributes.containsKey(requiredField.getPersonField()) && personAttributes.get(requiredField.getPersonField()).contains(";")).forEach(requiredField -> {
-			PersonAttribute personAttribute = personAttributeService.getByName(requiredField.getPersonField());
-			String displayName = requiredField.getAttributeName();
-			if (personAttribute != null && StringUtils.hasLength(personAttribute.getDisplayName())) {
-				displayName = personAttribute.getDisplayName();
-			}
 
-			toBeDecided.put(requiredField.getAttributeName(), new ClaimValueDTO(displayName, new ArrayList<>(Arrays.asList(personAttributes.get(requiredField.getPersonField()).split(";")))));
-		});
-
+		if (person.getAttributes() != null && !person.getAttributes().isEmpty()) {
+			sqlSP.getRequiredFields().stream().filter(SqlServiceProviderRequiredField::isSingleValueOnly).filter(requiredField -> personAttributes.containsKey(requiredField.getPersonField()) && personAttributes.get(requiredField.getPersonField()).contains(";")).forEach(requiredField -> {
+				PersonAttribute personAttribute = personAttributeService.getByName(requiredField.getPersonField());
+				String displayName = requiredField.getAttributeName();
+				if (personAttribute != null && StringUtils.hasLength(personAttribute.getDisplayName())) {
+					displayName = personAttribute.getDisplayName();
+				}
+	
+				toBeDecided.put(requiredField.getAttributeName(), new ClaimValueDTO(displayName, new ArrayList<>(Arrays.asList(personAttributes.get(requiredField.getPersonField()).split(";")))));
+			});
+		}
+		
+		handleSingleValueOnlyAdvancedClaims(person, sqlSP, toBeDecided);
+		
+		handleSingleValueOnlyGroupClaims(person, sqlSP, toBeDecided);
+		
+		handleSingleValueOnlyRoleCatalogClaims(person, sqlSP, toBeDecided);
+		
 		// If no decisions about claims needs to be taken, continue without prompting the user
 		if (toBeDecided.isEmpty()) {
 			return null;
@@ -510,6 +546,176 @@ public class FlowService {
 		model.addAttribute("selectableClaims", toBeDecided);
 
 		return new ModelAndView("login-select-claims");
+	}
+
+	private void handleSingleValueOnlyAdvancedClaims(Person person, SqlServiceProvider sqlSP, Map<String, ClaimValueDTO> toBeDecided) throws ResponderException {
+		//Find duplicate claims
+		HashSet<String> seenClaimNames = new HashSet<>();
+		HashSet<String> duplicateClaimNames = new HashSet<>();
+		Map<String, HashSet<SqlServiceProviderAdvancedClaim>> duplicateAdvancedClaims = new HashMap<>();
+
+		for (SqlServiceProviderAdvancedClaim claim : sqlSP.getAdvancedClaims().stream()
+				.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+				.collect(Collectors.toList())) {
+
+			if (!seenClaimNames.add(claim.getClaimName())) {
+				duplicateClaimNames.add(claim.getClaimName());
+			}
+		}
+		
+		// Generate a map of name and claims <String, Set<AdvancedClaim>>
+		for (SqlServiceProviderAdvancedClaim claim : sqlSP.getAdvancedClaims().stream()
+				.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+				.collect(Collectors.toList())) {
+
+			if (duplicateClaimNames.contains(claim.getClaimName())) {
+				if (duplicateAdvancedClaims.containsKey(claim.getClaimName())) {
+					HashSet<SqlServiceProviderAdvancedClaim> duplicates = duplicateAdvancedClaims.get(claim.getClaimName());
+					
+					if (duplicates == null || duplicates.isEmpty()) {
+						duplicateAdvancedClaims.put(claim.getClaimName(), new HashSet<>(Set.of(claim)));
+					}
+					else {
+						duplicates.add(claim);
+						duplicateAdvancedClaims.put(claim.getClaimName(), duplicates);
+					}
+				}
+				else {
+					duplicateAdvancedClaims.put(claim.getClaimName(), new HashSet<>(Set.of(claim)));
+				}
+			}
+		}
+		
+		for (String key : duplicateAdvancedClaims.keySet()) {
+			// Check if any of the claims is marked as singleValueOnly
+			if (duplicateAdvancedClaims.get(key).stream().anyMatch(claim -> claim.isSingleValueOnly())) {
+				List<String> values = new ArrayList<>();
+
+				for (SqlServiceProviderAdvancedClaim claim : duplicateAdvancedClaims.get(key)) {
+					try {
+						String value = advancedRuleService.evaluateRule(claim.getClaimValue(), person);
+						// claims with multiple values will be handled later
+						if (value.contains(";")) {
+							continue;
+						}
+
+						values.add(value);
+					}
+					catch (EvaluationException e) {
+						throw new ResponderException("Fejl opstået under evaluering af et avanceret claim: " + e.getMessage(), e);
+					}
+				}
+
+				// add new claim to select
+				toBeDecided.put(key, new ClaimValueDTO(key, values));
+			}
+		}
+
+		// handle claims with multiple values
+		try {
+			for (SqlServiceProviderAdvancedClaim advClaim : sqlSP.getAdvancedClaims().stream()
+					.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+					.collect(Collectors.toList())) {
+
+				if (!advClaim.isSingleValueOnly()) {
+					// skipping claim not a single value
+					continue;
+				}
+				
+				String claimValueEvaluated = advancedRuleService.evaluateRule(advClaim.getClaimValue(), person);
+				
+				if (claimValueEvaluated.contains(";")) {
+					// found claim with multiple values
+					if (toBeDecided.containsKey(advClaim.getClaimName())) {
+						toBeDecided.get(advClaim.getClaimName()).getAcceptedValues().addAll(new ArrayList<>(
+							Arrays.asList(advancedRuleService.evaluateRule(advClaim.getClaimValue(), person).split(";")))
+						);
+					}
+					else {
+						toBeDecided.put(advClaim.getClaimName(), new ClaimValueDTO(advClaim.getClaimName(), new ArrayList<>(
+							Arrays.asList(advancedRuleService.evaluateRule(advClaim.getClaimValue(), person).split(";"))))
+						);
+					}
+				}
+			}
+		}
+		catch (EvaluationException e) {
+			throw new ResponderException("Det var ikke muligt at danne et avanceret claim: " + e.getMessage(), e);
+		}
+
+	}
+
+	private void handleSingleValueOnlyGroupClaims(Person person, SqlServiceProvider sqlSP, Map<String, ClaimValueDTO> toBeDecided) {
+		//filter by person's groups
+		List<SqlServiceProviderGroupClaim> groupClaims = sqlSP.getGroupClaims().stream()
+				.filter(c -> GroupService.memberOfGroup(person, c.getGroup()))
+				.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+				.collect(Collectors.toList());
+		
+		//Find duplicate claims
+		HashSet<String> seenClaimNames = new HashSet<>();
+		HashSet<String> duplicateClaimNames = new HashSet<>();
+		Map<String, HashSet<SqlServiceProviderGroupClaim>> duplicateGroupClaims = new HashMap<>();
+		
+		for (SqlServiceProviderGroupClaim claim : groupClaims) {
+			if (!seenClaimNames.add(claim.getClaimName())) {
+				duplicateClaimNames.add(claim.getClaimName());
+			}
+		}
+		
+		// Generate a map of name and claims <String, Set<GroupClaim>>
+		for (SqlServiceProviderGroupClaim claim : groupClaims) {
+			if (duplicateClaimNames.contains(claim.getClaimName())) {
+				if (duplicateGroupClaims.containsKey(claim.getClaimName())) {
+					HashSet<SqlServiceProviderGroupClaim> duplicates = duplicateGroupClaims.get(claim.getClaimName());
+					
+					if (duplicates == null || duplicates.isEmpty()) {
+						duplicateGroupClaims.put(claim.getClaimName(), new HashSet<>(Set.of(claim)));
+					}
+					else {
+						duplicates.add(claim);
+						duplicateGroupClaims.put(claim.getClaimName(), duplicates);
+					}
+				}
+				else {
+					duplicateGroupClaims.put(claim.getClaimName(), new HashSet<>(Set.of(claim)));
+				}
+			}
+		}
+		
+		for (String key : duplicateGroupClaims.keySet()) {
+			// Check if any of the claims is marked as singleValueOnly
+			if (duplicateGroupClaims.get(key).stream().anyMatch(claim -> claim.isSingleValueOnly())) {
+				List<String> values = new ArrayList<>();
+				for (SqlServiceProviderGroupClaim claim : duplicateGroupClaims.get(key)) {
+					values.add(claim.getClaimValue());
+				}
+				
+				toBeDecided.put(key, new ClaimValueDTO(key, values));
+			}
+		}
+	}
+
+	private void handleSingleValueOnlyRoleCatalogClaims(Person person, SqlServiceProvider sqlSP, Map<String, ClaimValueDTO> toBeDecided) {
+		List<SqlServiceProviderRoleCatalogueClaim> rcClaims = sqlSP.getRcClaims().stream()
+				.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+				.collect(Collectors.toList());
+		
+		rcClaims.stream().filter(SqlServiceProviderRoleCatalogueClaim::isSingleValueOnly).forEach(claim -> {
+			RoleCatalogueOperation externalOperation = claim.getExternalOperation();
+			Map<String, String> acceptedValuesWithNames = null;
+
+			if (externalOperation == RoleCatalogueOperation.GET_USER_ROLES) {
+				acceptedValuesWithNames = roleCatalogueService.getUserRolesWithDisplayNames(person, claim.getExternalOperationArgument());
+			}
+			else if (externalOperation == RoleCatalogueOperation.GET_SYSTEM_ROLES) {
+				acceptedValuesWithNames = roleCatalogueService.getSystemRolesDisplayName(person, claim.getExternalOperationArgument());
+			}
+
+			if (acceptedValuesWithNames.size() > 1) {
+				toBeDecided.put(claim.getClaimName(), new ClaimValueDTO(claim.getClaimName(), acceptedValuesWithNames));
+			}
+		});
 	}
 
 	private ModelAndView createAndSendLoginResponse(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest, Model model) throws ResponderException, RequesterException {
@@ -579,6 +785,7 @@ public class FlowService {
 		model.addAttribute("authenticatedWithNemId", sessionHelper.isAuthenticatedWithNemIdOrMitId());
 		model.addAttribute("samaccountName", samaccountName);
 		model.addAttribute("settings", settings);
+		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 		model.addAttribute("passwordForm", (form != null) ? form : new PasswordChangeForm());
 
 		SchoolClass schoolClass = personService.isYoungStudent(person);

@@ -20,6 +20,9 @@ public class StudentPwdConfiguration {
 	// default setting, can always be overridden by teacher
 	private long forceChangePasswordAfterAge = 10;
 
+	// student needs to change password at next login
+	private boolean forceChangePasswordTeacherChoiceEnabled = true;
+
 	// for loading data from STIL
 	private String apiKey;
 	private List<StudentPwdRoleSettingConfiguration> roleSettings = new ArrayList<>();

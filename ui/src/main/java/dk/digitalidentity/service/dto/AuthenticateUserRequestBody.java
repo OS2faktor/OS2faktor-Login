@@ -1,4 +1,4 @@
-package dk.digitalidentity.service;
+package dk.digitalidentity.service.dto;
 
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import lombok.Getter;

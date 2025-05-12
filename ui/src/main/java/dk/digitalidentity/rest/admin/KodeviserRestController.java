@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CachedMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.datatables.KodeviserDatatableDao;
 import dk.digitalidentity.datatables.model.KodeviserView;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
@@ -48,6 +50,9 @@ public class KodeviserRestController {
 	@Autowired
 	private CachedMfaClientService cachedMfaClientService;
 
+	@Autowired
+	private SettingService settingsService;
+
 	@PostMapping("/rest/admin/kodeviser")
 	public DataTablesOutput<KodeviserView> kodeviserDataTable(@Valid @RequestBody DataTablesInput input, BindingResult bindingResult) {
 		if (bindingResult.hasErrors()) {
@@ -75,9 +80,9 @@ public class KodeviserRestController {
 	private Specification<KodeviserView> getByLocked(boolean locked) {
 		Specification<KodeviserView> specification = (root, query, criteriaBuilder) -> {
 			return criteriaBuilder.equal(root.get("locked"), locked);
-	    };
+		};
 
-	    return specification;
+		return specification;
 	}
 
 	@GetMapping("/rest/admin/kodeviser/deregister")
@@ -99,6 +104,19 @@ public class KodeviserRestController {
 		
 		auditLogger.resetHardwareToken(serial, admin);
 		
+		return ResponseEntity.ok().build();
+	}
+
+	record SetRemoveDeviceSettingForm(Boolean removeDeviceSetting) {}
+	
+	@PostMapping("/rest/admin/kodeviser/removeDeviceSetting")
+	public ResponseEntity<?> setRemoveDeviceSetting(@RequestBody SetRemoveDeviceSettingForm form) {
+		if (form == null || form.removeDeviceSetting == null) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		settingsService.setBoolean(SettingKey.REMOVE_DEVICE_WHEN_PERSON_LOCKED, form.removeDeviceSetting.booleanValue());
+
 		return ResponseEntity.ok().build();
 	}
 }

@@ -92,7 +92,7 @@ public class EntraMfaService {
 		model.put("state", loginRequest.getEntraPayload().getState());
 		model.put("url", loginRequest.getEntraPayload().getRedirectUrl());
 
-		auditLogger.sentJWTIdToken(jwt, person);
+		auditLogger.sentJWTIdToken(jwt, person, "EntraID");
 
 		return new ModelAndView("entraMfa/success", model);
 	}

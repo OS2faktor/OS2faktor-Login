@@ -128,8 +128,22 @@ public class ApiSecurityFilterConfiguration {
 		filter.setEnabled(configuration.getPasswordChangeQueueApi().isEnabled());
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
-		filterRegistrationBean.setName("PasswordChangeQueueApiSecuritBean");
+		filterRegistrationBean.setName("PasswordChangeQueueApiSecurityBean");
 		filterRegistrationBean.addUrlPatterns("/api/passwordqueue", "/api/passwordqueue/*");
+
+		return filterRegistrationBean;
+	}
+
+	@Bean
+	public FilterRegistrationBean<ApiSecurityFilter> internalApiSecurityFilter() {
+		ApiSecurityFilter filter = new ApiSecurityFilter();
+		filter.setClientService(clientService);
+		filter.setApiRole(ApiRole.INTERNAL);
+		filter.setEnabled(true);
+
+		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
+		filterRegistrationBean.setName("InternalApiSecurityBean");
+		filterRegistrationBean.addUrlPatterns("/api/internal", "/api/internal/*");
 
 		return filterRegistrationBean;
 	}

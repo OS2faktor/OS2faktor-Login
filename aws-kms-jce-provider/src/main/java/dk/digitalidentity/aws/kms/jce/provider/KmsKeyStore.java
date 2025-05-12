@@ -149,14 +149,14 @@ public class KmsKeyStore extends KeyStoreSpi {
     	return chain;
     }
 
+    @Override
+    public Certificate engineGetCertificate(String s) {
+    	return chain[0];
+    }
+
     /*
     UNSUPPORTED OPERATIONS
      */
-
-    @Override
-    public Certificate engineGetCertificate(String s) {
-        throw new UnsupportedOperationException();
-    }
 
     @Override
     public Date engineGetCreationDate(String s) {

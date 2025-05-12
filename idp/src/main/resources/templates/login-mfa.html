@@ -30,7 +30,7 @@
 								&nbsp;
 								<th:block th:text="${#strings.isEmpty(client.name)} ? ${client.deviceId} : ${client.name} + ' - låst indtil ' + ${#dates.format(client.getLockedUntil(), 'yyyy-MM-dd HH:mm')}"></th:block>
 							</a>
-							<a  th:unless="${client.isLocked()}" th:href="@{/sso/saml/mfa/} + ${client.deviceId}" th:style="${'color: black; ' + (client.prime ? 'font-weight: 700; ' : '')}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'">
+							<a th:unless="${client.isLocked()}" th:href="@{/sso/saml/mfa/} + ${client.deviceId}" th:style="${'color: black; ' + (client.prime ? 'font-weight: 700; ' : '')}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'">
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).CHROME}" aria-label="Chrome klient" class="fa fa-fw fa-chrome"></em>
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).ANDROID}" aria-label="Android klient" class="fa fa-fw fa-android"></em>
 								<em th:if="${client.type == T(dk.digitalidentity.common.service.mfa.model.ClientType).IOS}" aria-label="IOS klient" class="fa fa-fw fa-apple"></em>
@@ -46,6 +46,9 @@
 						
 						<br/>
 
+                        <a th:if="${@sessionHelper.isInPasswordlessMfaFlow()}" th:href="@{/sso/login/password}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'" style="color: black;">                            
+                            <em class="fa fa-fw fa-key"></em> &nbsp; Log ind med kodeord
+                        </a><br/>
 						<a th:if="${@loginService.showNemLogIn()}" th:href="@{/sso/saml/login/nemid}" onMouseOver="this.style.backgroundColor='#d3d3d3'" onMouseOut="this.style.backgroundColor='#FFFFFF'" style="color: black;">
 							<em class="fa fa-fw fa-key"></em>
 							&nbsp;

@@ -36,8 +36,7 @@ public class CoreDataLogService {
 		// For monitoring we are only interested in the "parent" domains, since they are the sources of data, not the sub-domains
 		List<Domain> domains = domainService.getAllParents();
 		for (Domain domain : domains) {
-			if (!domain.isMonitored()) {
-				log.info("Skipping domain: '" + domain.getName() + "'. monitoring = false");
+			if (domain.isStandalone()) {
 				continue;
 			}
 			

@@ -107,7 +107,7 @@ public class SelfServiceRestController {
 		Person person = personService.getById(securityUtil.getPersonId());
 		
 		if (person != null) {
-			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 			MfaClient selectedClient = clients.stream().filter(c -> c.getDeviceId().equals(request.getMfaDeviceId())).findAny().orElse(null);
 
 			if (selectedClient == null) {
@@ -130,7 +130,7 @@ public class SelfServiceRestController {
 		Person person = personService.getById(securityUtil.getPersonId());
 		
 		if (person != null) {
-			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 			MfaClient selectedClient = clients.stream().filter(c -> c.getDeviceId().equals(deviceId)).findAny().orElse(null);
 
 			if (selectedClient == null) {
@@ -171,7 +171,7 @@ public class SelfServiceRestController {
 		Person person = personService.getById(securityUtil.getPersonId());
 		
 		if (person != null) {
-			List<MfaClient> clients = mfaService.getClients(person.getCpr());
+			List<MfaClient> clients = mfaService.getClients(person.getCpr(), person.isRobot());
 			MfaClient selectedClient = clients.stream().filter(c -> c.getDeviceId().equals(deviceId)).findAny().orElse(null);
 
 			if (selectedClient == null) {
@@ -251,7 +251,7 @@ public class SelfServiceRestController {
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService. authenticate(matchingClient.getDeviceId());
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService. authenticate(matchingClient.getDeviceId(), false);
 		if (!mfaResponseDto.isSuccess()) {
 			log.warn("Got an excpetion from response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId() + " exception: " + mfaResponseDto.getFailureMessage());
 			return ResponseEntity.status(500).build();
@@ -325,7 +325,7 @@ public class SelfServiceRestController {
 	}
 	
 	@GetMapping("/rest/selvbetjening/unlockAccount")
-	public ResponseEntity<?> findDevice() {
+	public ResponseEntity<?> unlockAccount() {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {
 			log.warn("No logged in person - this is unexpected!");
@@ -338,7 +338,7 @@ public class SelfServiceRestController {
 			return ResponseEntity.badRequest().build();
 		}
 
-		ADPasswordStatus adPasswordStatus = personService.unlockAccount(person);
+		ADPasswordStatus adPasswordStatus = personService.unlockAccount(person, null);
 		
 		if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 			return ResponseEntity.badRequest().build();

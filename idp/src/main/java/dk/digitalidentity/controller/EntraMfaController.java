@@ -95,8 +95,12 @@ public class EntraMfaController {
 		Map<String, String[]> parameters = request.getParameterMap();
 		String upn = extractTokenHintField("upn", parameters);
 		if (upn == null) {
-			log.warn("No UPN in token_hint");
-			throw new RequesterException("Der er ikke angivet et UPN i forespørgslen fra EntraID");
+			// fallback to preferred_username hint - this is common in cross-tenant login
+			upn = extractTokenHintField("preferred_username", parameters);
+			if (upn == null) {
+				log.warn("No UPN (or preferred_username) in token_hint");
+				throw new RequesterException("Der er ikke angivet et UPN eller preferred_username i forespørgslen fra EntraID");
+			}
 		}
 
 		String redirectUrl = extractField("redirect_uri", parameters);

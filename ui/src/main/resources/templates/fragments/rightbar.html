@@ -76,7 +76,7 @@
 	</div>
 	
 	<div th:fragment="admin" class="col-lg-3">
-		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_KODEVISER_ADMIN') or hasRole('ROLE_USER_ADMIN') or hasRole('ROLE_NSIS_ADMIN')">
+		<div class="ibox" sec:authorize="hasRole('ROLE_SUPPORTER') or hasRole('ROLE_KODEVISER_ADMIN') or hasRole('ROLE_NSIS_ADMIN')">
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
 			</div>
@@ -190,9 +190,7 @@
 			<div class="ibox-content">
 				<div class="row">
 					<ul>
-						<li><a th:href="@{/admin/registration}">Aktivering af brugerkonto</a></li>
 						<li><a th:href="@{/admin/registration/mfa}">Tilknyt 2-faktor enhed</a></li>
-						<li><a th:href="@{/admin/registration/changepassword}">Tildel nyt kodeord</a></li>
 					</ul>
 				</div>
 			</div>

@@ -37,7 +37,7 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.DomainService;
 import dk.digitalidentity.common.service.GroupService;
-import dk.digitalidentity.common.service.RoleCatalogueService;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
@@ -132,7 +132,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		// "Static" fields
 		Set<SqlServiceProviderStaticClaim> staticClaims = config.getStaticClaims();
 		for (SqlServiceProviderStaticClaim staticClaim : staticClaims) {
-			addAttribute(attributes, staticClaim.getField(), staticClaim.getValue(), includeDuplicates);
+			addAttribute(attributes, staticClaim.getField(), staticClaim.getValue(), includeDuplicates, false);
 		}
 
 		// Role Catalogue claims
@@ -143,14 +143,14 @@ public class SqlServiceProvider extends ServiceProvider {
 					case CONDITION_MEMBER_OF_SYSTEM_ROLE: {
 						String systemRoleId = rcClaim.getExternalOperationArgument();
 						if (roleCatalogueService.hasSystemRole(person, systemRoleId)) {
-							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates);
+							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates, false);
 						}
 						break;
 					}
 					case CONDITION_MEMBER_OF_USER_ROLE: {
 						String userRoleId = rcClaim.getExternalOperationArgument();
 						if (roleCatalogueService.hasUserRole(person, userRoleId)) {
-							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates);
+							addAttribute(attributes, rcClaim.getClaimName(), rcClaim.getClaimValue(), includeDuplicates, false);
 						}
 						break;
 					}
@@ -166,15 +166,15 @@ public class SqlServiceProvider extends ServiceProvider {
 						String itSystemId = rcClaim.getExternalOperationArgument();
 						String oiobpp = roleCatalogueService.getSystemRolesAsOIOBPP(person, itSystemId);
 						if (oiobpp != null && oiobpp.length() > 0) {
-							addAttribute(attributes, rcClaim.getClaimName(), oiobpp, includeDuplicates);
+							addAttribute(attributes, rcClaim.getClaimName(), oiobpp, includeDuplicates, false);
 						}
 						break;
 					}
 					case GET_USER_ROLES: {
 						String itSystemId = rcClaim.getExternalOperationArgument();
-						List<String> systemRoles = roleCatalogueService.getUserRoles(person, itSystemId);
-						if (systemRoles != null && systemRoles.size() > 0) {
-							addAttributeList(attributes, rcClaim.getClaimName(), systemRoles, includeDuplicates);
+						List<String> userRoles = roleCatalogueService.getUserRoles(person, itSystemId);
+						if (userRoles != null && userRoles.size() > 0) {
+							addAttributeList(attributes, rcClaim.getClaimName(), userRoles, includeDuplicates);
 						}
 						break;
 					}
@@ -192,7 +192,7 @@ public class SqlServiceProvider extends ServiceProvider {
 			String attribute = advancedRuleService.lookupField(person, requiredField.getPersonField());
 
 			if (attribute != null) {
-				addAttribute(attributes, requiredField.getAttributeName(), attribute, includeDuplicates);
+				addAttribute(attributes, requiredField.getAttributeName(), attribute, includeDuplicates, requiredField.isSingleValueOnly());
 			}
 		}
 
@@ -203,7 +203,7 @@ public class SqlServiceProvider extends ServiceProvider {
 				String attribute = advancedRuleService.evaluateRule(advancedClaim.getClaimValue(), person);
 
 				if (StringUtils.hasLength(attribute)) {
-					addAttribute(attributes, advancedClaim.getClaimName(), attribute, includeDuplicates);
+					addAttribute(attributes, advancedClaim.getClaimName(), attribute, includeDuplicates, advancedClaim.isSingleValueOnly());
 				}
 			}
 			catch (Exception ex) {
@@ -215,7 +215,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		Set<SqlServiceProviderGroupClaim> groupClaims = config.getGroupClaims();
 		for (SqlServiceProviderGroupClaim groupClaim : groupClaims) {
 			if (GroupService.memberOfGroup(person, groupClaim.getGroup())) {
-				addAttribute(attributes, groupClaim.getClaimName(), groupClaim.getClaimValue(), includeDuplicates);
+				addAttribute(attributes, groupClaim.getClaimName(), groupClaim.getClaimValue(), includeDuplicates, false);
 			}
 		}
 
@@ -223,28 +223,42 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private void addAttribute(HashMap<String, Object> attributes, String claimKey, String newClaimVal, boolean includeDuplicates) {
+	private void addAttribute(HashMap<String, Object> attributes, String claimKey, String newClaimVal, boolean includeDuplicates, boolean singleValue) {
 		if (!includeDuplicates) {
-			ArrayList<String> values = new ArrayList<>();
-			values.add(newClaimVal);
-			attributes.put(claimKey, values);
-			return;
+			if (singleValue) {
+				attributes.put(claimKey, newClaimVal);
+				return;
+			} else {
+				ArrayList<String> values = new ArrayList<>();
+				values.add(newClaimVal);
+				attributes.put(claimKey, values);
+				return;
+			}
 		}
 
 		// If value already exists, merge values
 		Object computed = attributes.computeIfPresent(claimKey, (key, value) -> {
 			if (value instanceof List) {
 				((List) value).add(newClaimVal);
+			} else {
+				ArrayList<Object> newList = new ArrayList();
+				newList.add(value);
+				newList.add(newClaimVal);
+				value = newList;
 			}
 			return value;
 		});
 
 		// if no key was found for attribute initialize list
 		if (computed == null) {
-			ArrayList<String> values = new ArrayList<>();
-			values.add(newClaimVal);
+			if (singleValue) {
+				attributes.putIfAbsent(claimKey, newClaimVal);
+			} else {
+				ArrayList<String> values = new ArrayList<>();
+				values.add(newClaimVal);
 
-			attributes.putIfAbsent(claimKey, values);
+				attributes.putIfAbsent(claimKey, values);
+			}
 		}
 	}
 
@@ -275,6 +289,18 @@ public class SqlServiceProvider extends ServiceProvider {
 		return this.config.getRequiredFields();
 	}
 
+    public Set<SqlServiceProviderAdvancedClaim> getAdvancedClaims() {
+        return this.config.getAdvancedClaims();
+    }
+
+    public Set<SqlServiceProviderRoleCatalogueClaim> getRcClaims() {
+        return this.config.getRcClaims();
+    }
+
+    public Set<SqlServiceProviderGroupClaim> getGroupClaims() {
+        return this.config.getGroupClaims();
+    }
+
     @Override
     public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
     	// check any NSIS requirements first
@@ -297,7 +323,7 @@ public class SqlServiceProvider extends ServiceProvider {
             	// note, domain can be null in certain situations
             	if (domain != null) {
             		// if the domain has been exempted, do not require MFA for the login
-            		if (this.config.getMfaExemptions().stream().anyMatch(d -> Objects.equals(d.getId(), domain.getId()))) {
+            		if (this.config.getMfaExemptions().stream().map(e -> e.getDomain()).anyMatch(d -> Objects.equals(d.getId(), domain.getId()))) {
             			return false;
             		}
             	}
@@ -566,5 +592,10 @@ public class SqlServiceProvider extends ServiceProvider {
 
 	public String getCertificateAlias() {
 		return config.getCertificateAlias();
+	}
+
+	@Override
+	public boolean isDelayedMobileLogin(LoginRequest loginRequest) {
+		return config.isDelayedMobileLogin();
 	}
 }

@@ -68,6 +68,10 @@
 	<link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/select2/select2-bootstrap4.min.css}" />
 	</th:block>
 
+    <th:block th:if="${datepicker == true}">
+        <link rel="stylesheet" th:href="@{/webjars/inspinia/2.9.3/css/plugins/datapicker/datepicker3.css}" />
+    </th:block>
+
 	<!-- apply wcag style -->
 	<link rel="stylesheet" th:href="@{/css/wcag.css}" />
 

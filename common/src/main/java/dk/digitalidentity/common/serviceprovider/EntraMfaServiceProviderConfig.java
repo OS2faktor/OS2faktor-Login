@@ -72,4 +72,9 @@ public class EntraMfaServiceProviderConfig implements ServiceProviderConfig {
 	public boolean isRequireOiosaml3Profile() {
 		return false;
 	}
+	
+	@Override
+	public boolean isDoNotMonitorCertificates() {
+		return true;
+	}
 }

@@ -32,6 +32,7 @@ public class EmailTemplateService {
 	
 	// users
 	public static final String USERID_PLACEHOLDER = "{brugernavn}";
+	public static final String NL3UUID_PLACEHOLDER = "{nemloginuuid}";
 	public static final String RECIPIENT_PLACEHOLDER = "{modtager}";
 	
 	// full service IdP only
@@ -194,12 +195,16 @@ public class EmailTemplateService {
 			case FULL_SERVICE_IDP_ASSIGNED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet tildelt";
-				message = "<b>Kære {modtager}</b><br/><br/>Du har fået tildelt en erhvervsidentitet i {kommune}.<br/><br/>En erhvervsidentitet er nødvendig for at tilgå en række af it-systemer som anvendes i {kommune}. Din erhvervsidentitet skal aktiveres, før den kan anvendes. Dette gøres via nedenstående link.<br/><br/>{aktiveringslink}<br/><br/>I forbindelse med aktiveringen skal du validere dig med dit MitID.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}";
+				message = "<b>Kære {modtager}</b><br/><br/>Du har fået tildelt en erhvervsidentitet i {kommune} til brugerkontoen {brugernavn}.<br/><br/>En erhvervsidentitet er nødvendig for at tilgå en række af it-systemer som anvendes i {kommune}. Din erhvervsidentitet skal aktiveres, før den kan anvendes. Dette gøres via nedenstående link.<br/><br/>{aktiveringslink}<br/><br/>I forbindelse med aktiveringen skal du validere dig med dit MitID.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}";
 				break;
 			case FULL_SERVICE_IDP_REMOVED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet spærret";
-				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommunen}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
+				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} til brugerkontoen {brugernavn} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommune}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/><br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
+				break;
+			case PERSON_SET_RANDOM_PASSWORD :
+				title = "Kodeord nulstillet";
+				message = "<b>Kære {modtager}</b><br/><br/>Dit kodeord er blevet nulstillet, og du skal skifte det inden du kan logge ind igen<br/><br/>Dit brugernavn er: {brugernavn}<br/><br/>";
 				break;
 		}
 
@@ -267,6 +272,7 @@ public class EmailTemplateService {
 	public String safeReplaceEverything(String message, Person person) {
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, (person.getNemloginUserUuid() != null) ? person.getNemloginUserUuid() : "");
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.ACTIVATION_LINK_PLACEHOLDER, commonConfiguration.getSelfService().getBaseUrl());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_PLACEHOLDER, commonConfiguration.getEmail().getFromName());
 		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.MUNICIPALITY_CONTACT_LOCATION, commonConfiguration.getCustomer().getContactLocationForMails());

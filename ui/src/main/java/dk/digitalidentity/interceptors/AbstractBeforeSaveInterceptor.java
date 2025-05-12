@@ -15,9 +15,7 @@ import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
-import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.NemloginQueueService;
-import dk.digitalidentity.common.service.SettingService;
 
 @Component
 public class AbstractBeforeSaveInterceptor {
@@ -34,9 +32,6 @@ public class AbstractBeforeSaveInterceptor {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 	
-	@Autowired
-	private SettingService settingService;
-
 	@Transactional
 	public void handleSavePerson(Person person) {
 		

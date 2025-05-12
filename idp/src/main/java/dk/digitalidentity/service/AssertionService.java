@@ -117,6 +117,9 @@ public class AssertionService {
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
+	
+	@Autowired
+	private OpenSAMLHelperService openSAMLHelperService;
 
 	public void createAndSendAssertion(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) throws ResponderException, RequesterException {
 
@@ -440,7 +443,9 @@ public class AssertionService {
 		}
 		else if (StringUtils.hasLength(requestedAuthnContextClassRef)) {
 			// it is not NSIS, and the requester asked for something specific, so we will just proxy it to be kind to their validation
-			authnContextClassRef = requestedAuthnContextClassRef;
+			if (!requestedAuthnContextClassRef.startsWith("https://data.gov.dk/concept/core/nsis")) {
+				authnContextClassRef = requestedAuthnContextClassRef;
+			}
 		}
 
 		// NameID
@@ -590,6 +595,22 @@ public class AssertionService {
 		List<AttributeStatement> attributeStatements = assertion.getAttributeStatements();
 		attributeStatements.addAll(calculatedAttributeStatements);
 
+		// allow claims to override the Name ID value
+		String alternativeNameID = null;
+		if (attributeStatements.size() > 0) {
+			Map<String, String> attributeMap = openSAMLHelperService.extractAttributeValues(attributeStatements.get(0));
+			if (attributeMap.containsKey("Name ID")) {
+				String customNameIDValue = attributeMap.get("Name ID");
+				if (StringUtils.hasText(customNameIDValue)) {
+					alternativeNameID = customNameIDValue;
+				}
+			}
+		}
+
+		if (StringUtils.hasText(alternativeNameID)) {
+			nameID.setValue(alternativeNameID);
+		}
+
 		return assertion;
 	}
 
@@ -624,6 +645,10 @@ public class AssertionService {
 	
 				if (nsisLevel != null && nsisLevel.toClaimValue() != null) {
 					attributeStatement.getAttributes().add(createSimpleAttribute(Constants.LEVEL_OF_ASSURANCE, nsisLevel.toClaimValue(), serviceProvider.requireOiosaml3Profile()));
+					
+					if (serviceProvider.alwaysIssueNistClaim()) {
+						addNistClaim(attributeStatement, serviceProvider);						
+					}
 				}
 				else {
 					addNistClaim(attributeStatement, serviceProvider);

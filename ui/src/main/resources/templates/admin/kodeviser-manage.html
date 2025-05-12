@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<head th:replace="~{fragments/header :: header (datatables = true)}"></head>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
 <body class="top-navigation">
 	<div id="wrapper">
 		<div id="page-wrapper" class="gray-bg">
@@ -16,6 +16,12 @@
 
 							<div class="ibox-content">
 								<p>
+									<input id="removeDeviceWhenPersonLocked" th:checked="${removeDeviceSetting}" type="checkbox" class="i-checks" onchange="changeRemoveDeviceSetting()">
+									&nbsp;
+									<label for="removeDeviceWhenPersonLocked" style="vertical-align: baseline;">Nulstil automatisk kodevisere for lukkede brugerkonti</label>
+								</p>
+
+								<p>
 									Indtast serienummeret på den kodeviser du ønsker at nulstille
 								</p>
 
@@ -26,7 +32,7 @@
 								</p>
 
 								<div class="table-responsive">
-									<table id="devices" class="table table-striped table-bordered table-hover" >
+									<table id="devices" width="100%" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
 												<th>Person</th>
@@ -63,7 +69,7 @@
 		</div>
 	</div>
 
-	<div th:replace="~{fragments/footer :: scripts (datatables = true)}"></div>
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
 	
 	<style>
 		.container-fluid {
@@ -194,6 +200,24 @@
 						toastr.warning("Der opstod en teknisk fejl");
 					});
 				}
+			});
+		}
+
+		function changeRemoveDeviceSetting() {
+			var removeDeviceSetting = $('#removeDeviceWhenPersonLocked').iCheck('update')[0].checked;
+			var body = { removeDeviceSetting: removeDeviceSetting };
+			$.ajax({
+				method : "POST",
+				url: "/rest/admin/kodeviser/removeDeviceSetting",
+				headers: {
+				 'X-CSRF-TOKEN': token
+				},
+				contentType: 'application/json',
+				data: JSON.stringify(body)
+			}).done(function (data) {
+				toastr.success("Indstilling ændret");
+			}).fail(function(jqXHR, textStatus, errorThrown) {
+				toastr.warning("Der opstod en teknisk fejl");
 			});
 		}
 		

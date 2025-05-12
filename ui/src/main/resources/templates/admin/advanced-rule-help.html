@@ -31,6 +31,8 @@
 									<li><b>REGEX_REPLACE(a, b, c)</b> - Denne operation tager kildeteksten (a) og erstatter alle forekomster af (b) med værdien (c). Man kan anvende regulære udtræk til (b)</li>
 									<li><b>BASE64(a)</b> - Denne operation udfører en base64 enkodning af kildeteksten (a)</li>
 									<li><b>BINARY_UUID(a)</b> - Denne operation kan kun anvendes på UUID værdier, og er lavet specifikt til Danmarks Miljøportal. Den konverterer et UUID til det format som Windows anvender, og derefter Base64 enkoder den værdien</li>
+									<li><b>OS2ROL_JFR(a, b)</b> - Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Jobfunktionsroller (JFR) som brugeren er tildelt, og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.</li>
+									<li><b>OS2ROL_BSR(a, b)</b> - Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Brugersystemroller (BSR) som brugeren er tildelt, og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.</li>
 								</ul>
 								
 								<p>
@@ -61,7 +63,7 @@ VALUE('12345678')</pre>
 <pre>JOIN(VALUE(user.userId), VALUE(user.name))
 JOIN(VALUE(user.name), VALUE(' - '), LOWER(VALUE(user.email)))</pre>
 
-									Bemærk her at hver værdi skal adskilles med komma, og hver værdi i sig selv skal være en lovlig operation.									
+									Bemærk her at hver værdi skal adskilles med komma, og hver værdi i sig selv skal være en lovlig operation.
 								</p>
 
 								<h3>UPPER</h3>
@@ -87,6 +89,38 @@ LOWER(JOIN(VALUE(user.name), VALUE(' - '), VALUE(user.email)))</pre>
 <pre>REGEX_REPLACE(VALUE(user.name), '\s', VALUE('_'))</pre>
 
 									Ovenstående eksempel tager brugerens navn, og finder alle mellemrum og erstatter disse med underscore _ karakteren.
+								</p>
+
+								<h3>BINARY_UUID</h3>
+								<p>
+									Denne operation tager 1 parameter, som skal være et UUID. Typisk vil man anvende user.uuid som input, men det KAN være andre UUID
+									felter på brugeren. Output er en base64 enkodet repræsentation af UUID'et - i det format som fx Danmarks Miljøportal forventer.
+
+<pre>BINARY_UUID(VALUE(user.uuid))</pre>
+
+									Ovenstående eksempel tager brugerens UUID som input
+								</p>
+
+								<h3>OS2ROL_JFR</h3>
+								<p>
+									Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Jobfunktionsroller (JFR) som brugeren er tildelt,
+									og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.
+
+<pre>OS2ROL_JFR('os2sofd', ';')</pre>
+
+									Ovenstående eksempel finder alle jobfunktionsroller tildelt til bruger i OS2rollekatalog <b>os2sofd</b> it-system og adskiller dem med en <b>;</b> karakter.<br>
+									Resultat: <b>id-e0739f6c-fe22-4035-bf8d-f4573d392aa2;id-32f468f7-e4b6-4b30-8abd-b2dad70c2fb5;id-c4bce447-fcae-4b54-a055-3aa2b99ae40d</b>
+								</p>
+
+								<h3>OS2ROL_BSR</h3>
+								<p>
+									Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Brugersystemroller (BSR) som brugeren er tildelt,
+									og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.
+
+<pre>OS2ROL_BSR('os2sofd', ';')</pre>
+
+									Ovenstående eksempel finder alle systemroller tildelt til bruger i OS2rollekatalog <b>os2sofd</b> it-system og adskiller dem med en <b>;</b> karakter.<br>
+									Resultat: <b>admin;edit;losadmin</b>
 								</p>
 
 								<h3>Kombineret eksempel</h3>

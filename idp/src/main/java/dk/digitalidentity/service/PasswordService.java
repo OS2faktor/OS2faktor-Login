@@ -15,6 +15,7 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.ADPasswordService;
 import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
@@ -51,6 +52,9 @@ public class PasswordService {
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+
+	@Autowired
+	private AuditLogger auditLogger;
 
 	/**
 	 * attempt to validate password in this order (until successful)
@@ -165,7 +169,8 @@ public class PasswordService {
 				// password matches, check for expiry
 				PasswordExpireStatus passwordStatus = getPasswordExpireStatus(person);
 				switch (passwordStatus) {
-					case ALMOST_EXPIRED:
+					//ALMOST is not EXPIRED - so nope
+					//case ALMOST_EXPIRED:
 					case EXPIRED:
 					case FORCE_CHANGE:
 						log.warn("Local password validation failed due to expired password for person " + person.getId());
@@ -249,6 +254,12 @@ public class PasswordService {
 					person.setPassword(encoder.encode(password));
 					person.setPasswordTimestamp(LocalDateTime.now());
 
+					// reset bad-password indicator
+					person.setBadPassword(false);
+					person.setBadPasswordDeadlineTts(null);
+					person.setBadPasswordReason(null);
+					person.setBadPasswordRule(null);
+
 					personService.save(person);
 				}
 				else {
@@ -283,14 +294,18 @@ public class PasswordService {
 			else {
 
 				// perform password complexity control now
-				if (passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, password) != ChangePasswordResult.OK) {
+				ChangePasswordResult changePasswordResult = passwordValidationService.validatePasswordRulesWithoutSlowValidationRules(person, password);
+				if (changePasswordResult != ChangePasswordResult.OK) {
 
 					// flag user if not already flagged
 					if (person.getBadPasswordDeadlineTts() == null || person.getBadPasswordReason() == null || person.getBadPasswordDeadlineTts() == null) {
 						person.setBadPassword(true);
 						person.setBadPasswordReason(BadPasswordReason.COMPLEXITY);
+						person.setBadPasswordRule(changePasswordResult);
 						person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordComplexityConformityGracePeriod()));
 						personService.save(person);
+						
+						auditLogger.badPasswordMustChange(person, changePasswordResult);
 					}
 					
 					// if we have passed the grace period, we will block usage - password needs to be changed using MitID
@@ -307,6 +322,7 @@ public class PasswordService {
 					if (person.isBadPassword() && person.getBadPasswordReason() == BadPasswordReason.COMPLEXITY) {
 						person.setBadPassword(false);
 						person.setBadPasswordReason(null);
+						person.setBadPasswordRule(null);
 						person.setBadPasswordDeadlineTts(null);
 						personService.save(person);
 					}

@@ -104,6 +104,7 @@ public class ParentsChangePasswordOnStudentsController {
 
 		model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited, false));
+		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 		return "students/password-change-parent/change-password";
 	}
@@ -129,6 +130,7 @@ public class ParentsChangePasswordOnStudentsController {
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
 			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 			return "students/password-change-parent/change-password";
 		}
@@ -152,6 +154,7 @@ public class ParentsChangePasswordOnStudentsController {
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
 				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 				return "students/password-change-parent/change-password";
 			}

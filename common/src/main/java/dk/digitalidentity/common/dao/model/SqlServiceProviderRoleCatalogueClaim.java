@@ -49,4 +49,8 @@ public class SqlServiceProviderRoleCatalogueClaim {
     @Size(max = 255)
     @Column(name = "claim_value")
     private String claimValue;
+
+    @Column
+    @NotNull
+    private boolean singleValueOnly;
 }

@@ -26,6 +26,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -116,6 +117,29 @@ public class MFAService {
 	}
 
 	public List<MfaClient> getClients(String cpr) {
+		return getClients(cpr, false);
+	}
+
+	public boolean hasPasswordlessMfa(Person person) {
+		// if disabled, the person will never "have" any such MFA clients
+		if (!configuration.getCustomer().isEnablePasswordlessMfa()) {
+			return false;
+		}
+
+		// this is a simply precheck to optimize loginflow - the first login with a freshly registered passwordless MFA
+		// will not trigger the flow, but we avoid having to lookup MFA clients every single login for other users
+		boolean cachedHit = person.getMfaClients().stream().anyMatch(m -> m.isPasswordless());
+		if (!cachedHit) {
+			return false;
+		}
+		
+		// TODO: can we cache this?
+		List<MfaClient> clients = getClients(person.getCpr(), person.isRobot());
+		
+		return clients.stream().anyMatch(m -> m.isPasswordless());
+	}
+
+	public List<MfaClient> getClients(String cpr, boolean isRobot) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -160,7 +184,10 @@ public class MFAService {
 			}
 
 			if (mfaClients != null) {
-				mfaClients = mfaClients.stream().filter(c -> configuration.getMfa().getEnabledClients().contains(c.getType().toString())).collect(Collectors.toList());
+				mfaClients = mfaClients.stream()
+						// robots are not filtered
+						.filter(c -> isRobot || configuration.getMfa().getEnabledClients().contains(c.getType().toString()))
+						.collect(Collectors.toList());
 			}
 
 			// update cached MFA clients
@@ -306,7 +333,7 @@ public class MFAService {
 		return response;
 	}
 
-	public MfaAuthenticationResponseDTO authenticate(String deviceId) {
+	public MfaAuthenticationResponseDTO authenticate(String deviceId, boolean passwordless) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -315,6 +342,9 @@ public class MFAService {
 
 		try {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + deviceId + "/authenticate";
+			if (passwordless) {
+				url = url + "?passwordless=true";
+			}
 
 			ResponseEntity<MfaAuthenticationResponse> response = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 			dto.setMfaAuthenticationResponse(response.getBody());
@@ -466,6 +496,7 @@ public class MFAService {
 						client.setDeviceId(localClient.getDeviceId());
 						client.setName(localClient.getName());
 						client.setNsisLevel(localClient.getNsisLevel());
+						client.setPasswordless(localClient.isPasswordless());
 						client.setType(localClient.getType());
 						client.setLocalClient(true);
 						client.setSerialnumber(localClient.getSerialnumber());
@@ -528,18 +559,18 @@ public class MFAService {
 		log.info("completed in: " + stopWatch.toString());
 	}
 
-	private static final String selectClientsSql = "SELECT c.name, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used, c.associated_user_timestamp FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
+	private static final String selectClientsSql = "SELECT c.name, c.passwordless, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used, c.associated_user_timestamp FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
 	private List<MfaClient> lookupMfaClientsInDB() {
 		return jdbcTemplate.query(
 				selectClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used"), rs.getTimestamp("associated_user_timestamp")));
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getBoolean("passwordless"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used"), rs.getTimestamp("associated_user_timestamp")));
 	}
 
 	private static final String selectLocalClientsSql = "SELECT c.name, c.device_id, c.client_type, td.serialnumber, lc.nsis_level, lc.ssn, c.associated_user_timestamp FROM local_clients lc JOIN clients c ON c.device_id = lc.device_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE c.disabled = 0 AND lc.cvr = ?;";
 	private List<MfaClient> lookupLocalMfaClientsInDB() {
 		return jdbcTemplate.query(
 				selectLocalClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null, rs.getTimestamp("associated_user_timestamp")),
+				(rs, rowNum) -> new MfaClient(rs.getString("name"), false, rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null, rs.getTimestamp("associated_user_timestamp")),
 				configuration.getCustomer().getCvr());
 	}
 	
@@ -548,82 +579,91 @@ public class MFAService {
 	}	
 
 	private void maintainCachedClients(List<Person> persons, List<MfaClient> mfaClients) {
-		for (Person person : persons) {
-			if (person.getMfaClients() == null) {
-				// this case should never happen - Hibernate will make sure we get an empty collection
-				List<CachedMfaClient> newCachedMFAClients = toCachedMFAClients(mfaClients, person);
-				person.setMfaClients(newCachedMFAClients);
-
-				personService.save(person);
-			}
-			else if (person.getMfaClients().size() == 0) {
-				if (mfaClients != null && mfaClients.size() > 0) {
-					person.getMfaClients().addAll(toCachedMFAClients(mfaClients, person));
+		try {
+			for (Person person : persons) {
+				if (person.getMfaClients() == null) {
+					// this case should never happen - Hibernate will make sure we get an empty collection
+					List<CachedMfaClient> newCachedMFAClients = toCachedMFAClients(mfaClients, person);
+					person.setMfaClients(newCachedMFAClients);
 	
 					personService.save(person);
 				}
-			}
-			else {
-				List<String> cachedMFAClientDeviceIds = person.getMfaClients().stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
-				List<String> mfaClientDeviceIds = mfaClients.stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
-				
-				List<MfaClient> toCreate = mfaClients.stream().filter(m -> !cachedMFAClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
-				List<CachedMfaClient> toDelete = person.getMfaClients().stream().filter(m -> !mfaClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
-				
-				boolean changes = false;
-				
-				for (MfaClient mfaClient : mfaClients) {
-					if (cachedMFAClientDeviceIds.contains(mfaClient.getDeviceId())) {
-						
-						// update case
-						CachedMfaClient cachedClientToUpdate = person.getMfaClients().stream().filter(c -> c.getDeviceId().equals(mfaClient.getDeviceId())).findAny().orElse(null);
-						if (cachedClientToUpdate == null) {
-							continue;
-						}
-						
-						// name cannot currently change in OS2faktor MFA, but let's support it here
-						if (!Objects.equals(mfaClient.getName(), cachedClientToUpdate.getName())) {
-							changes = true;
-							cachedClientToUpdate.setName(mfaClient.getName());
-						}
-						
-						if (!Objects.equals(mfaClient.getSerialnumber(), cachedClientToUpdate.getSerialnumber())) {
-							changes = true;
-							cachedClientToUpdate.setSerialnumber(mfaClient.getSerialnumber());
-						}
-
-						// NSISLevel cannot currently change in OS2faktor MFA, but let's support it here
-						if (!Objects.equals(mfaClient.getNsisLevel(), cachedClientToUpdate.getNsisLevel())) {
-							changes = true;
-							cachedClientToUpdate.setNsisLevel(mfaClient.getNsisLevel());
-						}
-
-						if (!Objects.equals(mfaClient.getLastUsed(), cachedClientToUpdate.getLastUsed())) {
-							changes = true;
-							cachedClientToUpdate.setLastUsed(mfaClient.getLastUsed());
-						}
-
-						if (!Objects.equals(mfaClient.getAssociatedUserTimestamp(), cachedClientToUpdate.getAssociatedUserTimestamp())) {
-							changes = true;
-							cachedClientToUpdate.setAssociatedUserTimestamp(mfaClient.getAssociatedUserTimestamp());
-						}
+				else if (person.getMfaClients().size() == 0) {
+					if (mfaClients != null && mfaClients.size() > 0) {
+						person.getMfaClients().addAll(toCachedMFAClients(mfaClients, person));
+		
+						personService.save(person);
 					}
 				}
-				
-				if (!toCreate.isEmpty()) {
-					changes = true;
-					person.getMfaClients().addAll(toCachedMFAClients(toCreate, person));
-				}
-				
-				if (!toDelete.isEmpty()) {
-					changes = true;
-					person.getMfaClients().removeAll(toDelete);
-				}
-
-				if (changes) {
-					personService.save(person);
+				else {
+					List<String> cachedMFAClientDeviceIds = person.getMfaClients().stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
+					List<String> mfaClientDeviceIds = mfaClients.stream().map(c -> c.getDeviceId()).collect(Collectors.toList());
+					
+					List<MfaClient> toCreate = mfaClients.stream().filter(m -> !cachedMFAClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
+					List<CachedMfaClient> toDelete = person.getMfaClients().stream().filter(m -> !mfaClientDeviceIds.contains(m.getDeviceId())).collect(Collectors.toList());
+					
+					boolean changes = false;
+					
+					for (MfaClient mfaClient : mfaClients) {
+						if (cachedMFAClientDeviceIds.contains(mfaClient.getDeviceId())) {
+							
+							// update case
+							CachedMfaClient cachedClientToUpdate = person.getMfaClients().stream().filter(c -> c.getDeviceId().equals(mfaClient.getDeviceId())).findAny().orElse(null);
+							if (cachedClientToUpdate == null) {
+								continue;
+							}
+	
+							if (!Objects.equals(mfaClient.getName(), cachedClientToUpdate.getName())) {
+								changes = true;
+								cachedClientToUpdate.setName(mfaClient.getName());
+							}
+	
+							if (mfaClient.isPasswordless() != cachedClientToUpdate.isPasswordless()) {
+								changes = true;
+								cachedClientToUpdate.setPasswordless(mfaClient.isPasswordless());
+							}
+	
+							if (!Objects.equals(mfaClient.getSerialnumber(), cachedClientToUpdate.getSerialnumber())) {
+								changes = true;
+								cachedClientToUpdate.setSerialnumber(mfaClient.getSerialnumber());
+							}
+	
+							// NSISLevel cannot currently change in OS2faktor MFA, but let's support it here
+							if (!Objects.equals(mfaClient.getNsisLevel(), cachedClientToUpdate.getNsisLevel())) {
+								changes = true;
+								cachedClientToUpdate.setNsisLevel(mfaClient.getNsisLevel());
+							}
+	
+							if (!Objects.equals(mfaClient.getLastUsed(), cachedClientToUpdate.getLastUsed())) {
+								changes = true;
+								cachedClientToUpdate.setLastUsed(mfaClient.getLastUsed());
+							}
+	
+							if (!Objects.equals(mfaClient.getAssociatedUserTimestamp(), cachedClientToUpdate.getAssociatedUserTimestamp())) {
+								changes = true;
+								cachedClientToUpdate.setAssociatedUserTimestamp(mfaClient.getAssociatedUserTimestamp());
+							}
+						}
+					}
+					
+					if (!toCreate.isEmpty()) {
+						changes = true;
+						person.getMfaClients().addAll(toCachedMFAClients(toCreate, person));
+					}
+					
+					if (!toDelete.isEmpty()) {
+						changes = true;
+						person.getMfaClients().removeAll(toDelete);
+					}
+	
+					if (changes) {
+						personService.save(person);
+					}
 				}
 			}
+		}
+		catch (OptimisticLockingFailureException ex) {
+			log.warn("Failed to persist changes to CachedMfaClients due to OptimisticLockingFailureException: " + ex.getMessage());
 		}
 	}
 
@@ -639,6 +679,7 @@ public class MFAService {
 			cachedClient.setPerson(person);
 			cachedClient.setSerialnumber(client.getSerialnumber());
 			cachedClient.setLastUsed(client.getLastUsed());
+			cachedClient.setPasswordless(client.isPasswordless());
 			cachedClient.setAssociatedUserTimestamp(client.getAssociatedUserTimestamp());
 
 			newCachedMFAClients.add(cachedClient);

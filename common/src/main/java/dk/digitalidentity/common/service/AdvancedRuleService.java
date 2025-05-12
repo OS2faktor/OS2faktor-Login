@@ -6,16 +6,22 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
 public class AdvancedRuleService {
+
+    @Autowired
+    private RoleCatalogueService roleCatalogueService; 
 
 	public String lookupField(Person person, String personField) {
 		String attribute = null;
@@ -135,6 +141,10 @@ public class AdvancedRuleService {
 				return evaluateBase64(commandAndArgument.argument, person);
 			case "BINARY_UUID":
 				return evaluateBinaryUuid(commandAndArgument.argument, person);
+			case "OS2ROL_JFR" :
+				return evaluateOS2rolJfr(commandAndArgument.argument, person);
+			case "OS2ROL_BSR" :
+				return evaluateOS2rolBsr(commandAndArgument.argument, person);
 			default:
 				log.error("Should not get here, it should have been handled in extractCommandAndArgument: " + commandAndArgument.command);
 				throw new EvaluationException("Syntaksfejl: Ukendt operation '" + commandAndArgument.command + "'");
@@ -295,6 +305,36 @@ public class AdvancedRuleService {
 		throw new EvaluationException("Syntaksfejl: Input til VALUE ikke lovligt '" + argument + "'");
 	}
 
+	private String evaluateOS2rolJfr(String argument, Person person) throws EvaluationException {
+		List<String> tokens = tokenize(argument);
+		
+		if (tokens.size() != 2) {
+			throw new EvaluationException("Syntaksfejl: Input til VALUE tager 2 parametre: it-system-id og separator");
+		}
+
+		String itSystemId = tokens.get(0).trim().replace("'", "").trim();
+		String delimiter = tokens.get(1).trim().replace("'", "").trim();
+		
+		List<String> userRoles = roleCatalogueService.getUserRoles(person, itSystemId);
+
+		return userRoles.stream().collect(Collectors.joining(delimiter));
+	}
+
+   private String evaluateOS2rolBsr(String argument, Person person) throws EvaluationException {
+		List<String> tokens = tokenize(argument);
+		
+		if (tokens.size() != 2) {
+			throw new EvaluationException("Syntaksfejl: Input til VALUE tager 2 parametre: it-system-id og separator");
+		}
+
+		String itSystemId = tokens.get(0).trim().replace("'", "").trim();
+		String delimiter = tokens.get(1).trim().replace("'", "").trim();
+		
+		List<String> systemRoles = roleCatalogueService.getSystemRoles(person, itSystemId);
+
+		return systemRoles.stream().collect(Collectors.joining(delimiter));
+	}
+
 	private CommandAndArgument extractCommandAndArgument(String rule) throws EvaluationException {
 		try {
 			int first = rule.indexOf("(");
@@ -316,7 +356,7 @@ public class AdvancedRuleService {
 			result.argument = rule.substring(first + 1, last).trim();
 
 			if (!knownCommand(result.command)) {
-				throw new EvaluationException("Syntaksfejl: Ukendt operation '" + result.command + "'");				
+				throw new EvaluationException("Syntaksfejl: Ukendt operation '" + result.command + "'");
 			}
 			
 			if (!StringUtils.hasLength(result.argument)) {
@@ -344,6 +384,8 @@ public class AdvancedRuleService {
 			case "VALUE":
 			case "BASE64":
 			case "BINARY_UUID":
+			case "OS2ROL_JFR":
+			case "OS2ROL_BSR":
 				return true;
 			default:
 				return false;

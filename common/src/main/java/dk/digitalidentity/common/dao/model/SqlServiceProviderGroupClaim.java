@@ -43,4 +43,8 @@ public class SqlServiceProviderGroupClaim {
 	@OneToOne
 	@JoinColumn(name = "group_id", referencedColumnName = "id")
 	private Group group;
+
+    @Column
+    @NotNull
+    private boolean singleValueOnly;
 }

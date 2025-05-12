@@ -11,16 +11,17 @@ import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
-import dk.digitalidentity.common.dao.model.enums.Protocol;
-import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
 import dk.digitalidentity.common.dao.model.enums.ForceMFARequired;
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
+import dk.digitalidentity.common.dao.model.enums.Protocol;
+import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
+import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfig;
+import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
 import dk.digitalidentity.common.serviceprovider.ServiceProviderConfig;
-import dk.digitalidentity.service.KeystoreService;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -61,9 +62,11 @@ public class ServiceProviderDTO {
 	private boolean hasCustomSessionExpiry;
 	private boolean allowMitidErhvervLogin;
 	private boolean allowAnonymousUsers;
+	private boolean doNotMonitorCertificates;
 	private boolean publicClient;
 	private boolean requirePKCE;
 	private String certificate;
+	private boolean delayedMobileLogin;
 
 	public ServiceProviderDTO() {
 		this.id = "0";
@@ -75,6 +78,7 @@ public class ServiceProviderDTO {
 		this.exemptedDomains = new ArrayList<>();
 		this.allowAnonymousUsers = false;
 		this.certificate = KnownCertificateAliases.OCES.name();
+		this.delayedMobileLogin = true;
 	}
 
 	public ServiceProviderDTO(ServiceProviderConfig config, List<CertificateDTO> certificates, List<EndpointDTO> endpoints) {
@@ -91,11 +95,13 @@ public class ServiceProviderDTO {
 		this.metadataUrl = config.getMetadataUrl();
 		this.metadataContent = config.getMetadataContent();
 		this.sqlServiceProvider = (config instanceof SqlServiceProviderConfiguration);
-		this.kombitServiceProvider = (config instanceof KombitServiceProviderConfig) || (config instanceof KombitServiceProviderConfigV2);
+		this.kombitServiceProvider = (config instanceof KombitServiceProviderConfig) || (config instanceof KombitServiceProviderConfigV2) || (config instanceof KombitTestServiceProviderConfig) || (config instanceof KombitTestServiceProviderConfigV2);
 		this.hasCustomSessionExpiry = false;
 		this.allowMitidErhvervLogin = config.isAllowMitidErvhervLogin();
 		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
 		this.certificate = config.getCertificateAlias();
+		this.doNotMonitorCertificates = config.isDoNotMonitorCertificates();
+		this.delayedMobileLogin = config.isDelayedMobileLogin();
 
 		for (NameIdFormat format : NameIdFormat.values()) {
 			if (Objects.equals(format.value, config.getNameIdFormat().value)) {

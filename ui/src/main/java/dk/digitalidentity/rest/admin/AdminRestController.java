@@ -1,5 +1,9 @@
 package dk.digitalidentity.rest.admin;
 
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,6 +16,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
@@ -66,6 +74,7 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RadiusClientService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.datatables.AuditLogDatatableDao;
 import dk.digitalidentity.datatables.PersonDatatableDao;
@@ -93,6 +102,7 @@ import dk.digitalidentity.service.AuditLogSearchCriteriaService;
 import dk.digitalidentity.service.EmailTemplateSenderService;
 import dk.digitalidentity.service.LinkService;
 import dk.digitalidentity.service.MetadataService;
+import dk.digitalidentity.util.UsernameAndPasswordHelper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.ListJoin;
@@ -175,6 +185,9 @@ public class AdminRestController {
 
 	@Autowired
 	private AuditLogSearchCriteriaService auditLogSearchCriteriaService;
+
+	@Autowired
+	private UsernameAndPasswordHelper usernameAndPasswordHelper;
 
 	@RequireSupporter
 	@PostMapping("/rest/admin/eventlog/{id}")
@@ -524,8 +537,7 @@ public class AdminRestController {
 				emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.FULL_SERVICE_IDP_REMOVED);
 				for (EmailTemplateChild child : emailTemplate.getChildren()) {
 					if (child.getDomain().getId() == person.getDomain().getId()) {
-						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
 	
 						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
 					}
@@ -566,6 +578,56 @@ public class AdminRestController {
 		}
 
 		return new ResponseEntity<>(person.hasActivatedNSISUser(), HttpStatus.OK);
+	}
+
+	@RequireSupporter
+	@PostMapping("/rest/admin/randomPassword/{id}")
+	@ResponseBody
+	public ResponseEntity<?> adminSetRandomPassword(@PathVariable("id") long id, @RequestParam(name = "reason", required = true) String reason) {
+		Person admin = personService.getById(securityUtil.getPersonId());
+		if (admin == null) {
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+	
+		Person person = personService.getById(id);
+		if (person == null) {
+			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		}
+
+		if (!StringUtils.hasText(reason)) {
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
+		String password = usernameAndPasswordHelper.generatePassword(person.getDomain());
+		
+		try {
+			ADPasswordResponse.ADPasswordStatus adPasswordStatus = personService.changePasswordByAdmin(person, password, admin, true);
+
+			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
+				return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+			}
+
+			// Send email notification
+			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PERSON_SET_RANDOM_PASSWORD);
+			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+				if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+					String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
+
+					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
+				}
+			}
+		
+			personService.save(person);
+		
+			auditLogger.randomPasswordSetByAdmin(person, admin, reason);
+		}
+		catch (NoSuchPaddingException | InvalidKeyException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException | InvalidAlgorithmParameterException e) {
+			log.error("Exception while trying to change password on another user", e);
+	
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+	
+		return new ResponseEntity<>(HttpStatus.OK);
 	}
 
 	@RequireAdministratorOrUserAdministrator
@@ -704,8 +766,8 @@ public class AdminRestController {
 	@ResponseBody
 	public ResponseEntity<?> editServiceProvider(@RequestBody ServiceProviderDTO serviceProviderDTO) {
 		try {
-			// Throws exception if claims attribute conains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
-			if(serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
+			// Throws exception if claims attribute contains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
+			if (serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
 				throw new Exception("Det er ikke tilladt at tilføje claims indeholdende 'data.gov.dk/concept/core/nsis/aal' eller 'data.gov.dk/concept/core/nsis/aal'"); 
 			}
 			
@@ -951,6 +1013,29 @@ public class AdminRestController {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		}
 
+
+		return new ResponseEntity<>(HttpStatus.OK);
+	}
+
+	@RequireServiceProviderAdmin
+	@PostMapping("/admin/konfiguration/tjenesteudbydere/kombit/subsystem/{id}/delayedMobileLogin/{delayedMobileLogin}")
+	@ResponseBody
+	public ResponseEntity<?> editKombitSubSystemDelayedMobileLogin(@PathVariable("id") long id, @PathVariable("delayedMobileLogin") boolean delayedMobileLogin) {
+		KombitSubsystem subsystem = kombitSubsystemService.findById(id);
+		if (subsystem == null) {
+			log.warn("No subsystem with id " + id);
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
+		try {
+			subsystem.setDelayedMobileLogin(delayedMobileLogin);
+
+			kombitSubsystemService.save(subsystem);
+		}
+		catch (Exception ex) {
+			log.error("Failed to update KOMBIT Subsystem with delayedMobileMfa", ex);
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}

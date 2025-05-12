@@ -606,6 +606,7 @@ public class PersonService {
 		person.setBadPassword(false);
 		person.setBadPasswordDeadlineTts(null);
 		person.setBadPasswordReason(null);
+		person.setBadPasswordRule(null);
 
 		// if the changePassword was performed with a requested change-password-on-next-login, set that flag,
 		// otherwise remove the flag if set already
@@ -672,7 +673,7 @@ public class PersonService {
 		return false;
 	}
 	
-	public ADPasswordStatus unlockAccount(Person person) {
+	public ADPasswordStatus unlockAccount(Person person, Person performer) {
 		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
 		if (StringUtils.hasLength(person.getSamaccountName())) {
 			adPasswordStatus = adPasswordService.attemptUnlockAccount(person);
@@ -680,7 +681,11 @@ public class PersonService {
 				person.setBadPasswordCount(0);
 				person.setLockedPassword(false);
 				person.setLockedPasswordUntil(null);
-				auditLogger.unlockAccountByPerson(person);
+				if (performer != null) {
+					auditLogger.unlockAccountByAnotherPerson(person, performer);
+				} else {
+					auditLogger.unlockAccountByPerson(person);
+				}
 				save(person);
 			}
 		}
@@ -816,6 +821,10 @@ public class PersonService {
 	}
 
 	public boolean requireApproveConditions(Person person) {
+		if (person.getDomain().isNonNsis()) {
+			return false;
+		}
+
 		if (!person.isApprovedConditions()) {
 			return true;
 		}
@@ -1018,5 +1027,9 @@ public class PersonService {
 
 	public List<Person> getByExternalNemloginUserUuid(String uuid) {
 		return personDao.findByExternalNemloginUserUuid(uuid);
+	}
+
+	public List<Person> findByLockedDatasetTrue() {
+		return personDao.findByLockedDatasetTrue();
 	}
 }

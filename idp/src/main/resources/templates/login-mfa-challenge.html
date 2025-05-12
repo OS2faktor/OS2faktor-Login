@@ -15,11 +15,15 @@
                 	<a class="sr-only sr-only-focusable" href="#wcag-challenge">Gå til kode</a>
                     <form id="loginForm" method="get" th:action="@{/sso/saml/mfa/} + ${deviceId} + '/completed'">
                         <div>
-                            <p th:text="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}"></p>
+                            <p th:utext="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}"></p>
                         </div>
 
                         <div th:if="${challenge} != null">
-                            <p class="mb-5">
+                            <p class="mb-5" th:if="${#strings.length(challenge) == 2}">
+                                Din 2-faktor enhed åbner om lidt og beder om en kontrolkode - angiv nedenstående kode for at godkende login
+                            </p>
+                            
+                            <p class="mb-5" th:if="${#strings.length(challenge) != 2}">
                                 Din 2-faktor enhed åbner om lidt og spørger om du vil tillade login, når dette sker, skal du verificere at den kode der vises i din 2-faktor enhed matcher nedenstående
                             </p>
 
@@ -39,18 +43,19 @@
                         </div>
 
 			            <div id="finishLoginBlock" style="display: none;">
-			                <button class="btn btn-primary btn-block" onclick="mfaService.finishLoginFlow(); return false;">Videre</button>
+			                <button type="submit" class="btn btn-primary btn-block">Videre</button>
 			                <br/>
 			                <p>
 			                    Login er gennemført - tryk på knappen ovenfor for at gå videre
 			                </p>
 			            </div>
 
-                        <div th:if="${@loginService.showNemLogIn()}">
-                            <a th:href="@{/sso/saml/login/nemid}" style="color: black;">
-                                <em class="fa fa-fw fa-key"></em>
-                                &nbsp;
-                                Log ind med MitID
+                        <div>
+                            <a th:if="${@sessionHelper.isInPasswordlessMfaFlow()}" th:href="@{/sso/login/password}" style="color: black;">                            
+                                <em class="fa fa-fw fa-key"></em> &nbsp; Log ind med kodeord
+                            </a><br/>
+                            <a th:if="${@loginService.showNemLogIn()}" th:href="@{/sso/saml/login/nemid}" style="color: black;">                            
+                                <em class="fa fa-fw fa-key"></em> &nbsp; Log ind med MitID
                             </a>
                         </div>
                     </form>
@@ -70,10 +75,11 @@
             var url = [[@{/ui/tempworker}]];
             var pollingKey = [[${pollingKey}]];
             var redirectUrl = [[${redirectUrl}]];
-            var delayedLogin = [[${delayedLogin}]];
+            var delayedLoginOnMobile = [[${delayedLoginOnMobile}]];
             var finishUrl = [[${@OS2faktorConfiguration.baseUrl} + '/sso/saml/mfa/' + ${deviceId} + '/completed']];
             var wakeEvent = [[${wakeEvent}]];
 		+]*/
+		var delayedLogin = false;
 		var token = $("meta[name='_csrf']").attr("content");
 
         var mfaService;
@@ -93,8 +99,22 @@
             catch (err) {
 				;
             }
+            
+            // if not already enabled, enable delayedLogin on mobile devices
+            try {
+            	if (!delayedLogin && delayedLoginOnMobile && hasTouchSupport()) {
+            		delayedLogin = true;
+            	}
+            }
+            catch (err) {
+            	;
+            }
 		});
 
+		function hasTouchSupport() {
+			return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		}
+		
         function MfaService() {
 			var submitting = false;
 	        var pollingFn;

@@ -1,6 +1,7 @@
 package dk.digitalidentity.common.service.model;
 
 import java.util.List;
+import java.util.Map;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -13,4 +14,5 @@ public class RoleCatalogueRolesResponse {
 	private List<String> systemRoles;
 	private List<String> dataRoles;
 	private List<String> functionRoles;
+	private Map<String, String> roleMap;
 }

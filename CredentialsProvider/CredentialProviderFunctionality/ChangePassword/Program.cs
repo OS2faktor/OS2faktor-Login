@@ -3,7 +3,9 @@ using Serilog;
 using System;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace ChangePassword
 {
@@ -73,24 +75,25 @@ namespace ChangePassword
                         HttpClient client = new HttpClient();
                         client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
 
+
+                        // Create body of message
                         // {
                         //   "username": "xxxx",
                         //   "oldPassword": "xxxx",
                         //   "newPassword": "xxxx",
                         //   "version": "xxxx"
                         // }
-                        string body = "{\"username\":\"" + args[0] + "\",\"oldPassword\":\"" + getPassword(args[1]) + "\",\"newPassword\":\"" + getPassword(args[2]) + "\"";
-                        if (version != null)
-                        {
-                            string versionParameter = version.Replace(".", "").Trim();
-                            if (!String.IsNullOrWhiteSpace(versionParameter))
-                            {
-                                body += ",\"version\":\"" + versionParameter + "\"";
-                            }
-                        }
-                        body += "}";
-                        HttpContent content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                        string versionStr = version == null ? "0" : version.Replace(".", "").Trim();
 
+                        var body = new
+                        {
+                            username = args[0],
+                            oldPassword = getPassword(args[1]),
+                            newPassword = getPassword(args[2]),
+                            version = !String.IsNullOrWhiteSpace(versionStr) ? versionStr : "0",
+                        };
+                        string bodyString = JsonSerializer.Serialize(body);
+                        HttpContent content = new StringContent(bodyString, System.Text.Encoding.UTF8, "application/json");
 
                         // Call the service and wait for the response
                         try
@@ -132,10 +135,8 @@ namespace ChangePassword
 
         private static string getPassword(string encodedPassword)
         {
-            string encodedPass = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedPassword));
             byte[] bytes = ProtectedData.Unprotect(Convert.FromBase64String(encodedPassword), null, DataProtectionScope.CurrentUser);
-            string nonEncPass = System.Text.Encoding.Unicode.GetString(bytes);
-            return nonEncPass;
+            return System.Text.Encoding.Unicode.GetString(bytes);
         }
     }
 }

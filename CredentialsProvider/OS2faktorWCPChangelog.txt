@@ -124,3 +124,8 @@
 - Fixed issues with establishing a session in the browsers taking too long by making some code run async
 - Made sure that browser is in use before establishing session
 
+## v3.3.0
+- Added option to define parameters for browser startup
+
+## v3.3.2
+- Changed method for sending information to os2faktor to be more resilient against differing computer setups

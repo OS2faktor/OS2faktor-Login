@@ -142,8 +142,7 @@ public class CprStatusCheckService {
 
 									for (EmailTemplateChild child : emailTemplate.getChildren()) {
 										if (child.getDomain().getId() == person.getDomain().getId()) {
-											String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-											message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+											String message = emailTemplateService.safeReplaceEverything(child.getMessage(), person);
 
 											emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, false);
 										}

@@ -55,6 +55,7 @@ public class LogWatcherService {
 
 	private static final String SELECT_LOGIN_AUDITLOGS_WITH_LOCATION =
 			"SELECT person_id, location FROM auditlogs a " +
+			" INNER JOIN domains d ON (d.name = a.person_domain AND d.non_nsis = 0) " +
 			" WHERE a.log_action = 'LOGIN' " +
 			" AND a.tts > ? " +
 			" AND a.tts < ? " +
@@ -155,7 +156,7 @@ public class LogWatcherService {
 			return;
 		}
 
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		String emails = logWatchSettingService.getAlarmEmailRecipients(true);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}
@@ -239,8 +240,9 @@ public class LogWatcherService {
 	public void logWatchTwoCountriesOneHour() {
 		boolean translateGermany = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED);
 		boolean translateSweeden = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED);
-		
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		boolean translateHolland = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_HOLLAND_ENABLED);
+
+		String emails = logWatchSettingService.getAlarmEmailRecipients(false);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}
@@ -248,7 +250,7 @@ public class LogWatcherService {
 		List<AuditLogLocationDto> logsWithLocation = jdbcTemplate.query(SELECT_LOGIN_AUDITLOGS_WITH_LOCATION,
 			(rs, rowNum) -> {
 				String location = rs.getString("location");
-				if ((translateGermany && "Germany".equals(location)) || (translateSweeden && "Sweden".equals(location))) {
+				if ((translateGermany && "Germany".equals(location)) || (translateSweeden && "Sweden".equals(location)) || (translateHolland && "The Netherlands".equals(location))) {
 					location = "Denmark";
 				}
 
@@ -319,7 +321,7 @@ public class LogWatcherService {
 			return;
 		}
 
-		String emails = logWatchSettingService.getAlarmEmailRecipients();
+		String emails = logWatchSettingService.getAlarmEmailRecipients(true);
 		if (!StringUtils.hasLength(emails)) {
 			return;
 		}

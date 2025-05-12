@@ -25,6 +25,7 @@ public class MfaClient implements Serializable {
 	private boolean roaming;
 	private boolean localClient = false;
 	private boolean locked;
+	private boolean passwordless;
 	private Date lockedUntil;
 	private String serialnumber;
 
@@ -47,8 +48,9 @@ public class MfaClient implements Serializable {
 		this.serialnumber = serialnumber;
 	}
 	
-	public MfaClient(String name, String deviceId, String serialnumber, String type, String nsisLevel, String ssn, Timestamp lastUsed, Timestamp associatedUserTimestamp) {
+	public MfaClient(String name, boolean passwordless, String deviceId, String serialnumber, String type, String nsisLevel, String ssn, Timestamp lastUsed, Timestamp associatedUserTimestamp) {
 		this.name = name;
+		this.passwordless = passwordless;
 		this.deviceId = deviceId;
 		this.type = ClientType.valueOf(type);
 		this.nsisLevel = (nsisLevel != null) ? NSISLevel.valueOf(nsisLevel) : NSISLevel.NONE;

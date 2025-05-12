@@ -23,6 +23,7 @@
 							<span th:text="${client.name}"></span>
 							<span th:if="${client.prime}" class="badge badge-primary">Primær</span>
 							<span th:if="${client.roaming}" class="badge badge-warning">Roaming</span>
+							<span th:if="${client.passwordless && showPasswordless}" class="badge badge-primary">Kodeordsfri</span>
 						</td>
 						<td th:text="#{__${client.nsisLevel.message}__}" />
 

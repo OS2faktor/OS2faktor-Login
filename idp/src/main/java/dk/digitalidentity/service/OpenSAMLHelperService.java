@@ -63,11 +63,6 @@ public class OpenSAMLHelperService {
 			String name = attribute.getName();
 			String value = extractAttributeValueValue(attribute);
 
-			// never extract CPR
-			if ("dk:gov:saml:attribute:CprNumberIdentifier".equals(name)) {
-				continue;
-			}
-			
 			if (StringUtils.hasLength(name) && StringUtils.hasLength(value)) {
 				result.put(name, value);
 			}

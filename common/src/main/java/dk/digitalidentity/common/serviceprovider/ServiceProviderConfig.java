@@ -17,6 +17,14 @@ public interface ServiceProviderConfig {
     boolean isEncryptAssertions();
     boolean isPreferNIST();
     boolean isRequireOiosaml3Profile();
+	
+    default boolean isDelayedMobileLogin() {
+        return true;
+    }
+
+	default boolean isDoNotMonitorCertificates() {
+		return false;
+	}
 
     default boolean isAllowMitidErvhervLogin() {
     	return false;

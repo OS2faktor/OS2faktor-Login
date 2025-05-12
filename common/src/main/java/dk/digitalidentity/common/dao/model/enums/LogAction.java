@@ -48,6 +48,7 @@ public enum LogAction {
 	DEACTIVATE_BY_PERSON("enum.logaction.deactivateByPerson", ReportType.GENERAL_HISTORY),
 	REACTIVATE_BY_ADMIN("enum.logaction.reactivateByAdmin", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
 	REACTIVATE_BY_PERSON("enum.logaction.reactivateByPerson", ReportType.GENERAL_HISTORY),
+	RANDOM_PASSWORD_SET_BY_ADMIN("enum.logaction.randomPasswordSetByAdmin", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
 	ADDED_TO_DATASET("enum.logaction.addedToDataset", ReportType.GENERAL_HISTORY),
 	REMOVED_FROM_DATASET("enum.logaction.removedFromDataset", ReportType.GENERAL_HISTORY),
 	DELETED_FROM_DATASET("enum.logaction.deletedFromDataset", ReportType.GENERAL_HISTORY),
@@ -82,6 +83,7 @@ public enum LogAction {
 	SENT_MAIL("enum.logaction.sentEmail", ReportType.GENERAL_HISTORY),
 	TRACE_LOG("enum.logaction.tracelogging", ReportType.NONE),
 	MITID_ERVHERV_ACTION("enum.logaction.mitiderhverv.action", ReportType.GENERAL_HISTORY),
+	MUST_CHANGE_PASSWORD("enum.logaction.must.change.password", ReportType.GENERAL_HISTORY),
 
 	// can be removed at some future point in time, when we know that NONE are present in the DB
 	SESSION_KEY_ISSUED("enum.logaction.sessionKeyIssued", false, ReportType.NONE),

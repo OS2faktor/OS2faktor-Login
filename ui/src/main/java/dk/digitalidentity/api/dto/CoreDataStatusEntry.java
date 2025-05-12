@@ -27,6 +27,9 @@ public class CoreDataStatusEntry {
 	private boolean lockedExpired;
 	private String lockedPasswordUntil;
 	private LocalDateTime lastLogin;
+	private boolean badPassword;
+	private String badPasswordRule;
+	private boolean mfaClients;
 
 	public CoreDataStatusEntry(Person person, PersonStatistics statistics) {
 		this.uuid = person.getUuid();
@@ -45,5 +48,8 @@ public class CoreDataStatusEntry {
 		this.lockedPassword = person.isLockedPassword();
 		this.lockedPasswordUntil = (person.getLockedPasswordUntil() != null) ? person.getLockedPasswordUntil().toString() : null;
 		this.lastLogin = (statistics != null) ? statistics.getLastLogin() : null;
+		this.badPassword = person.isBadPassword();
+		this.badPasswordRule = (person.isBadPassword() && person.getBadPasswordRule() != null) ? person.getBadPasswordRule().getMessage() : null;
+		this.mfaClients = (person.getMfaClients() != null && !person.getMfaClients().isEmpty());
 	}
 }
