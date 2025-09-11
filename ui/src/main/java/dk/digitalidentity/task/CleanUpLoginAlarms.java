@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.service.LoginAlarmService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
 public class CleanUpLoginAlarms {
@@ -22,8 +24,12 @@ public class CleanUpLoginAlarms {
 	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 5 * * *")
 	public void cleanUp() {
 		if (configuration.getScheduled().isEnabled()) {
+			log.info("Running cleanupLoginAlarms");
+			
 			loginAlarmService.deleteOldCountryAlarms();
 			loginAlarmService.deleteOldIpAddressAlarms();
+			
+			log.info("Running cleanupLoginAlarms ended");
 		}
 	}
 }

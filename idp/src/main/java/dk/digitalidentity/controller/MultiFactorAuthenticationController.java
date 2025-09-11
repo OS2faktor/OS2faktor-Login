@@ -142,6 +142,7 @@ public class MultiFactorAuthenticationController {
 			model.addAttribute("redirectUrl", redirectUrl);
 		}
 		
+		model.addAttribute("isAndroidOrIOS", (matchingClient.getType() == ClientType.ANDROID || matchingClient.getType() == ClientType.IOS));
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 		
@@ -152,7 +153,7 @@ public class MultiFactorAuthenticationController {
 				model.addAttribute("delayedLoginOnMobile", serviceProvider.isDelayedMobileLogin(loginRequest));
 			}
 			else {
-				model.addAttribute("delayedLoginOnMobile", true);				
+				model.addAttribute("delayedLoginOnMobile", true);
 			}
 		}
 		else {

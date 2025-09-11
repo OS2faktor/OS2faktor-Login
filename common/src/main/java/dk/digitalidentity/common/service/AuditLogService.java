@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.AuditLogDao;
@@ -89,10 +90,12 @@ public class AuditLogService {
 		return auditLogDao.findByTtsBetweenAndLogActionIn(pageable, from, to, actions.toArray(new LogAction[0]));
 	}
 
+	@Transactional // This is OK, need to read them for UPDATE operations
 	public List<AuditLog> get500WhereLocationNull() {
 		return auditLogDao.findFirst500ByLocationNull();
 	}
 	
+	@Transactional // This is OK, have to have a transaction to save detached entities
 	public void saveAll(List<AuditLog> logs) {
 		auditLogDao.saveAll(logs);
 	}

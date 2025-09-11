@@ -26,7 +26,7 @@ public class PersonAttributeAggregatorTask {
 		if (configuration.getScheduled().isEnabled()) {
 			log.debug("Aggregation of Person Attributes started");
 
-			personAttributeSetService.aggregateAttributes();
+			personAttributeSetService.aggregateAttributes();			
 		}
 	}
 }

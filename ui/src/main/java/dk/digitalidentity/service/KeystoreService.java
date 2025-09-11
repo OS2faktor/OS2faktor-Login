@@ -10,8 +10,8 @@ import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
+import dk.digitalidentity.common.service.CertificateChangelogService;
 import dk.digitalidentity.common.service.SettingService;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -24,42 +24,55 @@ public class KeystoreService {
 	@Autowired
 	private SettingService settingService;
 	
-	@Transactional
+	@Autowired
+	private CertificateChangelogService certificateChangelogService;
+
 	public void performCertificateSwap() {
 		LocalDateTime tts = settingService.getLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS);
 		if (tts.isBefore(LocalDateTime.now())) {
-			List<Keystore> keystores = keystoreDao.findAll();
-
-			// make sure we have both a primary and a secondary available
-			Keystore primary = null, secondary = null;
-			for (Keystore keystore : keystores) {
-				if (keystore.isPrimary()) {
-					primary = keystore;
-				}
-				else if (keystore.isSecondary()) {
-					secondary = keystore;
-				}
-			}
-
-			if (secondary == null || primary == null) {
-				log.error("Cannot perform certificate rollover, as we are missing primary/secondary pair");
-				return;
-			}
-
-			primary.setAlias(KnownCertificateAliases.OCES_SECONDARY.toString());
-			primary.setDisabled(true);
-			primary.setLastUpdated(LocalDateTime.now());
-			keystoreDao.save(primary);
-
-			secondary.setAlias(KnownCertificateAliases.OCES.toString());
-			secondary.setDisabled(false);
-			secondary.setLastUpdated(LocalDateTime.now());
-			keystoreDao.save(secondary);
-
-			settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS, LocalDateTime.parse(SettingKey.CERTIFICATE_ROLLOVER_TTS.getDefaultValue()));
-
-			log.info("Swapped primary certificates");
+			performSwap(KnownCertificateAliases.OCES, KnownCertificateAliases.OCES_SECONDARY, SettingKey.CERTIFICATE_ROLLOVER_TTS);
 		}
+		
+		tts = settingService.getLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_NL_TTS);
+		if (tts.isBefore(LocalDateTime.now())) {
+			performSwap(KnownCertificateAliases.NEMLOGIN, KnownCertificateAliases.NEMLOGIN_SECONDARY, SettingKey.CERTIFICATE_ROLLOVER_NL_TTS);
+		}
+	}
+	
+	private void performSwap(KnownCertificateAliases primary, KnownCertificateAliases secondary, SettingKey settingKey) {
+		List<Keystore> keystores = keystoreDao.findAll();
+
+		// make sure we have both a primary and a secondary available
+		Keystore primaryKs = null, secondaryKs = null;
+		for (Keystore keystore : keystores) {
+			if (keystore.getAlias().equals(primary.toString())) {
+				primaryKs = keystore;
+			}
+			else if (keystore.getAlias().equals(secondary.toString())) {
+				secondaryKs = keystore;
+			}
+		}
+
+		if (secondaryKs == null || primaryKs == null) {
+			log.error("Cannot perform certificate rollover for " + primary.toString() + " , as we are missing primary/secondary pair");
+			return;
+		}
+
+		primaryKs.setAlias(secondary.toString());
+		primaryKs.setDisabled(true);
+		primaryKs.setLastUpdated(LocalDateTime.now());
+		keystoreDao.save(primaryKs);
+
+		secondaryKs.setAlias(primary.toString());
+		secondaryKs.setDisabled(false);
+		secondaryKs.setLastUpdated(LocalDateTime.now());
+		keystoreDao.save(secondaryKs);
+
+		settingService.setLocalDateTimeSetting(settingKey, LocalDateTime.parse(settingKey.getDefaultValue()));
+		
+		certificateChangelogService.swapCertificate("system", "Promoted secondary certificate to primary for " + primary.toString());
+
+		log.info("Swapped primary/secondary certificates for " + primary.toString());
 	}
 
 	public List<Keystore> findAll() {

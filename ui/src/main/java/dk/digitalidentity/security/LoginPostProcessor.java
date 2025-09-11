@@ -14,12 +14,10 @@ import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
 import dk.digitalidentity.samlmodule.model.SamlLoginPostProcessor;
 import dk.digitalidentity.samlmodule.model.TokenUser;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-@Transactional
 public class LoginPostProcessor implements SamlLoginPostProcessor {
 
 	@Autowired
@@ -50,7 +48,9 @@ public class LoginPostProcessor implements SamlLoginPostProcessor {
 			Long personId = username != null ? Long.parseLong(username) : null;
 					
 			if (personId != null) {
-				person = personService.getById(personId);
+				person = personService.getById(personId, p -> {
+					p.getDomain().getName();
+				});
 			}
 			
 			if (person == null) {

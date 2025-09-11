@@ -1,0 +1,1 @@
+create index idx_temporary_client_session_keys_skey on temporary_client_session_keys (session_key);

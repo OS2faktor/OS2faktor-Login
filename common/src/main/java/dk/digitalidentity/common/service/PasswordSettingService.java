@@ -10,6 +10,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.dao.PasswordSettingDao;
 import dk.digitalidentity.common.dao.model.Domain;
@@ -103,8 +104,15 @@ public class PasswordSettingService {
 		return all.get(0);
 	}
 
+	@Transactional(readOnly = true) // this is OK, just some fast preloading
 	public List<PasswordSetting> getAllSettings() {
-		return passwordSettingDao.findAll();
+		List<PasswordSetting> settings = passwordSettingDao.findAll();
+		
+		settings.forEach(s -> {
+			s.getDomain().getName();
+		});
+		
+		return settings;
 	}
 
 	public PasswordSetting save(PasswordSetting entity) {

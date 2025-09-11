@@ -23,6 +23,7 @@ import dk.digitalidentity.api.dto.CoreDataGroupLoad;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
 import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
+import dk.digitalidentity.api.dto.CoreDataExtendedLookup;
 import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
 import dk.digitalidentity.api.dto.CoreDataStatus;
@@ -35,7 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RestController
 public class CoreDataApi {
-	public enum PersonRoles { ADMIN, TU_ADMIN, SUPPORTER, REGISTRANT, USER_ADMIN, KODEVISER_ADMIN }
+	public enum PersonRoles { ADMIN, TU_ADMIN, SUPPORTER, REGISTRANT, USER_ADMIN, KODEVISER_ADMIN, PASSWORD_RESET_ADMIN, STUDENT_PASSWORD_RESET_ADMIN }
 
 	@Autowired
 	private CoreDataService coreDataService;
@@ -451,6 +452,27 @@ public class CoreDataApi {
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for KombitAttribute single load", ex);
+			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+	}
+	
+	@GetMapping("/api/coredata/nemlogin/lookup/{userId}")
+	public ResponseEntity<?> lookupNemLogin(@RequestParam String domain, @PathVariable("userId") String userId) {
+		try {
+			Domain oDomain = domainService.getByName(domain);
+			if (oDomain == null) {
+				return new ResponseEntity<>("Unknown domain: " + domain, HttpStatus.BAD_REQUEST);
+			}
+
+			CoreDataExtendedLookup result = coreDataService.lookupExtended(oDomain, userId);
+			if (result == null) {
+				return ResponseEntity.notFound().build();
+			}
+
+			return ResponseEntity.ok().body(result);
+		}
+		catch (Exception ex) {
+			log.error("Failed to lookup in NemLogin for " + userId, ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}

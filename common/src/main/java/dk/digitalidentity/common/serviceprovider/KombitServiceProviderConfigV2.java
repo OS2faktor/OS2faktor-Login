@@ -15,7 +15,7 @@ public class KombitServiceProviderConfigV2 implements ServiceProviderConfig {
 
     @Override
     public String getName() {
-        return "KOMBIT Context Handler 2 (NSIS)";
+        return "KOMBIT Context Handler 2";
     }
 
     @Override

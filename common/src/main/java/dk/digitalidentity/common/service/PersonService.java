@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -40,7 +41,6 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.modules.school.StudentPwdRoleSettingConfiguration;
 import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.Domain;
-import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
 import dk.digitalidentity.common.dao.model.PasswordHistory;
@@ -53,7 +53,6 @@ import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
 import dk.digitalidentity.common.dao.model.enums.RoleSettingType;
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
-import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.ChildDTO;
@@ -129,11 +128,18 @@ public class PersonService {
 	public Person getById(long id) {
 		return personDao.findById(id);
 	}
-	
-	public List<Person> getByNemIdPid(String pid) {
-		return personDao.findByNemIdPid(pid);
+
+	public Person getById(long id, Consumer<Person> consumer) {
+		Person person = personDao.findById(id);
+		
+		if (person != null && consumer != null) {
+			consumer.accept(person);
+		}
+		
+		return person;
 	}
 
+	@Transactional // this is OK, need transaction to save detachedEntity
 	public Person save(Person entity) {
 		return personDao.save(entity);
 	}
@@ -142,11 +148,17 @@ public class PersonService {
 		return personDao.findByTransferToNemloginTrue();
 	}
 
+	@Transactional
 	public void delete(Person person, Person admin) {
 		auditLogger.deletedUser(person, admin);
 		personDao.delete(person);
 	}
 
+	@Transactional
+	public void cleanupMitIDErhverv() {
+		personDao.cleanupMitIDErhverv();
+	}
+	
 	public List<Person> getAll() {
 		return personDao.findAll();
 	}
@@ -154,15 +166,19 @@ public class PersonService {
 	public List<Person> getByCpr(String cpr) {
 		return personDao.findByCpr(cpr);
 	}
-	
-	public List<Person> getByMitIdNameId(String mitIdNameId) {
-		return personDao.findByMitIdNameId(mitIdNameId);
+
+	@Transactional
+	public List<Person> getByCpr(String cpr, Consumer<Person> consumer) {
+		List<Person> persons = personDao.findByCpr(cpr);
+		
+		if (consumer != null) {
+			persons.forEach(consumer);
+		}
+		
+		return persons;
 	}
 
-	public List<Person> getByUuid(String uuid) {
-		return personDao.findByUuid(uuid);
-	}
-	
+	@Transactional // this is OK, need a transaction for isolated read
 	public List<Person> getByNemloginUserUuidNotNull() {
 		return personDao.findByNemloginUserUuidNotNull();
 	}
@@ -171,6 +187,7 @@ public class PersonService {
 		return personDao.findByAdminTrueOrServiceProviderAdminTrueOrRegistrantTrueOrSupporterNotNullOrUserAdminTrueOrKodeviserAdminTrueOrInstitutionStudentPasswordAdminTrue();
 	}
 
+	@Transactional // this is OK, need transaction for isolated read
 	public List<Person> saveAll(List<Person> persons) {
 		return personDao.saveAll(persons);
 	}
@@ -179,21 +196,29 @@ public class PersonService {
 		return personDao.findBySamaccountName(samAccountName);
 	}
 
+	@Transactional // this is OK, need transaction for isolated read
+	public List<Person> getBySamaccountName(String samAccountName, Consumer<Person> consumer) {
+		List<Person> persons = personDao.findBySamaccountName(samAccountName);
+		
+		if (consumer != null) {
+			persons.forEach(consumer);
+		}
+		
+		return persons;
+	}
+
 	public List<Person> getByUPN(String username) {
 		return personDao.findByAttributeValue("upn", username);
 	}
 
-	@Transactional
-	public List<Person> getBySamaccountNameFullyLoaded(String samAccountName) {
-		List<Person> bySamaccountName = personDao.findBySamaccountName(samAccountName);
-		bySamaccountName.forEach(p -> p.getGroups().forEach(PersonGroupMapping::loadFully));
-		return bySamaccountName;
-	}
-
-	@Transactional
-	public List<Person> getBySamaccountNameAndDomainsFullyLoaded(String samAccountName, List<Domain> domains) {
+	@Transactional // this is OK, need transaction for isolated read
+	public List<Person> getBySamaccountNameAndDomains(String samAccountName, List<Domain> domains, Consumer<Person> consumer) {
 		List<Person> persons = personDao.findBySamaccountNameAndDomainIn(samAccountName, domains);
-		persons.forEach(p -> p.getGroups().forEach(PersonGroupMapping::loadFully));
+		
+		if (consumer != null) {
+			persons.forEach(consumer);
+		}
+
 		return persons;
 	}
 
@@ -243,6 +268,17 @@ public class PersonService {
 		return getByDomain(domainObj, searchChildren, onlyNsisAllowed);
 	}
 
+	@Transactional
+	public List<Person> getByDomain(Domain domain, boolean searchChildren, Consumer<Person> consumer) {
+		List<Person> persons = getByDomain(domain, searchChildren, false);
+		
+		if (consumer != null) {
+			persons.forEach(consumer);
+		}
+		
+		return persons;
+	}
+	
 	public List<Person> getByDomain(Domain domain, boolean searchChildren) {
 		return getByDomain(domain, searchChildren, false);
 	}
@@ -264,10 +300,6 @@ public class PersonService {
 		}
 
 		return personDao.findByDomainIn(toBeSearched);
-	}
-
-	public List<Person> getByNotInGroup(Group group) {
-		return personDao.findDistinctByGroupsGroupNotOrGroupsGroupNull(group);
 	}
 
 	public List<Person> getByDomainAndNotNSISAllowed(Domain domain) {
@@ -533,14 +565,6 @@ public class PersonService {
 	public ADPasswordStatus changePassword(Person person, String newPassword, boolean bypassReplication, Person admin, String parentCpr, boolean forceChangePassword) throws NoSuchPaddingException, InvalidKeyException, NoSuchAlgorithmException, IllegalBlockSizeException, BadPaddingException, UnsupportedEncodingException, InvalidAlgorithmParameterException {
 		BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-		// sanity check if admin is available with required role for changing password on NSIS users
-		// note that calls from IdentitiesController still need to perform verification that the user has the Kodeordsadministrator role,
-		// and that it only should allow changing password on non-nsis users - this check is for registrant-functionality only as an
-		// extra security check for NSIS users
-		if (admin != null && !admin.isRegistrant() && person.isNsisAllowed()) {
-			throw new RuntimeException("Kun registranter kan skifte kodeord på personer med en erhvervsidentitet!");
-		}
-
 		// replicate password to AD if enabled
 		boolean replicateToAD = false;
 		ADPasswordStatus adPasswordStatus = ADPasswordStatus.NOOP;
@@ -693,7 +717,7 @@ public class PersonService {
 		return adPasswordStatus;
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, it is a fast running job, so I will accept it
 	public void unlockAccounts() {
 		List<Person> all = personDao.findByLockedPasswordTrue();
 
@@ -716,7 +740,7 @@ public class PersonService {
 		}
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, I will accept it as it is a fast running job
 	public void clearBadPasswordCounter() {
 		List<Person> all = personDao.findByBadPasswordCountGreaterThan(0);
 
@@ -845,7 +869,7 @@ public class PersonService {
 		return false;
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, I will accept it because it runs once per week
 	public void cleanUp() {
 
 		@SuppressWarnings("deprecation")
@@ -872,12 +896,12 @@ public class PersonService {
 		log.info("Deleted " + personsToBeDeleted.size() + " persons because they where removed from dataset more than 13 months ago");
 	}
 	
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, isolated single-column update
 	public void resetDailyPasswordCounter() {
 		personDao.resetDailyPasswordChangeCounter();
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, isolated handling of expire
 	public void handleExpired() {
 		LocalDateTime now = LocalDateTime.now();
 		List<Person> toBeExpiredPersons = personDao.findByLockedExpiredFalseAndExpireTimestampBefore(now);
@@ -892,13 +916,12 @@ public class PersonService {
 
 		personDao.saveAll(modifiedPersons);
 	}
-	
-	
+
 	public Set<String> findDistinctAttributeNames() {
 		return personDao.findDistinctAttributeNames();
 	}
 	
-	@Transactional
+	@Transactional // this is OK for now, it runs decently fast
 	public void cleanupOldStudentsPasswords() {
 		if (!commonConfiguration.getStilStudent().isEnabled()) {
 			return;
@@ -917,7 +940,7 @@ public class PersonService {
 		}
 	}
 
-	@Transactional
+	@Transactional // this is OK, runs decently fast
 	public void resetNSISLevelOnIncompleteActivations(){
 		List<Person> peopleToFix = personDao.findByNsisLevelAndPasswordNull(NSISLevel.SUBSTANTIAL);
 		for (Person p : peopleToFix) {
@@ -927,6 +950,7 @@ public class PersonService {
 		if (!peopleToFix.isEmpty()) {
 			log.info("Reset NSIS Level on " + peopleToFix.size() + " persons");
 		}
+		
 		saveAll(peopleToFix);
 	}
 
@@ -1029,7 +1053,32 @@ public class PersonService {
 		return personDao.findByExternalNemloginUserUuid(uuid);
 	}
 
-	public List<Person> findByLockedDatasetTrue() {
-		return personDao.findByLockedDatasetTrue();
+	@Transactional // this is OK, as we need isolated read
+	public List<Person> findByLockedDatasetTrue(Consumer<Person> consumer) {
+		List<Person> persons = personDao.findByLockedDatasetTrue();
+		
+		if (consumer != null) {
+			persons.forEach(consumer);
+		}
+		
+		return persons;
+	}
+
+	@Transactional(readOnly = true) // this is OK, runs decently fast
+	public List<Person> getAllActiveNsisPersons() {
+		List<Person> persons = personDao.findByLockedDatasetFalseAndNsisAllowedTrue();
+
+		persons.forEach(p -> p.getDomain().getName());
+		
+		return persons;
+	}
+
+	@Transactional // this is OK, isolated read
+	public List<Person> getAll(Consumer<Person> consumer) {
+		List<Person> persons = personDao.findAll();
+
+		persons.forEach(consumer);
+
+		return persons;
 	}
 }

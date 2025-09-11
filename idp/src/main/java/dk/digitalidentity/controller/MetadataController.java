@@ -20,13 +20,18 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.opensaml.security.credential.UsageType;
 import org.opensaml.security.x509.BasicX509Credential;
+import org.opensaml.xmlsec.SignatureSigningParameters;
 import org.opensaml.xmlsec.signature.KeyInfo;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureException;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -140,7 +145,7 @@ public class MetadataController {
 	@ResponseBody
 	@Cacheable(value = "IdP_Metadata")
 	@GetMapping(value = "/sso/saml/metadata", produces = MediaType.APPLICATION_XML_VALUE)
-	public String getIdPMetadata(@RequestParam(name = "MitIDErhverv", required = false, defaultValue = "false") boolean mitIDErhverv, @RequestParam(name = "KOMBIT", required = false, defaultValue = "false") boolean kombit, @RequestParam(name = "cert", required = false, defaultValue = "OCES") String cert) throws ResponderException {
+	public String getIdPMetadata(@RequestParam(name = "MitIDErhverv", required = false, defaultValue = "false") boolean mitIDErhverv, @RequestParam(name = "KOMBIT", required = false, defaultValue = "false") boolean kombit, @RequestParam(name = "cert", required = false, defaultValue = "OCES") String cert, @RequestParam(name = "sign", required = false, defaultValue = "false") boolean sign) throws ResponderException {
 		EntityDescriptor entityDescriptor = createEntityDescriptor();
 
 		// Create IdPSSODescriptor
@@ -152,6 +157,8 @@ public class MetadataController {
 
 		// Encryption and Signing descriptors
 		List<KeyDescriptor> keyDescriptors = idpssoDescriptor.getKeyDescriptors();
+		
+		boolean selfsigned = StringUtils.hasText(cert) && Objects.equals(cert, KnownCertificateAliases.SELFSIGNED.toString());
 
 		if (kombit) {
 			// special case used for KOMBIT, where we can ONLY send one set of certificates. Here we will send the secondary if configured,
@@ -170,7 +177,7 @@ public class MetadataController {
 			}
 		}
 		else {
-			if (cert != null && !cert.isEmpty() && Objects.equals(cert, KnownCertificateAliases.SELFSIGNED.toString())) {
+			if (selfsigned) {
 				keyDescriptors.add(getSelfsignedKeyDescriptor(UsageType.SIGNING));
 				keyDescriptors.add(getSelfsignedKeyDescriptor(UsageType.ENCRYPTION));
 			}
@@ -241,9 +248,45 @@ public class MetadataController {
 		emailAddress.setAddress("kontakt@digital-identity.dk");
 		contactPerson.getEmailAddresses().add(emailAddress);
 		entityDescriptor.getContactPersons().add(contactPerson);
+
+		if (sign) {
+			signEntityDescriptor(entityDescriptor, selfsigned);
+		}
 		
 		// Marshall and send EntityDescriptor
 		return marshallMetadata(entityDescriptor);
+	}
+
+	private void signEntityDescriptor(EntityDescriptor entityDescriptor, boolean selfsigned) throws ResponderException {
+	    try {
+			BasicX509Credential x509Credential = null;
+			if (selfsigned) {
+				x509Credential = credentialService.getSelfsignedX509Credential();
+			}
+			else {
+				x509Credential = credentialService.getBasicX509Credential();
+			}
+
+			Signature signature = samlHelper.buildSAMLObject(Signature.class);
+	        signature.setSigningCredential(x509Credential);
+	        signature.setCanonicalizationAlgorithm("http://www.w3.org/2001/10/xml-exc-c14n#");
+	        signature.setSignatureAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
+	        
+	        entityDescriptor.setSignature(signature);
+	        
+	        SignatureSigningParameters signingParameters = new SignatureSigningParameters();
+	        signingParameters.setSigningCredential(x509Credential);
+	        signingParameters.setSignatureAlgorithm("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
+	        signingParameters.setSignatureCanonicalizationAlgorithm("http://www.w3.org/2001/10/xml-exc-c14n#");
+	        
+	        // Marshall the EntityDescriptor first (required before signing)
+	        OpenSAMLHelperService.marshallObject(entityDescriptor);
+
+	        Signer.signObject(signature);
+	    } 
+	    catch (MarshallingException | SignatureException e) {
+	        throw new ResponderException("Error signing metadata", e);
+	    }
 	}
 
 	private Attribute createAttribute(String attributeName) {

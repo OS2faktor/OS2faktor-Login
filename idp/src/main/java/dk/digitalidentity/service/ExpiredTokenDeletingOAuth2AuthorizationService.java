@@ -38,14 +38,20 @@ public class ExpiredTokenDeletingOAuth2AuthorizationService {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
-	@Transactional
+	@Transactional // this is OK, isolated cleanup transaction
 	public void removeExpiredAuthorizations() {
-		log.info("Executing: " + REMOVE_UNUSED_TOKENS);
-		jdbcTemplate.update(REMOVE_UNUSED_TOKENS, new HashMap<>());
-		
 		log.info("Executing: " + REMOVE_EXPIRED_TOKENS);
 		jdbcTemplate.update(REMOVE_EXPIRED_TOKENS, new HashMap<>());
-		
+	}
+
+	@Transactional // this is OK, isolated cleanup transaction
+	public void removeUnusedAuthorizations() {
+		log.info("Executing: " + REMOVE_UNUSED_TOKENS);
+		jdbcTemplate.update(REMOVE_UNUSED_TOKENS, new HashMap<>());
+	}
+
+	@Transactional // this is OK, isolated cleanup transaction
+	public void removeExpiredRefreshTokens() {
 		String refreshTokenQuery = REMOVE_REFRESH_TOKENS.replace("{DAYS}", configuration.getOidc().getCleanupRefreshTokensAfterDays());
 		log.info("Executing: " + refreshTokenQuery);
 		jdbcTemplate.update(refreshTokenQuery, new HashMap<>());

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.MitIdErhvervAccountError;
+import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
@@ -21,6 +22,7 @@ import dk.digitalidentity.common.service.NemloginQueueService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.mvc.admin.dto.NemLoginQueueRetryDTO;
 import dk.digitalidentity.security.RequireSupporter;
+import dk.digitalidentity.service.MitidErhvervCacheService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -36,6 +38,9 @@ public class NemLoginQueueRestController {
 
 	@Autowired
 	private MitIdErhvervAccountErrorService mitIdErhvervAccountErrorService;
+	
+	@Autowired
+	private MitidErhvervCacheService mitidErhvervCacheService;
 
 	@PostMapping("/admin/nemlogin_queue/retryAction")
 	public ResponseEntity<?> rerunAction(@RequestBody NemLoginQueueRetryDTO retry) {
@@ -118,14 +123,28 @@ public class NemLoginQueueRestController {
 					person.setNemloginUserUuid(dto.getNemloginUserUuid());
 					personService.save(person);
 	
-					if (person.isTransferToNemlogin()) {
-						NemloginQueue newOrder = new NemloginQueue();
-						newOrder.setAction(NemloginAction.ASSIGN_LOCAL_USER_ID);
-						newOrder.setNemloginUserUuid(person.getNemloginUserUuid());
-						newOrder.setPerson(person);
-						newOrder.setTts(LocalDateTime.now());
-	
-						nemloginQueueService.save(newOrder);
+					// it should exist - the error arrives due to the cache-check
+					MitidErhvervCache cache = mitidErhvervCacheService.findByUuid(dto.getNemloginUserUuid());
+					if (cache != null) {
+						if (!cache.isLocalCredential()) {
+							NemloginQueue newOrder = new NemloginQueue();
+							newOrder.setAction(NemloginAction.ASSIGN_LOCAL_USER_ID);
+							newOrder.setNemloginUserUuid(person.getNemloginUserUuid());
+							newOrder.setPerson(person);
+							newOrder.setTts(LocalDateTime.now());								
+
+							nemloginQueueService.save(newOrder);
+						}
+
+						if (Objects.equals(cache.getStatus(), "Suspended") && !person.isLocked()) {
+							NemloginQueue newOrder = new NemloginQueue();
+							newOrder.setAction(NemloginAction.REACTIVATE);
+							newOrder.setNemloginUserUuid(person.getNemloginUserUuid());
+							newOrder.setPerson(person);
+							newOrder.setTts(LocalDateTime.now());
+
+							nemloginQueueService.save(newOrder);
+						}
 					}
 				}
 

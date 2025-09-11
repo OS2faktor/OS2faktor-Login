@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.MessageQueueDao;
@@ -16,7 +17,6 @@ import dk.digitalidentity.common.dao.model.MessageQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -35,6 +35,9 @@ public class MessageQueueService {
 	@Autowired
 	private PersonService personService;
 	
+	@Autowired
+	private MessageQueueService self;
+	
 	public long countNotApprovedByOperator() {
 		return messageQueueDao.countByOperatorApprovedFalse();
 	}
@@ -43,6 +46,7 @@ public class MessageQueueService {
 		return messageQueueDao.findTop10ByDeliveryTtsBeforeAndCprNotNull(tts);
 	}
 
+	@Transactional
 	public void delete(MessageQueue messageQueue) {
 		messageQueueDao.delete(messageQueue);
 	}
@@ -112,7 +116,6 @@ public class MessageQueueService {
 		}
 	}
 
-	@Transactional
 	public void sendPendingEmails() {
 		List<MessageQueue> emails = messageQueueDao.findTop10ByDeliveryTtsBeforeAndEmailNotNull(LocalDateTime.now());
 
@@ -124,7 +127,9 @@ public class MessageQueueService {
 			boolean success = false;
 			
 			if (StringUtils.hasLength(email.getEmail())) {
-				Person person = personService.getById(email.getPersonId());
+				Person person = personService.getById(email.getPersonId(), p -> {
+					p.getDomain().getName();
+				});
 
 				if (person != null) {
 					TransformInlineImageDTO inlineImagesDto = emailTemplateService.transformImages(email.getMessage());
@@ -140,12 +145,17 @@ public class MessageQueueService {
 			}
 
 			if (success) {
-				messageQueueDao.delete(email);
+				self.deleteFromQueue(email);
 			}
 			else {
 				log.error("Failed to send MessageQueue message with id " + email.getId());
 			}
 		}
+	}
+
+	@Transactional // this is OK, as we need a transaction to delete
+	public void deleteFromQueue(MessageQueue email) {
+		messageQueueDao.delete(email);		
 	}
 
 	private LocalDateTime getDeliveryTts(long delay) {

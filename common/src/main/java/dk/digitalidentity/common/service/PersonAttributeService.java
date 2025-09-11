@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.dao.PersonAttributeDao;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
@@ -29,7 +28,6 @@ public class PersonAttributeService {
 	@Autowired
 	private SqlServiceProviderConfigurationService sqlServiceProviderConfigurationService;
 
-	@Transactional(rollbackFor = Exception.class)
 	public void aggregateAttributes() {
 
 		// Get set of attributes currently assigned to any person
@@ -37,7 +35,12 @@ public class PersonAttributeService {
 
 		// Get set of person attributes used in SP Claims
 		Set<String> personAttributesUsedInSPs = new HashSet<>();
-		for (SqlServiceProviderConfiguration spConfig : sqlServiceProviderConfigurationService.getAll()) {
+
+		List<SqlServiceProviderConfiguration> spConfigs = sqlServiceProviderConfigurationService.getAll(sp -> {
+			sp.getRequiredFields().size();
+		});
+
+		for (SqlServiceProviderConfiguration spConfig : spConfigs) {
 			Set<SqlServiceProviderRequiredField> requiredFields = spConfig.getRequiredFields();
 
 			personAttributesUsedInSPs.add(spConfig.getNameIdValue());
@@ -62,6 +65,7 @@ public class PersonAttributeService {
 		computedListOfAttributes.removeAll(savedAttributes.stream().map(PersonAttribute::getName).collect(Collectors.toSet()));
 		Set<PersonAttribute> toBeAdded = computedListOfAttributes.stream().map(PersonAttribute::new).collect(Collectors.toSet());
 		
+		// only need entries, so no transaction needed
 		personAttributeSetDao.saveAll(toBeAdded);
 	}
 
@@ -105,11 +109,13 @@ public class PersonAttributeService {
 			result.put("userId", "Brugernavn");
 			result.put("uuid", "UUID");
 			result.put("cpr", "Personnummer");
-			result.put("name", "Navn");
-			result.put("alias", "Kaldenavn");
 			result.put("email", "E-mail");
+			result.put("name", "Navn");
 			result.put("firstname", "Fornavn");
 			result.put("lastname", "Efternavn");
+			result.put("alias", "Kaldenavn");
+			result.put("aliasFirstname", "KaldeFornavn");
+			result.put("aliasLastname", "KaldeEfternavn");
 		}
 
 		return result.entrySet()

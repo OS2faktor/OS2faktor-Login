@@ -6,6 +6,7 @@ import org.hibernate.annotations.BatchSize;
 
 import dk.digitalidentity.common.dao.model.enums.SchoolClassType;
 import dk.digitalidentity.common.dao.model.mapping.SchoolClassPasswordWordMapping;
+import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -59,6 +60,10 @@ public class SchoolClass {
 	@OneToMany(mappedBy = "schoolClass", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<SchoolClassPasswordWordMapping> passwordWords;
 
+	@BatchSize(size = 100)
+	@OneToMany(mappedBy = "schoolClass", fetch = FetchType.LAZY)
+	private List<SchoolRoleSchoolClassMapping> roleMappings;
+	
 	public String uniqueId() {
 		return classIdentifier + ":" + institutionId;
 	}

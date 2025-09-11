@@ -27,7 +27,7 @@
 										<label class="col-sm-2 col-form-label">IP adresse</label>
 										<div class="col-sm-10">
 											<input type="text" class="form-control" disabled="disabled" th:value="${auditlog.ipAddress}"/>
-											<th:block th:if="${@OS2faktorConfiguration.getGeo().isEnabled() == true}">
+											<th:block th:if="${@commonConfiguration.getGeo().isEnabled() == true}">
 												<span id="geoLocateResult" style="font-size: smaller;">
 													<em class="fa fa-spinner fa-spin"></em>
 												</span>
@@ -116,7 +116,7 @@
 			
 		/*[+
 		var detailType = [[${auditlog.detailType}]];
-		var geoLookupEnabled = [[${@OS2faktorConfiguration.getGeo().isEnabled()}]];
+		var geoLookupEnabled = [[${@commonConfiguration.getGeo().isEnabled()}]];
 		var ipAddress = [[${auditlog.ipAddress}]];
 		+]*/
 

@@ -36,6 +36,8 @@ public class DeleteTemporarySessionKeyTask {
 			catch (Exception ex) {
 				log.error("Deletion of SessionKeys from database failed", ex);
 			}
+			
+			log.info("Deleting all Temporary SessionKeys that are older than five minutes completed");
     	}
     }
 }

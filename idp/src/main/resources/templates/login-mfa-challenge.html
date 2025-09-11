@@ -31,6 +31,10 @@
                                 <h2 id="wcag-challenge" th:text="${challenge}" style="width: 150px; margin: 20px auto; padding: 10px 0px; border: 1px solid black; text-align: center;"></h2>
                             </div>
                         </div>
+                        
+                        <div th:if="${isAndroidOrIOS}" class="mb-5" id="openInApp" style="display: none;">
+                            <a href="#" onclick="openApp(); return false;" class="btn btn-primary btn-block">Åben OS2faktor App</a>
+                        </div>
 
                         <div th:if="${redirectUrl} != null">
                             <p class="mb-5">
@@ -38,7 +42,7 @@
                             </p>
 
                             <div class="mb-5">
-                                <button style="font-size: 1.5em; min-width: 150px;" onclick="mfaService.openRedirect()" class="btn btn-primary" target="_blank">Login</button>
+                                <button style="min-width: 150px;" onclick="mfaService.openRedirect()" class="btn btn-primary" target="_blank">Login</button>
                             </div>
                         </div>
 
@@ -66,6 +70,8 @@
     
 	<div th:replace="~{fragments/footer :: scripts}"></div>
 </body>
+
+<script th:src="@{/js/ua-parser.min.js}"></script>
 
 <script th:inline="javascript">
 	/*<![CDATA[*/
@@ -109,10 +115,35 @@
             catch (err) {
             	;
             }
+            
+            if (hasTouchSupport()) {
+				var elem = document.getElementById('openInApp');
+				if (elem) {
+					elem.style.cssText = 'display: block;';
+				}
+			}
 		});
 
+		function openApp() {
+		    try {
+				var elem = document.getElementById('openInApp');
+				if (elem) {
+					elem.style.cssText = 'display: none;';
+				}
+
+		        window.location.href = "os2faktor://";
+		    }
+			catch (e) {
+				;
+		    }
+		}
+		
 		function hasTouchSupport() {
-			return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+			const uap = new UAParser();
+			
+			// some platforms will not correctly detect as mobile, but those are rare, and we
+			// would rather default to desktop behaviour, than the other way
+			return uap.getDevice().is('mobile');
 		}
 		
         function MfaService() {

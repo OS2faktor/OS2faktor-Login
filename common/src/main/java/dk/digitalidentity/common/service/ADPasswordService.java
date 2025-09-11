@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -59,9 +58,6 @@ public class ADPasswordService {
 
 	@Autowired
 	private DomainService domainService;
-	
-	@Autowired
-	private PersonService personService;
 	
 	// clear max values at 02:00 every night
 	@Scheduled(cron = "0 2 * * * *")
@@ -199,7 +195,6 @@ public class ADPasswordService {
 		}
 	}
 
-	@Transactional(rollbackFor = Exception.class)
 	public void syncPasswordsToAD() {
 
 		// Load all settings once to minimize calls to the database
@@ -239,26 +234,13 @@ public class ADPasswordService {
 				continue;
 			}
 
-			// make sure we have a pointer to the right person
-			final Domain fDomain = domain;
-			List<Person> persons = personService.getBySamaccountName(change.getSamaccountName());
-			persons = persons.stream().filter(p -> Objects.equals(p.getTopLevelDomain().getId(), fDomain.getId())).collect(Collectors.toList());
-
-			if (persons.size() == 0) {
-				log.error("Person did not exist in database for userId=" + change.getSamaccountName());
-				change.setMessage("Missing person in database");
-				change.setStatus(ReplicationStatus.FINAL_ERROR);
-				passwordChangeQueueService.save(change, false);
-				continue;
-			}
-
-			attemptPasswordReplication(persons.get(0), change);
+			attemptPasswordReplication(change);
 
 			passwordChangeQueueService.save(change, ReplicationStatus.SYNCHRONIZED.equals(change.getStatus()));
 		}
 	}
 
-	public ADPasswordResponse.ADPasswordStatus attemptPasswordReplication(Person person, PasswordChangeQueue change) {
+	public ADPasswordResponse.ADPasswordStatus attemptPasswordReplication(PasswordChangeQueue change) {
 		try {
 			String url = (change.isChangeOnNextLogin()) ? "api/setPasswordWithForcedChange" : "api/setPassword";
 			ResponseEntity<ADPasswordResponse> response = restTemplate.exchange(getURL(url), HttpMethod.POST, getRequest(change), ADPasswordResponse.class);
@@ -275,19 +257,26 @@ public class ADPasswordService {
 			}
 			else {
 				// Setting status and message of change
-				change.setStatus(ReplicationStatus.ERROR);
-				String changeMessage = "Code: " + response.getStatusCode() + " Message: ";
-				changeMessage += (result != null && result.getMessage() != null) ?  result.getMessage() : "NULL";
-				change.setMessage(changeMessage);
-
-				// Logging error/warn depending on how long it has gone unsynchronized
-				if (change.getTts() != null && LocalDateTime.now().minusMinutes(10).isAfter(change.getTts())) {
-					log.error("Replication failed, password change has not been replicated for more than 10 minutes (ID: " + change.getId() + ")");
+				if (response.getBody() != null && response.getBody().getMessage() != null && response.getBody().getMessage().contains("PasswordException")) {
+					// no reason to try again, this is a bad password
 					change.setStatus(ReplicationStatus.FINAL_ERROR);
 				}
 				else {
-					log.warn("Password Replication failed, trying again in 1 minute (ID: " + change.getId() + ")");
+					change.setStatus(ReplicationStatus.ERROR);
+
+					// Logging error/warn depending on how long it has gone unsynchronized
+					if (change.getTts() != null && LocalDateTime.now().minusMinutes(10).isAfter(change.getTts())) {
+						log.error("Replication failed, password change has not been replicated for more than 10 minutes (ID: " + change.getId() + ")");
+						change.setStatus(ReplicationStatus.FINAL_ERROR);
+					}
+					else {
+						log.warn("Password Replication failed, trying again in 1 minute (ID: " + change.getId() + ")");
+					}
 				}
+
+				String changeMessage = "Code: " + response.getStatusCode() + " Message: ";
+				changeMessage += (result != null && result.getMessage() != null) ?  result.getMessage() : "NULL";
+				change.setMessage(changeMessage);
 			}
 			
 			return result.getStatus();
@@ -351,7 +340,7 @@ public class ADPasswordService {
 		}
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, isolated deleting
 	public void syncQueueCleanupTask() {
 		
 		// delete successful replications and purposely not replicated after 7 days

@@ -32,7 +32,9 @@ import dk.digitalidentity.service.PasswordService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Controller
 public class ChangePasswordNonFlowController {
 
@@ -95,6 +97,8 @@ public class ChangePasswordNonFlowController {
 			model.addAttribute("settings", passwordSettings);
 			model.addAttribute("disallowNameAndUsernameContent", "");
 
+			log.warn("POST on /change-password but no person on session");
+			
 			return new ModelAndView("changePasswordNonFlow/change-password-non-flow-next", model.asMap());
 		}
 		else if (users.size() == 1) {
@@ -136,7 +140,7 @@ public class ChangePasswordNonFlowController {
 		}
 
 		String failureReason = "";
-		ChangePasswordResult result = passwordValidationService.validatePasswordRules(person, newPW, true);
+		ChangePasswordResult result = passwordValidationService.validatePasswordRules(person, newPW, true, false);
 		if (!result.equals(ChangePasswordResult.OK)) {
 			model.addAttribute("personId", personId);
 			model.addAttribute("failureReason", result.getMessage());

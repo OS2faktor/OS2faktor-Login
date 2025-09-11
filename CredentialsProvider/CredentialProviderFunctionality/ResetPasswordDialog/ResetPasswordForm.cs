@@ -72,6 +72,7 @@ namespace ResetPasswordDialog
             try
             {
                 Microsoft.Web.WebView2.Core.CoreWebView2Settings settings = webView.CoreWebView2.Settings;
+                webView.CoreWebView2.DownloadStarting += CoreWebView2_DownloadStarting;
                 settings.AreBrowserAcceleratorKeysEnabled = false; // Disables f5, ctrl+p and so on
                 settings.AreDefaultContextMenusEnabled = false; // Disables context menu (right clicking)
                 settings.AreDefaultScriptDialogsEnabled = false;
@@ -84,7 +85,7 @@ namespace ResetPasswordDialog
                 settings.IsWebMessageEnabled = false;
                 settings.IsZoomControlEnabled = false;
 
-                settings.IsBuiltInErrorPageEnabled = true; // Not sure if needed for dev. This is needed to show cert error/unsafe pages error page
+                settings.IsBuiltInErrorPageEnabled = false; // Not sure if needed for dev. This is needed to show cert error/unsafe pages error page
                 settings.IsScriptEnabled = true; // Needed for nemid
                 Log.Verbose("AcceleratorKeys and contextmenu disabled");
 
@@ -162,5 +163,10 @@ namespace ResetPasswordDialog
             Log.Verbose("ResetPasswordForm_Deactivate called");
             Application.Exit();
         }
-    }
+
+        private void CoreWebView2_DownloadStarting(object sender, Microsoft.Web.WebView2.Core.CoreWebView2DownloadStartingEventArgs e)
+        {
+             Prevent downloads
+            e.Cancel = true;
+        }
 }

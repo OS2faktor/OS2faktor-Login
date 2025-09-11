@@ -14,6 +14,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -42,7 +43,7 @@ class RoleCatalogueStub {
 		;
 	}
 
-	String getOIOBPP(String samAccountName, String system) {
+	String getOIOBPP(String samAccountName, String system, String domain) {
 		if (!configuration.getRoleCatalogue().isEnabled()) {
 			log.error("RoleCatalogue not enabled - oiobpp is null");
 			return null;
@@ -59,6 +60,9 @@ class RoleCatalogueStub {
 	
 			HttpEntity<OIOBPP> request = new HttpEntity<>(headers);
 			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", system);
+			if (StringUtils.hasText(domain)) {
+				urlParamBuilder.queryParam("domain", domain);
+			}
 	
 			ResponseEntity<OIOBPP> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
 
@@ -80,7 +84,7 @@ class RoleCatalogueStub {
 		}
 	}
 
-	boolean hasUserRole(String samAccountName, String userRoleId) {
+	boolean hasUserRole(String samAccountName, String userRoleId, String domain) {
 		if (!configuration.getRoleCatalogue().isEnabled()) {
 			log.error("RoleCatalogue not enabled - hasUserRole is always false");
 			return false;
@@ -95,9 +99,14 @@ class RoleCatalogueStub {
 			HttpHeaders headers = new HttpHeaders();
 			headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
 	
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl);
+			if (StringUtils.hasText(domain)) {
+				urlParamBuilder.queryParam("domain", domain);
+			}
+
 			HttpEntity<String> request = new HttpEntity<>(headers);
 	
-			ResponseEntity<String> response = restTemplate.exchange(roleCatalogueUrl, HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
+			ResponseEntity<String> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
 			if (response.getStatusCode().value() == 404) {
 				return false;
 			}
@@ -122,7 +131,7 @@ class RoleCatalogueStub {
 		return false;
 	}
 
-	boolean hasSystemRole(String samAccountName, String systemRoleId) {
+	boolean hasSystemRole(String samAccountName, String systemRoleId, String domain) {
 		if (!configuration.getRoleCatalogue().isEnabled()) {
 			log.error("RoleCatalogue not enabled - hasSystemRole is always false");
 			return false;
@@ -139,7 +148,12 @@ class RoleCatalogueStub {
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
 	
-			ResponseEntity<String> response = restTemplate.exchange(roleCatalogueUrl, HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl);
+			if (StringUtils.hasText(domain)) {
+				urlParamBuilder.queryParam("domain", domain);
+			}
+
+			ResponseEntity<String> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
 			if (response.getStatusCode().value() == 404) {
 				return false;
 			}
@@ -164,7 +178,7 @@ class RoleCatalogueStub {
 		return false;
 	}
 
-	RoleCatalogueOIOBPPResponse lookupRolesAsOIOBPP(String samAccountName, String itSystem) {
+	RoleCatalogueOIOBPPResponse lookupRolesAsOIOBPP(String samAccountName, String itSystem, String domain) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 	
@@ -176,7 +190,10 @@ class RoleCatalogueStub {
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
 			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", itSystem);
-	
+			if (StringUtils.hasText(domain)) {
+				urlParamBuilder.queryParam("domain", domain);
+			}
+
 			ResponseEntity<RoleCatalogueOIOBPPResponse> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
 	
 			return response.getBody();
@@ -196,7 +213,7 @@ class RoleCatalogueStub {
 	}
 
 	@Cacheable("lookupRolesCache")
-	RoleCatalogueRolesResponse lookupRoles(String samAccountName, String itSystem) {
+	RoleCatalogueRolesResponse lookupRoles(String samAccountName, String itSystem, String domain) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 	
@@ -208,6 +225,9 @@ class RoleCatalogueStub {
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
 			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", itSystem);
+			if (StringUtils.hasText(domain)) {
+				urlParamBuilder.queryParam("domain", domain);
+			}
 	
 			ResponseEntity<RoleCatalogueRolesResponse> response = restTemplate.exchange(urlParamBuilder.toUriString(), HttpMethod.GET, request, new ParameterizedTypeReference<>() {});
 

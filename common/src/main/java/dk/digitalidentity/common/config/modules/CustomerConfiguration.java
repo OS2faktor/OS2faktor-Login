@@ -22,5 +22,8 @@ public class CustomerConfiguration {
 	@FeatureDocumentation(name = "Kodeordsløs funktionalitet", description = "Tillad brugen af stærke MFA klienter som fuld 2-faktor login, så kodeord ikke er nødvendigt")
 	private boolean enablePasswordlessMfa = false;
 	
+	@FeatureDocumentation(name = "Kodeordsløs funktionalitet (mobil)", description = "Den kodeordsløse funktionalitet er kun tilgængelig ved login med mobile enheder")
+	private boolean enablePasswordlessMfaMobileOnly = false;
+
 	private String contactLocationForMails = "";
 }

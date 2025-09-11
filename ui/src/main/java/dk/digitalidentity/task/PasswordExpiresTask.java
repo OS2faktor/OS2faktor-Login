@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.PasswordExpiresService;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
 public class PasswordExpiresTask {
@@ -25,6 +27,10 @@ public class PasswordExpiresTask {
 			return;
 		}
 
+		log.info("Running passwordExpiresTask");
+
 		passwordExpiresService.notifyPasswordExpires();
+		
+		log.info("Running passwordExpiresTask completed");
 	}
 }

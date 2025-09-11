@@ -20,6 +20,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
 import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
+import jakarta.transaction.Transactional;
 
 @Service
 public class EmailTemplateService {
@@ -85,6 +86,7 @@ public class EmailTemplateService {
 		return result;
 	}
 
+	@Transactional // this is OK
 	public EmailTemplate findByTemplateType(EmailTemplateType type) {
 		EmailTemplate template = emailTemplateDao.findByTemplateType(type);
 		if (template == null) {
@@ -102,6 +104,13 @@ public class EmailTemplateService {
 				template = emailTemplateDao.save(template);
 			}
 		}
+		
+		// flex children
+		template.getChildren().forEach(c -> {
+			if (c.getDomain() != null) {
+				c.getDomain().getName();
+			}
+		});
 
 		return template;
 	}

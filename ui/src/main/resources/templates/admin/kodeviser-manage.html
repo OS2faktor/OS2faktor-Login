@@ -16,7 +16,7 @@
 
 							<div class="ibox-content">
 								<p>
-									<input id="removeDeviceWhenPersonLocked" th:checked="${removeDeviceSetting}" type="checkbox" class="i-checks" onchange="changeRemoveDeviceSetting()">
+									<input id="removeDeviceWhenPersonLocked" th:checked="${removeDeviceSetting}" type="checkbox" class="i-checks" th:disabled="${isAdmin == false}" onchange="changeRemoveDeviceSetting()">
 									&nbsp;
 									<label for="removeDeviceWhenPersonLocked" style="vertical-align: baseline;">Nulstil automatisk kodevisere for lukkede brugerkonti</label>
 								</p>
@@ -150,10 +150,10 @@
 				"language": {
 					"search":	   "Søg",
 					"lengthMenu":   "_MENU_ rækker per side",
-					"info":		 "Viser _START_ til _END_ af _TOTAL_ identiteter",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ kodevisere",
 					"zeroRecords":  "Ingen data...",
 					"infoEmpty":	"Henter data...",
-					"infoFiltered": "(ud af _MAX_ identiteter)",
+					"infoFiltered": "(ud af _MAX_ kodevisere)",
 					"paginate": {
 						"previous": "Forrige",
 						"next": "Næste"

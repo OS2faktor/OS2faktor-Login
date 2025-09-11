@@ -46,7 +46,7 @@ public class WindowCredentialProviderClientService {
 
     // never needs to be reloaded
 	@Cacheable("clientByApiKey")
-	@Transactional
+	@Transactional // this is OK as we use it for isolated loading (and it is cached ;))
     public WindowCredentialProviderClient getByApiKeyAndDisabledFalse(String apiKey) {
 		WindowCredentialProviderClient client = clientDao.findByApiKeyAndDisabledFalse(apiKey);
 

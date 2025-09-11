@@ -38,8 +38,8 @@ public class SchoolRoleSchoolClassMapping {
 	@NotNull
 	private SchoolClass schoolClass;
 
-	public SchoolRoleSchoolClassMapping(SchoolRole schoolRole, SchoolClass SchoolClass) {
+	public SchoolRoleSchoolClassMapping(SchoolRole schoolRole, SchoolClass schoolClass) {
 		this.schoolRole = schoolRole;
-		this.schoolClass = SchoolClass;
+		this.schoolClass = schoolClass;
 	}
 }

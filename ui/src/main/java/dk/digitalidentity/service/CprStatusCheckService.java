@@ -7,11 +7,9 @@ import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.EmailTemplate;
@@ -47,17 +45,16 @@ public class CprStatusCheckService {
 	@Autowired
 	private CprService cprService;
 	
-	@Transactional
 	public void syncNamesAndCivilstandFromCpr() throws Exception {
-		if (!configuration.getCpr().isEnabled()) {
+		if (!configuration.getCpr().isEnabled() || configuration.getCpr().isDisablePeriodicLookup()) {
 			log.warn("Called method syncNamesAndCivilstandFromCpr, but cpr is disabled");
 			return;
 		}
 
 		auditLogger.updateFromCprJob();
 
-		// change list of people to a map mapped by cpr (TODO: make the filtered lookup in the DB instead)
-		List<Person> all = personService.getAll().stream().filter(p -> p.isNsisAllowed() && !p.isLockedDataset()).collect(Collectors.toList());
+		// change list of people to a map mapped by cpr
+		List<Person> all = personService.getAllActiveNsisPersons();
 		HashMap<String, List<Person>> personMap = new HashMap<>();
 		for (Person person : all) {
 			if (!personMap.containsKey(person.getCpr())) {

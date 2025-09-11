@@ -2,6 +2,7 @@ package dk.digitalidentity.common.dao;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,20 +25,11 @@ public interface AuditLogDao extends JpaRepository<AuditLog, Long> {
 	List<AuditLog> findFirst500ByLocationNull();
 	long countByTtsAfterAndLogAction(LocalDateTime tts, LogAction logAction);
 
-	/* Need to do this, as there is no cascade-delete to auditlog_details table
-	 * 
-	 * DELETE dd
-	 * FROM auditlogs_details dd
-	 * JOIN (
-	 *   SELECT d.id
-	 *   FROM auditlogs_details d
-	 *   LEFT JOIN auditlogs a ON d.id = a.auditlogs_details_id
-	 *   WHERE a.id IS NULL
-	 *   LIMIT 25000
-	 * ) ss ON ss.id = dd.id
-	 */
+	@Query(nativeQuery = true, value = "select ip_address from auditlogs where tts > ?1 and ip_address is not null and ip_address <> '' group by ip_address having count(*) > 10")
+	Set<String> getLatestIpAddresses(LocalDateTime after);
+
 	@Modifying
-	@Query(nativeQuery = true, value = "DELETE dd FROM auditlogs_details dd JOIN (SELECT d.id FROM auditlogs_details d LEFT JOIN auditlogs a ON d.id = a.auditlogs_details_id WHERE a.id IS NULL LIMIT 25000) ss ON ss.id = dd.id")
+	@Query(nativeQuery = true, value = "CALL SP_cleanup_auditlogs_details();")
 	void deleteUnreferencedAuditlogDetails();
 
 	@Modifying

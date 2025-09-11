@@ -9,6 +9,7 @@ import dk.digitalidentity.common.config.modules.CustomerConfiguration;
 import dk.digitalidentity.common.config.modules.DevConfiguration;
 import dk.digitalidentity.common.config.modules.EntraMfaConfiguration;
 import dk.digitalidentity.common.config.modules.FullServiceIdPConfiguration;
+import dk.digitalidentity.common.config.modules.GeoLocate;
 import dk.digitalidentity.common.config.modules.KombitConfiguration;
 import dk.digitalidentity.common.config.modules.MailConfiguration;
 import dk.digitalidentity.common.config.modules.MfaConfiguration;
@@ -51,4 +52,5 @@ public class CommonConfiguration {
 	private FullServiceIdPConfiguration fullServiceIdP = new FullServiceIdPConfiguration();
 	private MitIDErhvervConfiguration mitIdErhverv = new MitIDErhvervConfiguration();
 	private EntraMfaConfiguration entraMfa = new EntraMfaConfiguration();
+	private GeoLocate geo = new GeoLocate();
 }

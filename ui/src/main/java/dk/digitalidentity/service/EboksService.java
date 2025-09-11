@@ -25,7 +25,6 @@ import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.eboks.dto.EboksMessage;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -118,7 +117,6 @@ public class EboksService {
 		return SendStatus.SEND;
 	}
 
-	@Transactional
 	public void sendPendingEboksMessages() {
 		List<MessageQueue> messages = messageQueueService.findTop10ByDeliveryTtsBeforeAndCprNotNull(LocalDateTime.now());
 
@@ -127,7 +125,11 @@ public class EboksService {
 		}
 
 		for (MessageQueue message : messages) {
-			Person recipient = personService.getById(message.getPersonId());
+			Person recipient = personService.getById(message.getPersonId(), p -> {
+				p.getDomain().getName();
+				p.getTopLevelDomain().getName();
+			});
+
 			if (recipient == null) {
 				log.error("Unable to find recipient with ID: " + message.getPersonId());
 				messageQueueService.delete(message);

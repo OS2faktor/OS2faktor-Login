@@ -11,7 +11,6 @@ import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
@@ -58,13 +57,11 @@ public class ServiceProviderFactory {
                 .filter(serviceProvider -> !(serviceProvider instanceof SqlServiceProvider) && serviceProvider.enabled())
                 .collect(Collectors.toList());
 
-        // calling this method bypasses the @Transactional annotation, which is okay in this specific case
         loadSQLServiceProviders();
 
         log.info(serviceProviders.size() + " ServiceProviders initialized");
     }
 
-    @Transactional
     public void loadSQLServiceProviders() {
         LocalDateTime nextLastReload = LocalDateTime.now();
 
@@ -88,10 +85,19 @@ public class ServiceProviderFactory {
                 if (Objects.equals(config.getEntityId(), sqlSP.getEntityId())) {
                     LocalDateTime oldTimestamp = sqlSP.getManualReloadTimestamp();
                     LocalDateTime newTimestamp = config.getManualReloadTimestamp();
+
                     String oldMetadataUrl = sqlSP.getMetadataUrl();
                     String newMetadataUrl = config.getMetadataUrl();
-                    
-                    boolean refreshMetadata = !Objects.equals(newTimestamp, oldTimestamp) || !Objects.equals(oldMetadataUrl, newMetadataUrl);
+
+                    String oldMetadataContent = sqlSP.getMetadataContent();
+                    String newMetadataContent = config.getMetadataContent();
+
+                    // First check is for manually reloading
+                    boolean refreshMetadata = !Objects.equals(newTimestamp, oldTimestamp) 
+                        // Reload if urls dont match
+                        || !Objects.equals(oldMetadataUrl, newMetadataUrl)
+                        // Reload if metadata contents dont match
+                        || !Objects.equals(oldMetadataContent, newMetadataContent);
                     boolean recreateResolver = !Objects.equals(oldMetadataUrl, newMetadataUrl);
                     
                     if (lastReload == null || lastReload.isBefore(config.getLastUpdated())) {

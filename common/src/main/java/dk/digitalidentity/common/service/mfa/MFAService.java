@@ -4,6 +4,7 @@ import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.spec.KeySpec;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -32,16 +33,18 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.MfaLoginHistoryDao;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
+import dk.digitalidentity.common.dao.model.MfaLoginHistory;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
@@ -49,6 +52,7 @@ import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
+import dk.digitalidentity.common.service.mfa.model.ProjectionClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
@@ -64,10 +68,6 @@ public class MFAService {
 	@Qualifier("defaultRestTemplate")
 	private RestTemplate restTemplate;
 
-	@Autowired(required = false)
-	@Qualifier("mfaTemplate")
-	private JdbcTemplate jdbcTemplate;
-
 	@Autowired
 	private CommonConfiguration configuration;
 	
@@ -77,21 +77,28 @@ public class MFAService {
 	@Autowired
 	private PersonService personService;
 	
+	@Autowired
+	private MFAManagementService mfaManagementService;
+	
+	@Autowired
+	private MfaLoginHistoryDao mfaLoginHistoryDao;
+
+	@Autowired
+	private MFAService self;
+	
 	@PostConstruct
 	public void init() throws Exception {
-		if (!configuration.getMfaDatabase().isEnabled()) {
-			return;
+		if (configuration.getMfaDatabase().getEncryptionKey() != null) {
+			// generate password derived secret key
+			SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+			KeySpec spec = new PBEKeySpec(configuration.getMfaDatabase().getEncryptionKey().toCharArray(), new byte[] { 0x00, 0x01, 0x02, 0x03 }, 65536, 256);
+			SecretKey tmp = factory.generateSecret(spec);
+			encryptionKey = new SecretKeySpec(tmp.getEncoded(), "AES");
+			
+			// generate static IV
+			byte[] ivData = new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+			iv = new IvParameterSpec(ivData);
 		}
-
-		// generate password derived secret key
-		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-		KeySpec spec = new PBEKeySpec(configuration.getMfaDatabase().getEncryptionKey().toCharArray(), new byte[] { 0x00, 0x01, 0x02, 0x03 }, 65536, 256);
-		SecretKey tmp = factory.generateSecret(spec);
-		encryptionKey = new SecretKeySpec(tmp.getEncoded(), "AES");
-		
-		// generate static IV
-		byte[] ivData = new byte[] { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-		iv = new IvParameterSpec(ivData);
 	}
 
 	public MFAClientDetails getClientDetails(String deviceId) {
@@ -444,12 +451,7 @@ public class MFAService {
 		}
 	}
 	
-	@Transactional
 	public void synchronizeCachedMfaClients() {
-		if (!configuration.getMfaDatabase().isEnabled()) {
-			return;
-		}
-		
 		StopWatch stopWatch = new StopWatch();
 		stopWatch.start();
 		
@@ -457,7 +459,7 @@ public class MFAService {
 		
 		// find all active persons and put into a cpr-based map
 		Map<String, List<Person>> personMap = new HashMap<>();
-		for (Person person : personService.getAll().stream().collect(Collectors.toList())) {
+		for (Person person : personService.getAll(p -> p.getMfaClients().size()).stream().collect(Collectors.toList())) {
 			try {
 				String encodedSsn = encryptAndEncodeSsn(person.getCpr());
 				
@@ -472,11 +474,11 @@ public class MFAService {
 			}
 		}
 		
-		List<MfaClient> allLocallyRegisteredMfaClients = lookupLocalMfaClientsInDB();
-		Map<String, List<MfaClient>> allLocallyRegisteredMfaClientsBySsn = allLocallyRegisteredMfaClients.stream().collect(Collectors.groupingBy(MfaClient::getSsn));
+		List<ProjectionClient> allLocallyRegisteredMfaClients = mfaManagementService.lookupLocalMfaClientsInCentral(personMap);
+		Map<String, List<ProjectionClient>> allLocallyRegisteredMfaClientsBySsn = allLocallyRegisteredMfaClients.stream().collect(Collectors.groupingBy(ProjectionClient::getSsn));
 		
-		List<MfaClient> allRegisteredMfaClients = lookupMfaClientsInDB();
-		Map<String, List<MfaClient>> allRegisteredMfaClientsBySsn = allRegisteredMfaClients.stream().collect(Collectors.groupingBy(MfaClient::getSsn));
+		List<ProjectionClient> allRegisteredMfaClients = mfaManagementService.lookupMfaClientsInCentral(personMap);
+		Map<String, List<ProjectionClient>> allRegisteredMfaClientsBySsn = allRegisteredMfaClients.stream().collect(Collectors.groupingBy(ProjectionClient::getSsn));
 
 		List<LocalRegisteredMfaClient> locallyRegisteredClients = localRegisteredMfaClientService.getAll();
 		Map<String, List<LocalRegisteredMfaClient>> locallyRegisteredClientsBySsn = locallyRegisteredClients.stream().collect(Collectors.groupingBy(LocalRegisteredMfaClient::getCpr));
@@ -488,20 +490,27 @@ public class MFAService {
 			Set<String> mfaClientsDeviceIds = new HashSet<>();
 			
 			// globally stored in OS2faktor MFA
-			List<MfaClient> storedMfaClients = allRegisteredMfaClientsBySsn.get(encodedSsn);
+			List<ProjectionClient> storedMfaClients = allRegisteredMfaClientsBySsn.get(encodedSsn);
 			if (storedMfaClients != null) {
-				for (MfaClient localClient : storedMfaClients) {
+				for (ProjectionClient localClient : storedMfaClients) {
 					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
 						MfaClient client = new MfaClient();
 						client.setDeviceId(localClient.getDeviceId());
 						client.setName(localClient.getName());
-						client.setNsisLevel(localClient.getNsisLevel());
 						client.setPasswordless(localClient.isPasswordless());
-						client.setType(localClient.getType());
 						client.setLocalClient(true);
 						client.setSerialnumber(localClient.getSerialnumber());
 						client.setLastUsed(localClient.getLastUsed());
 						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
+
+						try {
+							client.setType(ClientType.valueOf(localClient.getClientType()));
+							client.setNsisLevel(NSISLevel.valueOf(localClient.getNsisLevel()));
+						}
+						catch (Exception ex) {
+							log.warn("Unable to parse enum value for " + localClient.getDeviceId(), ex);
+							continue;
+						}
 
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());
@@ -510,18 +519,27 @@ public class MFAService {
 			}
 
 			// locally stored in OS2faktor MFA
-			List<MfaClient> locallyStoredMfaClients = allLocallyRegisteredMfaClientsBySsn.get(encodedSsn);
+			List<ProjectionClient> locallyStoredMfaClients = allLocallyRegisteredMfaClientsBySsn.get(encodedSsn);
 			if (locallyStoredMfaClients != null) {
-				for (MfaClient localClient : locallyStoredMfaClients) {
+				for (ProjectionClient localClient : locallyStoredMfaClients) {
 					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
 						MfaClient client = new MfaClient();
 						client.setDeviceId(localClient.getDeviceId());
 						client.setName(localClient.getName());
-						client.setNsisLevel(localClient.getNsisLevel());
-						client.setType(localClient.getType());
+						client.setPasswordless(localClient.isPasswordless());
 						client.setLocalClient(true);
 						client.setSerialnumber(localClient.getSerialnumber());
+						client.setLastUsed(localClient.getLastUsed());
 						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
+
+						try {
+							client.setType(ClientType.valueOf(localClient.getClientType()));
+							client.setNsisLevel(NSISLevel.valueOf(localClient.getNsisLevel()));
+						}
+						catch (Exception ex) {
+							log.warn("Unable to parse enum value for " + localClient.getDeviceId(), ex);
+							continue;
+						}
 
 						mfaClients.add(client);
 						mfaClientsDeviceIds.add(localClient.getDeviceId());
@@ -540,6 +558,7 @@ public class MFAService {
 						client.setNsisLevel(localClient.getNsisLevel());
 						client.setType(localClient.getType());
 						client.setLocalClient(true);
+
 						if (localClient.getAssociatedUserTimestamp() != null) {
 							client.setAssociatedUserTimestamp(Instant.ofEpochMilli(localClient.getAssociatedUserTimestamp().getTime())
 									.atZone(ZoneId.systemDefault())
@@ -552,33 +571,19 @@ public class MFAService {
 				}
 			}
 
-			maintainCachedClients(persons, mfaClients);
+			self.maintainCachedClients(persons, mfaClients);
 		}
 		
 		stopWatch.stop();
 		log.info("completed in: " + stopWatch.toString());
 	}
 
-	private static final String selectClientsSql = "SELECT c.name, c.passwordless, c.client_type, c.device_id, td.serialnumber, c.nsis_level, u.ssn, c.last_used, c.associated_user_timestamp FROM clients c JOIN users u ON u.id = c.user_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE disabled = 0 AND u.ssn IS NOT NULL;";
-	private List<MfaClient> lookupMfaClientsInDB() {
-		return jdbcTemplate.query(
-				selectClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), rs.getBoolean("passwordless"), rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), rs.getTimestamp("last_used"), rs.getTimestamp("associated_user_timestamp")));
-	}
-
-	private static final String selectLocalClientsSql = "SELECT c.name, c.device_id, c.client_type, td.serialnumber, lc.nsis_level, lc.ssn, c.associated_user_timestamp FROM local_clients lc JOIN clients c ON c.device_id = lc.device_id LEFT JOIN totph_devices td ON td.client_device_id = c.device_id WHERE c.disabled = 0 AND lc.cvr = ?;";
-	private List<MfaClient> lookupLocalMfaClientsInDB() {
-		return jdbcTemplate.query(
-				selectLocalClientsSql,
-				(rs, rowNum) -> new MfaClient(rs.getString("name"), false, rs.getString("device_id"), rs.getString("serialnumber"), rs.getString("client_type"), rs.getString("nsis_level"), rs.getString("ssn"), null, rs.getTimestamp("associated_user_timestamp")),
-				configuration.getCustomer().getCvr());
-	}
-	
 	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
-		maintainCachedClients(personService.getByCpr(cpr), mfaClients);
+		maintainCachedClients(personService.getByCpr(cpr, p -> p.getMfaClients().size()), mfaClients);
 	}	
 
-	private void maintainCachedClients(List<Person> persons, List<MfaClient> mfaClients) {
+	@Transactional // this is as OK as I can make it in a fast and easy way - optimize later if needed
+	public void maintainCachedClients(List<Person> persons, List<MfaClient> mfaClients) {
 		try {
 			for (Person person : persons) {
 				if (person.getMfaClients() == null) {
@@ -686,5 +691,25 @@ public class MFAService {
 		}
 		
 		return newCachedMFAClients;
+	}
+
+	@Transactional
+	public void removeOldMfaLoginHistory() {
+		mfaLoginHistoryDao.deleteOld();
+	}
+
+	public void fetchMfaLoginHistory() {
+		LocalDateTime maxCreatedTts = mfaLoginHistoryDao.getMaxCreatedTts();
+		if (maxCreatedTts == null) {
+			maxCreatedTts = LocalDateTime.now().minusHours(1);
+		}
+		
+		// skip one second, as query includes current timestamp
+		maxCreatedTts = maxCreatedTts.plusSeconds(1);
+
+		List<MfaLoginHistory> history = mfaManagementService.fetchMfaLoginHistory(maxCreatedTts);
+		if (history != null && history.size() > 0) {
+			mfaLoginHistoryDao.saveAll(history);
+		}
 	}
 }

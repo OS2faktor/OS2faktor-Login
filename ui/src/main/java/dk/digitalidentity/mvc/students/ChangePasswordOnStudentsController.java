@@ -1,6 +1,7 @@
 package dk.digitalidentity.mvc.students;
 
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -13,6 +14,11 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -38,6 +44,7 @@ import dk.digitalidentity.common.service.SchoolClassService;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.mvc.otherUsers.validator.PasswordChangeValidator;
 import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
+import dk.digitalidentity.mvc.students.dto.SchoolClassDTO;
 import dk.digitalidentity.mvc.students.dto.StudentDTO;
 import dk.digitalidentity.security.RequireChangePasswordOnOthersRole;
 import dk.digitalidentity.security.SecurityUtil;
@@ -86,7 +93,7 @@ public class ChangePasswordOnStudentsController {
 				.map(p -> new StudentDTO(p, (personService.isYoungStudent(p) != null)))
 				.collect(Collectors.toList()));
 
-		model.addAttribute("classes", schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson));
+		model.addAttribute("classes", schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson).stream().map(c -> new SchoolClassDTO(c)).toList());
 
 		model.addAttribute("passwordMatrixEnabled", commonConfiguration.getStilStudent().isIndskolingSpecialEnabled());
 		
@@ -172,8 +179,101 @@ public class ChangePasswordOnStudentsController {
 		model.addAttribute("withPassword", withPassword);
 		model.addAttribute("students", students);
 		model.addAttribute("className", schoolClass.getName());
+		model.addAttribute("institutionName", schoolClass.getRoleMappings().stream().map(m -> m.getSchoolRole().getInstitutionName()).findFirst().orElse(""));
 
 		return "students/print_classes_students";
+	}
+
+	@GetMapping("/andre-brugere/klasser/{id}/download-csv")
+	public ResponseEntity<byte[]> downloadClassStudentCSV(@PathVariable("id") long id, @RequestParam("withPassword") boolean withPassword) {
+		Person loggedInPerson = securityUtil.getPerson();
+		if (loggedInPerson == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+		}
+		
+		SchoolClass schoolClass = schoolClassService.getById(id);
+		if (schoolClass == null) {
+			return ResponseEntity.notFound().build();
+		}
+		if (!schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson).stream().anyMatch(c -> c.getClassIdentifier().equals(schoolClass.getClassIdentifier()) && c.getInstitutionId().equals(schoolClass.getInstitutionId()))) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+		}
+		
+		// sanity check, to make sure password cannot be requested for older classes
+		try {
+			int level = Integer.parseInt(schoolClass.getLevel());
+			if (level >= 4) {
+				withPassword = false;
+			}
+		}
+		catch (Exception ignored) {
+			withPassword = false;
+		}
+		
+		final boolean fWithPassword = withPassword;
+		List<StudentDTO> students = personService.getStudentsThatPasswordCanBeChangedOnByPerson(loggedInPerson, schoolClass)
+			.stream()
+			.map(p -> new StudentDTO(p, fWithPassword))
+			.collect(Collectors.toList());
+			
+		if (withPassword) {
+			for (StudentDTO student : students) {
+				if (student.isCanSeePassword()) {
+					try {
+						if (StringUtils.hasLength(student.getPassword())) {
+							student.setPassword(passwordChangeQueueService.decryptPassword(student.getPassword()));
+						}
+					}
+					catch (Exception ex) {
+						log.warn("Cannot decrypt student password for " + student.getSamaccountName() + " : " + ex.getMessage());
+						student.setPassword(null);
+					}
+				}
+			}
+		}
+		
+		// Generate CSV content
+		StringBuilder csvBuilder = new StringBuilder();
+		
+		// CSV Header
+		if (withPassword) {
+			csvBuilder.append("Elev,Brugernavn,Kodeord\n");
+		} else {
+			csvBuilder.append("Elev,Brugernavn\n");
+		}
+		
+		// CSV Data
+		for (StudentDTO student : students) {
+			csvBuilder.append(escapeCsvField(student.getName()))
+				.append(",")
+				.append(escapeCsvField(student.getSamaccountName()));
+			
+			if (withPassword) {
+				csvBuilder.append(",")
+					.append(escapeCsvField(student.getPassword() != null ? student.getPassword() : ""));
+			}
+			csvBuilder.append("\n");
+		}
+		
+		byte[] csvBytes = csvBuilder.toString().getBytes(StandardCharsets.UTF_8);
+		
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.parseMediaType("text/csv"));
+		headers.setContentDisposition(ContentDisposition.attachment()
+			.filename("klasse-" + schoolClass.getName() + ".csv")
+			.build());
+		
+		return ResponseEntity.ok().headers(headers).body(csvBytes);
+	}
+
+	private String escapeCsvField(String field) {
+		if (field == null) return "";
+		
+		// Escape quotes and wrap in quotes if contains comma, quote, or newline
+		if (field.contains(",") || field.contains("\"") || field.contains("\n")) {
+			return "\"" + field.replace("\"", "\"\"") + "\"";
+		}
+		return field;
 	}
 
 	@GetMapping("/andre-brugere/{id}/kodeord/skift")
@@ -242,6 +342,8 @@ public class ChangePasswordOnStudentsController {
 
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
+			model.addAttribute(bindingResult.getAllErrors());
+			model.addAttribute("passwordForm", form);
 			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 

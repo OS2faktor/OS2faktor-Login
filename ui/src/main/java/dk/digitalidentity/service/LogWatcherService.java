@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -96,7 +95,6 @@ public class LogWatcherService {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 
-	@Transactional
 	public void logWatchTooManyWrongPasswordsFromNonWhitelistIP() {
 		long limit = logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_WHITELIST_LIMIT, 0);
 		if (limit == 0) {
@@ -116,7 +114,10 @@ public class LogWatcherService {
 				if (dto.getAttempts() > limit && !isWhitelistedIP(whiteList, dto.getIpAddress())) {	
 					log.warn("Too many wrong passwords from non-whitelisted IP: " + dto.getIpAddress() + " for person " + dto.getPersonId());
 
-					Person person = personService.getById(dto.getPersonId());
+					Person person = personService.getById(dto.getPersonId(), p -> {
+						p.getDomain().getName();
+					});
+
 					if (person == null) {
 						continue;
 					}
@@ -149,7 +150,6 @@ public class LogWatcherService {
 		}
 	}
 
-	@Transactional
 	public void logWatchTooManyLockedOnPassword() {
 		long limit = logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_TIME_LOCKED_ACCOUNTS_LIMIT, 0);
 		if (limit == 0) {
@@ -187,7 +187,6 @@ public class LogWatcherService {
 		}
 	}
 	
-	@Transactional
 	public void logWatchNotifyPersonOnNewCountryLogin() {
 		EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.NEW_LOGIN_FOREIGN_COUNTRY);
 
@@ -205,7 +204,10 @@ public class LogWatcherService {
 
 		if (dtoList != null && dtoList.size() > 0) {
 			for (AuditLogLocationDto dto : dtoList) {
-				Person person = personService.getById(dto.getPersonId());
+				Person person = personService.getById(dto.getPersonId(), p -> {
+					p.getDomain().getName();
+				});
+
 				if (person == null) {
 					continue;
 				}
@@ -236,7 +238,6 @@ public class LogWatcherService {
 		}
 	}
 
-	@Transactional
 	public void logWatchTwoCountriesOneHour() {
 		boolean translateGermany = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_GERMANY_ENABLED);
 		boolean translateSweeden = logWatchSettingService.getBooleanWithDefaultFalse(LogWatchSettingKey.TWO_COUNTRIES_ONE_HOUR_SWEEDEN_ENABLED);
@@ -314,7 +315,6 @@ public class LogWatcherService {
 		}
 	}
 
-	@Transactional
 	public void logWatchTooManyWrongPassword() {
 		long limit = logWatchSettingService.getLongWithDefault(LogWatchSettingKey.TOO_MANY_WRONG_PASSWORDS_LIMIT, 0);
 		if (limit == 0) {

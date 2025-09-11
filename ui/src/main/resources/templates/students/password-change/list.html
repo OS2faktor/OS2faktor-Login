@@ -94,6 +94,7 @@
 										<thead>
 											<tr>
 												<th>Klasse / hold</th>
+												<th style="width: 250px;">Skole</th>
 												<th style="width: 100px;">Klassetrin</th>
 												<th style="width: 80px;">Handling</th>
 											</tr>
@@ -103,6 +104,7 @@
 											<tr>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td></td>
 											</tr>
 										</tfoot>
@@ -110,10 +112,12 @@
 										<tbody>
 											<tr th:each="class : ${classes}">
 												<td th:text="${class.name}"/>
+												<td th:text="${class.institutionName}"/>
 												<td th:text="${class.level}"/>
 												<td>
 													<a th:if="${passwordMatrixEnabled}" th:href="'/andre-brugere/klasser/' + ${class.id} + '/print'" target="_blank" style="color: black;" title="Print kodeords-matrix"><em class="fa fa-fw fa-key"></em></a>
 													<a href="#" th:onclick="'return changePasswordListService.printClass(' + ${class.id} + ');'" style="color: black;" title="Print klasse"><em class="fa fa-fw fa-table"></em></a>
+													<a href="#" th:onclick="'return changePasswordListService.downloadClassCSV(' + ${class.id} + ');'" style="color: black;" title="Print klasse"><em class="fa fa-fw fa-file-excel-o"></em></a>
 												</td>
 											</tr>
 										</tbody>
@@ -282,6 +286,30 @@
 					else {
 						window.open(printClassUrl + classId + "/print-students?withPassword=true");
 					}
+				});
+			}
+
+			this.downloadClassCSV = function(classId) {
+				swal({
+					title: 'Download klasse CSV',
+					text: 'Hvis muligt, ønsker du så også at inkludere elevernes kodeord?',
+					showCancelButton: true,
+					confirmButtonColor: "#1ab394",
+					cancelButtonText: 'Med kodeord',
+					confirmButtonText: 'Uden kodeord',
+					closeOnConfirm: true,
+					closeOnCancel: true
+				},
+				function(isConfirm) {
+					const withPassword = isConfirm ? false : true;
+					const downloadUrl = `${printClassUrl}${classId}/download-csv?withPassword=${withPassword}`;
+					
+					// Trigger download
+					const link = document.createElement('a');
+					link.href = downloadUrl;
+					document.body.appendChild(link);
+					link.click();
+					document.body.removeChild(link);
 				});
 			}
 

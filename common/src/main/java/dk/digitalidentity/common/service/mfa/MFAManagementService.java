@@ -1,8 +1,9 @@
-package dk.digitalidentity.service;
+package dk.digitalidentity.common.service.mfa;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,21 +16,22 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
+import dk.digitalidentity.common.dao.model.MfaLoginHistory;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.CachedMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.mfa.model.AuthenticateUserRequestBody;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.HardwareTokenDTO;
-import dk.digitalidentity.service.dto.AuthenticateUserRequestBody;
-import dk.digitalidentity.service.dto.MfaRenameRequestDTO;
+import dk.digitalidentity.common.service.mfa.model.LoginMfaResponse;
+import dk.digitalidentity.common.service.mfa.model.MfaRenameRequestDTO;
+import dk.digitalidentity.common.service.mfa.model.ProjectionClient;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -45,10 +47,7 @@ public class MFAManagementService {
 	
 	@Autowired
 	private AuditLogger auditLogger;
-	
-	@Autowired
-	private CachedMfaClientService cachedMfaClientService;
-	
+		
 	@Autowired
 	@Qualifier("defaultRestTemplate")
 	private RestTemplate restTemplate;
@@ -63,6 +62,91 @@ public class MFAManagementService {
 		return url;
 	}
 
+	public List<ProjectionClient> lookupMfaClientsInCentral(Map<String, List<Person>> personMap) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		
+		HttpEntity<String> entity = new HttpEntity<>("", headers);
+
+		List<ProjectionClient> clients = new ArrayList<>();
+		String lastClientDeviceId = null;
+
+		boolean done = false;
+		int counter = 0;
+
+		do {
+			ResponseEntity<LoginMfaResponse> response = restTemplate.exchange(
+				getURL("/api/login/mfa/nonLocal" + ((lastClientDeviceId != null) ? ("?deviceId=" + lastClientDeviceId) : "")),
+				HttpMethod.GET,
+				entity,
+				LoginMfaResponse.class);
+
+			if (response.getStatusCode().value() == 200) {
+				LoginMfaResponse body = response.getBody();
+				if (body == null || body.getCount() == 0) {
+					done = true;
+				}
+				else {
+					lastClientDeviceId = body.getLastClientDeviceId();
+					counter++;
+
+					for (ProjectionClient client : body.getClients()) {
+						if (personMap.containsKey(client.getSsn())) {
+							clients.add(client);
+						}
+					}
+				}
+			}
+			else {
+				throw new RuntimeException("Failed to get MFA clients - HTTP " + response.getStatusCode().value());
+			}
+		}
+		while (!done && counter < 100);
+		
+		if (counter == 100) {
+			log.error("Did 100 calls, and we did not get everything yet");
+		}
+
+		if (clients.size() == 0) {
+			throw new RuntimeException("Got 0 clients - that is a problem - abort!");
+		}
+
+		return clients;
+	}
+
+	public List<ProjectionClient> lookupLocalMfaClientsInCentral(Map<String, List<Person>> personMap) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		
+		HttpEntity<String> entity = new HttpEntity<>("", headers);
+
+		List<ProjectionClient> clients = new ArrayList<>();
+
+		ResponseEntity<LoginMfaResponse> response = restTemplate.exchange(
+			getURL("/api/login/mfa/local"),
+			HttpMethod.GET,
+			entity,
+			LoginMfaResponse.class);
+
+		if (response.getStatusCode().value() == 200) {
+			LoginMfaResponse body = response.getBody();
+			if (body != null && body.getCount() > 0) {
+				for (ProjectionClient client : body.getClients()) {
+					if (personMap.containsKey(client.getSsn())) {
+						clients.add(client);
+					}
+				}
+			}
+		}
+		else {
+			throw new RuntimeException("Failed to get Local MFA clients - HTTP " + response.getStatusCode().value());
+		}
+
+		return clients;
+	}
+	
 	public boolean renameMfaClient(String deviceId, String name) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
@@ -215,9 +299,10 @@ public class MFAManagementService {
 		return false;
 	}
 	
-	@Transactional
 	public void removeTOTPHDevicesOnLockedPersons() {
-		List<Person> lockedPersons = personService.findByLockedDatasetTrue();
+		List<Person> lockedPersons = personService.findByLockedDatasetTrue(p -> {
+			p.getMfaClients().size();
+		});
 
 		log.info("Found locked persons: " + lockedPersons.size());
 		
@@ -235,26 +320,31 @@ public class MFAManagementService {
 
 		log.info("Found locked persons within 1-3 days ago: " + lockedPersons.size());
 
-		List<Long> modifiedPersonsId = new ArrayList<>();
 		List<Person> modifiedPersons = new ArrayList<>();
-		lockedPersons.forEach(p -> {
-			if (p.getMfaClients().stream().anyMatch(mfa -> mfa.getType() == ClientType.TOTPH)) {
-				List<CachedMfaClient> totphDevices = p.getMfaClients().stream().filter(d -> d.getType() == ClientType.TOTPH).collect(Collectors.toList());
-				
-				for (CachedMfaClient cachedMfaClient : totphDevices) {
-					boolean success = deregisterHardwareToken(cachedMfaClient.getSerialnumber());
-					if (!success) {
-						log.warn("Unable to deregister " + cachedMfaClient.getSerialnumber());
-						continue;
-					}
+		lockedPersons.forEach(lockedPerson -> {
+			if (lockedPerson.getMfaClients().stream().anyMatch(mfa -> mfa.getType() == ClientType.TOTPH)) {
+				List<CachedMfaClient> totphDevices = lockedPerson.getMfaClients().stream().filter(d -> d.getType() == ClientType.TOTPH).collect(Collectors.toList());
 
-					cachedMfaClientService.deleteBySerialnumber(cachedMfaClient.getSerialnumber());
+				if (totphDevices != null && totphDevices.size() > 0) {
+					// person is locked and has a TOTPH device - time to see if that person has other accounts
+					List<Person> personsWithSameCpr = personService.getByCpr(lockedPerson.getCpr());
 
-					auditLogger.resetHardwareToken(cachedMfaClient.getSerialnumber(), null);
+					// if they are all locked, then we can remove the TOTPH devices
+					if (!personsWithSameCpr.stream().anyMatch(p -> !p.isLockedDataset())) {
+						modifiedPersons.add(lockedPerson);
+						List<String> deviceIds = totphDevices.stream().map(d -> d.getDeviceId()).collect(Collectors.toList());
 
-					if (!modifiedPersonsId.contains(p.getId())) {
-						modifiedPersonsId.add(p.getId());
-						modifiedPersons.add(p);
+						for (CachedMfaClient cachedMfaClient : totphDevices) {
+							boolean success = deregisterHardwareToken(cachedMfaClient.getSerialnumber());
+							if (!success) {
+								log.warn("Unable to deregister " + cachedMfaClient.getSerialnumber());
+								continue;
+							}
+
+							auditLogger.resetHardwareToken(cachedMfaClient.getSerialnumber(), null);
+						}
+
+						lockedPerson.getMfaClients().removeIf(c -> deviceIds.contains(c.getDeviceId()));
 					}
 				}
 			}
@@ -263,5 +353,49 @@ public class MFAManagementService {
 		if (!modifiedPersons.isEmpty()) {
 			personService.saveAll(modifiedPersons);
 		}
+	}
+
+	record MfaHistoryRecord(String serverName, String clientDeviceId, boolean clientAuthenticated, boolean clientRejected, LocalDateTime created, LocalDateTime sentTimestamp, boolean clientNotified, LocalDateTime clientFetchedTimestamp, LocalDateTime clientResponseTimestamp, String clientType) { }
+	public List<MfaLoginHistory> fetchMfaLoginHistory(LocalDateTime after) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		HttpEntity<String> entity = new HttpEntity<>(headers);
+
+		try {
+			String url = configuration.getMfa().getBaseUrl() + "/api/login/mfa/history?after=" + after.toString();
+
+			List<MfaLoginHistory> result = new ArrayList<>();
+			ResponseEntity<MfaHistoryRecord[]> response = restTemplate.exchange(url, HttpMethod.GET, entity, MfaHistoryRecord[].class);
+			for (MfaHistoryRecord mfaRecord : response.getBody()) {
+				MfaLoginHistory entry = new MfaLoginHistory();
+				
+				entry.setClientType(mfaRecord.clientType());
+				entry.setCreatedTts(mfaRecord.created());
+				entry.setDeviceId(mfaRecord.clientDeviceId());
+				entry.setFetchTts(mfaRecord.clientFetchedTimestamp());
+				entry.setPushTts(mfaRecord.sentTimestamp());
+				entry.setResponseTts(mfaRecord.clientResponseTimestamp());
+				entry.setServerName(mfaRecord.serverName());
+				
+				String status = mfaRecord.clientAuthenticated()
+						? "Godkendt"
+						: (mfaRecord.clientRejected()
+								? "Afvist"
+								: (mfaRecord.clientFetchedTimestamp != null ? "Set" : "Ukendt")
+						  );
+
+				entry.setStatus(status);
+				
+				result.add(entry);
+			}
+
+			return result;
+		}
+		catch (Exception ex) {
+			log.error("Failed to get mfa history", ex);
+		}
+
+		return null;
 	}
 }

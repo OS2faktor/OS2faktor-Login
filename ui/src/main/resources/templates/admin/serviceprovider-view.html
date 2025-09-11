@@ -337,8 +337,8 @@
 
 								<div class="hr-line-dashed"></div>
 
-								<div class="form-group row" th:if="${serviceprovider.protocol == 'SAML20' && #lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
-									<label class="offset-sm-3 col-sm-3 col-form-label"><em class="fa fa-exclamation-circle"></em> Kunne ikke hente Certificater eller Endpoints fra metadata, prøv evt. igen senere</label>
+								<div class="form-group row" th:if="${(serviceprovider.protocol == 'SAML20' or serviceprovider.protocol == 'WSFED') && #lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">
+									<label class="offset-sm-3 col-sm-3 col-form-label"><em class="fa fa-exclamation-circle"></em> Kunne ikke hente Certifikater eller Endpoints fra metadata, prøv evt. igen senere</label>
 								</div>
 									
 								<th:block th:unless="${#lists.isEmpty(serviceprovider.certificates) && #lists.isEmpty(serviceprovider.endpoints)}">

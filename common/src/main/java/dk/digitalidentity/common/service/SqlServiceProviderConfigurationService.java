@@ -5,6 +5,8 @@ import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +21,23 @@ public class SqlServiceProviderConfigurationService {
 		return sqlServiceProviderDao.findAll();
 	}
 
-	@Transactional
+	@Transactional // This is OK, a it is a consumer approach to isolated loading
+	public List<SqlServiceProviderConfiguration> getAll(Consumer<SqlServiceProviderConfiguration> consumer) {
+		List<SqlServiceProviderConfiguration> configs = sqlServiceProviderDao.findAll();
+		
+		if (consumer != null) {
+			configs.forEach(consumer);
+		}
+
+		return configs;
+	}
+
+	@Transactional // This is OK, a it is isolated loading
 	public List<SqlServiceProviderConfiguration> getAllLoadedFully() {
 		List<SqlServiceProviderConfiguration> all = sqlServiceProviderDao.findAll();
+		
 		all.forEach(SqlServiceProviderConfiguration::loadFully);
+		
 		return all;
 	}
 
@@ -34,6 +49,7 @@ public class SqlServiceProviderConfigurationService {
 		return sqlServiceProviderDao.findByEntityId(entityId);
 	}
 
+	@Transactional // this is OK, we need to save
 	public SqlServiceProviderConfiguration save(SqlServiceProviderConfiguration configuration) {
 		configuration.setLastUpdated(LocalDateTime.now());
 

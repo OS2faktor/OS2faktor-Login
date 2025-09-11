@@ -1,4 +1,4 @@
-package dk.digitalidentity.service;
+package dk.digitalidentity.common.service.geo;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -9,14 +9,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.service.AuditLogService;
-import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.service.geo.dto.GeoIP;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -24,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 public class GeoLocateService {
 
 	@Autowired
-	private OS2faktorConfiguration configuration;
+	private CommonConfiguration configuration;
 	
 	@Autowired
 	private AuditLogService auditLogService;
@@ -82,7 +80,6 @@ public class GeoLocateService {
 		return geo;
 	}
 	
-	@Transactional
 	public void setLocationFromIP() {
 		LocalDateTime oneWeekAgo = LocalDateTime.now().minusDays(7);
 		List<AuditLog> logs = auditLogService.get500WhereLocationNull();
@@ -103,8 +100,7 @@ public class GeoLocateService {
 			}
 			else if (auditLog.getTts().isBefore(oneWeekAgo)) {
 				auditLog.setLocation("UNKNOWN");
-				
-				// TODO: remove once we are done tracking if this works as intended
+
 				log.error("Unable to set location on auditlog: " + auditLog.getId());
 			}
 		}

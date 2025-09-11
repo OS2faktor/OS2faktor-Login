@@ -10,4 +10,6 @@ import lombok.Setter;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FullEmployeeIdentityProfile {
 	private boolean allowQualifiedCertificateIssuance;
+	private String rid;
+	private String status;	
 }

@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
 public class CleanupOldStudentPasswordTask {
@@ -23,7 +25,9 @@ public class CleanupOldStudentPasswordTask {
 	@Scheduled(cron = "${cron.mfa.db.sync:0 #{new java.util.Random().nextInt(55)} 3 * * ?}")
 	public void processChanges() {
 		if (configuration.getScheduled().isEnabled()) {
+			log.info("Running cleanupOldStudentsPasswordTask");
 			personService.cleanupOldStudentsPasswords();
+			log.info("Running cleanupOldStudentsPasswordTask ended");
 		}
 	}
 }

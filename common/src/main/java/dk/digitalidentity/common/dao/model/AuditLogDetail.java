@@ -29,13 +29,13 @@ public class AuditLogDetail {
 	private long id;
 
 	@Enumerated(EnumType.STRING)
-	@Column
+	@Column(updatable = false)
 	private DetailType detailType;
 
-	@Column
+	@Column(updatable = false)
 	private String detailContent;
 
-	@Column
+	@Column(updatable = false)
 	private String detailSupplement;
 
 	public String getDetailContent() {

@@ -39,11 +39,11 @@ public class RoleCatalogueService {
 	}
 
 	public String getOIOBPP(Person person, String system) {
-		return stub.getOIOBPP(person.getSamaccountName(), system);
+		return stub.getOIOBPP(person.getSamaccountName(), system, person.getDomain().getRoleCatalogueDomain());
 	}
 
 	public List<String> getSystemRoles(Person person, String itSystem) {
-		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem);
+		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 		if (response == null) {
 			return new ArrayList<>();
 		}
@@ -52,7 +52,7 @@ public class RoleCatalogueService {
 	}
 
 	public List<String> getUserRoleNames(Person person, String itSystem) {
-		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem);
+		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 		if (response == null) {
 			return new ArrayList<>();
 		}
@@ -61,7 +61,7 @@ public class RoleCatalogueService {
 	}
 
 	public List<String> getUserRoles(Person person, String itSystem) {
-		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem);
+		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 		if (response == null) {
 			return new ArrayList<>();
 		}
@@ -79,21 +79,21 @@ public class RoleCatalogueService {
 	}
 
 	public boolean hasUserRole(Person person, String userRoleId) {
-		return stub.hasUserRole(person.getSamaccountName(), userRoleId);
+		return stub.hasUserRole(person.getSamaccountName(), userRoleId, person.getDomain().getRoleCatalogueDomain());
 	}
 
 	public boolean hasSystemRole(Person person, String systemRoleId) {
-		return stub.hasSystemRole(person.getSamaccountName(), systemRoleId);
+		return stub.hasSystemRole(person.getSamaccountName(), systemRoleId, person.getDomain().getRoleCatalogueDomain());
 	}
 	
 	private RoleCatalogueOIOBPPResponse lookupRolesAsOIOBPP(Person person, String itSystem) {
-		return stub.lookupRolesAsOIOBPP(person.getSamaccountName(), itSystem);
+		return stub.lookupRolesAsOIOBPP(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 	}
 
 	public Map<String, String> getSystemRolesDisplayName(Person person, String itSystem) {
 
 		// get person's systemRoles
-		RoleCatalogueRolesResponse systemRolesResponse = stub.lookupRoles(person.getSamaccountName(), itSystem);
+		RoleCatalogueRolesResponse systemRolesResponse = stub.lookupRoles(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 		if (systemRolesResponse == null) {
 			// Person had no systemRoles assigned
 			return new HashMap<>();
@@ -132,7 +132,7 @@ public class RoleCatalogueService {
 	}
 
 	public Map<String, String> getUserRolesWithDisplayNames(Person person, String itSystem) {
-		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem);
+		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), itSystem, person.getDomain().getRoleCatalogueDomain());
 		if (response == null) {
 			return new HashMap<>();
 		}

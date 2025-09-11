@@ -18,10 +18,10 @@
     <ROW Property="ARPNOREPAIR" Value="1"/>
     <ROW Property="LIMITUI" Value="1"/>
     <ROW Property="Manufacturer" Value="Digital Identity"/>
-    <ROW Property="ProductCode" Value="1030:{B013A12D-BEDB-488B-BFFD-810A684D7CB4} 1033:{B013A12D-BEDB-488B-BFFD-810A684D7CB4} " Type="16"/>
+    <ROW Property="ProductCode" Value="1030:{1A6400EC-DE0C-4909-9F35-BD4410FC37CE} 1033:{1A6400EC-DE0C-4909-9F35-BD4410FC37CE} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1030"/>
     <ROW Property="ProductName" Value="OS2faktorLogin CredentialProvider"/>
-    <ROW Property="ProductVersion" Value="3.3.2" Type="32"/>
+    <ROW Property="ProductVersion" Value="3.3.4" Type="32"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND"/>
     <ROW Property="UpgradeCode" Value="{90CEC6F9-4C3D-4CA0-B13E-E18FDE712E2C}"/>
     <ROW Property="WindowsType9X" MultiBuildValue="DefaultBuild:Windows 9x/ME" ValueLocId="-"/>

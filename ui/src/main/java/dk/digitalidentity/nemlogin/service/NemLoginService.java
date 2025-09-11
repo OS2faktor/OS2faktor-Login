@@ -29,7 +29,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
@@ -170,7 +169,11 @@ public class NemLoginService {
 		self.cleanUpToken();
 	}
 
-	@Transactional
+	public void deleteMitIDErhverv() {
+		nemloginQueueService.deleteOldEntries();
+		personService.cleanupMitIDErhverv();
+	}
+
 	public void cleanupMitIDErhverv() {
 		List<Person> personsInMitIDErhverv = personService.getByNemloginUserUuidNotNull();
 		Map<String, Person> map = personsInMitIDErhverv.stream().collect(Collectors.toMap(Person::getNemloginUserUuid, Function.identity()));
@@ -200,7 +203,6 @@ public class NemLoginService {
 		}
 	}
 	
-	@Transactional
 	public void sync() {
 		if (config.getNemLoginApi().isMigrateExistingUsers()) {
 			log.error("Will not perform sync - the application has started with migration enabled!");
@@ -684,15 +686,15 @@ public class NemLoginService {
 		HttpEntity<AllowSigningUpdate> requestForQualifiedSignature = new HttpEntity<>(body, headers);
 
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestForQualifiedSignature, String.class);
+			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, requestForQualifiedSignature, String.class);
 
 			if (!response.getStatusCode().is2xxSuccessful()) {
-				log.error("Failed to assign QualifiedSignature to person with uuid " + person.getUuid() + ". Error: " + response.getBody());
+				log.error("Failed to assign QualifiedSignature to " + (qualifiedSignature ? "true" : "false") + " on person with uuid " + person.getUuid() + ". Error: " + response.getBody());
 				return "Technical error: " + response.getBody();
 			}
 		}
 		catch (Exception ex) {
-			log.error("Failed to assign QualifiedSignature to " + person.getId() + " / " + person.getSamaccountName(), ex);
+			log.error("Failed to assign QualifiedSignature to " + (qualifiedSignature ? "true" : "false") + " + on " + person.getId() + " / " + person.getSamaccountName(), ex);
 			return "Technical error: " + ex.getMessage();
 		}
 
@@ -781,6 +783,10 @@ public class NemLoginService {
 			identityProfile.setPseudonym(person.isNameProtected());
 		}
 		
+		if (config.getNemLoginApi().isQualifiedSignatureEnabled() && config.getNemLoginApi().isQualifiedSignatureActivationEnabled()) {
+			identityProfile.setAllowQualifiedCertificateIssuance(true);
+		}
+
 		if (!config.getNemLoginApi().isDisableSendingRid()) {
 			identityProfile.setRid(person.getRid());
 		}
@@ -1112,7 +1118,7 @@ public class NemLoginService {
 		return employees;
 	}
 	
-	private FullEmployee getFullEmployee(String uuid) {
+	public FullEmployee getFullEmployee(String uuid) {
 		FullEmployee employee = null;
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + uuid;
@@ -1229,7 +1235,6 @@ public class NemLoginService {
 	
 	private static long mitIDErhvervFullSyncErrorCounter = 0;
 	
-	@Transactional
 	public void syncMitIDErhvervCache() {
 
 		// start with a fresh token, just to ensure we don't expire during our run
@@ -1292,7 +1297,6 @@ public class NemLoginService {
 		}
 	}
 
-	@Transactional
 	public void checkForIncorrectDataEntries() {
 		List<Person> personList = personService.getByTransferToNemLogin();
 		List<MitidErhvervCache> cacheList = mitidErhvervCacheService.findAll();
@@ -1411,7 +1415,6 @@ public class NemLoginService {
 		}
 	}
 
-	@Transactional
 	public void fixMissingCreateSuspendOrders() {
 
 		// find all existing employees in MitID Erhverv

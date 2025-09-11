@@ -13,9 +13,7 @@ import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import dk.digitalidentity.security.RequireChangePasswordOnOthersRole;
 import dk.digitalidentity.security.SecurityUtil;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @RequireChangePasswordOnOthersRole
 @RestController
 public class ManageStudentsRestController {

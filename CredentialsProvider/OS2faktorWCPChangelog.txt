@@ -129,3 +129,6 @@
 
 ## v3.3.2
 - Changed method for sending information to os2faktor to be more resilient against differing computer setups
+
+## v3.3.4
+- Fixed minor bugs in the Reset password dialog

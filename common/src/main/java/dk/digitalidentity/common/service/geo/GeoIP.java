@@ -1,4 +1,4 @@
-package dk.digitalidentity.service.geo.dto;
+package dk.digitalidentity.common.service.geo;
 
 import lombok.Getter;
 import lombok.Setter;

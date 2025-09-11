@@ -3,7 +3,10 @@
 <body>
 	<div th:fragment="scripts">
 		<!-- minimum set of script files - always required -->
-		<script th:src="@{/webjars/inspinia/2.9.3/js/jquery-3.1.1.min.js}"></script>
+
+		<!-- script th:src="@{/webjars/inspinia/2.9.3/js/jquery-3.1.1.min.js}"></script-->
+		<script type="text/javascript" th:src="@{/js/jquery-3.5.1.min.js}"></script>
+		<script type="text/javascript" th:src="@{/js/jquery-migrate-3.5.0.min.js}"></script>
 		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/steps/jquery.steps.min.js}"></script>
 		<script th:src="@{/webjars/inspinia/2.9.3/js/popper.min.js}"></script>
 		<script th:src="@{/webjars/inspinia/2.9.3/js/bootstrap.min.js}"></script>

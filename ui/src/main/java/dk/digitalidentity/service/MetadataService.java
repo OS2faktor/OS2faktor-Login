@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
+import java.net.URI;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -22,8 +23,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.HttpResponse;
@@ -52,7 +55,12 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
@@ -138,6 +146,7 @@ public class MetadataService {
     public ServiceProviderDTO getMetadataDTO(ServiceProviderConfig spConfig, boolean fetchMetadata) {
         switch (spConfig.getProtocol()) {
             case SAML20:
+            case WSFED:
             	return getServiceProviderDTO(spConfig, fetchMetadata);
             case OIDC10:
                 ServiceProviderDTO serviceProviderDTO = new ServiceProviderDTO(spConfig, null, null);
@@ -155,9 +164,6 @@ public class MetadataService {
 				serviceProviderDTO.setPublicClient(oidcClient.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE));
 
                 return serviceProviderDTO;
-			case WSFED:
-				ServiceProviderDTO wsFedServiceProviderDTO = new ServiceProviderDTO(spConfig, null, null);
-				return wsFedServiceProviderDTO;
 			default:
                 throw new IllegalStateException("Unexpected value: " + spConfig.getProtocol());
         }
@@ -263,7 +269,6 @@ public class MetadataService {
         return configurationService.save(config);
     }
     
-    @Transactional
     public void monitorCertificates() {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DATE, 14);
@@ -386,41 +391,162 @@ public class MetadataService {
         return entityIds;
     }
 
+	private Element fetchWSFederationMetadata(ServiceProviderConfig sp) throws ParserConfigurationException, SAXException, IOException {
+		Element response = null;
+
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+		factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+		factory.setNamespaceAware(true);
+		
+		DocumentBuilder builder = factory.newDocumentBuilder();
+
+		String metadataUrl = sp.getMetadataUrl();
+		if (StringUtils.hasLength(metadataUrl)) {
+			response = builder.parse(URI.create(metadataUrl).toURL().openStream()).getDocumentElement();
+			response.normalize();
+
+			return response;
+		}
+		else {
+			response = builder.parse(new ByteArrayInputStream(sp.getMetadataContent().getBytes())).getDocumentElement();
+			response.normalize();
+
+			return response;
+		}
+	}
+
+	private Node getWSFederationRoleDescriptor(Element metadata) {
+		NodeList roleDescriptors = metadata.getElementsByTagName("RoleDescriptor");
+		if (roleDescriptors.getLength() > 0) {
+			Node roleDescriptor = null;
+			Node roleDescriptorFallback = null;
+			
+			for (int i = 0; i < roleDescriptors.getLength(); i++) {
+				Node item = roleDescriptors.item(i);
+				NamedNodeMap itemAttributes = item.getAttributes();
+				if (itemAttributes == null || itemAttributes.getLength() < 1) {
+					continue;
+				}
+	
+				Node namedItem = itemAttributes.getNamedItem("xsi:type");
+				if (namedItem == null) {
+					continue;
+				}
+	
+				if (namedItem.getTextContent().endsWith("SecurityTokenServiceType")) {
+					roleDescriptorFallback = item;
+				}
+				else if (namedItem.getTextContent().endsWith("ApplicationServiceType")) {
+					roleDescriptor = item;
+				}
+			}
+	
+			if (roleDescriptor != null) {
+				return roleDescriptor;
+			}
+			
+			return roleDescriptorFallback;
+		}
+		
+		return null;
+	}
+	
+	private Set<String> getWSFederationEndpoints(Node roleDescriptor) {
+		Set<String> allowedEndpoints = new HashSet<>();
+
+		NodeList roleDescriptorChildNodes = roleDescriptor.getChildNodes();
+		for (int i = 0; i < roleDescriptorChildNodes.getLength(); i++) {
+			Node passiveRequestorEndpoint = roleDescriptorChildNodes.item(i);
+			if (!"PassiveRequestorEndpoint".equals(passiveRequestorEndpoint.getLocalName())) {
+				continue;
+			}
+
+			NodeList passiveRequestorEndpointChildNodes = passiveRequestorEndpoint.getChildNodes();
+			for (int j = 0; j < passiveRequestorEndpointChildNodes.getLength(); j++) {
+				Node endpointReference = passiveRequestorEndpointChildNodes.item(j);
+				if (!"EndpointReference".equals(endpointReference.getLocalName())) {
+					continue;
+				}
+
+				NodeList endpointReferenceNodes = endpointReference.getChildNodes();
+				for (int k = 0; k < endpointReferenceNodes.getLength(); k++) {
+					Node address = endpointReferenceNodes.item(k);
+					if ("Address".equals(address.getLocalName())) {
+						allowedEndpoints.add(address.getTextContent());
+					}
+				}
+			}
+		}
+
+		return allowedEndpoints;
+	}
+	
     private ServiceProviderDTO getServiceProviderDTO(ServiceProviderConfig config, boolean fetchMetadata) {
         ArrayList<EndpointDTO> endpoints = null;
         ArrayList<CertificateDTO> certificates = null;
 
         if (fetchMetadata) {
-            try {
-                EntityDescriptor metadata = getMetadata(config);
-
-                // process existing spSSODescriptor for additional data on view pages
-                if (metadata != null) {
-                    SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
-
-                    if (spssoDescriptor != null) {
-                        // Process metadata
-                        endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
-                        endpoints.addAll(getLogoutEndpointDTOs(spssoDescriptor));
-
-                        // Process certificates
-                        certificates = getCertificateDTOs(spssoDescriptor);
-                        
-                        if (certificates.size() == 0) {
-                        	log.warn("Unable to find any certificates in metadata for SP config: " + config.getEntityId());                    	                        	
-                        }
-                    }
-                    else {
-                    	log.warn("Unable to find spssoDescriptor in metadata for SP config: " + config.getEntityId());                    	
-                    }
-                }
-                else {
-                	log.warn("Unable to find metadata for SP config: " + config.getEntityId());
-                }
-            }
-            catch (Exception ex) {
-                log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex);
-            }
+        	switch (config.getProtocol()) {
+	        	case WSFED: {
+	        		try {
+	        			Element metadata = fetchWSFederationMetadata(config);
+	        			if (metadata != null) {
+	        				Node roleDescriptor = getWSFederationRoleDescriptor(metadata);
+	        				if (roleDescriptor != null) {
+	        					Set<String> allowedEndpoints = getWSFederationEndpoints(roleDescriptor);
+	        					if (allowedEndpoints != null && allowedEndpoints.size() > 0) {
+	        						endpoints = new ArrayList<>();
+	        						for (String allowedEndpoint : allowedEndpoints) {
+	        							endpoints.add(new EndpointDTO(allowedEndpoint, "", "PassiveRequestorEndpoint"));
+	        						}
+	        					}
+	        				}
+	        			}
+	        		}
+	        		catch (Exception ex) {
+	        			log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex);
+	        		}
+	        		break;
+	        	}
+	        	case SAML20: {
+	                try {
+	                    EntityDescriptor metadata = getMetadata(config);
+	
+	                    // process existing spSSODescriptor for additional data on view pages
+	                    if (metadata != null) {
+	                        SPSSODescriptor spssoDescriptor = metadata.getSPSSODescriptor(SAMLConstants.SAML20P_NS);
+	
+	                        if (spssoDescriptor != null) {
+	                            // Process metadata
+	                            endpoints = new ArrayList<>(getAssertionConsumerEndpointDTOs(spssoDescriptor));
+	                            endpoints.addAll(getLogoutEndpointDTOs(spssoDescriptor));
+	
+	                            // Process certificates
+	                            certificates = getCertificateDTOs(spssoDescriptor);
+	                            
+	                            if (certificates.size() == 0) {
+	                            	log.warn("Unable to find any certificates in metadata for SP config: " + config.getEntityId());                    	                        	
+	                            }
+	                        }
+	                        else {
+	                        	log.warn("Unable to find spssoDescriptor in metadata for SP config: " + config.getEntityId());                    	
+	                        }
+	                    }
+	                    else {
+	                    	log.warn("Unable to find metadata for SP config: " + config.getEntityId());
+	                    }
+	                }
+	                catch (Exception ex) {
+	                    log.warn("Could not fetch Metadata for SP config: " + config.getEntityId(), ex);
+	                }
+	
+	                break;
+	        	}
+	        	case ENTRAMFA:
+	        	case OIDC10:
+	        		// no endpoints and certficates for these
+	        		break;
+	        	}
         }
 
         return new ServiceProviderDTO(config, certificates, endpoints);

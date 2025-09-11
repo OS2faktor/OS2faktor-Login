@@ -1,6 +1,7 @@
 package dk.digitalidentity.mvc.admin.dto;
 
 import dk.digitalidentity.common.dao.model.PasswordSetting;
+import dk.digitalidentity.common.dao.model.enums.PasswordHintsPosition;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -37,6 +38,7 @@ public class PasswordConfigurationForm {
 	private boolean specificSpecialCharactersEnabled;
 	private boolean checkLeakedPasswords;
 	private String allowedSpecialCharacters;
+	private PasswordHintsPosition passwordHintsPosition;
 
 	public PasswordConfigurationForm(PasswordSetting settings) {
 		this.minMinLength = 4;
@@ -67,5 +69,6 @@ public class PasswordConfigurationForm {
 		this.specificSpecialCharactersEnabled = settings.isSpecificSpecialCharactersEnabled();
 		this.allowedSpecialCharacters = settings.getAllowedSpecialCharacters();
 		this.checkLeakedPasswords = settings.isCheckLeakedPasswords();
+		this.passwordHintsPosition = settings.getPasswordHintsPosition();
 	}
 }

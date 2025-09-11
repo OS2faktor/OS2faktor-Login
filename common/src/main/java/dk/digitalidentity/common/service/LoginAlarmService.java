@@ -21,12 +21,12 @@ public class LoginAlarmService {
 		return loginAlarmDao.save(alarm);
 	}
 	
-	@Transactional
+	@Transactional // this is OK as we have an isolated delete operation
 	public void deleteOldCountryAlarms() {
 		loginAlarmDao.deleteByAlarmTypeAndTtsBefore(LoginAlarmType.COUNTRY.toString(), LocalDateTime.now().minusYears(1));
 	}
 	
-	@Transactional
+	@Transactional // this is OK as we have an isolated delete operation
 	public void deleteOldIpAddressAlarms() {
 		loginAlarmDao.deleteByAlarmTypeAndTtsBefore(LoginAlarmType.IP_ADDRESS.toString(), LocalDateTime.now().minusMonths(1));
 	}

@@ -65,7 +65,6 @@ public class SqlServiceProvider extends ServiceProvider {
 
     @Override
     public EntityDescriptor getMetadata() throws RequesterException, ResponderException {
-
         if (resolver == null || !resolver.isInitialized()) {
         	// perform a sane cleanup in case broken data exists
         	try {
@@ -83,7 +82,12 @@ public class SqlServiceProvider extends ServiceProvider {
         // if never actually refreshed, perform a refresh
         if (resolver.getLastRefresh() == null) {
             try {
-                resolver.refresh();
+                if (getMetadataUrl() == null || getMetadataUrl().isEmpty()) {
+                    resolver = getMetadataResolver(getEntityId(), getMetadataUrl(), getMetadataContent());
+                }
+                else {
+                    resolver.refresh();
+                }
             }
             catch (ResolverException ex) {
                 throw new RequesterException("Kunne ikke hente Metadata fra url", ex);
@@ -464,7 +468,12 @@ public class SqlServiceProvider extends ServiceProvider {
 	public boolean disableSubjectConfirmation() { 
 		return config.isDisableSubjectConfirmation();
 	}
-	
+
+	@Override
+	public boolean disableSubjectConfirmationRecipient() { 
+		return config.isDisableSubjectConfirmationRecipient();
+	}
+
     @Override
     public RequirementCheckResult personMeetsRequirements(Person person) {
         if (person == null) {
@@ -542,7 +551,6 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
 	public void reloadMetadata(boolean recreateResolver) {
-
 		if (recreateResolver || this.resolver == null) {
 			// first attempt to cancel/destroy any pending tasks
 			try {
@@ -567,7 +575,12 @@ public class SqlServiceProvider extends ServiceProvider {
 		}
 		else {
 			try {
-				this.resolver.refresh();
+				if (getMetadataUrl() == null || getMetadataUrl().isEmpty()) {
+					this.resolver = getMetadataResolver(getEntityId(), getMetadataUrl(), getMetadataContent());
+				}
+				else {
+					this.resolver.refresh();
+				}
 			}
 			catch (Exception ex) {
 				log.warn("Refresh of metadata failed for " + this.getEntityId(), ex);

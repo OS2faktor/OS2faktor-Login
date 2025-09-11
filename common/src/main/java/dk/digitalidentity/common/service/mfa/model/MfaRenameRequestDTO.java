@@ -1,4 +1,4 @@
-package dk.digitalidentity.service.dto;
+package dk.digitalidentity.common.service.mfa.model;
 import lombok.Getter;
 import lombok.Setter;
 

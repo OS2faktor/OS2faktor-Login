@@ -63,7 +63,7 @@
 											<div class="form-group row">
 												<label class="col-sm-2 control-label">Send via</label>
 												<div class="col-sm-10">
-													<select class="form-control channelDropdown" name="channel" th:disabled="${template.emailTemplateType.fullServiceIdP}">
+													<select class="form-control channelDropdown" name="channel">
 														<option th:value="EBOKS" th:if="${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}" th:selected="${!child.emailEnabled and child.eboksEnabled}">Digital Post</option>
 														<option th:value="EMAIL" th:if="${template.emailAllowed}" th:selected="${child.emailEnabled and !child.eboksEnabled}">Email</option>
 														<option th:value="BOTH" th:if="${template.emailAllowed} and ${template.eboksAllowed} and ${@OS2faktorConfiguration.getEboks().isEnabled()}" th:selected="${child.emailEnabled and child.eboksEnabled}">Digital Post og Email</option>

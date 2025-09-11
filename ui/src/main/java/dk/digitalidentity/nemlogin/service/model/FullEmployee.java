@@ -9,5 +9,8 @@ import lombok.Setter;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FullEmployee {
+	private String uuid;
+	
 	private FullEmployeeIdentityProfile identityProfile;
+	private IdentityPermissions identityPermissions;
 }

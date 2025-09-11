@@ -242,6 +242,11 @@ public abstract class ServiceProvider {
 		// return true if the SP does not support the SubjectConfirmation element
 		return false;
 	}
+	
+	public boolean disableSubjectConfirmationRecipient() {
+		// return true if the SP does not support the recipient attribute of SubjectConfirmationData
+		return false;
+	}
 
 	public boolean isAllowAnonymousUsers() {
 		return false;
@@ -257,7 +262,7 @@ public abstract class ServiceProvider {
 	}
 	
 	public boolean isDelayedMobileLogin(LoginRequest loginRequest) {
-		return true;
+		return false;
 	}
 
 	// END-SECTION

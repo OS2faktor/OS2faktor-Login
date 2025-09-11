@@ -46,7 +46,12 @@
 
                                         <div class="form-group" th:if="${passwordless == false or forceShowPasswordDialogue}">
                                         	<label for="password">Kodeord:</label>
-                                            <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" aria-required="true" />
+                                            <div class="input-group">
+                                                <input id="password" name="password" type="password" class="form-control" th:classappend="${incorrectInput} ? is-invalid : ''" placeholder="Kodeord" aria-required="true" />
+                                                <div class="input-group-append" data-id="password">
+                                                    <span class="input-group-text form-control" style="background-color: white;"><i id="toggleView_password" class="fa-fw fa fa-eye"></i></span>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <div class="form-group" th:if="${incorrectInput}">
@@ -126,6 +131,20 @@
 		$(document).ready(function() {
 			formService = new FormService();
 			formService.load();
+			
+			// toggle password view
+			$(".input-group-append").click(function() {
+				var id = $(this).data("id");
+				var switchToText = $("#toggleView_" + id).hasClass("fa-eye");
+				if (switchToText) {
+					$("#" + id).prop("type", "text");
+				} else {
+					$("#" + id).prop("type", "password");
+				}
+
+				$("#toggleView_" + id).toggleClass("fa-eye");
+				$("#toggleView_" + id).toggleClass("fa-eye-slash");
+			});
 		});
 
 		function FormService() {

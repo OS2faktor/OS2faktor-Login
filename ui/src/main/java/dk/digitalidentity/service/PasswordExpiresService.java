@@ -2,20 +2,19 @@ package dk.digitalidentity.service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
-import dk.digitalidentity.common.dao.model.EmailTemplate;
-import dk.digitalidentity.common.dao.model.EmailTemplateChild;
-import dk.digitalidentity.common.service.EmailTemplateService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.service.ADPasswordService;
+import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 
@@ -40,11 +39,15 @@ public class PasswordExpiresService {
 	@Autowired
 	private EmailTemplateService emailTemplateService;
 
-	@Transactional
 	public void notifyPasswordExpires() {
 		int reminderDaysBeforeExpired = commonConfiguration.getPasswordSoonExpire().getReminderDaysBeforeExpired();
 
-		for (Person person : personService.getAll()) {
+		List<Person> persons = personService.getAll(p -> {
+			p.getDomain().getName();
+			p.getTopLevelDomain().getName();
+		});
+
+		for (Person person : persons) {
 			boolean notify = false;
 			PasswordSetting settings = passwordSettingService.getSettings(person);
 			
@@ -67,9 +70,7 @@ public class PasswordExpiresService {
 					}
 				}
 
-				if (StringUtils.hasLength(person.getSamaccountName())) {
-					adPasswordService.attemptRunPasswordExpiresSoonScript(person);
-				}
+				adPasswordService.attemptRunPasswordExpiresSoonScript(person);
 			}
 		}
 	}

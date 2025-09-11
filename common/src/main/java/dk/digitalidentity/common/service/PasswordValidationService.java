@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
@@ -57,8 +56,8 @@ public class PasswordValidationService {
 	@Autowired
 	private PasswordSettingService passwordSettingService;
 
-	public ChangePasswordResult validatePasswordRules(Person person, String password, boolean auditlogFailures) {
-		ChangePasswordResult result = validate(person, password, false);
+	public ChangePasswordResult validatePasswordRules(Person person, String password, boolean auditlogFailures, boolean skipHistoryCheck) {
+		ChangePasswordResult result = validate(person, password, false, skipHistoryCheck);
 		
 		if (auditlogFailures && result != ChangePasswordResult.OK) {
 			auditLogger.changePasswordFailed(person, result.getMessage());
@@ -69,10 +68,10 @@ public class PasswordValidationService {
 
 	// only use this for pre-validation (or when enrolling an existing password that does not need external validation)
 	public ChangePasswordResult validatePasswordRulesWithoutSlowValidationRules(Person person, String password) {
-		return validate(person, password, true);
+		return validate(person, password, true, false);
 	}
 
-	private ChangePasswordResult validate(Person person, String password, boolean skipSlowValidation) {
+	private ChangePasswordResult validate(Person person, String password, boolean skipSlowValidation, boolean skipHistoryCheck) {
 		if (person == null) {
 			log.warn("Person is null!");
 			return ChangePasswordResult.TECHNICAL_MISSING_PERSON;
@@ -177,7 +176,7 @@ public class PasswordValidationService {
 		}
 
 		if (!skipSlowValidation) {
-			if (settings.isDisallowOldPasswords()) {
+			if (settings.isDisallowOldPasswords() && !skipHistoryCheck) {
 				BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 	
 				List<String> lastXPasswords = passwordHistoryService.getLastXPasswords(person);
@@ -197,7 +196,6 @@ public class PasswordValidationService {
 	}
 
 	@Async
-	@Transactional
 	public CompletableFuture<Void> isPasswordLeakedAsync(Person person, String password) {
 		boolean result = isPasswordLeaked(person, password);
 		if (result) {
@@ -300,6 +298,10 @@ public class PasswordValidationService {
 	}
 
 	private boolean containsName(Person person, String password) {
+		if (!StringUtils.hasText(person.getName())) {
+			return false;
+		}
+
 		String lowerPwd = password.toLowerCase();
 		for (String name : person.getName().toLowerCase().split(" ")) {
 			if (StringUtils.hasLength(name) && name.length() > 2 && lowerPwd.contains(name)) {

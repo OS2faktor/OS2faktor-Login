@@ -16,12 +16,12 @@ import dk.digitalidentity.common.dao.model.AuditLogSearchCriteria;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.service.AuditLogService;
+import dk.digitalidentity.common.service.geo.GeoIP;
+import dk.digitalidentity.common.service.geo.GeoLocateService;
 import dk.digitalidentity.datatables.model.AuditLogView;
 import dk.digitalidentity.mvc.admin.dto.AuditLogDTO;
 import dk.digitalidentity.security.RequireSupporter;
 import dk.digitalidentity.service.AuditLogSearchCriteriaService;
-import dk.digitalidentity.service.GeoLocateService;
-import dk.digitalidentity.service.geo.dto.GeoIP;
 import jakarta.persistence.EntityNotFoundException;
 
 @RequireSupporter

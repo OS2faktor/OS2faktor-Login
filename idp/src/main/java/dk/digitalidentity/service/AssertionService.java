@@ -121,6 +121,13 @@ public class AssertionService {
 	@Autowired
 	private OpenSAMLHelperService openSAMLHelperService;
 
+
+	// Add this static block to your class - this ensures the property is set 
+	// before any XML Security initialization happens
+	static {
+	    System.setProperty("org.apache.xml.security.ignoreLineBreaks", "true");
+	}
+
 	public void createAndSendAssertion(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) throws ResponderException, RequesterException {
 
 		// attempt to clear any residual incoming authnRequest, to avoid strange behavior on
@@ -575,7 +582,10 @@ public class AssertionService {
 			subjectConfirmation.setSubjectConfirmationData(subjectConfirmationData);
 			subjectConfirmationData.setInResponseTo(inResponseTo);
 			subjectConfirmationData.setNotOnOrAfter(notOnOrAfter);
-			subjectConfirmationData.setRecipient(assertionConsumerServiceURL);
+			
+			if (!serviceProvider.disableSubjectConfirmationRecipient()) {
+				subjectConfirmationData.setRecipient(assertionConsumerServiceURL);
+			}
 		}
 
 		// Create Audience restriction

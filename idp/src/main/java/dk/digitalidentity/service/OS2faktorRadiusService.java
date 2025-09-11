@@ -10,12 +10,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.tinyradius.attribute.IpAttribute;
 import org.tinyradius.attribute.RadiusAttribute;
 import org.tinyradius.packet.AccessRequest;
@@ -72,7 +72,6 @@ public class OS2faktorRadiusService {
 		return UUID.randomUUID().toString();
 	}
 
-	@Transactional
 	public RadiusPacket accessRequestReceived(boolean requireMfa, AccessRequest accessRequest, InetSocketAddress client) throws RadiusException {
 		String reasonText = "Årsag ukendt";
 		RadiusClient radiusClient = getRadiusClient(client);
@@ -93,7 +92,20 @@ public class OS2faktorRadiusService {
 					.map(RadiusClientCondition::getDomain)
 					.collect(Collectors.toList());
 
-			List<Person> persons = domains.isEmpty() ? personService.getBySamaccountNameFullyLoaded(username) : personService.getBySamaccountNameAndDomainsFullyLoaded(username, domains);
+			// load all relevant fields on person inside transaction
+			Consumer<Person> consumer = new Consumer<Person>() {
+				
+				@Override
+				public void accept(Person person) {
+					person.getGroups().forEach(g -> g.getGroup().getName());
+					person.getDomain().getName();
+					person.getTopLevelDomain().getName();
+					person.getAttributes().keySet().size();
+					person.getMfaClients().size();
+				}
+			};
+			
+			List<Person> persons = domains.isEmpty() ? personService.getBySamaccountName(username, consumer) : personService.getBySamaccountNameAndDomains(username, domains, consumer);
 
 			if (persons == null || persons.size() == 0) {
 				log.warn("Supplied username does not exist '" + username + "'");
@@ -295,6 +307,7 @@ public class OS2faktorRadiusService {
 			int inetSegment4 = Integer.parseInt(inetSplit[3]);
 
 			List<RadiusClient> radiusClients = radiusClientService.getAllFullyLoaded();
+			
 			for (RadiusClient radiusClient : radiusClients) {
 				boolean found = false;
 
@@ -331,7 +344,7 @@ public class OS2faktorRadiusService {
 					break;
 				}
 			}
-			
+
 			if (foundRadiusClient == null) {
 				log.warn("Could not find client with ip address " + ipAddress);
 			}

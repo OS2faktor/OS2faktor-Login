@@ -32,7 +32,6 @@ public class AbstractBeforeSaveInterceptor {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 	
-	@Transactional
 	public void handleSavePerson(Person person) {
 		
 		// handle nemLogin action queue
@@ -111,8 +110,7 @@ public class AbstractBeforeSaveInterceptor {
 		}
 	}
 
-	// we ensure a fresh copy is loaded by setting the propagation
-	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@Transactional(propagation = Propagation.REQUIRES_NEW) // this is OK - we ensure a fresh copy is loaded by setting the propagation
 	public Person loadOldPerson(long id) {
 		return personDao.findById(id);
 	}

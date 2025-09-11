@@ -22,6 +22,9 @@ public class CoreDataLogService {
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private CoreDataLogService self;
 
 	public CoreDataLog getById(long id) {
 		return coreDataLogDao.getById(id);
@@ -31,7 +34,6 @@ public class CoreDataLogService {
 		return coreDataLogDao.save(domain);
 	}
 
-	@Transactional
 	public void monitorCoreDataSync() {
 		// For monitoring we are only interested in the "parent" domains, since they are the sources of data, not the sub-domains
 		List<Domain> domains = domainService.getAllParents();
@@ -41,14 +43,19 @@ public class CoreDataLogService {
 			}
 			
 			// cleanup old log entries
-			coreDataLogDao.deleteByTtsBefore(LocalDateTime.now().minusDays(30));
+			self.cleanup();
 
 			// find latest log entry
 			CoreDataLog latestLog = coreDataLogDao.findTopByDomainOrderByTtsDesc(domain);
 
 			LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
 			if (latestLog == null || latestLog.getTts().isBefore(sevenDaysAgo)) {
-				log.error("Domain '" + domain.getName() + "' has not been updated for over 7 days (since: '" + (latestLog == null ? "NEVER" : latestLog.getTts()) + "')");
+				if (latestLog == null) {
+					log.warn("Domain '" + domain.getName() + "' has not been updated for over 7 days (since: 'NEVER')");
+				}
+				else {
+					log.error("Domain '" + domain.getName() + "' has not been updated for over 7 days (since: '" + latestLog.getTts() + "')");
+				}
 			}
 			else {
 				log.info("Domain '" + domain.getName() + "' was last updated: " + latestLog.getTts());
@@ -56,6 +63,11 @@ public class CoreDataLogService {
 		}
 	}
 
+	@Transactional // this is OK, need transaction to delete
+	public void cleanup() {
+		coreDataLogDao.deleteByTtsBefore(LocalDateTime.now().minusDays(30));
+	}
+	
 	public CoreDataLog addLog(String endpoint, String domainName, String subDomain) {
 		if (StringUtils.hasLength(subDomain)) {
 			endpoint = endpoint + "?subdDomain=" + subDomain;

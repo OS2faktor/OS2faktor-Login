@@ -2,18 +2,17 @@ package dk.digitalidentity.api;
 
 import java.io.ByteArrayInputStream;
 import java.security.KeyStore;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,7 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
 import dk.digitalidentity.api.dto.KeystoreInfo;
 import dk.digitalidentity.api.dto.KeystorePayload;
 import dk.digitalidentity.common.dao.model.Keystore;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
+import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.CertificateChangelogService;
+import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.service.KeystoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,6 +41,9 @@ public class CertManagerApi {
 	
 	@Autowired
 	private CertificateChangelogService certificateChangelogService;
+	
+	@Autowired
+	private SettingService settingService;
 
 	@GetMapping("/api/certmanager/all")
 	@ResponseBody
@@ -51,6 +56,10 @@ public class CertManagerApi {
 	@PutMapping("/api/certmanager/disable/{alias}")
 	@ResponseBody
 	public ResponseEntity<?> disableCertificate(@RequestParam String operatorId, @PathVariable("alias") String alias) {
+		if (!Objects.equals(alias, KnownCertificateAliases.NEMLOGIN_SECONDARY.toString()) && !Objects.equals(alias, KnownCertificateAliases.OCES_SECONDARY.toString())) {
+			return ResponseEntity.badRequest().body("Only allowed aliases are: NEMLOGIN_SECONDARY and OCES_SECONDARY");
+		}
+
 		Keystore keystore = keystoreService.findByAlias(alias);
 		if (keystore == null) {
 			log.warn("No certificate found with alias: " + alias);
@@ -61,6 +70,7 @@ public class CertManagerApi {
 		certificateChangelogService.deleteCertificate(operatorId, "Deleted " + keystore.getSubjectDn());
 
 		keystore.setDisabled(true);
+		keystore.setLastUpdated(LocalDateTime.now());
 		keystoreService.save(keystore);
 
 		return ResponseEntity.ok().build();
@@ -68,60 +78,71 @@ public class CertManagerApi {
 
 	@PostMapping("/api/certmanager/new")
 	@ResponseBody
-	public ResponseEntity<?> loadCertificate(@RequestParam(name = "operatorId") String operatorId, @RequestParam(required = false, defaultValue = "false", name = "force") boolean force, @RequestBody KeystorePayload keystorePayload) throws Exception {
-		Keystore keystore = keystoreService.findByAlias(keystorePayload.getAlias());
-		if (keystore != null && !force) {
-			return ResponseEntity.badRequest().body("Keystore with alias " + keystorePayload.getAlias() + " already exists - set force=true to force overwriting it");
-		}
+	public ResponseEntity<?> loadCertificate(@RequestParam(name = "operatorId") String operatorId, @RequestBody KeystorePayload keystorePayload) throws Exception {
+		List<Keystore> keystores = keystoreService.findAll();
 
-		if (keystore == null) {
-			keystore = new Keystore();
+		if (!keystorePayload.getRolloverTts().isAfter(LocalDateTime.now())) {
+			log.warn("Cannot plan a rollover in the past: " + keystorePayload.getRolloverTts());
+
+			return ResponseEntity.badRequest().body("Cannot plan a rollover in the past: " + keystorePayload.getRolloverTts());
 		}
 		
-		// clear settings
-		keystore.setAlias(keystorePayload.getAlias());
-		keystore.setDisabled(false);
-		keystore.setKms(false);
-		keystore.setKmsAlias(null);
-		keystore.setKeystore(null);
-		keystore.setPassword(null);
-		keystore.setLastUpdated(LocalDateTime.now());
-
-		if (StringUtils.hasLength(keystorePayload.getCertificate()) && StringUtils.hasLength(keystorePayload.getKmsAlias())) {
-			getKeystoreFromKms(keystore, keystorePayload.getCertificate(), keystorePayload.getKmsAlias());
-		}
-		else if (StringUtils.hasLength(keystorePayload.getKeystore()) && StringUtils.hasLength(keystorePayload.getPassword())) {
-			getKeystoreFromPfx(keystore, keystorePayload.getKeystore(), keystorePayload.getPassword());
-		}
-		else {
-			return ResponseEntity.badRequest().body("Either certificate/kmsAlias has to be part of the payload, or keystore/password has to be part of the payload");
+		// make sure we have both a primary and a secondary available
+		Keystore secondaryNL = null, secondaryOCES = null;
+		for (Keystore keystore : keystores) {
+			if (keystore.getAlias().equals(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString())) {
+				secondaryNL = keystore;
+			}
+			else if (keystore.getAlias().equals(KnownCertificateAliases.OCES_SECONDARY.toString())) {
+				secondaryOCES = keystore;
+			}
 		}
 
-		keystoreService.save(keystore);
+		if (secondaryNL == null) {
+			secondaryNL = new Keystore();
+			secondaryNL.setAlias(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
+		}
+
+		// clear existing data
+		secondaryNL.setDisabled(false);
+		secondaryNL.setKms(false);
+		secondaryNL.setKmsAlias(null);
+		secondaryNL.setKeystore(null);
+		secondaryNL.setPassword(null);
+		secondaryNL.setLastUpdated(LocalDateTime.now());
+
+		// load new data
+		getKeystoreFromPfx(secondaryNL, keystorePayload.getKeystore(), keystorePayload.getPassword());
+		keystoreService.save(secondaryNL);
+
+		log.info("Loaded new keystore (" + secondaryNL.getSubjectDn() + ") with alias " + secondaryNL.getAlias());
+
+		if (secondaryOCES == null) {
+			secondaryOCES = new Keystore();
+			secondaryOCES.setAlias(KnownCertificateAliases.OCES_SECONDARY.toString());
+		}
 		
-		log.info("Loaded new keystore (" + keystore.getSubjectDn() + ") with alias " + keystore.getAlias());
-		
-		certificateChangelogService.newCertificate(operatorId, "Imported " + keystore.getSubjectDn());
+		// clear existing data
+		secondaryOCES.setDisabled(false);
+		secondaryOCES.setKms(false);
+		secondaryOCES.setKmsAlias(null);
+		secondaryOCES.setKeystore(null);
+		secondaryOCES.setPassword(null);
+		secondaryOCES.setLastUpdated(LocalDateTime.now());
 
+		// load new data
+		getKeystoreFromPfx(secondaryOCES, keystorePayload.getKeystore(), keystorePayload.getPassword());
+		keystoreService.save(secondaryOCES);
+		
+		log.info("Loaded new keystore (" + secondaryOCES.getSubjectDn() + ") with alias " + secondaryOCES.getAlias());
+		
+		certificateChangelogService.newCertificate(operatorId, "Imported " + secondaryOCES.getSubjectDn());
+
+		// plan rollover
+		settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_NL_TTS, keystorePayload.getRolloverTts());
+		settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS, keystorePayload.getRolloverTts());
+		
 		return ResponseEntity.ok().build();
-	}
-	
-	private void getKeystoreFromKms(Keystore keystore, String certificate, String kmsAlias) throws Exception {
-		// do this to make sure it is a valid certificate before storing in DB
-		CertificateFactory factory = CertificateFactory.getInstance("X.509");
-		X509Certificate cert = (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(Base64.getDecoder().decode(certificate)));
-		byte[] encoded = cert.getEncoded();
-		
-		// extract certificate information
-		String subject = cert.getSubjectX500Principal().getName();
-		subject = prettyPrint(subject);
-		LocalDate expires = cert.getNotAfter().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-
-		keystore.setCertificate(encoded);
-		keystore.setExpires(expires);
-		keystore.setSubjectDn(subject);
-		keystore.setKms(true);
-		keystore.setKmsAlias(kmsAlias);
 	}
 
 	private void getKeystoreFromPfx(Keystore keystore, String payload, String password) throws Exception {

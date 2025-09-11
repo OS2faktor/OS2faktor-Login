@@ -1,6 +1,5 @@
 package dk.digitalidentity.common.dao.model;
 
-import java.beans.Transient;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -57,14 +56,4 @@ public class Keystore {
 	
 	// only set if KMS is true
 	private String kmsAlias;
-
-	@Transient
-	public boolean isPrimary() {
-		return "OCES".equals(alias);
-	}
-	
-	@Transient
-	public boolean isSecondary() {
-		return "OCES_SECONDARY".equals(alias);
-	}
 }

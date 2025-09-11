@@ -18,4 +18,5 @@ public class IdentityProfile {
 	private String cprNumber;
 	private String rid;
 	private boolean pseudonym;
+	private boolean allowQualifiedCertificateIssuance;
 }

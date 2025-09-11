@@ -8,6 +8,7 @@ import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.saml.saml2.metadata.KeyDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.KeyDescriptorMarshaller;
 import org.opensaml.security.credential.UsageType;
+import org.opensaml.xmlsec.signature.KeyInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
@@ -47,6 +48,9 @@ public class WSFederationMetadataController {
 		sb.append("<RoleDescriptor xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:fed=\"http://docs.oasis-open.org/wsfed/federation/200706\" xsi:type=\"fed:SecurityTokenServiceType\" protocolSupportEnumeration=\"http://docs.oasis-open.org/ws-sx/ws-trust/200512 http://schemas.xmlsoap.org/ws/2005/02/trust http://docs.oasis-open.org/wsfed/federation/200706\" ServiceDisplayName=\"OS2faktor Login\">\n");
 
 		addKeyDescriptor(sb, cert);
+		if ("OCES".equals(cert)) {
+			addKeyDescriptor(sb, KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());			
+		}
 
 		sb
 			.append("<fed:TokenTypesOffered>\n")
@@ -79,25 +83,30 @@ public class WSFederationMetadataController {
 		if (StringUtils.hasText(cert) && Objects.equals(cert, KnownCertificateAliases.SELFSIGNED.toString())) {
 			keyDescriptor = getSelfsignedKeyDescriptor(UsageType.SIGNING);
 		}
+		else if (StringUtils.hasText(cert) && Objects.equals(cert, KnownCertificateAliases.OCES_SECONDARY.toString())) {
+			keyDescriptor = getSecondaryKeyDescriptor(UsageType.SIGNING);
+		}
 		else {
 			keyDescriptor = getKeyDescriptor(UsageType.SIGNING);
 		}
-
-		KeyDescriptorMarshaller keyDescriptorMarshaller = new KeyDescriptorMarshaller();
-		Element marshalled = keyDescriptorMarshaller.marshall(keyDescriptor);
-
-		StringWriter writer = new StringWriter();
-
-		DOMImplementation domImpl = marshalled.getOwnerDocument().getImplementation();
-		DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
-
-		LSOutput serializerOut = domImplLS.createLSOutput();
-		serializerOut.setCharacterStream(writer);
-
-		LSSerializer serializer = domImplLS.createLSSerializer();
-		serializer.getDomConfig().setParameter("xml-declaration", false);
-		serializer.write(marshalled, serializerOut);
-		sb.append(writer.toString());
+		
+		if (keyDescriptor != null) {
+			KeyDescriptorMarshaller keyDescriptorMarshaller = new KeyDescriptorMarshaller();
+			Element marshalled = keyDescriptorMarshaller.marshall(keyDescriptor);
+	
+			StringWriter writer = new StringWriter();
+	
+			DOMImplementation domImpl = marshalled.getOwnerDocument().getImplementation();
+			DOMImplementationLS domImplLS = (DOMImplementationLS) domImpl.getFeature("LS", "3.0");
+	
+			LSOutput serializerOut = domImplLS.createLSOutput();
+			serializerOut.setCharacterStream(writer);
+	
+			LSSerializer serializer = domImplLS.createLSSerializer();
+			serializer.getDomConfig().setParameter("xml-declaration", false);
+			serializer.write(marshalled, serializerOut);
+			sb.append(writer.toString());
+		}
 	}
 
 	private KeyDescriptor getSelfsignedKeyDescriptor(UsageType usageType) throws ResponderException {
@@ -116,5 +125,19 @@ public class WSFederationMetadataController {
 		keyDescriptor.setKeyInfo(credentialService.getPublicKeyInfo());
 
 		return keyDescriptor;
+	}
+	
+	private KeyDescriptor getSecondaryKeyDescriptor(UsageType usageType) throws ResponderException {
+		KeyInfo keyInfo = credentialService.getSecondaryPublicKeyInfo();
+		if (keyInfo != null) {
+			KeyDescriptor keyDescriptor = samlHelper.buildSAMLObject(KeyDescriptor.class);
+	
+			keyDescriptor.setUse(usageType);
+			keyDescriptor.setKeyInfo(keyInfo);
+	
+			return keyDescriptor;
+		}
+		
+		return null;
 	}
 }

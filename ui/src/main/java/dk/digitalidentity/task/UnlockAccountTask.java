@@ -33,8 +33,11 @@ public class UnlockAccountTask {
     @Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 0 * * ?")
     public void clearBadPasswordCounter() {
     	if (configuration.getScheduled().isEnabled()) {
-	        log.debug("Clear bad password counter");
+	        log.info("Clear bad password counter");
+	        
 	        personService.clearBadPasswordCounter();
+	        
+	        log.info("Clear bad password counter ended");
     	}
     }
 }

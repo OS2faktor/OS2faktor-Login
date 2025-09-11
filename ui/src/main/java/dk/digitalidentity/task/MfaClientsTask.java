@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.mfa.MFAManagementService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.service.MFAManagementService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -39,7 +39,7 @@ public class MfaClientsTask {
 	
 	// run AFTER the syncMfaClients task, so we are sure we have fresh data
 	@Scheduled(cron = "0 #{new java.util.Random().nextInt(59)} 2 * * ?")
-	public void removeTOTPHDevicesTask(){
+	public void removeTOTPHDevicesTask() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled
 		}
@@ -51,5 +51,30 @@ public class MfaClientsTask {
 		log.info("Running task: removeTOTPHDevicesTask");
 
 		mfaManagementService.removeTOTPHDevicesOnLockedPersons();
+		
+		log.info("Completed task: removeTOTPHDevicesTask");
+	}
+
+	// run once every 15 minutes
+	@Scheduled(fixedDelay = 15 * 60 * 1000)
+	public void fetchMfaLoginHistory() {
+		if (!configuration.getScheduled().isEnabled()) {
+			return; // Don't run if scheduled jobs are not enabled
+		}
+
+		mfaService.fetchMfaLoginHistory();
+	}
+
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(59)} 3 * * ?")
+	public void removeOldMfaLoginHistory() {
+		if (!configuration.getScheduled().isEnabled()) {
+			return; // Don't run if scheduled jobs are not enabled
+		}
+
+		log.info("Running task: removeOldMfaLoginHistory");
+
+		mfaService.removeOldMfaLoginHistory();
+		
+		log.info("Completed task: removeOldMfaLoginHistory");		
 	}
 }

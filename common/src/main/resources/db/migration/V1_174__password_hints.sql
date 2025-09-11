@@ -1,0 +1,1 @@
+ALTER TABLE password_settings ADD COLUMN password_hints_position VARCHAR(128) DEFAULT 'BELOW_COLLAPSED'

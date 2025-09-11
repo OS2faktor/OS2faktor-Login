@@ -252,6 +252,7 @@ public class Person {
 	@ElementCollection
 	@CollectionTable(name = "persons_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")
+	// OBS! max length is 768, as we need it in an index
 	@Column(name = "attribute_value")
 	private Map<String, String> attributes;
 

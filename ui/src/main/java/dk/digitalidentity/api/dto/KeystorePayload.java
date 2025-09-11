@@ -1,5 +1,7 @@
 package dk.digitalidentity.api.dto;
 
+import java.time.LocalDateTime;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -8,13 +10,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class KeystorePayload {
-	private String alias;
-	
-	// option 1: this is available
-	private String certificate;
-	private String kmsAlias;
-	
-	// option 2: this is available
 	private String keystore;
 	private String password;
+	private LocalDateTime rolloverTts;
 }

@@ -27,6 +27,8 @@ public class GenerateSchoolClassPasswordWords {
 			log.info("Generating class password lists");
 
 			schoolClassService.generateSchoolClassPasswordWords();
+			
+			log.info("Generating class password lists completed");
 		}
 	}
 }

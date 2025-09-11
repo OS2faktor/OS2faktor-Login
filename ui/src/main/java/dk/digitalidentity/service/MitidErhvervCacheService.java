@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import dk.digitalidentity.common.dao.MitidErhvervCacheDao;
 import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.nemlogin.service.model.Employee;
+import jakarta.transaction.Transactional;
 
 @Service
 public class MitidErhvervCacheService {
@@ -17,6 +18,7 @@ public class MitidErhvervCacheService {
 	@Autowired
 	private MitidErhvervCacheDao mitidErhvervCacheDao;
 	
+	@Transactional // this is OK, just want to fetch in an isolated transaction
 	public List<MitidErhvervCache> findAll() {
 		return mitidErhvervCacheDao.findAll();
 	}
@@ -26,6 +28,7 @@ public class MitidErhvervCacheService {
 		mitidErhvervCacheDao.save(mitidErhvervCache);
 	}
 
+	@Transactional // this is OK, required to save
 	public void saveAll(List<MitidErhvervCache> mitidErhvervCaches) {
 		if (mitidErhvervCaches != null) {
 			for (MitidErhvervCache mitidErhvervCache :  mitidErhvervCaches) {
@@ -36,6 +39,7 @@ public class MitidErhvervCacheService {
 		mitidErhvervCacheDao.saveAll(mitidErhvervCaches);
 	}
 	
+	@Transactional // this is OK, required to delete
 	public void delete(MitidErhvervCache mitidErhvervCache) {
 		mitidErhvervCacheDao.delete(mitidErhvervCache);
 	}

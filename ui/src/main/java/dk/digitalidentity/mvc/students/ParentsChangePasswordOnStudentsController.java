@@ -129,6 +129,8 @@ public class ParentsChangePasswordOnStudentsController {
 
 		// Check for password errors
 		if (bindingResult.hasErrors()) {
+			model.addAttribute(bindingResult.getAllErrors());
+			model.addAttribute("passwordForm", form);
 			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 

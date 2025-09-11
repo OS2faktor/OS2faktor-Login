@@ -15,13 +15,13 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
 import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.dto.AuditLogDTO;
-import jakarta.transaction.Transactional;
 
 @Service
 public class AuditLogReportXlsService {
@@ -32,7 +32,7 @@ public class AuditLogReportXlsService {
 	@Autowired
 	private ResourceBundleMessageSource resourceBundle;
 
-	@Transactional
+	@Transactional(readOnly = true) // this is OK - should not be a big issue with readOnly set
 	public void createAuditLogSheet(Workbook workbook, LocalDateTime from, LocalDateTime to, ReportType type, CellStyle headerStyle) throws InterruptedException {
 		Sheet sheet = workbook.createSheet("Auditlog");
 

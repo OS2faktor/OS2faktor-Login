@@ -60,7 +60,7 @@ public class PasswordChangeValidator implements Validator {
 			errors.rejectValue("confirmPassword", "page.selfservice.changePassword.error.match");
 		}
 
-		ChangePasswordResult validPassword = passwordValidationService.validatePasswordRules(person, form.getPassword(), true);
+		ChangePasswordResult validPassword = passwordValidationService.validatePasswordRules(person, form.getPassword(), true, false);
 
 		if (validPassword.equals(ChangePasswordResult.BAD_PASSWORD)) {
 			errors.rejectValue("password", "page.selfservice.changePassword.error.simple");

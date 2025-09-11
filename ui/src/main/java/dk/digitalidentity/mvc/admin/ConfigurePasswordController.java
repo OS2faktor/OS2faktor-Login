@@ -25,6 +25,7 @@ import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.PasswordHintsPosition;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.BadPasswordService;
@@ -118,6 +119,8 @@ public class ConfigurePasswordController {
 		form.setPreventBadPasswords(true);
 		form.setCheckLeakedPasswords(true);
 		form.setDomainId(0);
+		form.setPasswordHintsPosition(PasswordHintsPosition.BELOW_COLLAPSED);
+
 		model.addAttribute("configForm", form);
 
 		List<Domain> domains = domainService.getAll();
@@ -191,6 +194,7 @@ public class ConfigurePasswordController {
 		settings.setPreventBadPasswords(form.isPreventBadPasswords());
 		settings.setSpecificSpecialCharactersEnabled(form.isSpecificSpecialCharactersEnabled());
 		settings.setAllowedSpecialCharacters(form.isSpecificSpecialCharactersEnabled() ? form.getAllowedSpecialCharacters() : null);
+		settings.setPasswordHintsPosition(form.getPasswordHintsPosition());
 		
 		if (form.isRequireComplexPassword()) {
 			settings.setRequireLowercaseLetters(true);

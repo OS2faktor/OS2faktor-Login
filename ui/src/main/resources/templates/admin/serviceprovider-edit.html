@@ -596,9 +596,11 @@
 										<option value="uuid">UUID</option>
 										<option value="cpr">Personnummer</option>
 										<option value="name">Navn</option>
-										<option value="alias">Kaldenavn</option>
 										<option value="firstname">Fornavn</option>
 										<option value="lastname">Efternavn</option>
+										<option value="alias">Kaldenavn</option>
+										<option value="aliasFirstname">KaldeFornavn</option>
+										<option value="aliasLastname">KaldeEfternavn</option>
 										<option th:each="personAttribute : ${@personAttributeService.getAll()}" th:value="${personAttribute.name}">
 											<th:block th:unless="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.displayName + ' (' + personAttribute.name + ')'}"></th:block>
 											<th:block th:if="${#strings.isEmpty(personAttribute.displayName)}" th:text="${personAttribute.name}"></th:block>

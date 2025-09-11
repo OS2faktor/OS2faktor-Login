@@ -48,7 +48,10 @@ public class Domain {
 
 	@Column
 	private String nemLoginUserSuffix;
-	
+
+	@Column
+	private String roleCatalogueDomain;
+
 	@Column
 	private boolean standalone;
 

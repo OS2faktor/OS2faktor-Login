@@ -46,6 +46,38 @@ public class AdvancedRuleService {
             case "email":
             	attribute = person.getEmail();
             	break;
+            case "aliasFirstname":
+            	try {
+            		int idx = person.getNameAlias().lastIndexOf(' ');
+            		
+            		if (idx > 0) {
+            			attribute = person.getNameAlias().substring(0, idx);
+            		}
+            		else {
+            			attribute = person.getNameAlias();
+            		}
+            	}
+            	catch (Exception ex) {
+            		log.error("Failed to parse alias on " + person.getId(), ex);
+            		attribute = person.getNameAlias();
+            	}
+            	break;
+            case "aliasLastname":
+            	try {
+            		int idx = person.getNameAlias().lastIndexOf(' ');
+            		
+            		if (idx > 0) {
+            			attribute = person.getNameAlias().substring(idx + 1);
+            		}
+            		else {
+            			attribute = person.getNameAlias();
+            		}
+            	}
+            	catch (Exception ex) {
+            		log.error("Failed to parse alias on " + person.getId(), ex);
+            		attribute = person.getNameAlias();
+            	}
+            	break;
             case "firstname":
             	try {
             		int idx = person.getName().lastIndexOf(' ');

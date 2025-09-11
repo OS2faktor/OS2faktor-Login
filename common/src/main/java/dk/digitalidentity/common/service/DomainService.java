@@ -3,6 +3,7 @@ package dk.digitalidentity.common.service;
 import dk.digitalidentity.common.dao.DomainDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Person;
+import jakarta.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +28,17 @@ public class DomainService {
 
 	public Domain getByName(String name) {
 		return getByName(name, false);
+	}
+
+	@Transactional
+	public Domain getByName(String name, Consumer<Domain> consumer) {
+		Domain domain = getByName(name, false);
+		
+		if (domain != null && consumer != null) {
+			consumer.accept(domain);
+		}
+		
+		return domain;
 	}
 
 	public Domain getByName(String name, boolean createIfNotExist) {

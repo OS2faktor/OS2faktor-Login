@@ -78,7 +78,7 @@ public class StilApi {
 		log.info("WS17 full sync trace: before updating all classes");
 
 		// step 1 - make sure all classes exists and are updated
-		Map<String, SchoolClass> classMap = createAndUpdateClasses(stilData, domain, classes);
+		Map<String, SchoolClass> classMap = createAndUpdateClasses(stilData, classes);
 
 		// step 2 - make sure all roles are assigned to persons
 		List<String> personsWithRoles = new ArrayList<>();
@@ -341,7 +341,7 @@ public class StilApi {
 		schoolClassService.deleteAll(toBeDeleted);
 	}
 
-	private Map<String, SchoolClass> createAndUpdateClasses(StilData stilData, Domain domain, List<SchoolClass> existingClasses) {
+	private Map<String, SchoolClass> createAndUpdateClasses(StilData stilData, List<SchoolClass> existingClasses) {
 		Map<String, SchoolClass> map = existingClasses.stream().collect(Collectors.toMap(SchoolClass::uniqueId, Function.identity()));
 
 		for (StilGroup group : stilData.getStudentGroups()) {

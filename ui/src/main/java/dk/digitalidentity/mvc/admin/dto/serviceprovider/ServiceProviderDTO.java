@@ -1,6 +1,7 @@
 package dk.digitalidentity.mvc.admin.dto.serviceprovider;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -17,9 +18,7 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
-import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
-import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfig;
 import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
 import dk.digitalidentity.common.serviceprovider.ServiceProviderConfig;
 import lombok.Getter;
@@ -95,7 +94,7 @@ public class ServiceProviderDTO {
 		this.metadataUrl = config.getMetadataUrl();
 		this.metadataContent = config.getMetadataContent();
 		this.sqlServiceProvider = (config instanceof SqlServiceProviderConfiguration);
-		this.kombitServiceProvider = (config instanceof KombitServiceProviderConfig) || (config instanceof KombitServiceProviderConfigV2) || (config instanceof KombitTestServiceProviderConfig) || (config instanceof KombitTestServiceProviderConfigV2);
+		this.kombitServiceProvider = ((config instanceof KombitServiceProviderConfigV2) || (config instanceof KombitTestServiceProviderConfigV2));
 		this.hasCustomSessionExpiry = false;
 		this.allowMitidErhvervLogin = config.isAllowMitidErvhervLogin();
 		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
@@ -145,6 +144,8 @@ public class ServiceProviderDTO {
 			for (SqlServiceProviderGroupClaim groupClaim : sqlConfig.getGroupClaims()) {
 				claims.add(new ClaimDTO(groupClaim));
 			}
+
+			claims.sort(Comparator.comparing(ClaimDTO::getAttribute).thenComparing(ClaimDTO::getValue));
 
 			this.conditionsDomains = sqlConfig.getConditions()
 					.stream()

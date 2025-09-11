@@ -67,14 +67,25 @@ public class PasswordFilterApiController {
 
 		// Get Person
 		List<Person> persons = personService.getBySamaccountNameAndDomains(username, domains);
-		if (persons.size() != 1) {
+		if (persons.size() > 1) {
 			log.warn("Found more than one matching user");
 			return ResponseEntity.badRequest().build();
 		}
 
+		Person personToValidate;
+		boolean unknownPerson = persons.isEmpty();
+		if (unknownPerson) {
+			// Create a temporary person for validation
+			// This allows our AD password filter to validate the passwords of everyone, not just the accounts OS2faktor knows about
+			personToValidate = new Person();
+			personToValidate.setSamaccountName(username);
+			personToValidate.setDomain(domain);
+		} else {
+			personToValidate = persons.getFirst();
+		}
+
 		// Check password if not ok, log special Auditlog specifying PasswordFilter Validation failed.
-		Person person = persons.get(0);
-		ChangePasswordResult result = passwordValidationService.validatePasswordRules(person, password, false);
+		ChangePasswordResult result = passwordValidationService.validatePasswordRules(personToValidate, password, false, unknownPerson);
 		switch (result) {
 			case OK:
 				return ResponseEntity.ok().build();
@@ -96,8 +107,10 @@ public class PasswordFilterApiController {
 			case LEAKED_PASSWORD:
 				break;
 		}
-		
-		auditLogger.passwordFilterValidationFailed(person, result.getMessage());
+
+		if (!unknownPerson) {
+			auditLogger.passwordFilterValidationFailed(personToValidate, result.getMessage());
+		}
 
 		return ResponseEntity.status(HttpStatus.CONFLICT).build();
 	}

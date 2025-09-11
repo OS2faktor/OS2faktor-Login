@@ -93,6 +93,7 @@
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/nemlogin_queue}">MitID Erhverv fejlsøgning</a></li>
 						<li sec:authorize="hasRole('ROLE_SUPPORTER')"><a th:href="@{/admin/relevantPages}">Overblik over sider</a></li>
 						<li sec:authorize="hasRole('ROLE_KODEVISER_ADMIN')"><a th:href="@{/admin/konfiguration/kodeviser}">Kodeviser administration</a></li>
+						<li sec:authorize="hasRole('ROLE_ADMINISTRATOR')"><a th:href="@{/admin/mfahistory}">MFA historik</a></li>
 					</ul>
 				</div>
 			</div>

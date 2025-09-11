@@ -69,6 +69,7 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.myidentity.references.help", getDescription("cms.myidentity.references.help")));
 		all.add(new CmsMessageListDTO("cms.index.content", getDescription("cms.index.content")));
 		all.add(new CmsMessageListDTO("cms.index.forgotPasswordOrLocked", getDescription("cms.index.forgotPasswordOrLocked")));
+		all.add(new CmsMessageListDTO("cms.index.changePasswordOnStudent", getDescription("cms.index.changePasswordOnStudent")));
 		all.add(new CmsMessageListDTO("cms.activate.initiate", getDescription("cms.activate.initiate")));
 		all.add(new CmsMessageListDTO("cms.activate.ad-password-change", getDescription("cms.activate.ad-password-change")));
 		all.add(new CmsMessageListDTO("cms.activate.during-login", getDescription("cms.activate.during-login")));
@@ -165,6 +166,8 @@ public class CmsMessageBundle {
 				return "Den ledetekst der vises på forsiden af selvbetjeningen før man er logget ind";
 			case "cms.index.forgotPasswordOrLocked":
 				return "Den tekst der står på knappen, man skal trykke på, hvis man har glemt kodeord eller er låst ude";
+			case "cms.index.changePasswordOnStudent":
+				return "Den tekst der står på knappen, man skal trykke på, hvis man vil skifte kodeord på sine børn";
 			case "cms.activate.initiate":
 				return "Den ledetekst der vises på startsiden for det dedikerede aktiveringsflow";
 			case "cms.activate.ad-password-change":

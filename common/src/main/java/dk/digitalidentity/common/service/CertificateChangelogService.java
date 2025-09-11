@@ -29,6 +29,17 @@ public class CertificateChangelogService {
 		certificateChangelogDao.save(changelog);
 	}
 
+	public void swapCertificate(String operatorId, String details) {
+		CertificateChangelog changelog = new CertificateChangelog();
+		changelog.setChangeType(CertificateChange.SWAP);
+		changelog.setDetails(details);
+		changelog.setIpAddress(getIpAddress());
+		changelog.setOperatorId(operatorId);
+		changelog.setTts(LocalDateTime.now());
+		
+		certificateChangelogDao.save(changelog);
+	}
+
 	public void deleteCertificate(String operatorId, String details) {
 		CertificateChangelog changelog = new CertificateChangelog();
 		changelog.setChangeType(CertificateChange.DELETE);

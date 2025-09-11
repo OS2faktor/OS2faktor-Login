@@ -24,6 +24,8 @@ public class OAuth2AuthorizationCleanupTask {
 			long startTime = System.currentTimeMillis();
 
 			authorizationService.removeExpiredAuthorizations();
+			authorizationService.removeUnusedAuthorizations();
+			authorizationService.removeExpiredRefreshTokens();
 
 			long stopTime = System.currentTimeMillis();
 			long elapsedTime = stopTime - startTime;

@@ -14,6 +14,12 @@ public class EndpointDTO {
     private String binding;
     private String type;
 
+    public EndpointDTO(String url, String binding, String type) {
+    	this.type = type;
+    	this.url = url;
+    	this.binding = binding;
+    }
+
     public EndpointDTO(String type, Endpoint endpoint) {
         this.type = type;
         this.url = endpoint.getLocation();

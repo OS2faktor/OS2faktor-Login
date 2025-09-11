@@ -11,7 +11,6 @@ import dk.digitalidentity.config.modules.AuditLogModule;
 import dk.digitalidentity.config.modules.CertManagerApi;
 import dk.digitalidentity.config.modules.CoreData;
 import dk.digitalidentity.config.modules.EBoks;
-import dk.digitalidentity.config.modules.GeoLocate;
 import dk.digitalidentity.config.modules.IdP;
 import dk.digitalidentity.config.modules.MfaPassthrough;
 import dk.digitalidentity.config.modules.PasswordChangeQueueApiConfiguration;
@@ -25,14 +24,13 @@ import lombok.Setter;
 @Setter
 @ConfigurationProperties(prefix = "os2faktor.ui")
 public class OS2faktorConfiguration {
-	private String version = "2025 r3";
-	private String latestVersion = "2025 r3";
+	private String version = "2025 r4";
+	private String latestVersion = "2025 r4";
 
 	private Scheduled scheduled = new Scheduled();
 	private CoreData coreData = new CoreData();
 	private IdP idp = new IdP();
 	private EBoks eboks = new EBoks();
-	private GeoLocate geo = new GeoLocate();
 	private AuditLogModule auditLog = new AuditLogModule();
 	private MfaPassthrough mfaPassthrough = new MfaPassthrough();
 	private AppManager appManager = new AppManager();

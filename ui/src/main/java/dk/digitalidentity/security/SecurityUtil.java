@@ -277,10 +277,7 @@ public class SecurityUtil {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_KODEVISER_ADMIN));
 			}
 
-			if (!commonConfiguration.getFullServiceIdP().isEnabled() &&
-				 commonConfiguration.getCustomer().isEnableRegistrant() &&
-				 person.isRegistrant()) {
-
+			if (commonConfiguration.getCustomer().isEnableRegistrant() && person.isRegistrant()) {
 				authorities.add(new SamlGrantedAuthority(Constants.ROLE_REGISTRANT));
 			}
 

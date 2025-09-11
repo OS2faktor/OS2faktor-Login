@@ -94,6 +94,11 @@ public class LogoutController {
 
             // Log to Console and AuditLog
             loggingUtil.logLogoutRequest(logoutRequest, Constants.INCOMING);
+
+            if (logoutRequest.getIssuer() == null) {
+            	throw new RequesterException("Ingen Issuer i LogoutRequest");
+            }
+
             serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
             auditLogger.logoutRequest(sessionHelper.getPerson(), samlHelper.prettyPrint(logoutRequest), false, serviceProvider.getName(null));
 

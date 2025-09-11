@@ -39,6 +39,7 @@ import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -82,6 +83,9 @@ public class LoginService {
 
     @Autowired
     private PasswordService passwordService;
+    
+    @Autowired
+    private UserAgentParser userAgentParser;
 
     /**
      * This method handles receiving any login request, and will then determine based on session what to do with the user
@@ -442,7 +446,7 @@ public class LoginService {
         // Get all persons with SAMAccountName equals to provided username
         result.addAll(personService.getBySamaccountName(shortUsername));
 
-        if (configuration.isLoginWithUpn()) {
+        if (configuration.isLoginWithUpn() && username.contains("@")) {
             result.addAll(personService.getByUPN(username));
         }
         
@@ -477,17 +481,20 @@ public class LoginService {
         model.addAttribute("showNemLogIn", showNemLogIn());
 
         // hack to support embedded IE browsers
+        boolean isMobile = false;
         try {
 	        String ua = request.getHeader("user-agent").toLowerCase();
 	        if (ua.indexOf("trident") >= 0 || ua.indexOf("edge/") >= 0) {
 	            return new ModelAndView("login-ie", model.asMap());
 	        }
+	        
+	        isMobile = userAgentParser.isMobile(ua);
         }
         catch (Exception ignored) {
         	;
         }
         
-    	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa());
+    	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa() && (commonConfiguration.getCustomer().isEnablePasswordlessMfaMobileOnly() == false || isMobile));
     	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
         
         return new ModelAndView("login", model.asMap());

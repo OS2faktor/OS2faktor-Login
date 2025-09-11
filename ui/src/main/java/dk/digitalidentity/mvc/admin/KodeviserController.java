@@ -15,6 +15,7 @@ import dk.digitalidentity.common.service.CachedMfaClientService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.mvc.admin.xlsview.AdminKodeviserReportXlsView;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
+import dk.digitalidentity.security.SecurityUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -27,10 +28,16 @@ public class KodeviserController {
 	
 	@Autowired
 	private SettingService settingsService;
+	
+	@Autowired
+	private SecurityUtil securityUtil;
 
 	@GetMapping("/admin/konfiguration/kodeviser")
 	public String listHardwareDevices(Model model) {
 		model.addAttribute("removeDeviceSetting", settingsService.getBoolean(SettingKey.REMOVE_DEVICE_WHEN_PERSON_LOCKED));
+		
+		model.addAttribute("isAdmin", securityUtil.isAdmin());
+		
 		return "admin/kodeviser-manage";
 	}
 

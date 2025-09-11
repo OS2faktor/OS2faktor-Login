@@ -18,6 +18,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PasswordChangeQueueDao;
@@ -46,6 +47,7 @@ public class PasswordChangeQueueService {
 		return save(passwordChangeQueue, true);
 	}
 
+	@Transactional // this is OK, need a transaction to save a detached entity (and do extra lookups ;))
 	public PasswordChangeQueue save(PasswordChangeQueue passwordChangeQueue, boolean deleteOldEntries) {
 		// if the user tries to change password multiple times in a row, we only want to keep the latest - this
 		// removes any attempts in the queue that is not already synchronized (which we need to keep for debugging purposes)
@@ -80,7 +82,7 @@ public class PasswordChangeQueueService {
 	public ADPasswordStatus attemptPasswordChangeFromUI(Person person, String newPassword, boolean forceChangePassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
 		PasswordChangeQueue change = new PasswordChangeQueue(person, encryptPassword(newPassword), forceChangePassword);
 
-		ADPasswordStatus status = adPasswordService.attemptPasswordReplication(person, change);
+		ADPasswordStatus status = adPasswordService.attemptPasswordReplication(change);
 		switch (status) {
 			// inform user through UI (but also save result in queue for debugging purposes)
 			case FAILURE:

@@ -63,7 +63,7 @@ public class SchoolClassService {
 		return false;
 	}
 	
-	@Transactional
+	@Transactional // runs in < 50ms under normal cases, and slightly slower at first run, @Transactional is OK here
 	public void generateSchoolClassPasswordWords() {
 		for (SchoolClass clazz : getAll()) {
 			if (!StringUtils.hasLength(clazz.getLevel()) || clazz.getPasswordWords().size() > 0) {
@@ -146,6 +146,11 @@ public class SchoolClassService {
 					break;
 				}
 				
+				// always only in own institution
+				if (!clazz.getInstitutionId().equals(role.getInstitutionId())) {
+					continue;
+				}
+
 				StudentPwdRoleSettingConfiguration roleSetting = commonConfiguration.getStilStudent().getRoleSettings().stream()
 						.filter(r -> r.getRole().equals(role.getRole()))
 						.findFirst()

@@ -19,7 +19,7 @@ public class RadiusClientService {
 		return radiusClientDao.findAll();
 	}
 
-	@Transactional
+	@Transactional // this is OK, as we use this for isolated loading
 	public List<RadiusClient> getAllFullyLoaded() {
 		List<RadiusClient> all = radiusClientDao.findAll();
 		all.forEach(RadiusClient::loadFully);

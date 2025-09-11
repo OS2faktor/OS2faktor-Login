@@ -27,7 +27,7 @@ public class ApiKeyGenerationTask {
 	private CommonConfiguration commonConfiguration;
 
 	@Autowired
-	private ClientService clientService;;
+	private ClientService clientService;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {

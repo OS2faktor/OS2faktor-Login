@@ -15,7 +15,7 @@ public class KombitTestServiceProviderConfigV2 implements ServiceProviderConfig 
 
     @Override
     public String getName() {
-        return "KOMBIT Context Handler 2 (NSIS TEST)";
+        return "KOMBIT Context Handler 2 (TEST)";
     }
 
     @Override

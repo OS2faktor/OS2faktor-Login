@@ -19,11 +19,12 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CachedMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.mfa.MFAManagementService;
 import dk.digitalidentity.datatables.KodeviserDatatableDao;
 import dk.digitalidentity.datatables.model.KodeviserView;
+import dk.digitalidentity.security.RequireAdministrator;
 import dk.digitalidentity.security.RequireKodeviserAdministrator;
 import dk.digitalidentity.security.SecurityUtil;
-import dk.digitalidentity.service.MFAManagementService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
@@ -109,6 +110,7 @@ public class KodeviserRestController {
 
 	record SetRemoveDeviceSettingForm(Boolean removeDeviceSetting) {}
 	
+	@RequireAdministrator
 	@PostMapping("/rest/admin/kodeviser/removeDeviceSetting")
 	public ResponseEntity<?> setRemoveDeviceSetting(@RequestBody SetRemoveDeviceSettingForm form) {
 		if (form == null || form.removeDeviceSetting == null) {

@@ -93,6 +93,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private boolean disableSubjectConfirmation;
 
+	@Column
+	private boolean disableSubjectConfirmationRecipient;
+
     @Column
     @Enumerated(EnumType.STRING)
     private Protocol protocol;

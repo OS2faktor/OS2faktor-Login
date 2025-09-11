@@ -6,11 +6,18 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.MessageSource;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,14 +55,18 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.PersonStatisticsService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
+import dk.digitalidentity.common.service.geo.GeoIP;
+import dk.digitalidentity.common.service.geo.GeoLocateService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.util.ZipUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
-@Component
 @Slf4j
+@Component
+@EnableScheduling
 public class AuditLogger {
+	private static Map<String, String> ipLookupMap = new HashMap<>();
 
 	@Autowired
 	private AuditLogDao auditLogDao;
@@ -77,6 +88,40 @@ public class AuditLogger {
 
 	@Autowired
 	private PersonStatisticsService personStatisticsService;
+
+	@Autowired
+	private GeoLocateService geoLocationService;
+
+	@EventListener(ApplicationReadyEvent.class)
+	public void runOnStartup() {
+		refreshIpMap();
+	}
+	
+	@Scheduled(cron = "#{new java.util.Random().nextInt(59)} #{new java.util.Random().nextInt(59)} 5 * * ?")
+	public void refreshIpMapJob() {
+		refreshIpMap();
+	}
+
+	// we perform a GEO lookup on EACH log entry, but quite often we have the same IP addresses on most of the logs
+	// so this creates a map of IP addresses, so we do not need to perform lookup on the most common IP's more than once
+	// every day.
+	private void refreshIpMap() {
+		Map<String, String> newMap = new HashMap<>();
+		Set<String> ipAddresses = auditLogDao.getLatestIpAddresses(LocalDateTime.now().minusDays(1));
+
+		log.info("Refreshing IP map on " + ipAddresses.size() + " ip addresess");
+		
+		for (String ip : ipAddresses) {
+			if (!"127.0.0.1".equals(ip)) {
+				GeoIP geo = geoLocationService.lookupIp(ip);
+				if (geo != null && StringUtils.hasText(geo.getCountry())) {
+					newMap.put(ip, geo.getCountry());
+				}
+			}
+		}
+		
+		ipLookupMap = newMap;
+	}
 
 	public void errorSentToSP(Person person, ErrorLogDto errorDetail) {
 		AuditLog auditLog = new AuditLog();
@@ -1169,11 +1214,14 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	// TODO: shouldn't we DO something with username here?
 	public void radiusLoginRequestReceived(String username, String radiusClient) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.RADIUS_LOGIN_REQUEST_RECEIVED);
 		auditLog.setMessage("Login forespørgsel fra RADIUS klient: " + radiusClient);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(username);
 
 		log(auditLog, null, null);
 	}
@@ -1393,6 +1441,11 @@ public class AuditLogger {
 		auditLog.setCorrelationId(getCorrelationId());
 		auditLog.setIpAddress(getIpAddress());
 
+		// if we already know the location of this IP addresses, store it immediately
+		if (ipLookupMap.containsKey(auditLog.getIpAddress())) {
+			auditLog.setLocation(ipLookupMap.get(auditLog.getIpAddress()));
+		}
+
 		if (person != null) {
 			auditLog.setPerson(person);
 			auditLog.setPersonName(person.getName());
@@ -1476,7 +1529,7 @@ public class AuditLogger {
 		}
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, need transaction for bulk delete
 	public void cleanupLoginLogs() {
 		LocalDateTime now = LocalDateTime.now();
 		LocalDateTime tts = now.plusMonths(-3);
@@ -1484,7 +1537,7 @@ public class AuditLogger {
 		auditLogDao.deleteLoginsByTtsBefore(tts);
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, need transaction for bulk delete
 	public void cleanupLogs() {
 		LocalDateTime now = LocalDateTime.now();
 		LocalDateTime tts = now.plusMonths(-13);
@@ -1492,7 +1545,7 @@ public class AuditLogger {
 		auditLogDao.deleteByTtsBefore(tts);
 	}
 
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, need transaction for bulk delete
 	public void cleanupTraceLogs() {
 		LocalDateTime now = LocalDateTime.now();
 		LocalDateTime tts = now.minusDays(14);
@@ -1500,7 +1553,7 @@ public class AuditLogger {
 		auditLogDao.deleteTraceLogsByTtsBefore(tts);
 	}
 	
-	@Transactional(rollbackFor = Exception.class)
+	@Transactional(rollbackFor = Exception.class) // this is OK, need transaction for bulk delete
 	public void deleteUnreferencedAuditlogDetails() {
 		auditLogDao.deleteUnreferencedAuditlogDetails();
 	}

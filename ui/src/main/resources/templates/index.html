@@ -21,6 +21,9 @@
 
 								<!-- Hidden on mobile -->
 								<p class="d-none d-lg-block full-width" style="text-align: right">
+									<a th:if="${@commonConfiguration.stilStudent.enabled}" sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 250px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="@{/elevkode}">
+										<span th:utext="${@cmsMessageBundle.getText('cms.index.changePasswordOnStudent')}"></span>
+									</a>
 									<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 250px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + ${httpServletRequestRequestUrl}">
 										<span th:utext="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></span>
 									</a>
@@ -29,6 +32,9 @@
 
 	                        	<!-- Visible on mobile -->
 	                        	<div class="d-block d-lg-none">
+									<a th:if="${@commonConfiguration.stilStudent.enabled}" sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="@{/elevkode}">
+										<span th:utext="${@cmsMessageBundle.getText('cms.index.changePasswordOnStudent')}"></span>
+									</a>
 	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="@{/saml/login}">Login</a>
 	                        		<a sec:authorize="!isAuthenticated()" style="font-size: larger; min-width: 200px; margin-right: 30px; margin-bottom: 20px;" class="btn btn-primary btn-block" th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/forgotpworlocked?redirectUrl=' + ${httpServletRequestRequestUrl}"><span th:utext="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></span></a>
 	                        	</div>

@@ -35,6 +35,14 @@ public class NemloginSyncTask {
 	public void cleanupMitIDErhverv() {
 		if (configuration.getScheduled().isEnabled() && commonConfiguration.getNemLoginApi().isEnabled()) {
 			nemLoginService.cleanupMitIDErhverv();
-		}		
+		}
+	}
+	
+	// nightly - makes sure all users in MitID Erhverv, controlled by us, is deleted 3 months after suspend
+	@Scheduled(cron = "${cron.mitid.delete:#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 23 * * ?}")
+	public void deleteOldMitIDErhverv() {
+		if (configuration.getScheduled().isEnabled() && commonConfiguration.getNemLoginApi().isEnabled()) {
+			nemLoginService.deleteMitIDErhverv();
+		}
 	}
 }

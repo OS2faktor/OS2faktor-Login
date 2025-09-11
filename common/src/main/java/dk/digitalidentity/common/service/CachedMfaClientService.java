@@ -4,9 +4,9 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.dao.CachedMfaClientDao;
-import jakarta.transaction.Transactional;
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 
@@ -16,7 +16,7 @@ public class CachedMfaClientService {
 	@Autowired
 	private CachedMfaClientDao cachedMfaClientDao;
 	
-	@Transactional
+	@Transactional // this is OK as we need transaction to save detached entity
 	public void deleteBySerialnumber(String serial) {
 		cachedMfaClientDao.deleteBySerialnumber(serial);
 	}

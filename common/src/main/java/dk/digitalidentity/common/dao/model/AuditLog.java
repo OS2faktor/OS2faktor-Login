@@ -37,16 +37,16 @@ public class AuditLog {
 	private long id;
 	
 	@CreationTimestamp
-	@Column
+	@Column(updatable = false)
 	private LocalDateTime tts;
 		
-	@Column
+	@Column(updatable = false)
 	private String ipAddress;
 	
 	@Column
 	private String location;
 	
-	@Column
+	@Column(updatable = false)
 	private String correlationId;
 
 	// referenced person which data was used
@@ -58,30 +58,30 @@ public class AuditLog {
 	@NotFound(action = NotFoundAction.IGNORE)
 	private Person person;
 	
-	@Column
+	@Column(updatable = false)
 	private String personName;
 
-	@Column
+	@Column(updatable = false)
 	private String personDomain;
 	
-	@Column
+	@Column(updatable = false)
 	private String cpr;
 	
 	// referenced entity that performed the action (null if the performer was the data-owner)
 
-	@Column
+	@Column(updatable = false)
 	private Long performerId;
 	
-	@Column
+	@Column(updatable = false)
 	private String performerName;
 	
 	// action performed
 
-	@Column
+	@Column(updatable = false)
 	@Enumerated(EnumType.STRING)
 	private LogAction logAction;
 
-	@Column
+	@Column(updatable = false)
 	private String message;
 	
 	@OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)

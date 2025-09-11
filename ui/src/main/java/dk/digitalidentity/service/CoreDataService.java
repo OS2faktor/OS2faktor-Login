@@ -43,6 +43,7 @@ import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
 import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
 import dk.digitalidentity.api.dto.CoreDataNemLoginEntry;
+import dk.digitalidentity.api.dto.CoreDataExtendedLookup;
 import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
 import dk.digitalidentity.api.dto.CoreDataStatus;
@@ -53,6 +54,7 @@ import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitJfr;
+import dk.digitalidentity.common.dao.model.MitidErhvervCache;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonStatistics;
 import dk.digitalidentity.common.dao.model.Supporter;
@@ -66,6 +68,8 @@ import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.PersonStatisticsService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.nemlogin.service.NemLoginService;
+import dk.digitalidentity.nemlogin.service.model.FullEmployee;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -101,6 +105,12 @@ public class CoreDataService {
 	
 	@Autowired
 	private PersonStatisticsService personStatisticsService;
+	
+	@Autowired
+	private NemLoginService nemLoginService;
+	
+	@Autowired
+	private MitidErhvervCacheService mitIdErhvervCacheService;
 		
 	// thread-safe formatter
 	private DateTimeFormatter formatter = new DateTimeFormatterBuilder()
@@ -110,9 +120,14 @@ public class CoreDataService {
 	        .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
 	        .toFormatter();
 
-	@Transactional(rollbackFor = Exception.class)
 	public void load(CoreData coreData, boolean fullLoad) throws IllegalArgumentException {
-		Domain domain = domainService.getByName(coreData.getDomain());
+		Domain domain = domainService.getByName(coreData.getDomain(), d -> {
+			d.getChildDomains().size();
+			if (d.getParent() != null) {
+				d.getParent().getName();
+			}
+		});
+
 		if (domain == null) {
 			throw new IllegalArgumentException("Ukendt domæne: " + coreData.getDomain());
 		}
@@ -121,7 +136,13 @@ public class CoreDataService {
 		// and any of the sub-entries has a different subDomain, this consists of an error and the payload will be rejected
 		Domain globalSubDomain = null;
 		if (StringUtils.hasLength(coreData.getGlobalSubDomain())) {
-			Domain gsd = domainService.getByName(coreData.getGlobalSubDomain());
+			Domain gsd = domainService.getByName(coreData.getGlobalSubDomain(), d -> {
+				d.getChildDomains().size();
+				if (d.getParent() != null) {
+					d.getParent().getName();
+				}				
+			});
+
 			if (gsd != null && gsd.getParent() != null) {
 				globalSubDomain = gsd;				
 			}
@@ -149,13 +170,29 @@ public class CoreDataService {
 
 		// Get a list of all account of the domain, even if Global subdomain is set,
 		// this is used to move accounts between subdomains without locking and creating a new one
-		List<Person> personsByDomain = personService.getByDomain(domain, true);
+		List<Person> personsByDomain = personService.getByDomain(domain, true, p -> {
+			p.getDomain().getName();
+			p.getAttributes().size();
+			p.getKombitJfrs().size();
+
+			p.getGroups().forEach(gm -> {
+				gm.getGroup().getName();
+			});			
+			
+			if (p.getSupporter() != null) {
+				p.getSupporter().getDomain().getName();
+			}
+		});
+
 		Map<String, Person> personMap = personsByDomain
 				.stream()
 				.collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
 
 		// Get people from the database (restrict to globalSubDomain if supplied, to ensure cleanup (delete only happens on these users)
-		List<Person> filteredPersonList = (globalSubDomain == null) ? personsByDomain : personService.getByDomain(globalSubDomain, false);
+		long globalSubDomainId = globalSubDomain != null ? globalSubDomain.getId() : 0;
+		List<Person> filteredPersonList = (globalSubDomain == null)
+				? personsByDomain
+				: personsByDomain.stream().filter(p -> p.getDomain().getId() == globalSubDomainId).collect(Collectors.toList());
 
 		// Go through the received list of entries, check if there's a matching person object, then update/create
 		for (CoreDataEntry coreDataEntry : coreData.getEntryList()) {
@@ -842,6 +879,12 @@ public class CoreDataService {
 						case USER_ADMIN:
 							person.setUserAdmin(true);
 							break;
+						case PASSWORD_RESET_ADMIN:
+							person.setPasswordResetAdmin(true);
+							break;
+						case STUDENT_PASSWORD_RESET_ADMIN:
+							person.setInstitutionStudentPasswordAdmin(true);
+							break;
 					}
 				}
 			}
@@ -1053,10 +1096,32 @@ public class CoreDataService {
 							modified = true;
 						}
 						break;
+					case PASSWORD_RESET_ADMIN:
+						if (!person.isPasswordResetAdmin()) {
+							person.setPasswordResetAdmin(true);
+							modified = true;
+						}
+						break;
+					case STUDENT_PASSWORD_RESET_ADMIN:
+						if (!person.isInstitutionStudentPasswordAdmin()) {
+							person.setInstitutionStudentPasswordAdmin(true);
+							modified = true;
+						}
+						break;
 				}
 			}
 			
 			// remove roles
+
+			if (person.isPasswordResetAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.PASSWORD_RESET_ADMIN)) {
+				person.setPasswordResetAdmin(false);
+				modified = true;
+			}
+
+			if (person.isInstitutionStudentPasswordAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.STUDENT_PASSWORD_RESET_ADMIN)) {
+				person.setInstitutionStudentPasswordAdmin(false);
+				modified = true;
+			}
 
 			if (person.isAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.ADMIN)) {
 				person.setAdmin(false);
@@ -1229,37 +1294,22 @@ public class CoreDataService {
 
 	@Transactional
 	public void loadDeltaKombitJfr(CoreDataDeltaJfr coreData) {
-		List<Person> persons = personService.getByDomain(coreData.getDomain(), true);
-		
-		// remove all without a sAMAccountName
-		persons = persons.stream().filter(p -> StringUtils.hasLength(p.getLowerSamAccountName())).collect(Collectors.toList());
-
-		Map<String, Person> personMapSAMAccountName = persons.stream().collect(Collectors.toMap(Person::getLowerSamAccountName, Function.identity()));
-		Map<String, Person> personMapAzureId = persons.stream().filter(p -> p.getAzureId() != null).collect(Collectors.toMap(Person::getAzureId, Function.identity()));
-		Map<String, Person> personMap = persons.stream().collect(Collectors.toMap(person -> person.getUuid() + person.getLowerSamAccountName(), Function.identity()));
+		Domain domain = domainService.getByName(coreData.getDomain());
+		if (domain == null) {
+			log.error("loadDeltaKombitJfr - unknown domain: " + coreData.getDomain());
+			return;
+		}
 
 		// add/update case
 		for (CoreDataDeltaJfrEntry entry : coreData.getEntryList()) {
-			Person person = null;
-			if (StringUtils.hasLength(entry.getUuid())) {
-				// try against Azure in case Azure users are loaded into this domain
-				if (personMapAzureId.size() > 0) {
-					person = personMapAzureId.get(entry.getUuid());
-				}
-				else {
-					// otherwise use the ordinary UUID (for most other muni's
-					person = personMap.get(entry.getUuid() + entry.getLowerSamAccountName());
-				}
-			}
-			else if (StringUtils.hasLength(entry.getLowerSamAccountName())) {
-				person = personMapSAMAccountName.get(entry.getLowerSamAccountName());
-			}
-
-			if (person == null) {
-				log.warn("Got person that does not exist in OS2faktor yet: " + (entry.getLowerSamAccountName() != null ? entry.getLowerSamAccountName() : "<null>") + " (" + (entry.getUuid() != null ? entry.getUuid() : "<null>") + ")");
+			List<Person> persons = personService.getBySamaccountNameAndDomain(entry.getSamAccountName(), domain);
+			if (persons == null || persons.size() == 0) {
+				log.warn("loadDeltaKombitJfr - unknown person: " + entry.getSamAccountName());
 				continue;
 			}
-
+			
+			// not sure why sAMAccountName does not have a unique constraint, the API enforces uniqueness when loading data
+			Person person = persons.get(0);
 			boolean changes = false;
 
 			// adds
@@ -1712,5 +1762,50 @@ public class CoreDataService {
 		group.getMemberMapping().removeIf(m -> m.getPerson().getSamaccountName().equals(sAMAccountName));
 		
 		groupService.save(group);
+	}
+
+	public CoreDataExtendedLookup lookupExtended(Domain domain, String userId) {
+		List<Person> persons = personService.getBySamaccountNameAndDomain(userId, domain);
+		if (persons == null || persons.size() != 1) {
+			return null;
+		}
+		
+		CoreDataExtendedLookup lookup = new CoreDataExtendedLookup();
+		Person person = persons.get(0);
+		
+		lookup.setOs2faktorActiveCorporateId(person.hasActivatedNSISUser());
+		lookup.setOs2faktorBadPassword(person.isBadPassword());
+		lookup.setOs2faktorLocked(person.isLocked());
+		
+		if (StringUtils.hasText(person.getNemloginUserUuid())) {
+			boolean mitIdDown = false;
+			
+			try {
+				FullEmployee fullEmployee = nemLoginService.getFullEmployee(person.getNemloginUserUuid());
+				if (fullEmployee != null && fullEmployee.getIdentityProfile() != null) {
+					lookup.setMitIdErhvervStatus(fullEmployee.getIdentityProfile().getStatus());
+					lookup.setMitIdErhvervRid(fullEmployee.getIdentityProfile().getRid());
+					lookup.setMitIdErhvervUuid(fullEmployee.getUuid());
+				}
+			}
+			catch (Exception ex) {
+				mitIdDown = true;
+				log.warn("Failed to lookup MitID Erhverv data for " + person.getSamaccountName(), ex);
+			}
+
+			MitidErhvervCache cache = mitIdErhvervCacheService.findByUuid(person.getNemloginUserUuid());
+			if (cache != null) {
+				if (mitIdDown) {
+					lookup.setMitIdErhvervStatus(cache.getStatus());
+					lookup.setMitIdErhvervRid(cache.getRid());
+					lookup.setMitIdErhvervUuid(cache.getUuid());					
+				}
+				
+				lookup.setMitIdErhvervQualifiedSignature(cache.isQualifiedSignature());
+				lookup.setMitIdErhvervPrivateMitID(cache.isMitidPrivatCredential());
+			}
+		}
+
+		return lookup;
 	}
 }

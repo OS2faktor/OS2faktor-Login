@@ -47,7 +47,7 @@ public class PasswordValidationFilterApiKeyService {
 
 	// never needs to be reloaded
 	@Cacheable("ADPasswordFilterByApiKey")
-	@Transactional
+	@Transactional // both cached and < 10 ms executation, so OK
 	public PasswordValidationFilterApiKey getByApiKeyAndDisabledFalse(String apiKey) {
 		PasswordValidationFilterApiKey filter = passwordFilterDao.findByApiKeyAndDisabledFalse(apiKey);
 

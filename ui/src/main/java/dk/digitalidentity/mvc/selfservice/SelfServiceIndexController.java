@@ -18,6 +18,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.common.service.mfa.MFAManagementService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
@@ -25,7 +26,6 @@ import dk.digitalidentity.mvc.admin.dto.ActivationDTO;
 import dk.digitalidentity.mvc.selfservice.dto.SelfServicePersonDTO;
 import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
-import dk.digitalidentity.service.MFAManagementService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
