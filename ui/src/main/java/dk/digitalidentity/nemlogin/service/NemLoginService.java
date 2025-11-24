@@ -1,5 +1,6 @@
 package dk.digitalidentity.nemlogin.service;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
@@ -14,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.conn.HttpHostConnectException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,16 +24,18 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.event.EventListener;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpRequest;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.ResponseSpec.ErrorHandler;
+import org.springframework.web.client.RestClientResponseException;
 
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -81,12 +85,13 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class NemLoginService {
-	private List<Employee> migratedEmployeesHolder = null;
 	private long readAllIdentitiesFailureInARow = 0;
+	private ErrorHandler defaultClientErrorHandler;
+	private ErrorHandler defaultServerErrorHandler;
 	
-	@Qualifier("nemLoginRestTemplate")
+	@Qualifier("nemLoginRestClient")
 	@Autowired
-	private RestTemplate restTemplate;
+	private RestClient restClient;
 	
 	@Autowired
 	private CommonConfiguration config;
@@ -94,9 +99,6 @@ public class NemLoginService {
 	@Autowired
 	private OS2faktorConfiguration os2faktorConfiguration;
 	
-	@Autowired
-	private NemLoginService self;
-
 	@Autowired
 	private PersonService personService;
 	
@@ -121,6 +123,9 @@ public class NemLoginService {
 	@Autowired
 	private CprService cprService;
 
+	@Autowired
+	private NemLoginTokenCache tokenCache;
+	
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {
 		if (config.getNemLoginApi().isEnabled() && os2faktorConfiguration.getScheduled().isEnabled()) {
@@ -130,33 +135,57 @@ public class NemLoginService {
 				migrateExistingNemloginUsers();
 			}
 		}
+		
+		defaultClientErrorHandler = new ErrorHandler() {
+			
+			@Override
+			public void handle(HttpRequest req, ClientHttpResponse res) throws IOException {
+	            throw new RestClientResponseException(
+                    "Client error: " + res.getStatusCode() + " : " + IOUtils.readFully(res.getBody(), res.getBody().available()),
+                    res.getStatusCode(),
+                    res.getStatusText(),
+                    null,
+                    null,
+                    null
+	            );
+			}
+		};
+		
+		defaultServerErrorHandler = new ErrorHandler() {
+			
+			@Override
+			public void handle(HttpRequest req, ClientHttpResponse res) throws IOException {
+	            throw new RestClientResponseException(
+                    "Server error: " + res.getStatusCode() + " : " + IOUtils.readFully(res.getBody(), res.getBody().available()),
+                    res.getStatusCode(),
+                    res.getStatusText(),
+                    null,
+                    null,
+                    null
+	            );
+			}
+		};
 	}
 	
 	@Cacheable(value = "token", unless = "#result == null")
 	public String fetchToken() {
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/idmlogin/tls/authenticate";
-		String accessToken = null;
-		
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		
-		HttpEntity<String> request = new HttpEntity<>(headers);
 		
 		try {
-			ResponseEntity<TokenResponse> response = restTemplate.exchange(url, HttpMethod.POST, request, TokenResponse.class);
+			TokenResponse response = restClient.post()
+		        .uri(url)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(TokenResponse.class);
 
-			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
-				accessToken = response.getBody().getAccessToken();
-			}
-			else {
-				log.error("Failed to fetch token from nemloginApi - statusCode=" + response.getStatusCode().value());
-			}
+			return response.getAccessToken();
 		}
 		catch (Exception ex) {
 			log.error("Failed to fetch token from nemloginApi", ex);
 		}
 		
-		return accessToken;
+		return null;
 	}
 	
 	@CacheEvict(value = "token", allEntries = true)
@@ -166,7 +195,7 @@ public class NemLoginService {
 
 	@Scheduled(fixedRate = 30 * 60 * 1000)
 	public void cleanUpTask() {
-		self.cleanUpToken();
+		tokenCache.cleanUpToken();
 	}
 
 	public void deleteMitIDErhverv() {
@@ -209,11 +238,6 @@ public class NemLoginService {
 			return;
 		}
 
-		// special hack - we want to support fetching from migrated users during sync (for UPDATE_PROFILE case),
-		// at least in the beginning (code can be deleted later), but we don't want to read the full list for
-		// each user, so we read it once (if needed at all), and store a copy - this is cleared on each new sync
-		migratedEmployeesHolder = null;
-		
 		List<NemloginQueue> queues = nemloginQueueService.getAllNotFailed();
 		List<NemloginQueue> toDelete = new ArrayList<>();
 
@@ -295,13 +319,8 @@ public class NemLoginService {
 		log.info("Updating profile on person " + person.getId());
 		
 		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
-			String nemloginUuid = fetchNemLoginUuid(person.getRid());
-			if (nemloginUuid == null) {
-				log.error("Will not update profile for person " + person.getId() + ". The person does not have a nemloginUserUuid");
-				return "nemloginUserUuid is null";
-			}
-			
-			person.setNemloginUserUuid(nemloginUuid);
+			log.error("Will not update profile for person " + person.getId() + ". The person does not have a nemloginUserUuid");
+			return "nemloginUserUuid is null";
 		}
 		
 		if (!StringUtils.hasLength(person.getSamaccountName())) {
@@ -310,25 +329,17 @@ public class NemLoginService {
 		}
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile";
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		UpdateProfileRequest body = new UpdateProfileRequest(person, config.getNemLoginApi().getDefaultEmail());
 
-		HttpEntity<UpdateProfileRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
-
-			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
-				;
-			}
-			else {
-				log.error("Failed to update profile on person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Error: " + response.getBody();
-			}
+			restClient.put()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to update profile for person with uuid " + person.getUuid(), ex);
@@ -347,13 +358,8 @@ public class NemLoginService {
 		log.info("Updating draft profile on person " + person.getId());
 		
 		if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
-			String nemloginUuid = fetchNemLoginUuid(person.getRid());
-			if (nemloginUuid == null) {
-				log.error("Will not update draft profile for person " + person.getId() + ". The person does not have a nemloginUserUuid");
-				return "nemloginUserUuid is null";
-			}
-			
-			person.setNemloginUserUuid(nemloginUuid);
+			log.error("Will not update draft profile for person " + person.getId() + ". The person does not have a nemloginUserUuid");
+			return "nemloginUserUuid is null";
 		}
 		
 		if (!StringUtils.hasLength(person.getSamaccountName())) {
@@ -361,53 +367,28 @@ public class NemLoginService {
 			return "sAMAccountName is not null";
 		}
 
-		// step 0 - skal sikre at der er et CPR +folkeregisternavn på kontoen inden vi forsøger at aktivere, ellers går det grueligt galt
+		// step 0 - skal sikre at der er et CPR + folkeregisternavn på kontoen inden vi forsøger at aktivere, ellers går det grueligt galt
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile/draft";
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
 
 		UpdateProfileRequest body = new UpdateProfileRequest(person, config.getNemLoginApi().getDefaultEmail());
 
-		HttpEntity<UpdateProfileRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
-
-			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
-				;
-			}
-			else {
-				log.error("Failed to update draft profile on person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Error: " + response.getBody();
-			}
+			restClient.put()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
-			log.error("Failed to update draft profile for person with uuid " + person.getUuid(), ex);
+			log.error("Failed to update draft profile on person with uuid " + person.getUuid(), ex);
 			return "Exception: " + ex.getMessage();
 		}
 		
 		// step 1 - create a new order for activation
 		nemloginQueueService.save(new NemloginQueue(person, NemloginAction.ACTIVATE));
-		
-		return null;
-	}
-	
-	private String fetchNemLoginUuid(String rid) {
-		if (migratedEmployeesHolder == null) {
-			migratedEmployeesHolder = getAllPendingMigratedEmployees();
-		}
-		
-		if (migratedEmployeesHolder == null || migratedEmployeesHolder.size() == 0) {
-			return null;
-		}
-
-		for (Employee employee : migratedEmployeesHolder) {
-			if (Objects.equals(employee.getRid(), rid)) {
-				return employee.getUuid();
-			}
-		}
 		
 		return null;
 	}
@@ -433,25 +414,18 @@ public class NemLoginService {
 		// step 0 - create a "fake" activation order so we can do stuff
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/admin/organization-activation/activation-orders";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		ActivationOrderRequest body = new ActivationOrderRequest();
 		body.getUserUuids().add(person.getNemloginUserUuid());
 
-		HttpEntity<ActivationOrderRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-
-			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
-				;
-			}
-			else {
-				log.error("Failed to generate activation order for person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Error: " + response.getBody();
-			}
+			restClient.post()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to generate activation order for person with uuid " + person.getUuid(), ex);
@@ -491,22 +465,15 @@ public class NemLoginService {
 		EmployeeChangeLocalUserIdRequest body = new EmployeeChangeLocalUserIdRequest();
 		body.setSubjectNameId(username);
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<EmployeeChangeLocalUserIdRequest> request2 = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request2, String.class);
-
-			if (response.getStatusCode().value() >= 200 && response.getStatusCode().value() <= 299) {
-				;
-			}
-			else {
-				log.error("Failed to update localUserId for person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Error: " + response.getBody();
-			}
+			restClient.post()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to update localUserId for person with uuid " + person.getUuid(), ex);
@@ -566,23 +533,25 @@ public class NemLoginService {
 	private String getUuidOfPrivateMitId(Person person) {
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/authenticators";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<Object> fetchAuthenticatorsRequest = new HttpEntity<>(headers);
-
-		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.GET, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
-
-		if (response.getStatusCode().is2xxSuccessful()) {
-			AuthenticatorsResponse body = response.getBody();
-			
-			if (body != null && body.authenticators != null && !body.authenticators.isEmpty()) {
-				Optional<Authenticator> first = body.authenticators.stream().filter(authenticator -> "PrivateMitId".equals(authenticator.getType())).findFirst();
+		try {
+			AuthenticatorsResponse response = restClient.get()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(AuthenticatorsResponse.class);
+						
+			if (response != null && response.authenticators != null && !response.authenticators.isEmpty()) {
+				Optional<Authenticator> first = response.authenticators.stream().filter(authenticator -> "PrivateMitId".equals(authenticator.getType())).findFirst();
 
 				if (first.isPresent()) {
 					return first.get().getUuid();
 				}
 			}
+		}
+		catch (Exception ex) {
+			log.warn("Unable to fetch private MitID information", ex);
 		}
 
 		return null;
@@ -591,15 +560,17 @@ public class NemLoginService {
 	private void revokePrivateMitId(Person person, String mitIdUuid) throws Exception {
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/revokecredential/" + mitIdUuid;
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<Object> fetchAuthenticatorsRequest = new HttpEntity<>(headers);
-
-		ResponseEntity<AuthenticatorsResponse> response = restTemplate.exchange(url, HttpMethod.POST, fetchAuthenticatorsRequest, AuthenticatorsResponse.class);
-
-		if (!response.getStatusCode().is2xxSuccessful()) {
-			throw new Exception("Failed to remove MitID - statusCode " + response.getStatusCode().value());
+		try {
+			restClient.post()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
+		}
+		catch (Exception ex) {
+			throw new Exception("Failed to remove MitID", ex);
 		}
 	}
 
@@ -629,24 +600,20 @@ public class NemLoginService {
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/requestcredentials";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		CredentialsRequest body = new CredentialsRequest();
 		ArrayList<String> types = new ArrayList<>();
 		types.add("PrivateNemIdMitId");
 		body.setAuthenticatorSettingTypes(types);
 
-		HttpEntity<CredentialsRequest> requestForPrivateMitID = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, requestForPrivateMitID, String.class);
-
-			if (!response.getStatusCode().is2xxSuccessful()) {
-				log.error("Failed to assign PrivateMitId to person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Technical error: " + response.getBody();
-			}
+			restClient.post()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to assign private MitID to " + person.getId() + " / " + person.getSamaccountName(), ex);
@@ -676,22 +643,18 @@ public class NemLoginService {
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/allowsigning";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		AllowSigningUpdate body = new AllowSigningUpdate();
 		body.setAllowSigning(qualifiedSignature);
 
-		HttpEntity<AllowSigningUpdate> requestForQualifiedSignature = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, requestForQualifiedSignature, String.class);
-
-			if (!response.getStatusCode().is2xxSuccessful()) {
-				log.error("Failed to assign QualifiedSignature to " + (qualifiedSignature ? "true" : "false") + " on person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "Technical error: " + response.getBody();
-			}
+			restClient.put()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to assign QualifiedSignature to " + (qualifiedSignature ? "true" : "false") + " + on " + person.getId() + " / " + person.getSamaccountName(), ex);
@@ -759,10 +722,6 @@ public class NemLoginService {
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		EmployeeCreateRequest body = new EmployeeCreateRequest();
 		IdentityProfile identityProfile = new IdentityProfile();
 		
@@ -787,10 +746,6 @@ public class NemLoginService {
 			identityProfile.setAllowQualifiedCertificateIssuance(true);
 		}
 
-		if (!config.getNemLoginApi().isDisableSendingRid()) {
-			identityProfile.setRid(person.getRid());
-		}
-		
 		IdentityOrganizationProfile identityOrganizationProfile = new IdentityOrganizationProfile();
 		if (person.getEan() != null && StringUtils.hasLength(person.getEan())) {
 			identityOrganizationProfile.setInvoiceMethodUuid(person.getEan());
@@ -814,56 +769,42 @@ public class NemLoginService {
 		body.setIdentityAuthenticators(identityAuthenticators);
 		
 		String uuid = null;
-		HttpEntity<EmployeeCreateRequest> request = new HttpEntity<>(body, headers);
 
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-			if (response.getBody() != null) {
-				if (response.getStatusCode().value() == 200) {
-					ObjectMapper mapper = new ObjectMapper();
-					EmployeeCreateResponse responseBody = mapper.readValue(response.getBody(), EmployeeCreateResponse.class);
-					uuid = responseBody.getEmployeeUuid();
+			String response = restClient.post()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
+			
+			ObjectMapper mapper = new ObjectMapper();
+			EmployeeCreateResponse responseBody = mapper.readValue(response, EmployeeCreateResponse.class);
+			uuid = responseBody.getEmployeeUuid();
 
-					if (StringUtils.hasLength(uuid)) {
-						person.setNemloginUserUuid(uuid);
-						personService.save(person);
+			if (StringUtils.hasLength(uuid)) {
+				person.setNemloginUserUuid(uuid);
+				personService.save(person);
 
-						auditLogger.createdNemLoginUser(person);
+				auditLogger.createdNemLoginUser(person);
 
-						EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_ACTIVATED);
-						for (EmailTemplateChild child : emailTemplate.getChildren()) {
-							if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
-								String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
-								message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
+				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_ACTIVATED);
+				for (EmailTemplateChild child : emailTemplate.getChildren()) {
+					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
 
-								emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
-							}
-						}
-
-						return null;
-					}
-					else {
-						return "Teknisk fejl: Ikke muligt at finde UUID på brugeren";
+						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
 					}
 				}
-				else {
-					if (response.getBody() != null && response.getBody().contains("See log for exception details")) {
-						ObjectMapper mapper = new ObjectMapper();
-						String payload = mapper.writeValueAsString(request);
-						
-						log.warn("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid() + ". Msg: " + response.getBody() + ". Payload send is: " + payload);
-					}
-					else {
-						log.error("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid() + ". Msg: " + response.getBody());
-					}
-					
-					return "Fejlbesked: " + response.getBody();
-				}
+
+				return null;
 			}
 			else {
-				log.error("Failed to create employee with nemloginApi (empty response body). Person with uuid " + person.getUuid());
-				return "Fejlbesked: Intet svar fra MitID Erhverv";
+				return "Teknisk fejl: Ikke muligt at finde UUID på brugeren";
 			}
 		}
 		catch (Exception ex) {
@@ -896,25 +837,18 @@ public class NemLoginService {
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile/nonsensitive";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		EmployeeChangeEmailRequest body = new EmployeeChangeEmailRequest();
 		body.setEmailAddress(email);
 
-		HttpEntity<EmployeeChangeEmailRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
-
-			if (response.getStatusCode().value() == 200) {
-				;
-			}
-			else {
-				log.error("Failed to change email for person with uuid " + person.getUuid() + ". Error: " + response.getBody());
-				return "statusCode = " + response.getStatusCode().value();
-			}
+			restClient.put()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .body(body)
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to change email for person with uuid " + person.getUuid(), ex);
@@ -934,24 +868,14 @@ public class NemLoginService {
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + nemloginUserUuid;
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		EmployeeSearchRequest body = new EmployeeSearchRequest();
-
-		HttpEntity<EmployeeSearchRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.DELETE, request, String.class);
-
-			if (response.getStatusCode().value() == 204 || response.getStatusCode().value() == 404) {
-				;
-			}
-			else {
-				log.error("Failed to delete nemlogin employee for deleted person with nemloginUserUuid " + nemloginUserUuid + ". statusCode = " + response.getStatusCode().value());
-				return "statusCode = " + response.getStatusCode().value();
-			}
+			restClient.delete()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .body(String.class);
 		}
 		catch (Exception ex) {
 			log.error("Failed to delete nemlogin employee for deleted person with nemloginUserUuid " + nemloginUserUuid, ex);
@@ -976,17 +900,15 @@ public class NemLoginService {
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/suspend";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		EmployeeSearchRequest body = new EmployeeSearchRequest();
-
-		HttpEntity<EmployeeSearchRequest> request = new HttpEntity<>(body, headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
-
+			ResponseEntity<String> response = restClient.put()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .toEntity(String.class);
+			
 			if (response.getStatusCode().value() == 204) {
 				auditLogger.suspendedNemLoginUser(person);
 				
@@ -1015,7 +937,7 @@ public class NemLoginService {
 			log.error("Failed to suspend nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid(), ex);
 			return "Exception: " + ex.getMessage();
 		}
-		
+
 		return null;
 	}
 	
@@ -1034,14 +956,14 @@ public class NemLoginService {
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/reactivate";
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<String> request = new HttpEntity<>(headers);
-
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+			ResponseEntity<String> response = restClient.put()
+			        .uri(url)
+			        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+			        .retrieve()
+			        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+			        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+			        .toEntity(String.class);
 
 			if (response.getStatusCode().value() == 204) {
 				auditLogger.reactivatedNemLoginUser(person);
@@ -1090,46 +1012,18 @@ public class NemLoginService {
 		return null;
 	}
 	
-	private List<Employee> getAllPendingMigratedEmployees() {
-		String url = config.getNemLoginApi().getBaseUrl() + "/api/admin/organization-activation/migrated-identities/0";
-		List<Employee> employees = null;
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<String> request = new HttpEntity<>(headers);
-
-		try {
-			ResponseEntity<EmployeeSearchResponse> response = restTemplate.exchange(url, HttpMethod.GET, request, EmployeeSearchResponse.class);
-
-			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
-				employees = response.getBody().getEmployees();
-				log.info("Found " + employees.size() + " employees");
-			}
-			else {
-				log.error("Failed to fetch all employees from nemloginApi. StatusCode=" + response.getStatusCode().value());
-			}
-		}
-		catch (Exception ex) {
-			log.error("Failed to fetch all employees from nemloginApi", ex);
-		}
-		
-		return employees;
-	}
-	
 	public FullEmployee getFullEmployee(String uuid) {
 		FullEmployee employee = null;
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + uuid;
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
-		HttpEntity<String> request = new HttpEntity<>(headers);
-
-		ResponseEntity<FullEmployee> response = restTemplate.exchange(url, HttpMethod.GET, request, FullEmployee.class);
+		ResponseEntity<FullEmployee> response = restClient.get()
+		        .uri(url)
+		        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+		        .retrieve()
+		        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+		        .toEntity(FullEmployee.class);
 
 		if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 			employee = response.getBody();
@@ -1142,18 +1036,19 @@ public class NemLoginService {
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/search";
 		List<Employee> employees = null;
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.add("Content-Type", "application/json");
-		headers.add("Authorization", "Bearer " + self.fetchToken());
-
 		EmployeeSearchRequest body = new EmployeeSearchRequest();
-
-		HttpEntity<EmployeeSearchRequest> request = new HttpEntity<>(body, headers);
 
 		// dear god - the error handling. Maybe create a decode utility method that handles this boilerplate :)
 
 		try {
-			ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+			ResponseEntity<String> response = restClient.post()
+			        .uri(url)
+			        .header("Authorization", "Bearer " + tokenCache.fetchToken())
+			        .body(body)
+			        .retrieve()
+			        .onStatus(HttpStatusCode::is4xxClientError, defaultClientErrorHandler)
+			        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
+			        .toEntity(String.class);
 
 			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
 				try {
@@ -1207,8 +1102,10 @@ public class NemLoginService {
 		if (employees != null && readFullEmployee) {
 			log.info("Reading full employee data");
 
+			String currentUuid = null;
 			try {
 				for (Employee employee : employees) {
+					currentUuid = employee.getUuid();
 					FullEmployee fullEmployee = getFullEmployee(employee.getUuid());
 					if (fullEmployee != null) {
 						if (fullEmployee.getIdentityProfile() != null) {
@@ -1220,10 +1117,10 @@ public class NemLoginService {
 			catch (Exception ex) {
 				// this happens quite often *sigh*
 				if (ex.getMessage() != null && ex.getMessage().contains("ServiceUnavailable")) {
-					log.warn("Failed to fetch details on employees", ex);					
+					log.warn("Failed to fetch details on employees (failed on " + currentUuid + ")", ex);					
 				}
 				else {
-					log.error("Failed to fetch details on employees", ex);
+					log.error("Failed to fetch details on employees (failed on " + currentUuid + ")", ex);
 				}
 
 				return null;
@@ -1238,7 +1135,7 @@ public class NemLoginService {
 	public void syncMitIDErhvervCache() {
 
 		// start with a fresh token, just to ensure we don't expire during our run
-		self.cleanUpToken();
+		tokenCache.cleanUpToken();
 		
 		// find all existing employees in MitID Erhverv
 		List<Employee> emps = getAllExistingEmployees(true);
@@ -1470,9 +1367,9 @@ public class NemLoginService {
 
 		List<NemloginQueue> actions = new ArrayList<>();
 
-		List<Person> personList = personService.getAll().stream().filter(p -> StringUtils.hasLength(p.getRid()) && StringUtils.hasLength(p.getSamaccountName())).collect(Collectors.toList());
+		List<Person> personList = personService.getAll().stream().filter(p -> StringUtils.hasLength(p.getEmail())).collect(Collectors.toList());
 		if (personList.size() == 0) {
-			log.error("No persons with RID in database - aborting!");
+			log.error("No persons with email in database - aborting!");
 			return;
 		}
 
@@ -1483,11 +1380,19 @@ public class NemLoginService {
 		}
 
 		for (Employee existingEmployee : existingEmployees) {
-			Person match = personList.stream().filter(p -> p.getRid() != null && p.getRid().equals(existingEmployee.getRid())).findAny().orElse(null);
+			Person match = personList.stream().filter(p -> p.getEmail() != null && p.getEmail().equalsIgnoreCase(existingEmployee.getEmailAddress())).findAny().orElse(null);
 			if (match == null) {
-				continue;
+				// try to find a match on CPR
+				if (existingEmployee.getProfile() != null) {
+					match = personList.stream().filter(p -> p.getCpr().equals(existingEmployee.getProfile().getCprNumber())).findAny().orElse(null);
+				}
+
+				if (match == null) {
+					log.warn("Could not find match for " + existingEmployee.getProfile().getCprNumber() + " / " + existingEmployee.getEmailAddress() + " with UUID: " + existingEmployee.getUuid());
+					continue;
+				}
 			}
-			
+
 			// should not run migration multiple times, but just in case, we have this check
 			if (StringUtils.hasLength(match.getNemloginUserUuid())) {
 				continue;
@@ -1503,45 +1408,10 @@ public class NemLoginService {
 			}
 		}
 		
-		// do a partial save for now (just in case the list below is empty)
-		if (!actions.isEmpty()) {
-			nemloginQueueService.saveAll(actions);
-			actions.clear();
-		}
-				
-		List<Employee> employees = getAllPendingMigratedEmployees();
-		if (employees == null || employees.size() == 0) {
-			log.error("Failed to migrate existing nemlogin users. The list of employees was null or empty");
-			return;
-		}
-
-		for (Employee employee : employees) {
-			Person match = personList.stream().filter(p -> p.getRid() != null && p.getRid().equals(employee.getRid())).findAny().orElse(null);
-			if (match == null) {
-				log.warn("No match for a person (" + (employee.getProfile() != null ? (employee.getProfile().getGivenName() + " " + employee.getProfile().getSurname()) : "???")  + ") with RID = " + employee.getRid() + " and email = " + employee.getEmailAddress());
-				continue;
-			}
-			
-			// should not run migration multiple times, but just in case, we have this check
-			if (StringUtils.hasLength(match.getNemloginUserUuid())) {
-				log.warn("RID " + employee.getRid() + " already migrated to person " + match.getId());
-				continue;
-			}
-			
-			if (!match.isLocked()) {
-				log.debug("Migrated " + match.getName() + " (" + match.getId() + ") to NemLog-in with UUID " + employee.getUuid());
-
-				match.setNemloginUserUuid(employee.getUuid());
-				personService.save(match);
-
-				actions.add(new NemloginQueue(match, NemloginAction.UPDATE_PROFILE));
-			}
-		}
-		
 		if (!actions.isEmpty()) {
 			nemloginQueueService.saveAll(actions);
 		}
-		
+
 		log.info("Migration completed!");
 	}
 	

@@ -86,6 +86,18 @@ public class ChangePasswordNonFlowController {
 
 	@PostMapping("/change-password")
 	public ModelAndView getNewPassword(Model model, HttpServletRequest request, @RequestParam(name = "redirectUrl") String redirectUrl, @RequestParam(name = "username") String samAcc) {
+        // allow users to input username with domain, for now disregard domain
+        if (samAcc.contains("@")) {
+            String[] split = samAcc.split("@");
+            if (split.length > 0) {
+            	samAcc = split[0];
+            }
+            else {
+            	// if they only supply @ as the username, the username is empty
+            	samAcc = "";
+            }
+        }
+
 		List<Person> users = personService.getBySamaccountName(samAcc);
 		model.addAttribute("redirectUrl", redirectUrl);
 		
@@ -105,7 +117,7 @@ public class ChangePasswordNonFlowController {
 			Person person = users.stream().findFirst().get();
 			model.addAttribute("personId", person.getId());
 
-			PasswordSetting passwordSettings = passwordSettingService.getSettings(person);
+			PasswordSetting passwordSettings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 			model.addAttribute("settings", passwordSettings);
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
@@ -124,7 +136,7 @@ public class ChangePasswordNonFlowController {
 
 		Person person = personService.getById(personId);
 		if (person != null) {
-			PasswordSetting settingsCached = passwordSettingService.getSettings(person);
+			PasswordSetting settingsCached = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 			model.addAttribute("settings", settingsCached);
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 		}
@@ -197,7 +209,7 @@ public class ChangePasswordNonFlowController {
 			}
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(person));		
+		model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person)));		
 		model.addAttribute("personId", personId);
 		model.addAttribute("failureReason", failureReason);
 		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
@@ -207,7 +219,7 @@ public class ChangePasswordNonFlowController {
 
 	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded
 	private boolean changedPasswordTooManyTimes(Person person) {
-		PasswordSetting settings = passwordSettingService.getSettings(person);
+		PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 		if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
 			return true;
 		}

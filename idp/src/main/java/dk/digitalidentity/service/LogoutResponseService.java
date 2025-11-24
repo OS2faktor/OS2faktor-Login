@@ -1,7 +1,7 @@
 package dk.digitalidentity.service;
 
 import java.security.PublicKey;
-import java.security.Security;
+import java.util.Objects;
 
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 
@@ -30,8 +30,10 @@ import org.opensaml.xmlsec.signature.support.Signer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.service.validation.LogoutResponseValidationService;
 import dk.digitalidentity.util.HttpRedirectUtil;
 import dk.digitalidentity.util.RequesterException;
@@ -67,12 +69,12 @@ public class LogoutResponseService {
 		validationService.validate(request, messageContext, metadataEntityID, publicKey, logoutRequest);
 	}
 
-	public MessageContext<SAMLObject> createMessageContextWithLogoutResponse(LogoutRequest logoutRequest, String destination, String binding) throws ResponderException {
+	public MessageContext<SAMLObject> createMessageContextWithLogoutResponse(LogoutRequest logoutRequest, String destination, String binding, ServiceProvider serviceProvider) throws ResponderException {
 		// Create message context
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
 
 		// Create LogoutResponse
-		LogoutResponse logoutResponse = createLogoutResponse(destination, logoutRequest, SAMLConstants.SAML2_POST_BINDING_URI.equals(binding));
+		LogoutResponse logoutResponse = createLogoutResponse(destination, logoutRequest, SAMLConstants.SAML2_POST_BINDING_URI.equals(binding), serviceProvider);
 		messageContext.setMessage(logoutResponse);
 
 		// Destination
@@ -86,15 +88,23 @@ public class LogoutResponseService {
 		endpointContext.setEndpoint(endpoint);
 
 		// Signing info
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureSigningParameters signatureSigningParameters = new SignatureSigningParameters();
-		signatureSigningParameters.setSigningCredential(credentialService.getBasicX509Credential());
+		signatureSigningParameters.setSigningCredential(x509Credential);
 		signatureSigningParameters.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
 		messageContext.getSubcontext(SecurityParametersContext.class, true).setSignatureSigningParameters(signatureSigningParameters);
 
 		return messageContext;
 	}
 
-	private LogoutResponse createLogoutResponse(String destination, LogoutRequest logoutRequest, boolean signLogoutResponseObject) throws ResponderException {
+	private LogoutResponse createLogoutResponse(String destination, LogoutRequest logoutRequest, boolean signLogoutResponseObject, ServiceProvider serviceProvider) throws ResponderException {
 		LogoutResponse logoutResponse = samlHelper.buildSAMLObject(LogoutResponse.class);
 
 		RandomIdentifierGenerationStrategy randomIdentifierGenerator = new RandomIdentifierGenerationStrategy();
@@ -119,37 +129,37 @@ public class LogoutResponseService {
 
 		// Sign LogoutResponse, we only do this for post, for HTTP-Redirect the message is signed
 		if (signLogoutResponseObject) {
-			signLogoutResponse(logoutResponse);
+			signLogoutResponse(logoutResponse, serviceProvider);
 		}
 
 		return logoutResponse;
 	}
 
-	private void signLogoutResponse(LogoutResponse logoutResponse) throws ResponderException {
+	private void signLogoutResponse(LogoutResponse logoutResponse, ServiceProvider serviceProvider) throws ResponderException {
 		// Prepare Assertion for Signing
 		Signature signature = samlHelper.buildSAMLObject(Signature.class);
 
-		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider != null && serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
 
 		signature.setSigningCredential(x509Credential);
 		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
 		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
-		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo(x509Credential));
 		logoutResponse.setSignature(signature);
 
 		// Sign Logout Response
 		try {
 			// If the object hasnt been marshalled first it can't be signed
 			LogoutResponseMarshaller marshaller = new LogoutResponseMarshaller();
-			
-			// when using KMS keys, make sure to use the KMS provider
-			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
-				marshaller.marshall(logoutResponse, Security.getProvider("KMS"));
-			}
-			else {
-				marshaller.marshall(logoutResponse);
-			}
+			marshaller.marshall(logoutResponse);
 
 			Signer.signObject(signature);
 		}

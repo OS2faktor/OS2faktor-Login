@@ -8,7 +8,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -17,8 +16,8 @@ import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@EnableCaching
 @Service
+@EnableCaching
 public class TermsAndConditionsService {
 
 	@Autowired
@@ -26,9 +25,6 @@ public class TermsAndConditionsService {
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
-	
-	@Autowired
-	private TermsAndConditionsService self;
 
 	public TermsAndConditions getTermsAndConditions() {
 		List<TermsAndConditions> all = termsAndConditionsDao.findAll();
@@ -70,10 +66,5 @@ public class TermsAndConditionsService {
 	})
 	public void cleanupCache() {
 
-	}
-	
-	@Scheduled(fixedRate = 30 * 60 * 1000)
-	public void cleanUpTaskRealtimeValues() {
-		self.cleanupCache();
 	}
 }

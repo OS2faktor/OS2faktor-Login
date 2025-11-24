@@ -6,94 +6,22 @@
 
     <div style="max-width: 1500px; margin: 0px auto; padding: 20px;">
         <div class="row">
-			<div class="col-lg-12 d-none d-xl-block" style="margin-bottom: 40px;">&nbsp;</div>
-
-            <div th:if="${reason} != null" id="infobox" class="offset-xl-2 col-xl-4 offset-lg-2 col-lg-8 offset-md-1 col-md-10">
-                <div class="panel panel-info" style="height: 100%;">
-                    <div class="panel-heading">
-                        Yderligere identifikation krævet
-                    </div>
-
-                    <div class="panel-body">
-                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).AD}">
-                        	<span th:utext="${@cmsMessageBundle.getText('cms.activate.ad-password-change')}" />
-                        </th:block>
-                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).ACTIVATE_ACCOUNT}">
-	                        <span th:utext="${@cmsMessageBundle.getText('cms.activate.during-login')}" />
-                        </th:block>
-                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).CHANGE_PASSWORD}">
-                        	<span th:utext="${@cmsMessageBundle.getText('cms.changePassword.identification')}" />
-                        </th:block>
-                        <th:block th:if="${reason == T(dk.digitalidentity.service.model.enums.RequireNemIdReason).DEDICATED_ACTIVATE_ACCOUNT}">
-							<span th:utext="${@cmsMessageBundle.getText('cms.activate.dedicated')}" />
-                        </th:block>
-                        
-                        <th:block th:if="${errCode != null && errCode != '' && errCode != 'PERSON'}">
-                        	<div class="panel panel-danger mb-0 mt-5">
-	                        	<div class="panel-heading">Fejlbesked</div>
-	                        	<th:block th:switch="${errCode}">
-	                        		<div class="panel-body" th:case="'SUBSTANTIAL'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID for at opnå det nødvendige sikringsniveau.</div>
-	                        		<div class="panel-body" th:case="'MFA'">Adgangen til den ønskede funktion kræver et højere sikringsniveau. Den loginmetode der er anvendt gav ikke adgang på det krævede sikringsniveau, og et nyt login er derfor nødvendigt. Anvend MitID for at opnå det nødvendige sikringsniveau.</div>
-	                        		<div class="panel-body" th:case="'GROUP'">Adgangen til den ønskede funktion er blokeret for den valgte brugerkonto. Forsøg med en anden brugerkonto, eller kontakt din it-afdeling for at få adgangen til funktionen.</div>
-	                        		<div class="panel-body" th:case="'LIMIT'">Adgangen til den ønskede funktion er begrænset til et bestemt antal forsøg per dag. Forsøg igen i morgen, eller kontakt din it-afdeling for at få adgang til funktionen.</div>
-	                        		<div class="panel-body" th:case="'*'">Adgangen til den ønskede funktion blev blokeret. Forsøg igen med en anden loginmetode eller en anden brugerkonto.</div>
-	                        	</th:block>
-                        	</div>
-                        </th:block>
-                    </div>
-                </div>
-            </div>
-
-			<div class="col-lg-12 d-block d-xl-none" style="margin-bottom: 10px;">&nbsp;</div>
-
-            <div class="offset-lg-2 col-lg-8 offset-md-1 col-md-10" th:classappend="${reason} != null ? 'offset-xl-0 col-xl-4' : 'offset-xl-2 col-xl-8'">
-                <div class="ibox-title">
-                    <h5>
-                    	<em class="fa fa-user"></em> &nbsp; 
-                    	<span>Login med MitID</span>
-                    </h5>
-                </div>
-
-                <div class="ibox-content">
-                    <div>
-                        <div class="panel-body">
-                            <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">
-                                <div class="form-group">
-                                    <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}"></span>
-                                </div>
-                                <br>
-                                <div class="form-group">
-                                    <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med MitID</a>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
+			<div class="ibox-content offset-lg-2 col-lg-8 offset-md-1 col-md-10 col-xl-8 offset-xl-2" style="padding-top: 10%; padding-bottom: 10%;">
+				<div class="middle-box text-center" style="margin-top: 40px;">
+					<img src="https://nemlog-in.mitid.dk/Content/images/mitid_logo.svg" style="width: 150px;">
+					<br>
+					<em style="margin-top: 50px;" class="fa fa-fw fa-spinner fa-spin fa-4x"></em>
+				</div>
+			</div>
         </div>
     </div>
 
 	<div th:replace="~{fragments/footer :: scripts}" />
 
 	<script th:inline="javascript">
-        /*<![CDATA[*/
-
-       /*[+
-               var waitForUserInputBckInfo = [[${waitForUserInputBckInfo}]];
-       +]*/
-
 		$(document).ready(function() {
-			const { search } = window.location;
-			const waitForUserInput = (new URLSearchParams(search)).get('pause');
-
-            if (waitForUserInput !== 'true' && waitForUserInputBckInfo != true) {
-				// OS2FAK-135 (fjern mellemliggende skærmbillde) quickfix (for now)
-				window.location = '/nemlogin/saml/login';
-			}
+			window.location = '/nemlogin/saml/login?idp=https://saml.nemlog-in.dk';
         });
-
-		/*]]>*/
 	</script>
-	
 </body>
 </html>

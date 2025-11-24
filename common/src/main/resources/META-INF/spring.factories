@@ -1,0 +1,1 @@
+org.springframework.boot.EnvironmentPostProcessor=dk.digitalidentity.common.config.SharedPropertiesEnvironmentPostProcessor

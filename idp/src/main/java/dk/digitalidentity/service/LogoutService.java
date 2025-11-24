@@ -17,8 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import dk.digitalidentity.claimsprovider.ClaimsProviderUtil;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.nemlogin.NemLoginUtil;
 import dk.digitalidentity.opensaml.CustomHTTPPostEncoder;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
@@ -57,7 +57,7 @@ public class LogoutService {
     private OpenSAMLHelperService samlHelper;
 
     @Autowired
-    private NemLoginUtil nemLoginUtil;
+    private ClaimsProviderUtil nemLoginUtil;
 
     public void sendLogoutResponse(HttpServletResponse httpServletResponse, LogoutRequest logoutRequest) throws ResponderException, RequesterException {
         // If there is no LogoutRequest on session, show IdP index.
@@ -78,7 +78,7 @@ public class LogoutService {
         SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
 
         String destination = StringUtils.hasLength(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
-        MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination, logoutEndpoint.getBinding());
+        MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination, logoutEndpoint.getBinding(), serviceProvider);
 
         // Log to Console and AuditLog
         auditLogger.logoutResponse(sessionHelper.getPerson(), samlHelper.prettyPrint((LogoutResponse) messageContext.getMessage()), true, serviceProvider.getName(null));

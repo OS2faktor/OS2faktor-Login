@@ -74,4 +74,9 @@ public class StilServiceProviderConfig implements ServiceProviderConfig {
 	public boolean isRequireOiosaml3Profile() {
 		return false;
 	}
+
+	@Override
+	public boolean isOnlyAllowLoginFromKnownNetworks() {
+		return config.getStil().isOnlyAllowLoginFromKnownNetworks();
+	}
 }

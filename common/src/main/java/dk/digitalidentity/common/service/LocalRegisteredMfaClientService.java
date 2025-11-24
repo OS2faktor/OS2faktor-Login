@@ -7,6 +7,7 @@ import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import dk.digitalidentity.common.dao.LocalRegisteredMfaClientDao;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
@@ -78,5 +79,10 @@ public class LocalRegisteredMfaClientService {
 			client.setPrime(false);
 		}
 		localRegisteredMfaClientDao.saveAll(clients);
+	}
+
+	@Transactional
+	public void deleteAll(List<LocalRegisteredMfaClient> toDelete) {
+		localRegisteredMfaClientDao.deleteAll(toDelete);
 	}
 }

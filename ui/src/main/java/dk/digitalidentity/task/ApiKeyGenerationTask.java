@@ -6,7 +6,6 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -17,7 +16,6 @@ import dk.digitalidentity.common.service.ClientService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 
 @Component
-@EnableScheduling
 public class ApiKeyGenerationTask {
 
 	@Autowired

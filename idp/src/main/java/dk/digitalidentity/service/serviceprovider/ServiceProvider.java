@@ -265,6 +265,16 @@ public abstract class ServiceProvider {
 		return false;
 	}
 
+	// we always sign Assertion, this is for the wrapping Response
+	public boolean signResponse() {
+		return false;
+	}
+	
+	// allow SQL providers to overwrite this, but only if UniLogin brokering is enabled globally
+	public boolean isUniLoginBrokerEnabled() {
+		return false;
+	}
+
 	// END-SECTION
 
     public abstract EntityDescriptor getMetadata() throws RequesterException, ResponderException;
@@ -283,6 +293,7 @@ public abstract class ServiceProvider {
 	public abstract boolean requireOiosaml3Profile();
 	public abstract Long getPasswordExpiry();
 	public abstract Long getMfaExpiry();
+	public abstract boolean onlyAllowLoginFromKnownNetworks();
 
 	/* These settings interact with each other - setting preferNIST = true overrules the last two, and
 	 * no NSIS claim will ever be issued in that case.

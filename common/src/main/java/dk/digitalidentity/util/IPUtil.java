@@ -44,12 +44,15 @@ public class IPUtil {
 	public static boolean isIpInTrustedNetwork(List<String> ips, HttpServletRequest request) {
 		List<IpAddressMatcher> allowList = createAllowList(ips);
 
+		String ip = getIpAddress(request);
+		
 		boolean allowed = false;
 		for (IpAddressMatcher matcher : allowList) {
-			if (matcher.matches(getIpAddress(request))) {
+			if (matcher.matches(ip)) {
 				allowed = true;
 			}
 		}
+
 		return allowed;
 	}
 }

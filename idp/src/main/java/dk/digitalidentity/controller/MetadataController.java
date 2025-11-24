@@ -361,7 +361,7 @@ public class MetadataController {
 		KeyDescriptor keyDescriptor = samlHelper.buildSAMLObject(KeyDescriptor.class);
 
 		keyDescriptor.setUse(usageType);
-		keyDescriptor.setKeyInfo(credentialService.getPublicKeyInfo());
+		keyDescriptor.setKeyInfo(credentialService.getPrimaryPublicKeyInfo());
 
 		return keyDescriptor;
 	}

@@ -25,7 +25,6 @@ public class NemLoginIdMConfiguration {
 	private String keystorePassword;
 	private String invoiceMethodUuid;
 	private String defaultEmail;
-	private boolean disableSendingRid = false;
 
 	private String baseUrl = "https://services.nemlog-in.dk";
 	

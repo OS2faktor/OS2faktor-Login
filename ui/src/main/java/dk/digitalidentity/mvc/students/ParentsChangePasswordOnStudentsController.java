@@ -25,6 +25,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.service.CprService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
@@ -44,6 +45,9 @@ public class ParentsChangePasswordOnStudentsController {
 
 	@Autowired
 	private PersonService personService;
+
+	@Autowired
+	private CprService cprService;
 
 	@Autowired
 	private PasswordSettingService passwordSettingService;
@@ -83,7 +87,7 @@ public class ParentsChangePasswordOnStudentsController {
 			return "redirect:/elevkode";
 		}
 
-		List<Person> children = personService.getChildrenPasswordAllowed(cpr);
+		List<Person> children = cprService.getChildrenPasswordAllowed(cpr);
 		model.addAttribute("children", children);
 
 		return "students/password-change-parent/list";
@@ -102,7 +106,7 @@ public class ParentsChangePasswordOnStudentsController {
 			return "redirect:/elevkode/skiftkodeord";
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+		model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited, false));
 		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
@@ -131,7 +135,7 @@ public class ParentsChangePasswordOnStudentsController {
 		if (bindingResult.hasErrors()) {
 			model.addAttribute(bindingResult.getAllErrors());
 			model.addAttribute("passwordForm", form);
-			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+			model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 			return "students/password-change-parent/change-password";
@@ -155,7 +159,7 @@ public class ParentsChangePasswordOnStudentsController {
 
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+				model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 				return "students/password-change-parent/change-password";
@@ -187,7 +191,7 @@ public class ParentsChangePasswordOnStudentsController {
 			return false;
 		}
 		
-		if (personService.getChildrenPasswordAllowed(loggedInPerson).stream().anyMatch(c -> c.getUuid().equals(personToBeEdited.getUuid()))) {
+		if (cprService.getChildrenPasswordAllowed(loggedInPerson).stream().anyMatch(c -> c.getUuid().equals(personToBeEdited.getUuid()))) {
 			return true;
 		}
 

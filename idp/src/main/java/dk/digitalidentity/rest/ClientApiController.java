@@ -317,7 +317,11 @@ public class ClientApiController {
         }
 
 		if (!StringUtils.hasLength(username) || !StringUtils.hasLength(newPassword) || !StringUtils.hasLength(oldPassword)) {
-			log.warn("Missing username, new/old password parameters");
+			log.warn("Missing username, new/old password parameters. username=" +
+					(StringUtils.hasLength(username) ? username : "<null>") +
+					", newPassword = " + (StringUtils.hasLength(newPassword) ? "<not null>" : "<null>") +
+					", oldPassword = " + (StringUtils.hasLength(oldPassword) ? "<not null>" : "<null>"));
+
 			return ResponseEntity.badRequest().build();
 		}
 

@@ -4,14 +4,15 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.WindowCredentialProviderClientDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.WindowCredentialProviderClient;
-import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 
 @EnableCaching
@@ -24,7 +25,7 @@ public class WindowCredentialProviderClientService {
     @Autowired
     private DomainService domainService;
     
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
 	public void init() {
 		List<WindowCredentialProviderClient> wcps = clientDao.findAll();
 		List<Domain> domains = domainService.getAll();

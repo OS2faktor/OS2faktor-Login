@@ -39,7 +39,7 @@ public class SqlServiceProviderGroupClaim {
     @Size(max = 255)
     @Column(name = "claim_value")
     private String claimValue;
-    
+
 	@OneToOne
 	@JoinColumn(name = "group_id", referencedColumnName = "id")
 	private Group group;
@@ -47,4 +47,12 @@ public class SqlServiceProviderGroupClaim {
     @Column
     @NotNull
     private boolean singleValueOnly;
+
+    @Column
+    @NotNull
+    private boolean valuePrefix;
+
+    @Column
+    @NotNull
+    private boolean removePrefix;
 }

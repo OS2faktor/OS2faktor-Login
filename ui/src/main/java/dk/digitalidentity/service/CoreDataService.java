@@ -180,7 +180,9 @@ public class CoreDataService {
 			});			
 			
 			if (p.getSupporter() != null) {
-				p.getSupporter().getDomain().getName();
+				if (p.getSupporter().getDomain() != null) {
+					p.getSupporter().getDomain().getName();
+				}
 			}
 		});
 

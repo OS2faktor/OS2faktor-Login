@@ -11,9 +11,9 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.nemlogin.service.NemLoginService;
 import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class MitIDErhvervTasks {
 	
 	@Autowired

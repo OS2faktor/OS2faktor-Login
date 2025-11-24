@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class LogCleanupTask {
 
 	@Autowired

@@ -36,6 +36,7 @@ import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.mfa.MFAService;
+import dk.digitalidentity.common.service.mfa.MfaClientNotFoundException;
 import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
@@ -172,7 +173,7 @@ public class IdentitiesController {
 			return "redirect:/admin/identiteter";
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(person));
+		model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person)));
 		model.addAttribute("passwordForm", new PasswordChangeForm(person, false));
 		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
@@ -197,7 +198,7 @@ public class IdentitiesController {
 		if (bindingResult.hasErrors()) {
 			model.addAttribute(bindingResult.getAllErrors());
 			model.addAttribute("passwordForm", form);
-			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+			model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 			return "admin/change-password";
@@ -225,7 +226,7 @@ public class IdentitiesController {
 					model.addAttribute("insufficientPermission", true);
 				}
 
-				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+				model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 				return "admin/change-password";
@@ -253,6 +254,7 @@ public class IdentitiesController {
 		}
 
 		model.addAttribute("clients", clients);
+		model.addAttribute("personId", id);
 		model.addAttribute("showDeleteAction", false);
 		model.addAttribute("showDetailsAction", true);
 		model.addAttribute("showLocalDeleteAction", true);
@@ -270,7 +272,15 @@ public class IdentitiesController {
 		model.addAttribute("localClient", localRegisteredMfaClient != null);
 
 		// Get details from os2faktor MFA backend
-		MFAClientDetails body = mfaService.getClientDetails(deviceId);
+		MFAClientDetails body = null;
+		
+		try {
+			body = mfaService.getClientDetails(deviceId);
+		}
+		catch (MfaClientNotFoundException ignored) {
+			;
+		}
+
 		if (body == null) {
 			ModelAndView modelAndView = new ModelAndView("error");
 			modelAndView.setStatus(HttpStatus.BAD_REQUEST);

@@ -198,24 +198,31 @@ public class MetadataService {
             }
         }
 
-        // Update fields
-        config.setName(serviceProviderDTO.getName());
+		// Update fields
+		config.setName(serviceProviderDTO.getName());
 		config.setMetadataUrl(StringUtils.hasLength(serviceProviderDTO.getMetadataUrl()) ? serviceProviderDTO.getMetadataUrl().trim() : null);
-        config.setMetadataContent(serviceProviderDTO.getMetadataContent());
-        config.setNameIdFormat(serviceProviderDTO.getNameIdFormat());
-        config.setNameIdValue(serviceProviderDTO.getNameIdValue());
-        config.setForceMfaRequired(serviceProviderDTO.getForceMfaRequired());
-        config.setPreferNemid(serviceProviderDTO.isPreferNemid());
-        config.setPreferNIST(serviceProviderDTO.isPreferNIST());
-        config.setRequireOiosaml3Profile(serviceProviderDTO.isRequireOiosaml3Profile());
-        config.setNemLogInBrokerEnabled(serviceProviderDTO.isNemLogInBrokerEnabled());
-        config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
-        config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
-        config.setEnabled(serviceProviderDTO.isEnabled());
-        config.setAllowMitidErvhervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
-        config.setAllowAnonymousUsers(serviceProviderDTO.isAllowAnonymousUsers());
-        config.setCertificateAlias(serviceProviderDTO.getCertificate());
-        config.setDelayedMobileLogin(serviceProviderDTO.isDelayedMobileLogin());
+		config.setMetadataContent(serviceProviderDTO.getMetadataContent());
+		config.setNameIdFormat(serviceProviderDTO.getNameIdFormat());
+		config.setNameIdValue(serviceProviderDTO.getNameIdValue());
+		config.setForceMfaRequired(serviceProviderDTO.getForceMfaRequired());
+		config.setPreferNemid(serviceProviderDTO.isPreferNemid());
+		config.setPreferNIST(serviceProviderDTO.isPreferNIST());
+		config.setRequireOiosaml3Profile(serviceProviderDTO.isRequireOiosaml3Profile());
+		config.setNemLogInBrokerEnabled(serviceProviderDTO.isNemLogInBrokerEnabled());
+		config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
+		config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
+		config.setEnabled(serviceProviderDTO.isEnabled());
+		config.setAllowMitidErvhervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
+		config.setAllowAnonymousUsers(serviceProviderDTO.isAllowAnonymousUsers());
+		config.setCertificateAlias(serviceProviderDTO.getCertificate());
+		config.setDelayedMobileLogin(serviceProviderDTO.isDelayedMobileLogin());
+		config.setOnlyAllowLoginFromKnownNetworks(serviceProviderDTO.isOnlyAllowLoginFromKnownNetworks());
+
+		// Advanced fields
+		config.setAllowUnsignedAuthnRequests(serviceProviderDTO.isAllowUnsignedAuthnRequests());
+		config.setDisableSubjectConfirmation(serviceProviderDTO.isDisableSubjectConfirmation());
+		config.setDisableSubjectConfirmationRecipient(serviceProviderDTO.isDisableSubjectConfirmationRecipient());
+		config.setAdditionalEntityIds(serviceProviderDTO.getAdditionalEntityIds());
 
 		if (serviceProviderDTO.getPasswordExpiry() != null && serviceProviderDTO.getMfaExpiry() != null) {
 			Long passwordExpiry = serviceProviderDTO.getPasswordExpiry();
@@ -601,7 +608,10 @@ public class MetadataService {
                     .clientId(serviceProviderDTO.getEntityId())
                     .clientName(serviceProviderDTO.getName())
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                    .scope("openid");
+                    .scope("openid")
+                    // these are a bit of a lie, but clients often request them, so lets allow them by default, even though we ignore it
+                    .scope("profile")
+                    .scope("email");
         }
         else {
             // Fetch Registered client
@@ -855,16 +865,22 @@ public class MetadataService {
                     groupClaim.setClaimName(claimDTO.getAttribute());
                     groupClaim.setClaimValue(claimDTO.getValue());
                     groupClaim.setSingleValueOnly(claimDTO.isSingleValueOnly());
-
+                    groupClaim.setValuePrefix(claimDTO.isValuePrefix());
+                    groupClaim.setRemovePrefix(claimDTO.isRemovePrefix());
+                    
+                    // skip group assignment if prefix
+                    if (claimDTO.isValuePrefix()) {
+                        groupResult.add(groupClaim);
+                        break;
+                    }
                     Group group = groupService.getById(claimDTO.getGroupId());
                     if (group != null) {
-                    	groupClaim.setGroup(group);
-                    	groupResult.add(groupClaim);
+                        groupClaim.setGroup(group);
+                        groupResult.add(groupClaim);
                     }
                     else {
-                    	log.warn("Unable to find group with id: " + claimDTO.getGroupId());
+                        log.warn("Unable to find group with id: " + claimDTO.getGroupId());
                     }
-
                     break;
             }
         }

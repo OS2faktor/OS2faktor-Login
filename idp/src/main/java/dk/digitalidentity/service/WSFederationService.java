@@ -1,5 +1,7 @@
 package dk.digitalidentity.service;
 
+import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,8 +36,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
@@ -59,12 +59,9 @@ import dk.digitalidentity.util.ResponderException;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 
-import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
-
 @Slf4j
 @Service
 @EnableCaching
-@EnableScheduling
 public class WSFederationService {
 	private static final String WS_TRUST_NS = "http://docs.oasis-open.org/ws-sx/ws-trust/200512";
 	private static final String WS_UTILITY_NS = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd";
@@ -81,9 +78,6 @@ public class WSFederationService {
 
 	@Autowired
 	private ServiceProviderFactory serviceProviderFactory;
-
-    @Autowired
-    private WSFederationService self;
 
 	public ModelAndView sendSecurityTokenResponse(Model model, Document requestSecurityTokenResponseDoc, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) throws ResponderException {
 		try {
@@ -175,11 +169,6 @@ public class WSFederationService {
 	public void cacheEvict() {
 		;
 	}
-
-    @Scheduled(fixedDelay = 5 * 60 * 1000)
-    public void processChanges() {
-    	self.cacheEvict();
-    }
 
 	private Set<String> getAllowedEndpoints(Node roleDescriptor) {
 		Set<String> allowedEndpoints = new HashSet<>();

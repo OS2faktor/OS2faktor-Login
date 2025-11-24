@@ -16,7 +16,6 @@ import dk.digitalidentity.common.dao.model.EmailTemplate;
 import dk.digitalidentity.common.dao.model.MessageQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
-import dk.digitalidentity.common.service.dto.TransformInlineImageDTO;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -27,17 +26,8 @@ public class MessageQueueService {
 	private MessageQueueDao messageQueueDao;
 
 	@Autowired
-	private EmailService emailService;
-
-	@Autowired
 	private EmailTemplateService emailTemplateService;
 
-	@Autowired
-	private PersonService personService;
-	
-	@Autowired
-	private MessageQueueService self;
-	
 	public long countNotApprovedByOperator() {
 		return messageQueueDao.countByOperatorApprovedFalse();
 	}
@@ -81,6 +71,10 @@ public class MessageQueueService {
 		messageQueueDao.save(messageQueue);
 	}
 
+	public List<MessageQueue> find10Pending() {
+		return messageQueueDao.findTop10ByDeliveryTtsBeforeAndEmailNotNull(LocalDateTime.now());
+	}
+
 	public void dequeue(String cpr, String email, EmailTemplateType emailTemplateType) {
 		EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(emailTemplateType);
 		
@@ -112,43 +106,6 @@ public class MessageQueueService {
 				if (subjects.stream().anyMatch(s -> Objects.equals(s, message.getSubject()))) {
 					messageQueueDao.delete(message);
 				}
-			}
-		}
-	}
-
-	public void sendPendingEmails() {
-		List<MessageQueue> emails = messageQueueDao.findTop10ByDeliveryTtsBeforeAndEmailNotNull(LocalDateTime.now());
-
-		if (emails.size() > 0) {
-			log.info("Found " + emails.size() + " pending emails");
-		}
-
-		for (MessageQueue email : emails) {
-			boolean success = false;
-			
-			if (StringUtils.hasLength(email.getEmail())) {
-				Person person = personService.getById(email.getPersonId(), p -> {
-					p.getDomain().getName();
-				});
-
-				if (person != null) {
-					TransformInlineImageDTO inlineImagesDto = emailTemplateService.transformImages(email.getMessage());
-					success = emailService.sendMessage(email.getEmail(), email.getSubject(), inlineImagesDto.getMessage(), inlineImagesDto.getInlineImages(), person);
-				}
-				else {
-					log.warn("Could not find person with ID " + email.getPersonId() + " when sending mail - skipping");
-					success = true;
-				}
-			}
-			else {
-				log.error("Cannot send message with id '" + email.getId() + "' due to no email");
-			}
-
-			if (success) {
-				self.deleteFromQueue(email);
-			}
-			else {
-				log.error("Failed to send MessageQueue message with id " + email.getId());
 			}
 		}
 	}

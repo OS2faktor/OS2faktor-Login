@@ -464,7 +464,6 @@
 							clientService.loadMfaDevicesDataTable();
 							toastr.success("Enheden er slettet");
 						}).fail(function(jqXHR, textStatus, errorThrown) {
-							console.log(textStatus);
 							toastr.warning("Der opstod en teknisk fejl");
 						});
 					}
@@ -495,7 +494,6 @@
 									'X-CSRF-TOKEN': token
 								}
 							}).done(function (data) {
-								console.log("hey...");
 	
 								swal({
 									title: 'Gem nøgle',

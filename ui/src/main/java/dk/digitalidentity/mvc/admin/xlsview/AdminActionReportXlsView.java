@@ -15,39 +15,50 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
+import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class AdminActionReportXlsView extends AbstractXlsxStreamingView {
+public class AdminActionReportXlsView implements View {
+	private static final String CONTENT_TYPE = "application/ms-excel";
+	
 	private List<AuditLog> auditLogs;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
 	private ResourceBundleMessageSource resourceBundle;
 
+	@Override
+	public String getContentType() {
+		return CONTENT_TYPE;
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
-	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
-		// Get data
+	public void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		auditLogs = (List<AuditLog>) model.get("auditLogs");
 		resourceBundle = (ResourceBundleMessageSource) model.get("resourceBundle");
 
-		// Setup shared resources
-		Font headerFont = workbook.createFont();
-		headerFont.setBold(true);
+		response.setContentType(getContentType());
+		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport over administratorhandlinger.xlsx\"");
 
-		headerStyle = workbook.createCellStyle();
-		headerStyle.setFont(headerFont);
+		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+			Font headerFont = workbook.createFont();
+			headerFont.setBold(true);
 
-		wrapStyle = workbook.createCellStyle();
-		wrapStyle.setWrapText(true);
+			headerStyle = workbook.createCellStyle();
+			headerStyle.setFont(headerFont);
 
-		// Create Sheets
-		createLockSheet(workbook);
-		createSettingsSheet(workbook);
+			wrapStyle = workbook.createCellStyle();
+			wrapStyle.setWrapText(true);
+
+			createLockSheet(workbook);
+			createSettingsSheet(workbook);
+
+			workbook.write(response.getOutputStream());
+		}
 	}
 
 	private void createLockSheet(Workbook workbook) {
@@ -66,7 +77,9 @@ public class AdminActionReportXlsView extends AbstractXlsxStreamingView {
 		createHeaderRow(sheet, headers);
 
 		int row = 1;
-		for (AuditLog entry : auditLogs.stream().filter(a -> Objects.equals(a.getLogAction(), LogAction.DEACTIVATE_BY_ADMIN) || Objects.equals(a.getLogAction(), LogAction.REACTIVATE_BY_ADMIN)).collect(Collectors.toList())) {
+		for (AuditLog entry : auditLogs.stream()
+				.filter(a -> Objects.equals(a.getLogAction(), LogAction.DEACTIVATE_BY_ADMIN) || Objects.equals(a.getLogAction(), LogAction.REACTIVATE_BY_ADMIN))
+				.collect(Collectors.toList())) {
 
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;
@@ -97,7 +110,9 @@ public class AdminActionReportXlsView extends AbstractXlsxStreamingView {
 		createHeaderRow(sheet, headers);
 
 		int row = 1;
-		for (AuditLog entry : auditLogs.stream().filter(a -> !(Objects.equals(a.getLogAction(), LogAction.DEACTIVATE_BY_ADMIN) || Objects.equals(a.getLogAction(), LogAction.REACTIVATE_BY_ADMIN))).collect(Collectors.toList())) {
+		for (AuditLog entry : auditLogs.stream()
+				.filter(a -> !(Objects.equals(a.getLogAction(), LogAction.DEACTIVATE_BY_ADMIN)  || Objects.equals(a.getLogAction(), LogAction.REACTIVATE_BY_ADMIN)))
+				.collect(Collectors.toList())) {
 
 			Row dataRow = sheet.createRow(row++);
 			int column = 0;

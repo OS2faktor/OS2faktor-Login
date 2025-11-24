@@ -9,7 +9,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.11</version>
+		<version>4.0.0</version>
 	</parent>
 
 	<properties>
@@ -35,7 +35,6 @@
 		<module>common</module>
 		<module>ui</module>
 		<module>TinyRadius</module>
-		<module>aws-kms-jce-provider</module>
 		<module>idp</module>
 		<module>websockets</module>
 		<module>testdriver</module>

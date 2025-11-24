@@ -84,11 +84,17 @@ public class GroupService {
 			return false;
 		}
 
-		Set<Long> groupMemberShips = person.getGroups().stream().map(pgm -> pgm.getGroup().getId()).collect(Collectors.toSet());
-		if (groupIds.stream().anyMatch(id -> groupMemberShips.contains(id))) {
+		Set<Long> groupMemberships = person.getGroups().stream().map(pgm -> pgm.getGroup().getId()).collect(Collectors.toSet());
+		if (groupIds.stream().anyMatch(id -> groupMemberships.contains(id))) {
 			return true;
 		}
 
 		return false;
+	}
+
+	public static boolean memberOfAnyGroupWithPrefix(Person person, String prefix, List<Group> groups) {
+		Set<Long> matchingGroupIds = groups.stream().filter(g -> g.getName().startsWith(prefix)).map(Group::getId).collect(Collectors.toSet());
+		
+		return memberOf(person, matchingGroupIds);
 	}
 }

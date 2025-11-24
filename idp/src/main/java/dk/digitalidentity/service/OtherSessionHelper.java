@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.session.Session;
-import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
+import org.springframework.session.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,7 +19,7 @@ import dk.digitalidentity.util.Constants;
 public class OtherSessionHelper {
 
 	@Autowired
-	private JdbcIndexedSessionRepository sessionRepository;
+	private SessionRepository<? extends Session> sessionRepository;
 	
 	@Autowired
 	private PersonService personService;

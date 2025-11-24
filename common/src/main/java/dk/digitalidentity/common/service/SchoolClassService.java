@@ -24,7 +24,7 @@ import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 
 @Service
 public class SchoolClassService {
-	private final String EASY_WORDS = "kat,mus,hund,hest,gris,ko,ged,hvalp,føl,rød,grøn,brun,blå,pink,gul,grå,sko,ske,bold,ost,æble,gave,kage,ven,fugl,gren,pind,tand,bil,bord,løve,pote,abe,hue,leg,spil,hus,stol,sol,seng,pude,dør,sø,lys,lyn,sky,tyv,tårn,æg,hop,fod,bog,nat,barn,sok,drøm,lyd,træ,skov,får,dag,uge,år,baby,blad,glas,låg,reol,hæk,lus,nål,kål,bus,mål,bål,ugle,frø,myre,måne,æske,is,haj,orm,øje,kop,dæk,sæl,tog,ørn,rat,ræv,flag,hval,fisk,rose,høne,flue,hane,mund,hjul";
+	private final String EASY_WORDS = "abe,æble,æg,æske,aften,ål,and,år,arm,baby,båd,bær,bål,banan,barn,ben,bi,bid,bil,blå,blad,blomst,bog,bold,bolle,bord,brev,brød,bror,brun,bukser,bus,busk,citron,cykel,dæk,dag,dans,dør,dreng,drik,drøm,dronning,due,dykk,efterår,en,eng,fætter,fang,far,får,fem,fest,fire,fisk,flag,flue,fly,flyv,fod,føl,forår,fred,frø,fugl,gå,gaffel,gammel,gave,ged,gedde,giraf,glad,glas,grå,græs,gren,grin,gris,grøn,gul,hæk,haj,hals,hånd,hane,hår,hat,hest,hjul,høj,høne,hop,hue,hund,hus,hval,hvalp,ild,is,juice,kaffe,kage,kakao,kaktus,kål,kam,kast,kat,ked,kind,kjole,knæ,kniv,ko,kød,kold,konge,kop,kost,kravl,krus,kusine,kvinde,læs,låg,lam,larm,lav,leg,lille,løb,løve,lus,lyd,lyn,lys,mad,mælk,mal,mål,mand,måne,mark,mel,mønt,mor,morgen,mos,mund,mus,myre,nabo,næse,nål,nat,navn,ni,nøgle,ny,øje,onkel,ører,orm,ørn,ost,otte,pære,panda,penge,pige,pind,pink,plads,pølse,post,pote,prins,prinsesse,pude,råb,ræv,rat,regn,reol,rev,ris,ro,rød,rose,sæbe,sæl,saft,salt,sand,sang,seks,seng,sid,ske,skib,sko,skov,skriv,sky,slik,smil,smør,snak,sne,snegl,sø,sok,sol,sommer,søster,sov,spark,spil,spis,spring,stå,sten,stol,stor,suppe,sur,svin,svøm,syng,syv,tand,tang,tante,tårn,taxa,te,tegn,ti,tiger,to,tog,tør,træ,tre,trøje,tyv,uge,ugle,ur,uv,våd,vand,varm,vase,ven,vind,vinter,vred,zebra";
 	private SecureRandom random = new SecureRandom();
 
 	@Autowired
@@ -98,7 +98,7 @@ public class SchoolClassService {
 		
 		return result;
 	}
-	
+
 	public List<SchoolClass> getClassesPasswordCanBeChangedOn(Person adult) {
 		List<SchoolClass> result = new ArrayList<>();
 
@@ -214,7 +214,20 @@ public class SchoolClassService {
 		save(passwordClass);
 	}
 	
-	private List<String> getEasyWords() {
+	public List<String> getEasyWords() {
 		return Arrays.asList(EASY_WORDS.split(","));
+	}
+
+	public boolean isBulkChangeAllowedForClass(SchoolClass schoolClass, Long maxLevel) {
+		if (maxLevel == null || schoolClass.getLevel() == null) {
+			return false;
+		}
+
+		try {
+			long levelAsLong = Long.parseLong(schoolClass.getLevel());
+			return levelAsLong <= maxLevel;
+		} catch (NumberFormatException e) {
+			return false;
+		}
 	}
 }

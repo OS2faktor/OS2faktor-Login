@@ -39,11 +39,14 @@ import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.service.validation.AuthnRequestValidationService;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.ShowErrorToUserException;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +93,9 @@ public class LoginController {
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
+	
+	@Autowired
+	private ServiceProviderFactory serviceProviderFactory;
 
 	@GetMapping("/fragment/username")
 	public String getLoginUsernameFragment(Model model, @RequestParam(name = "username", required = false, defaultValue = "") String username) {
@@ -103,7 +109,7 @@ public class LoginController {
 	}
 	
 	@RequestMapping(value = { "/sso/saml/login", "/sso/saml/login/" }, method = { POST, GET } )
-	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
+	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException, ShowErrorToUserException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");
 			return new ModelAndView("redirect:/");
@@ -179,7 +185,7 @@ public class LoginController {
 				}
 			}
 
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex);
+			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex, serviceProviderFactory.getServiceProvider(authnRequest));
 		}
 
 		// we return a SAML Response with an error message instead
@@ -221,12 +227,12 @@ public class LoginController {
 
 		// if no match go back to login page
 		if (people.size() == 0) {
-			return loginService.initiateLogin(model, httpServletRequest, false, true, username, false);
+			return flowService.initiateLogin(model, httpServletRequest, false, true, username, false);
 		}
 
 		// if more than one person, ask for password and enter "normal" loginflow without passwordless
 		if (people.size() != 1) {
-			return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+			return flowService.initiateLogin(model, httpServletRequest, false, false, username, true);
 		}
 
 		// if only one match continue login flow
@@ -245,7 +251,7 @@ public class LoginController {
 		}
 
 		// if no passwordless, ask for password
-		return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+		return flowService.initiateLogin(model, httpServletRequest, false, false, username, true);
 	}
 
 	@GetMapping(value = "/sso/login/password")
@@ -253,7 +259,7 @@ public class LoginController {
 		String username = sessionHelper.getPasswordlessMfaFlowUsername();
 		sessionHelper.setInPasswordlessMfaFlow(false, null);
 
-		return loginService.initiateLogin(model, httpServletRequest, false, false, username, true);
+		return flowService.initiateLogin(model, httpServletRequest, false, false, username, true);
 	}
 	
 	@PostMapping(value = "/sso/login")
@@ -272,7 +278,7 @@ public class LoginController {
 
 		// if no match go back to login page
 		if (people.size() == 0) {
-			return loginService.initiateLogin(model, httpServletRequest, false, true, username, false);
+			return flowService.initiateLogin(model, httpServletRequest, false, true, username, false);
 		}
 
 		// if more than one match go to select user page

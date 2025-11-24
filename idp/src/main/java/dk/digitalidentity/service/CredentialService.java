@@ -15,7 +15,6 @@ import org.opensaml.xmlsec.keyinfo.impl.X509KeyInfoGeneratorFactory;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.util.ResponderException;
@@ -85,12 +84,9 @@ public class CredentialService {
 
 		Map<String, String> passwords = new HashMap<>();
 
-		String alias = keystoreService.getKmsAlias(KnownCertificateAliases.OCES.toString());
+		String alias = null;
 		try {
-			// if no alias to KMS is available, load from keystore and find first
-			if (!StringUtils.hasLength(alias)) {
-				alias = ks.aliases().nextElement();
-			}
+			alias = ks.aliases().nextElement();
 
 			passwords.put(alias, keystoreService.getJavaKeystorePassword(KnownCertificateAliases.OCES.toString()));
 		}
@@ -182,13 +178,26 @@ public class CredentialService {
 		}
 	}
 	
-	public KeyInfo getPublicKeyInfo() throws ResponderException {
+	public KeyInfo getPrimaryPublicKeyInfo() throws ResponderException {
 		X509KeyInfoGeneratorFactory x509KeyInfoGeneratorFactory = new X509KeyInfoGeneratorFactory();
 		x509KeyInfoGeneratorFactory.setEmitEntityCertificate(true);
 		KeyInfoGenerator keyInfoGenerator = x509KeyInfoGeneratorFactory.newInstance();
 
 		try {
 			return keyInfoGenerator.generate(getBasicX509Credential());
+		}
+		catch (SecurityException e) {
+			throw new ResponderException("Kunne ikke generere public key ud fra IdP credentials", e);
+		}
+	}
+	
+	public KeyInfo getPublicKeyInfo(BasicX509Credential credential) throws ResponderException {
+		X509KeyInfoGeneratorFactory x509KeyInfoGeneratorFactory = new X509KeyInfoGeneratorFactory();
+		x509KeyInfoGeneratorFactory.setEmitEntityCertificate(true);
+		KeyInfoGenerator keyInfoGenerator = x509KeyInfoGeneratorFactory.newInstance();
+
+		try {
+			return keyInfoGenerator.generate(credential);
 		}
 		catch (SecurityException e) {
 			throw new ResponderException("Kunne ikke generere public key ud fra IdP credentials", e);

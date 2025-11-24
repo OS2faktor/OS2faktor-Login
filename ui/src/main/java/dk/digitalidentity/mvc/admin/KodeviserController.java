@@ -48,9 +48,6 @@ public class KodeviserController {
 
 		model.put("cachedMfaClientService", cachedMfaClientService);
 
-		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"kodeviser.xlsx\"");
-
 		return new ModelAndView(new AdminKodeviserReportXlsView(), model);
 	}
 }

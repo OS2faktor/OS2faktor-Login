@@ -105,8 +105,6 @@ public class CertManagerApi {
 
 		// clear existing data
 		secondaryNL.setDisabled(false);
-		secondaryNL.setKms(false);
-		secondaryNL.setKmsAlias(null);
 		secondaryNL.setKeystore(null);
 		secondaryNL.setPassword(null);
 		secondaryNL.setLastUpdated(LocalDateTime.now());
@@ -124,8 +122,6 @@ public class CertManagerApi {
 		
 		// clear existing data
 		secondaryOCES.setDisabled(false);
-		secondaryOCES.setKms(false);
-		secondaryOCES.setKmsAlias(null);
 		secondaryOCES.setKeystore(null);
 		secondaryOCES.setPassword(null);
 		secondaryOCES.setLastUpdated(LocalDateTime.now());

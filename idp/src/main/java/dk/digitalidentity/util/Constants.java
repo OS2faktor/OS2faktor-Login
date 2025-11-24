@@ -73,6 +73,7 @@ public class Constants {
     
     // STIL constants
     public static final String STIL_LEVEL_OF_ASSURANCE_TOFAKTOR = "dk:unilogin:loa:ToFaktor";
+    public static final String STIL_UNID = "dk:unilogin:uniid";
     
     // professional attributes
     public static final String CVR = "https://data.gov.dk/model/core/eid/professional/cvr";

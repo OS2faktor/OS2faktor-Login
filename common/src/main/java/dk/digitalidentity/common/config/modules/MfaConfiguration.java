@@ -16,6 +16,7 @@ public class MfaConfiguration {
 	private String apiKey;
 	private String managementApiKey;
 	private String enabledClients = "WINDOWS,IOS,ANDROID,CHROME,YUBIKEY,EDGE";
+	private boolean showMfaButton = true;
 	private List<String> enabledClientsComputedValue = null;
 	
 	public List<String> getEnabledClients() {

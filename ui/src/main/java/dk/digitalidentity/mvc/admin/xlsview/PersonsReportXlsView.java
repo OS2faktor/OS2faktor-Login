@@ -14,7 +14,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
+import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.MitidErhvervCache;
@@ -25,7 +25,9 @@ import dk.digitalidentity.common.service.PersonService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class PersonsReportXlsView extends AbstractXlsxStreamingView {
+public class PersonsReportXlsView implements View {
+	private static final String CONTENT_TYPE = "application/ms-excel";
+	
 	private List<Person> persons;
 	private Map<Long, PersonStatistics> statisticsMap;
 	private List<MitidErhvervCache> mitIDErhvervCache;
@@ -33,29 +35,43 @@ public class PersonsReportXlsView extends AbstractXlsxStreamingView {
 	private CellStyle wrapStyle;
 	private boolean enableRegistrantFeature;
 
+	@Override
+	public String getContentType() {
+		return CONTENT_TYPE;
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
-	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
+	public void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) throws Exception {
+
 		// Get data
 		persons = (List<Person>) model.get("persons");
 		List<PersonStatistics> statistics = (List<PersonStatistics>) model.get("statistics");
 		enableRegistrantFeature = (boolean) model.get("enableRegistrantFeature");
 		mitIDErhvervCache = (List<MitidErhvervCache>) model.get("mitIDErhvervCache");
 
-		// Setup shared resources
-		Font headerFont = workbook.createFont();
-		headerFont.setBold(true);
+		response.setContentType(getContentType());
+		response.setHeader("Content-Disposition", "attachment; filename=\"Brugerkonti.xlsx\"");
 
-		headerStyle = workbook.createCellStyle();
-		headerStyle.setFont(headerFont);
+		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
 
-		wrapStyle = workbook.createCellStyle();
-		wrapStyle.setWrapText(true);
-
-		statisticsMap = statistics.stream().collect(Collectors.toMap(PersonStatistics::getPersonId, Function.identity()));
-		
-		// Create Sheets
-		createPersonsSheet(workbook);
+			// Setup shared resources
+			Font headerFont = workbook.createFont();
+			headerFont.setBold(true);
+	
+			headerStyle = workbook.createCellStyle();
+			headerStyle.setFont(headerFont);
+	
+			wrapStyle = workbook.createCellStyle();
+			wrapStyle.setWrapText(true);
+	
+			statisticsMap = statistics.stream().collect(Collectors.toMap(PersonStatistics::getPersonId, Function.identity()));
+			
+			// Create Sheets
+			createPersonsSheet(workbook);
+			
+			workbook.write(response.getOutputStream());
+		}
 	}
 
 	private void createPersonsSheet(Workbook workbook) {

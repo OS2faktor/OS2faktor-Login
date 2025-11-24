@@ -20,6 +20,8 @@ import dk.digitalidentity.service.OidcAuthCodeRequestService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.ShowErrorToUserException;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +46,7 @@ public class OIDCLoginController {
 	private SessionHelper sessionHelper;
 
 	@GetMapping("/oauth2/login")
-	public ModelAndView oidcLogin(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
+	public ModelAndView oidcLogin(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException, ShowErrorToUserException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");
 			return new ModelAndView("redirect:/");

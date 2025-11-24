@@ -1,5 +1,8 @@
 package dk.digitalidentity.mvc.admin.dto.serviceprovider;
 
+import java.util.Optional;
+
+import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
@@ -22,6 +25,8 @@ public class ClaimDTO {
 	private String externalOperation;
 	private String externalOperationArgument;
 	private long groupId;
+	private boolean valuePrefix;
+	private boolean removePrefix;
 
 	// computed, just for showing in the UI
 	private String parameter;
@@ -71,11 +76,13 @@ public class ClaimDTO {
 		this.id = groupClaim.getId();
 		this.attribute = groupClaim.getClaimName();
 		this.value = groupClaim.getClaimValue();
-		this.groupId = groupClaim.getGroup().getId();
+		this.groupId = Optional.ofNullable(groupClaim.getGroup()).map(Group::getId).orElse(0L);
 		this.singleValueOnly = groupClaim.isSingleValueOnly();
+		this.valuePrefix = groupClaim.isValuePrefix();
+		this.removePrefix = groupClaim.isRemovePrefix();
 
 		// ui shown only
-		this.parameter = groupClaim.getGroup().getName();
+		this.parameter = Optional.ofNullable(groupClaim.getGroup()).map(Group::getName).orElse(null);
 		
 		this.type = ClaimType.GROUP;
 	}

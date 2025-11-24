@@ -1,8 +1,6 @@
 package dk.digitalidentity.service;
 
 import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -29,17 +27,17 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.RequirementCheckResult;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.LoginInfoMessageService;
+import dk.digitalidentity.common.service.KnownNetworkService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
-import dk.digitalidentity.service.serviceprovider.NemLoginServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.IPUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import dk.digitalidentity.util.UserAgentParser;
+import dk.digitalidentity.util.ShowErrorToUserException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -53,9 +51,6 @@ public class LoginService {
 
     @Autowired
     private ServiceProviderFactory serviceProviderFactory;
-
-    @Autowired
-    private LoginInfoMessageService loginInfoMessageService;
 
     @Autowired
     private PersonService personService;
@@ -85,12 +80,12 @@ public class LoginService {
     private PasswordService passwordService;
     
     @Autowired
-    private UserAgentParser userAgentParser;
+    private KnownNetworkService knownNetworkService;
 
     /**
      * This method handles receiving any login request, and will then determine based on session what to do with the user
      */
-    public ModelAndView loginRequestReceived(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, LoginRequest loginRequest) throws RequesterException, ResponderException  {
+    public ModelAndView loginRequestReceived(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, LoginRequest loginRequest) throws RequesterException, ResponderException, ShowErrorToUserException  {
         // Clear any flow states in session so user does not end up in a bad state with a new AuthnRequest
         sessionHelper.clearFlowStates();
 
@@ -103,6 +98,19 @@ public class LoginService {
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
         if (!serviceProvider.getProtocol().equals(loginRequest.getProtocol())) {
             throw new RequesterException("Kunne ikke gennemføre login da Tjenesteudbyderens protokol ikke matcher den modtagne login forespørgsel");
+        }
+
+        if (serviceProvider.onlyAllowLoginFromKnownNetworks()) {
+            String ip = IPUtil.getIpAddress(httpServletRequest);
+            
+            if (!IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), httpServletRequest)) {
+                sessionHelper.invalidateSession();
+                auditLogger.loginRejectedByIP(ip);
+
+                throw new ShowErrorToUserException("Login til tjenesten er afvist", 
+                                                   null, 
+                                                   "cms.login.cms.login.rejected.ip");
+            }
         }
 
         switch (loginRequest.getProtocol()) {
@@ -122,6 +130,11 @@ public class LoginService {
 
         NSISLevel loginState = sessionHelper.getLoginState(serviceProvider, loginRequest);
 
+        // a ServiceProvider can be configured to proxy to UniLogin, skipping the build-in login mechanisms
+        if (serviceProvider.isUniLoginBrokerEnabled()) {
+            return new ModelAndView("redirect:/nemlogin/saml/login?idp=https://broker.unilogin.dk/auth/realms/broker");
+        }
+        
         // a ServiceProvider can be configured to just proxy straight to NemLog-in, skipping the build-in IdP login mechanisms.
         // In this case we will always just forward the request, and ignore any existing sessions, as NemLog-in is required here
         // Start login flow against NemLog-in no matter the session
@@ -136,7 +149,7 @@ public class LoginService {
             	sessionHelper.setRequestPersonalProfile();
             }
 
-            return new ModelAndView("redirect:/nemlogin/saml/login");
+            return new ModelAndView("redirect:/nemlogin/saml/login?idp=https://saml.nemlog-in.dk");
         }
         
         if (commonConfiguration.getMitIdErhverv().isEnabled()) {
@@ -157,7 +170,7 @@ public class LoginService {
                 throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
             }
 
-            return initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
+            return flowService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
         }
 
         // Login state is non-null which means we have already determined a person on the session
@@ -242,7 +255,7 @@ public class LoginService {
 	                    return new ModelAndView(PersonService.getCorrectLockedPage(person));
 	                }
 	                else {
-	                    return initiateLogin(model, httpServletRequest, false, true, (username != null ? username : ""), false);
+	                    return flowService.initiateLogin(model, httpServletRequest, false, true, (username != null ? username : ""), false);
 	                }
 	            case INSUFFICIENT_PERMISSION:
 	            case TECHNICAL_ERROR:
@@ -402,7 +415,7 @@ public class LoginService {
                     return new ModelAndView(PersonService.getCorrectLockedPage(person));
                 }
                 else {
-                    return initiateLogin(model, httpServletRequest, false, true, "", false);
+                    return flowService.initiateLogin(model, httpServletRequest, false, true, "", false);
                 }
             case LOCKED:
                 return new ModelAndView("error-password-locked");
@@ -451,73 +464,6 @@ public class LoginService {
         }
         
         return result.stream().distinct().collect(Collectors.toList());
-    }
-
-    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid) {
-        return initiateLogin(model, request, preferNemid, false, null, false);
-    }
-
-    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid, boolean incorrectInput, String username, boolean forceShowPasswordDialogue) {
-        model.addAttribute("infobox", loginInfoMessageService.getInfobox());
-
-        String changePasswordUrl = "/sso/saml/forgotpworlocked";
-        if (StringUtils.hasLength(request.getQueryString())) {
-            String params = URLEncoder.encode("/sso/saml/login?" + request.getQueryString(), StandardCharsets.UTF_8);
-            changePasswordUrl += "?redirectUrl=" + params;
-        }
-        model.addAttribute("changePasswordUrl", changePasswordUrl);
-
-        model.addAttribute("username", username);
-
-        if (incorrectInput) {
-            model.addAttribute("incorrectInput", true);
-            model.addAttribute("preferNemid", false);
-        }
-        else {
-            model.addAttribute("preferNemid", preferNemid);
-        }
-
-        // if "Using NemLog-in for other SPs feature" is not enabled, we will only show NemLog-in on SelfService
-        model.addAttribute("showNemLogIn", showNemLogIn());
-
-        // hack to support embedded IE browsers
-        boolean isMobile = false;
-        try {
-	        String ua = request.getHeader("user-agent").toLowerCase();
-	        if (ua.indexOf("trident") >= 0 || ua.indexOf("edge/") >= 0) {
-	            return new ModelAndView("login-ie", model.asMap());
-	        }
-	        
-	        isMobile = userAgentParser.isMobile(ua);
-        }
-        catch (Exception ignored) {
-        	;
-        }
-        
-    	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa() && (commonConfiguration.getCustomer().isEnablePasswordlessMfaMobileOnly() == false || isMobile));
-    	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
-        
-        return new ModelAndView("login", model.asMap());
-    }
-
-    public boolean showNemLogIn() {
-    	// we should prevent showing MitID if the request is from NemLog-in, as NL3 gets confused with 2 parallel logins
-        // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
-        try {
-            LoginRequest loginRequest = sessionHelper.getLoginRequest();
-            if (loginRequest != null) {
-                ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
-                if (serviceProvider != null && Objects.equals(NemLoginServiceProvider.SP_NAME, serviceProvider.getName(null))) {
-                    return false;
-                }
-            }
-        }
-        catch (RequesterException | ResponderException ex) {
-            log.warn("Could not determine where user is trying to login to", ex);
-        }
-
-    	// otherwise show it
-        return true;
     }
 
     public ModelAndView continueLoginWithMitIdOrNemId(Person person, NSISLevel authenticationLevel, @Nullable LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {

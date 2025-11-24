@@ -7,6 +7,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.util.StringUtils;
 
 @Configuration
@@ -18,6 +21,14 @@ public class SecurityConfig  {
 	@Order(2) // AuthorizationServerSecurityConfig is set as @Order(1) letting OIDC/OAuth2.0 be handled first
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		// Match everything EXCEPT SAML endpoints (those are handled by SecurityConfig)
+		http.securityMatcher(new NegatedRequestMatcher(
+			new OrRequestMatcher(
+				PathPatternRequestMatcher.pathPattern("/sso/saml/**"),
+				PathPatternRequestMatcher.pathPattern("/nemlogin/saml/**")
+			)
+		));
+
         http.csrf((csrf) ->
         	csrf
                 .ignoringRequestMatchers("/sso/saml/login")
@@ -25,6 +36,7 @@ public class SecurityConfig  {
                 .ignoringRequestMatchers("/sso/login")
                 .ignoringRequestMatchers("/sso/login/password")
                 .ignoringRequestMatchers("/sso/login-passwordless")
+                .ignoringRequestMatchers("/api/internal/**")
                 .ignoringRequestMatchers("/api/client/login")
                 .ignoringRequestMatchers("/api/client/loginWithBody")
                 .ignoringRequestMatchers("/api/client/changePassword")
@@ -66,12 +78,13 @@ public class SecurityConfig  {
             	.requestMatchers("/konto/valideradkodeord").permitAll()
             	.requestMatchers("/change-password").permitAll()
             	.requestMatchers("/change-password-next").permitAll()
-            	.requestMatchers(HttpMethod.POST,"/api/client/login").permitAll()
-            	.requestMatchers(HttpMethod.POST,"/api/client/loginWithBody").permitAll()
-            	.requestMatchers(HttpMethod.POST,"/api/client/changePassword").permitAll()
-            	.requestMatchers(HttpMethod.POST,"/api/internal/").permitAll()
-            	.requestMatchers(HttpMethod.POST,"/api/client/changePasswordWithBody").permitAll()
-                .requestMatchers(HttpMethod.POST,"/api/password/filter/v1/validate").permitAll()
+            	.requestMatchers("/api/internal/**").permitAll()
+            	.requestMatchers(HttpMethod.POST, "/api/client/login").permitAll()
+            	.requestMatchers(HttpMethod.POST, "/api/client/loginWithBody").permitAll()
+            	.requestMatchers(HttpMethod.POST, "/api/client/changePassword").permitAll()
+            	.requestMatchers(HttpMethod.POST, "/api/internal/").permitAll()
+            	.requestMatchers(HttpMethod.POST, "/api/client/changePasswordWithBody").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/password/filter/v1/validate").permitAll()
             	.requestMatchers("/elevkode").permitAll()
             	.requestMatchers("/oauth2/login").permitAll()
             	.requestMatchers("/oauth2/authorize").permitAll()

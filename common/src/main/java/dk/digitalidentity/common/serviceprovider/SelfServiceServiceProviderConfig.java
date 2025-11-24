@@ -72,4 +72,9 @@ public class SelfServiceServiceProviderConfig implements ServiceProviderConfig {
 	public boolean isRequireOiosaml3Profile() {
 		return false;
 	}
+
+	@Override
+	public boolean isOnlyAllowLoginFromKnownNetworks() {
+		return config.getSelfService().isOnlyAllowLoginFromKnownNetworks();
+	}
 }

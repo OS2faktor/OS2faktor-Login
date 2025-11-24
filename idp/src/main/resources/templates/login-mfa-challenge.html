@@ -58,7 +58,7 @@
                             <a th:if="${@sessionHelper.isInPasswordlessMfaFlow()}" th:href="@{/sso/login/password}" style="color: black;">                            
                                 <em class="fa fa-fw fa-key"></em> &nbsp; Log ind med kodeord
                             </a><br/>
-                            <a th:if="${@loginService.showNemLogIn()}" th:href="@{/sso/saml/login/nemid}" style="color: black;">                            
+                            <a th:if="${@flowService.showNemLogIn()}" th:href="@{/sso/saml/login/nemid}" style="color: black;">                            
                                 <em class="fa fa-fw fa-key"></em> &nbsp; Log ind med MitID
                             </a>
                         </div>

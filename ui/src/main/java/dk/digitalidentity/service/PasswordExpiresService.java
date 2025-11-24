@@ -49,7 +49,7 @@ public class PasswordExpiresService {
 
 		for (Person person : persons) {
 			boolean notify = false;
-			PasswordSetting settings = passwordSettingService.getSettings(person);
+			PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 			
 			if (settings.isForceChangePasswordEnabled() && person.getPasswordTimestamp() != null) {
 				LocalDateTime expiredTimestamp = person.getPasswordTimestamp().plusDays(settings.getForceChangePasswordInterval());

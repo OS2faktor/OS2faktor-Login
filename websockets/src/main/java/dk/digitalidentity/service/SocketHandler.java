@@ -9,21 +9,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import dk.digitalidentity.api.dto.PasswordResponse;
 import dk.digitalidentity.api.dto.PasswordResponse.PasswordStatus;
@@ -32,6 +29,8 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.model.Request;
 import dk.digitalidentity.service.model.Response;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Component
@@ -47,7 +46,7 @@ public class SocketHandler extends TextWebSocketHandler {
 	private OS2faktorConfiguration configuration;
 
 	@Async
-	public AsyncResult<PasswordResponse> validatePassword(String username, String password, String domain, boolean retry) throws InterruptedException {
+	public CompletableFuture<PasswordResponse> validatePassword(String username, String password, String domain, boolean retry) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setStatus(PasswordStatus.FAILURE);
 		
@@ -56,7 +55,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			logNoAuthenticatedWebsocket("Failed to get an authenticated WebSocket connection for validatePassword for domain: " + domain, domain);
 			response.setMessage("No authenticated WebSocket connection available");
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		Request request = new Request();
@@ -71,7 +71,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to sign validatePassword message", ex);
 			response.setMessage("Failed to sign validatePassword message: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+			
+			return CompletableFuture.completedFuture(response);
 		}
 
 		String data = null;
@@ -80,12 +81,13 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Cannot serialize validatePassword request", ex);
 			
 			response.setMessage("Cannot serialize validatePassword request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		long startTts = System.currentTimeMillis();
@@ -101,7 +103,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			
 			response.setMessage("Failed to send valiatePassword request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		// wait for result for X seconds, default 4 (polling every 100 ms)
@@ -134,7 +137,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				response.setMessage("Timeout waiting for response");
 				response.setStatus(PasswordStatus.TIMEOUT);
 				timeoutCounter++;
-				return new AsyncResult<PasswordResponse>(response);
+
+				return CompletableFuture.completedFuture(response);
 			}
 			else {
 				// try once more, against a new connection
@@ -146,7 +150,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		session.logRequest(Commands.VALIDATE_PASSWORD, System.currentTimeMillis() - startTts);
 		
-		return new AsyncResult<PasswordResponse>(holder.getResponse());
+		return CompletableFuture.completedFuture(holder.getResponse());
 	}
 
 	private void logNoAuthenticatedWebsocket(String message, String domain) {
@@ -170,7 +174,7 @@ public class SocketHandler extends TextWebSocketHandler {
 	}
 
 	@Async
-	public AsyncResult<PasswordResponse> setPasswordWithForcedChange(String userId, String password, String domain, boolean retry) throws InterruptedException {
+	public CompletableFuture<PasswordResponse> setPasswordWithForcedChange(String userId, String password, String domain, boolean retry) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setStatus(PasswordStatus.FAILURE);
 
@@ -178,7 +182,8 @@ public class SocketHandler extends TextWebSocketHandler {
 		if (session == null) {
 			logNoAuthenticatedWebsocket("Failed to get an authenticated WebSocket connection for setPasswordWithForcedChange for " + domain, domain);
 			response.setMessage("No authenticated WebSocket connection available");
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		Request request = new Request();
@@ -193,7 +198,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to sign setPasswordWithForcedChange message", ex);
 			response.setMessage("Failed to sign setPasswordWithForcedChange message: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		String data = null;
@@ -202,10 +208,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			response.setMessage("Cannot serialize setPasswordWithForcedChange request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		long startTts = System.currentTimeMillis();
@@ -221,7 +228,8 @@ public class SocketHandler extends TextWebSocketHandler {
 						
 			response.setMessage("Failed to send setPasswordWithForcedChange request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		// wait for result for X seconds
@@ -254,7 +262,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				response.setMessage("Timeout waiting for response");
 				response.setStatus(PasswordStatus.TIMEOUT);
 				timeoutCounter++;
-				return new AsyncResult<PasswordResponse>(response);
+
+				return CompletableFuture.completedFuture(response);
 			}
 			else {
 				// try once more, against a new connection
@@ -266,11 +275,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		session.logRequest(Commands.SET_PASSWORD_WITH_FORCED_CHANGE, System.currentTimeMillis() - startTts);
 
-		return new AsyncResult<PasswordResponse>(holder.getResponse());
+		return CompletableFuture.completedFuture(holder.getResponse());
 	}
 	
 	@Async
-	public AsyncResult<PasswordResponse> setPassword(String userId, String password, String domain, boolean retry) throws InterruptedException {
+	public CompletableFuture<PasswordResponse> setPassword(String userId, String password, String domain, boolean retry) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setStatus(PasswordStatus.FAILURE);
 
@@ -278,7 +287,8 @@ public class SocketHandler extends TextWebSocketHandler {
 		if (session == null) {
 			logNoAuthenticatedWebsocket("Failed to get an authenticated WebSocket connection for setPassword for " + domain, domain);
 			response.setMessage("No authenticated WebSocket connection available");
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		Request request = new Request();
@@ -293,7 +303,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to sign setPassword message", ex);
 			response.setMessage("Failed to sign setPassword message: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		String data = null;
@@ -302,10 +313,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			response.setMessage("Cannot serialize setPassword request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		long startTts = System.currentTimeMillis();
@@ -321,7 +333,8 @@ public class SocketHandler extends TextWebSocketHandler {
 						
 			response.setMessage("Failed to send setPassword request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		// wait for result for X seconds
@@ -354,7 +367,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				response.setMessage("Timeout waiting for response");
 				response.setStatus(PasswordStatus.TIMEOUT);
 				timeoutCounter++;
-				return new AsyncResult<PasswordResponse>(response);
+
+				return CompletableFuture.completedFuture(response);
 			}
 			else {
 				// try once more, against a new connection
@@ -366,11 +380,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		session.logRequest(Commands.SET_PASSWORD, System.currentTimeMillis() - startTts);
 
-		return new AsyncResult<PasswordResponse>(holder.getResponse());
+		return CompletableFuture.completedFuture(holder.getResponse());
 	}
 	
 	@Async
-	public AsyncResult<PasswordResponse> unlockAccount(String userId, String domain, boolean retry) throws InterruptedException {
+	public CompletableFuture<PasswordResponse> unlockAccount(String userId, String domain, boolean retry) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setStatus(PasswordStatus.FAILURE);
 
@@ -378,7 +392,8 @@ public class SocketHandler extends TextWebSocketHandler {
 		if (session == null) {
 			logNoAuthenticatedWebsocket("Failed to get an authenticated WebSocket connection for unlockAccount for " + domain, domain);
 			response.setMessage("No authenticated WebSocket connection available");
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		Request request = new Request();
@@ -392,7 +407,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to sign unlockAccount message", ex);
 			response.setMessage("Failed to sign unlockAccount message: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		String data = null;
@@ -401,10 +417,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			response.setMessage("Cannot serialize unlockAccount request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		long startTts = System.currentTimeMillis();
@@ -420,7 +437,8 @@ public class SocketHandler extends TextWebSocketHandler {
 						
 			response.setMessage("Failed to send unlockAccount request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		// wait for result for X seconds
@@ -453,7 +471,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				response.setMessage("Timeout waiting for response");
 				response.setStatus(PasswordStatus.TIMEOUT);
 				timeoutCounter++;
-				return new AsyncResult<PasswordResponse>(response);
+
+				return CompletableFuture.completedFuture(response);
 			}
 			else {
 				// try once more, against a new connection
@@ -465,11 +484,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		session.logRequest(Commands.UNLOCK_ACCOUNT, System.currentTimeMillis() - startTts);
 
-		return new AsyncResult<PasswordResponse>(holder.getResponse());
+		return CompletableFuture.completedFuture(holder.getResponse());
 	}
 
 	@Async
-	public AsyncResult<PasswordResponse> passwordExpires(String userId, String domain, boolean retry) throws InterruptedException {
+	public CompletableFuture<PasswordResponse> passwordExpires(String userId, String domain, boolean retry) throws InterruptedException {
 		PasswordResponse response = new PasswordResponse();
 		response.setStatus(PasswordStatus.FAILURE);
 
@@ -477,13 +496,15 @@ public class SocketHandler extends TextWebSocketHandler {
 		if (session == null) {
 			logNoAuthenticatedWebsocket("Failed to get an authenticated WebSocket connection for passwordExpires for " + domain, domain);
 			response.setMessage("No authenticated WebSocket connection available");
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		// if not running at least version 2.1.0, we will just return OK and do nothing
 		if (!verifyVersion(session, 2, 1)) {
 			response.setStatus(PasswordStatus.OK);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 		
 		Request request = new Request();
@@ -497,7 +518,8 @@ public class SocketHandler extends TextWebSocketHandler {
 			log.error("Failed to sign passwordExpires message", ex);
 			response.setMessage("Failed to sign passwordExpires message: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		String data = null;
@@ -506,10 +528,11 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			response.setMessage("Cannot serialize passwordExpires request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+
+			return CompletableFuture.completedFuture(response);
 		}
 
 		long startTts = System.currentTimeMillis();
@@ -525,7 +548,8 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			response.setMessage("Failed to send passwordExpires request: " + ex.getMessage());
 			response.setStatus(PasswordStatus.TECHNICAL_ERROR);
-			return new AsyncResult<PasswordResponse>(response);
+			
+			return CompletableFuture.completedFuture(response);
 		}
 
 		// wait for result for X seconds
@@ -558,7 +582,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				response.setMessage("Timeout waiting for response");
 				response.setStatus(PasswordStatus.TIMEOUT);
 				timeoutCounter++;
-				return new AsyncResult<PasswordResponse>(response);
+
+				return CompletableFuture.completedFuture(response);
 			}
 			else {
 				// try once more, against a new connection
@@ -570,7 +595,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 		session.logRequest(Commands.PASSWORD_EXPIRES_SOON, System.currentTimeMillis() - startTts);
 
-		return new AsyncResult<PasswordResponse>(holder.getResponse());
+		return CompletableFuture.completedFuture(holder.getResponse());
 	}
 	
 	private void sendAuthenticateRequest(Session session) {
@@ -591,7 +616,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 			data = mapper.writeValueAsString(request);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Cannot serialize authenticate request", ex);
 			return;
 		}
@@ -859,7 +884,7 @@ public class SocketHandler extends TextWebSocketHandler {
 
 				data = mapper.writeValueAsString(request);
 			}
-			catch (JsonProcessingException ex) {
+			catch (JacksonException ex) {
 				log.error("JsonProcessing issue on isAlive message", ex);
 				continue;
 			}

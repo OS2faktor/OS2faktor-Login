@@ -16,15 +16,16 @@ public interface AuditLogDao extends JpaRepository<AuditLog, Long> {
 	AuditLog getById(Long id);
 	List<AuditLog> findByCpr(String cpr);
 	List<AuditLog> findByCorrelationId(String id);
-	List<AuditLog> findByTtsAfterAndTtsBeforeAndLogAction(LocalDateTime after, LocalDateTime before, LogAction logAction);
 	List<AuditLog> findAllByTtsAfter(LocalDateTime after);
 	List<AuditLog> findByPersonDomainAndTtsAfter(String personDomain, LocalDateTime after);
 	List<AuditLog> findByTtsAfterAndLogActionIn(LocalDateTime tts, LogAction... actions);
 	List<AuditLog> findByLogActionIn(LogAction... actions);
 	List<AuditLog> findByTtsBetweenAndLogActionIn(Pageable pageable, LocalDateTime tts1, LocalDateTime tts2, LogAction... actions);
 	List<AuditLog> findFirst500ByLocationNull();
-	long countByTtsAfterAndLogAction(LocalDateTime tts, LogAction logAction);
 
+	long countByTtsAfterAndLogAction(LocalDateTime tts, LogAction logAction);
+	long countByTtsAfterAndTtsBeforeAndLogAction(LocalDateTime start, LocalDateTime end, LogAction action);
+	
 	@Query(nativeQuery = true, value = "select ip_address from auditlogs where tts > ?1 and ip_address is not null and ip_address <> '' group by ip_address having count(*) > 10")
 	Set<String> getLatestIpAddresses(LocalDateTime after);
 

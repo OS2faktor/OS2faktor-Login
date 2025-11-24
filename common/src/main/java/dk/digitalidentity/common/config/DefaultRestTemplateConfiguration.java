@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.config;
 
+import java.time.Duration;
+
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.cookie.StandardCookieSpec;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -22,7 +24,7 @@ public class DefaultRestTemplateConfiguration {
 
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
 		requestFactory.setConnectionRequestTimeout(3 * 60 * 1000);
-		requestFactory.setConnectTimeout(3 * 60 * 1000);
+	    requestFactory.setReadTimeout(Duration.ofMinutes(3));
 		requestFactory.setHttpClient(client);
 
 		return new RestTemplate(requestFactory);

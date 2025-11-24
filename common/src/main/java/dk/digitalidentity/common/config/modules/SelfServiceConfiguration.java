@@ -13,4 +13,5 @@ public class SelfServiceConfiguration {
 	private String metadataUrl;
 	private String entityId;
 	private boolean encryptAssertion = true;
+	private boolean onlyAllowLoginFromKnownNetworks;
 }

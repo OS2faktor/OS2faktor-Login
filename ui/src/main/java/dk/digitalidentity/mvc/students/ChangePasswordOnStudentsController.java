@@ -36,6 +36,7 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SchoolClass;
+import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
@@ -93,7 +94,7 @@ public class ChangePasswordOnStudentsController {
 				.map(p -> new StudentDTO(p, (personService.isYoungStudent(p) != null)))
 				.collect(Collectors.toList()));
 
-		model.addAttribute("classes", schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson).stream().map(c -> new SchoolClassDTO(c)).toList());
+		model.addAttribute("classes", schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson).stream().map(c -> new SchoolClassDTO(c, schoolClassService.isBulkChangeAllowedForClass(c, commonConfiguration.getStilStudent().getBulkChangePasswordOnLevelAndBelow()))).toList());
 
 		model.addAttribute("passwordMatrixEnabled", commonConfiguration.getStilStudent().isIndskolingSpecialEnabled());
 		
@@ -284,7 +285,7 @@ public class ChangePasswordOnStudentsController {
 			return "redirect:/andre-brugere/kodeord/skift/list";
 		}
 
-		model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+		model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 		model.addAttribute("passwordForm", new PasswordChangeForm(personToBeEdited, isForcePasswordChange(personToBeEdited)));
 		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
@@ -344,7 +345,7 @@ public class ChangePasswordOnStudentsController {
 		if (bindingResult.hasErrors()) {
 			model.addAttribute(bindingResult.getAllErrors());
 			model.addAttribute("passwordForm", form);
-			model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+			model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 			return "students/password-change/change-password";
@@ -364,7 +365,7 @@ public class ChangePasswordOnStudentsController {
 
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordSettingService.getSettings(personToBeEdited));
+				model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited)));
 				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(personToBeEdited));
 
 				return "students/password-change/change-password";
@@ -380,6 +381,47 @@ public class ChangePasswordOnStudentsController {
 		redirectAttributes.addFlashAttribute("flashSuccess", "Kodeord ændret");
 
 		return "redirect:/andre-brugere/kodeord/skift/list";
+	}
+
+	@GetMapping("/andre-brugere/klasser/{id}/bulk")
+	public String getBulkChangePasswordForClass(Model model, RedirectAttributes redirectAttributes, @PathVariable("id") long id) {
+		Person loggedInPerson = securityUtil.getPerson();
+		if (loggedInPerson == null) {
+			return "redirect:/";
+		}
+
+		SchoolClass schoolClass = schoolClassService.getById(id);
+		if (schoolClass == null) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Klassen kan ikke findes");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+
+		if (!schoolClassService.isBulkChangeAllowedForClass(schoolClass, commonConfiguration.getStilStudent().getBulkChangePasswordOnLevelAndBelow())) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Der kan ikke skiftes kodeord på flere elever på én gang i denne klasse");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+
+		if (!schoolClassService.getClassesPasswordCanBeChangedOn(loggedInPerson).stream().anyMatch(c -> c.getClassIdentifier().equals(schoolClass.getClassIdentifier()) && c.getInstitutionId().equals(schoolClass.getInstitutionId()))) {
+			redirectAttributes.addFlashAttribute("flashError", "Fejl! Du har ikke adgang til denne klasse");
+			return "redirect:/andre-brugere/kodeord/skift/list";
+		}
+
+		List<Person> students = schoolClass.getRoleMappings().stream()
+				.filter(r -> r.getSchoolRole().getRole().equals(SchoolRoleValue.STUDENT))
+				.map(r -> r.getSchoolRole().getPerson())
+				.collect(Collectors.toList());
+
+		String institutionName = schoolClass.getRoleMappings().stream()
+				.map(mapping -> mapping.getSchoolRole().getInstitutionName())
+				.findFirst().orElse("");
+
+
+		model.addAttribute("students", students);
+		model.addAttribute("className", schoolClass.getName());
+		model.addAttribute("institution", institutionName);
+		model.addAttribute("schoolClassId", schoolClass.getId());
+
+		return "students/bulk_change";
 	}
 
 	private boolean isForcePasswordChange(Person student) {
@@ -409,7 +451,7 @@ public class ChangePasswordOnStudentsController {
 			return false;
 		}
 
-		PasswordSetting settings = passwordSettingService.getSettings(personToBeEdited);
+		PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(personToBeEdited));
 		if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(personToBeEdited, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
 			return false;
 		}

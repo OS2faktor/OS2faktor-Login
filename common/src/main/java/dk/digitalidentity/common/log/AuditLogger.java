@@ -24,11 +24,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.AuditLogDao;
@@ -61,12 +56,20 @@ import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.util.ZipUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
 @Component
 @EnableScheduling
 public class AuditLogger {
 	private static Map<String, String> ipLookupMap = new HashMap<>();
+	private ObjectMapper mapper = JsonMapper.builder()
+			.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+			.build();
 
 	@Autowired
 	private AuditLogDao auditLogDao;
@@ -133,12 +136,9 @@ public class AuditLogger {
 
 		detail.setDetailType(DetailType.JSON);
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(errorDetail));
 		}
-		catch (JsonProcessingException e) {
+		catch (JacksonException e) {
 			log.error("Could not serialize ErrorDetail");
 		}
 
@@ -643,7 +643,21 @@ public class AuditLogger {
 
 		log(auditLog, child, null);
 	}
-	
+
+	public void testMfaByAdmin(Person admin, Person person, String deviceId) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ADMIN_MFA_TEST);
+		auditLog.setMessage("2-faktor klient testet af administrator");
+
+		// Add details of which passwords has been changed
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailType(DetailType.TEXT);
+		detail.setDetailContent("Enhed: " + deviceId);
+		auditLog.setDetails(detail);
+
+		log(auditLog, person, admin);		
+	}
+
 	public void changePasswordByAdmin(Person admin, Person person, boolean replicateToAD) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHANGE_PASSWORD);
@@ -709,13 +723,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
@@ -731,13 +742,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
@@ -753,13 +761,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
@@ -775,13 +780,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
@@ -799,13 +801,10 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details);
 			auditLog.getDetails().setDetailContent(json);
 		}
-		catch (JsonProcessingException ex) {
+		catch (JacksonException ex) {
 			log.error("Could not serialize IdentificationDetails", ex);
 		}
 
@@ -889,12 +888,9 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(passwordSettings));
 		}
-		catch (JsonProcessingException e) {
+		catch (JacksonException e) {
 			log.error("Could not serialize PasswordSettings", e);
 		}
 
@@ -932,11 +928,8 @@ public class AuditLogger {
 		auditLog.getDetails().setDetailType(DetailType.JSON);
 
 		try {
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-
 			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(sessionSettings));
-		} catch (JsonProcessingException e) {
+		} catch (JacksonException e) {
 			log.error("Could not serialize SessionSettings");
 		}
 
@@ -1046,6 +1039,18 @@ public class AuditLogger {
 		log(auditLog, person, admin, person.getDomain());
 	}
 
+	public void loginRejectedByIP(String ip) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.LOGIN_REJECTED_IP);
+		auditLog.setMessage("Login afvist da brugerens IP adresse ikke er godkendt");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(ip);
+
+		log(auditLog, null, null);
+	}
+
 	public void authnRequest(Person person, String authnRequest, String sentBy) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.AUTHN_REQUEST);
@@ -1127,11 +1132,13 @@ public class AuditLogger {
 		auditLog.setLogAction(LogAction.OIDC_JWT_ID_TOKEN);
 		auditLog.setMessage("OpenID Connect token udstedt til " + client);
 
-		ObjectMapper objectMapper = new ObjectMapper();
 		try {
-			objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
-			JsonNode jsonNode = objectMapper.readTree(idToken);
-			idToken = objectMapper.writeValueAsString(jsonNode);
+			ObjectMapper customObjectMapper = JsonMapper.builder()
+					.enable(SerializationFeature.INDENT_OUTPUT)
+					.build();
+
+			JsonNode jsonNode = customObjectMapper.readTree(idToken);
+			idToken = customObjectMapper.writeValueAsString(jsonNode);
 		}
 		catch (Exception ignored) {
 			;
@@ -1266,10 +1273,11 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 	
-	public void rejectedUnknownPerson(String identifier, String cpr) {
+	public void rejectedUnknownPerson(String identifier, String cpr, String uniID) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.REJECTED_UNKNOWN_PERSON);
 		AuditLogDetail detail = new AuditLogDetail();
+
 		StringBuilder sb = new StringBuilder();
 		if (StringUtils.hasLength(identifier)) {
 			sb.append("PID: " + identifier).append("\n");
@@ -1277,10 +1285,14 @@ public class AuditLogger {
 		if (StringUtils.hasLength(cpr)) {
 			sb.append("CPR: " + PersonService.maskCpr(cpr));
 		}
+		if (StringUtils.hasLength(uniID)) {
+			sb.append("UniID: " + uniID);
+		}
+		
 		detail.setDetailContent(sb.toString());
 		detail.setDetailType(DetailType.TEXT);
 		auditLog.setDetails(detail);
-		auditLog.setMessage("Login afvist, personens personnummer er ikke kendt af systemet");
+		auditLog.setMessage("Login afvist, personen er ikke kendt af systemet");
 
 		log(auditLog, null, null);
 	}
@@ -1297,6 +1309,18 @@ public class AuditLogger {
 		log(auditLog, null, null);
 	}
 
+	public void usedUniLogin(Person person, String uniID, String rawToken) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.USED_UNILOGIN);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(rawToken);
+		detail.setDetailType(DetailType.XML);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("UniLogin anvendt (UniID: " + uniID + ")");
+		
+		log(auditLog, person, null);
+	}
+	
 	public void usedNemLogin(Person person, NSISLevel nsisLevel, String rawToken) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.USED_NEMLOGIN);

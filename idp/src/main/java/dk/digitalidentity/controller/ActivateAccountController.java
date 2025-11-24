@@ -64,7 +64,7 @@ public class ActivateAccountController {
 	private SessionHelper sessionHelper;
 
 	@Autowired
-	private PasswordSettingService passwordService;
+	private PasswordSettingService passwordSettingService;
 
 	@Autowired
 	private FlowService flowService;
@@ -303,7 +303,7 @@ public class ActivateAccountController {
 			sessionHelper.setDoNotUseCurrentADPassword(true);
 		}
 		
-		PasswordSetting settings = passwordService.getSettings(person);
+		PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 		if (sessionHelper.isInDedicatedActivateAccountFlow() && sessionHelper.isDoNotUseCurrentADPassword()) {
 			return flowService.continueChangePassword(model).getViewName();
 		}
@@ -319,7 +319,7 @@ public class ActivateAccountController {
 
 		model.addAttribute("settings", settings);
 		model.addAttribute("passwordForm", new PasswordChangeForm());
-		model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
+		model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 		return "activateAccount/activate-select-password";
 	}
@@ -349,8 +349,8 @@ public class ActivateAccountController {
 		}
 
 		if (bindingResult.hasErrors()) {
-			model.addAttribute("settings", passwordService.getSettings(person));
-			model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
+			model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person)));
+			model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 			return new ModelAndView("activateAccount/activate-select-password");
 		}
@@ -359,8 +359,8 @@ public class ActivateAccountController {
 			ADPasswordStatus adPasswordStatus = personService.changePassword(person, form.getPassword());
 			if (ADPasswordResponse.isCritical(adPasswordStatus)) {
 				model.addAttribute("technicalError", true);
-				model.addAttribute("settings", passwordService.getSettings(person));
-				model.addAttribute("disallowNameAndUsernameContent", passwordService.getDisallowedNames(person));
+				model.addAttribute("settings", passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person)));
+				model.addAttribute("disallowNameAndUsernameContent", passwordSettingService.getDisallowedNames(person));
 
 				return new ModelAndView("activateAccount/activate-select-password");
 			}

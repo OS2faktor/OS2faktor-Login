@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import dk.digitalidentity.common.service.CmsMessageBundle;
 import dk.digitalidentity.util.IdPFlowException;
-import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.RequesterException;
 
 @ControllerAdvice
 public class IdPFlowControllerAdvice {
@@ -15,9 +15,9 @@ public class IdPFlowControllerAdvice {
 	@Autowired
 	private CmsMessageBundle bundle;
 	
-	@ExceptionHandler(IdPFlowException.class )
+	@ExceptionHandler(IdPFlowException.class)
 	public String handleException(Model model, IdPFlowException ex) {
-		model.addAttribute("origin", (ex instanceof ResponderException) ? "responder" : "requester");
+		model.addAttribute("origin", (ex instanceof RequesterException) ? "requester" : "responder" );
 		model.addAttribute("errorMessage", ex.getMessage());
 		model.addAttribute("errorCode", ex.getErrorCode());
 		model.addAttribute("helpMessage", bundle.getText(ex.getHelpMessage()));

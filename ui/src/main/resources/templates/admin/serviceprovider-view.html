@@ -33,7 +33,7 @@
 									<div class="form-group row">
 										<label class="col-sm-3 col-form-label">Navn</label>
 										<div class="col-sm-9">
-											<input type="text" class="form-control" th:value="${serviceprovider.name}" disabled="disabled"/>
+											<input type="text" class="form-control" th:field="${serviceprovider.name}" disabled="disabled"/>
 										</div>
 									</div>
 									
@@ -283,6 +283,64 @@
 										</div>
 									</div>
 									</th:block>
+
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">
+											Tillad kun login fra kendte netværk
+										</label>
+										<div class="col-sm-9">
+											<label>
+												<input th:field="${serviceprovider.onlyAllowLoginFromKnownNetworks}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+									</div>
+
+									<div class=" form-group row">
+										<div id="advancedDropdownToggle" class="col-sm-3 col-form-label" style="cursor: pointer; user-select: none;">
+											<em id="advToggleIconDown" class="fa fa-caret-right"></em>
+											<em id="advToggleIconUp" class="fa fa-caret-down" style="display: none;"></em>
+											<span>Avancerede indstillinger</span>
+										</div>
+									</div>
+
+									<div id="advancedDropdownBody" style="display: none;">
+										<div class="from-group row">
+											<label class="col-sm-3 col-form-label">
+												Tillad ikke-signerede login forespørgsler
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Ved at sætte et flueben her, så tillader du at man kan lave login forespørgsler for denne tjeneste, uden at disse skal signeres. Det vil ikke være muligt at validere at login forespørgslen faktisk kommer fra tjenesten, og det anbefales IKKE at man slår dette flag til. Nogle tjenester kan desværre ikke underskrive login forespørgsler, og derfor kan det være nødvendigt at sætte flueben her"></em>
+											</label>
+											<label class="col-sm-9">
+												<input th:field="${serviceprovider.allowUnsignedAuthnRequests}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+										<div class="from-group row">
+											<label class="col-sm-3 col-form-label">
+												Udsted ikke SubjectConfirmation element
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tjenesten ikke kan håndtere et login svar, der indeholder et SubjectConfirmation element, kan man slå dannelsen af dette fra her"></em>
+											</label>
+											<label class="col-sm-9">
+												<input th:field="${serviceprovider.disableSubjectConfirmation}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+										<div class="from-group row">
+											<label class="col-sm-3 col-form-label">
+												Udsted ikke recipient i SubjectConfirmation elemtentet
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis tjenesten ikke kan håndtere at SubjectConfirmation elementet i login svaret indeholder en såkaldt recipient, så kan man slå det fra her"></em>
+											</label>
+											<label class="col-sm-9">
+												<input th:field="${serviceprovider.disableSubjectConfirmationRecipient}" type="checkbox" class="i-checks" disabled="disabled">
+											</label>
+										</div>
+										<div class="from-group row">
+											<label class="col-sm-3 col-form-label">
+												Ekstra tilladte EntityID'er
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Meget sjældent kan man opleve at en tjeneste har flere EntityID'er. De ekstra ID'er kan indtastes her"></em>
+											</label>
+											<label class="col-sm-9">
+												<input th:field="${serviceprovider.additionalEntityIds}" type="text" class="form-control" disabled="disabled">
+											</label>
+										</div>
+									</div>
 								</form>
 							</div>
 						</div>
@@ -321,6 +379,13 @@
 						<div th:if="${serviceprovider.protocol} == 'SAML20' or ${serviceprovider.protocol} == 'WSFED'" class="ibox">
 							<div class="ibox-title">
 								<h5><em class="fa fa-columns"></em> &nbsp; Metadata konfiguration</h5>
+								<div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+									<button th:if="${serviceprovider.protocol} == 'SAML20'" id="metadataDownloadBtn" class="btn btn-primary">
+										<em class="fa fa-download"></em>
+										&nbsp;
+										Download metadata
+									</button>
+								</div>
 							</div>
 
 							<div class="ibox-content">
@@ -357,7 +422,7 @@
 													
 													<tbody>
 														<tr th:each="cert : ${serviceprovider.certificates}">
-										    				<td th:text="${cert.usageType}" />
+															<td th:text="${cert.usageType}" />
 										   			 		<td th:text="${cert.subject}" />
 										   			 		<td th:text="${cert.expiryDate}" />
 														</tr>
@@ -384,8 +449,8 @@
 													
 													<tbody>
 														<tr th:each="endpoint : ${serviceprovider.endpoints}">
-										    				<td th:text="${endpoint.type}" />
-										    				<td th:text="${endpoint.url}" />
+															<td th:text="${endpoint.type}" />
+															<td th:text="${endpoint.url}" />
 										   			 		<td th:text="${endpoint.binding}" />
 														</tr>
 													</tbody>
@@ -541,30 +606,30 @@
 											<tr>
 												<th style="width: 400px;">Navn</th>
 												<th>EntityId</th>
-                                                <th style="width: 200px;">
-                                                	Forsinket mobil-login
-                                                	<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til, så vises en 'videre' knap efter gennemført MFA på mobile enheder. Dette sikrer at login kan gennemføres i mobile apps som ikke håndterer login korrekt når app'en er i baggrunden."></em>
-                                                </th>
+												<th style="width: 200px;">
+													Forsinket mobil-login
+													<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til, så vises en 'videre' knap efter gennemført MFA på mobile enheder. Dette sikrer at login kan gennemføres i mobile apps som ikke håndterer login korrekt når app'en er i baggrunden."></em>
+												</th>
 												<th style="width: 250px;">Kræv 2-faktor login</th>
 											</tr>
 										</thead>
 										
 										<tbody>
 											<tr th:each="subsystem : ${kombitSubsystems}">
-							    				<td>
-							    					<em class="fa fa-fw fa-pencil namePencil" th:id="'namePencil-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
-							    					<em class="fa fa-fw fa-times nameCancel" style="display: none;" th:id="'nameCancel-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
-							    					<span style="margin-left: 10px;" th:id="'subsystem-name-' + ${subsystem.id}" th:text="${subsystem.name}"></span>
-							    				</td>
+												<td>
+													<em class="fa fa-fw fa-pencil namePencil" th:id="'namePencil-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
+													<em class="fa fa-fw fa-times nameCancel" style="display: none;" th:id="'nameCancel-' + ${subsystem.id}" th:data-id="${subsystem.id}"></em>
+													<span style="margin-left: 10px;" th:id="'subsystem-name-' + ${subsystem.id}" th:text="${subsystem.name}"></span>
+												</td>
 							   			 		<td th:text="${subsystem.entityId}" />
-                                                <td style="text-align: center;">
-    												<input th:checked="${subsystem.delayedMobileLogin}" type="checkbox" class="i-checks delayMobileLoginCheckbox" th:data-id="${subsystem.id}">
-                                                </td>
-							    				<td>
+												<td style="text-align: center;">
+													<input th:checked="${subsystem.delayedMobileLogin}" type="checkbox" class="i-checks delayMobileLoginCheckbox" th:data-id="${subsystem.id}">
+												</td>
+												<td>
 													<select class="form-control m-b forceMfaRequiredSelect" th:data-id="${subsystem.id}" style="margin-bottom: 0px;">
 														<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${subsystem.forceMfaRequired}"></option>
 													</select>
-							    				</td>
+												</td>
 											</tr>
 										</tbody>
 									</table>
@@ -602,14 +667,14 @@
 					url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/kombitMfa/' + rule,
 					method: "POST",
 					headers: {
-     			      'X-CSRF-TOKEN': token
-     			   	},
-     			   	success: function(data, textStatus, jQxhr) {
+	 				  'X-CSRF-TOKEN': token
+	 			   	},
+	 			   	success: function(data, textStatus, jQxhr) {
 						toastr.success('2-faktor regel opdateret')
-     			   	},
-     			   	error: function(jQxhr, textStatus, errorThrown) {
+	 			   	},
+	 			   	error: function(jQxhr, textStatus, errorThrown) {
 						toastr.error('Opdateringen af 2-faktor reglen fejlede');
-     			   	}
+	 			   	}
 				});
 			});
 
@@ -668,21 +733,21 @@
 						url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/name',
 						method: "POST",
 						headers: {
-	     			      'X-CSRF-TOKEN': token
-	     			   	},
-	     			   	contentType: 'application/json',
-	     			   	data: JSON.stringify({'name': newValue }),
-	     			   	success: function(data, textStatus, jQxhr) {
+		 				  'X-CSRF-TOKEN': token
+		 			   	},
+		 			   	contentType: 'application/json',
+		 			   	data: JSON.stringify({'name': newValue }),
+		 			   	success: function(data, textStatus, jQxhr) {
 							toastr.success('Opdateringen gennemført')
 
 							spanElem.text(newValue);
 							spanElem.show();
-	     			   	},
-	     			   	error: function(jQxhr, textStatus, errorThrown) {
+		 			   	},
+		 			   	error: function(jQxhr, textStatus, errorThrown) {
 							toastr.error('Opdateringen fejlede');
 							
 							spanElem.show();
-	     			   	}
+		 			   	}
 					});
 				}
 			});
@@ -695,14 +760,14 @@
 					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/mfa/' + choice,
 					method: "POST",
 					headers: {
-     			      'X-CSRF-TOKEN': token
-     			   	},
-     			   	success: function(data, textStatus, jQxhr) {
+	 				  'X-CSRF-TOKEN': token
+	 			   	},
+	 			   	success: function(data, textStatus, jQxhr) {
 						toastr.success('Opdateringen gennemført')
-     			   	},
-     			   	error: function(jQxhr, textStatus, errorThrown) {
+	 			   	},
+	 			   	error: function(jQxhr, textStatus, errorThrown) {
 						toastr.error('Opdateringen fejlede');
-     			   	}
+	 			   	}
 				});
 			});
 
@@ -726,46 +791,81 @@
 			});
 
 			// set custom session expiry only KombitServiceProviders
-            $('input[name="hasCustomSessionExpiry"]').on('ifChanged', function(event){
-                if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
-                    $(".customSession").show();
-                }
-                else {
-                    $(".customSession").hide();
-                    $('#passwordExpiry').val(null);
-                    $('#mfaExpiry').val(null);
-                    updateCustomSessionExpiry();
-                }
-            });
+			$('input[name="hasCustomSessionExpiry"]').on('ifChanged', function(event){
+				if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+					$(".customSession").show();
+				}
+				else {
+					$(".customSession").hide();
+					$('#passwordExpiry').val(null);
+					$('#mfaExpiry').val(null);
+					updateCustomSessionExpiry();
+				}
+			});
 			
 			// set initial state of CustomSessionExpiry without posting changes
-            if ($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
-                $(".customSession").show();
-            }
-            else {
-                $(".customSession").hide();
-            }
+			if($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0]) {
+				if($('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
+					$(".customSession").show();
+				} else {
+					$(".customSession").hide();
+				}
+			}
+
+			const advancedDropdownToggle = document.getElementById("advancedDropdownToggle");
+			const advancedDropdownBody = document.getElementById("advancedDropdownBody");
+			const advancedDropdownCheckboxes = advancedDropdownBody.querySelectorAll(".i-checks");
+			advancedDropdownCheckboxes.forEach(cb => {
+				$(cb).iCheck({
+					checkboxClass: 'icheckbox_square-green',
+					radioClass: 'iradio_square-green'
+				});
+			});
+
+			advancedDropdownToggle.addEventListener("click", () => {
+				advancedDropdownBody.style.display = advancedDropdownBody.style.display === "none" ? "block" : "none";
+				advToggleIconDown.style.display = advToggleIconDown.style.display === "none" ? "inline" : "none";
+				advToggleIconUp.style.display = advToggleIconUp.style.display === "none" ? "inline" : "none";
+			});
+
+			const downloadMetadataBtn = document.getElementById("metadataDownloadBtn");
+			downloadMetadataBtn.addEventListener("click", () => {
+				const id = $('#id').val();
+				fetch(`/rest/admin/konfiguration/tjenesteudbydere/${id}/metadata`)
+				.then(req => {
+					if(!req.ok) {
+						throw new Error("Failed to fetch sp metadata. Status: ", req.statusText);
+					}
+					return req.text();
+				})
+				.then(metadata => {
+					const name = $('#name').val();
+					downloadMetadataToClient(name, metadata);
+				})
+				.catch(err => console.error("error: ", err));
+			});
 		});
+
 		
 		function updateCustomSessionExpiry() {
 			var passwordExpiry = $('#passwordExpiry').val();
 			var mfaExpiry = $('#mfaExpiry').val();
-            $.ajax({
-            	url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/customSessionExpiry',
-                method: "POST",
-                headers: {
-                    'X-CSRF-TOKEN': token
-                },
-                contentType: 'application/json',
-                
-                data: JSON.stringify({'passwordExpiry': passwordExpiry, 'mfaExpiry': mfaExpiry }),
-                success: function(data, textStatus, jQxhr) {
-                    toastr.success("Successfuly set custom expiry times");
-                },
-                error: function(jQxhr, textStatus, errorThrown) {
-                    toastr.error("Fejl: " + jQxhr.responseText);
-                }
-            });
+			$.ajax({
+				url: rootUrl + 'rest/admin/konfiguration/tjenesteudbydere/customSessionExpiry',
+				method: "POST",
+				headers: {
+					'X-CSRF-TOKEN': token
+				},
+				contentType: 'application/json',
+				
+				data: JSON.stringify({'passwordExpiry': passwordExpiry, 'mfaExpiry': mfaExpiry }),
+				success: function(data, textStatus, jQxhr) {
+					toastr.success("Successfuly set custom expiry times");
+				},
+				error: function(jQxhr, textStatus, errorThrown) {
+					toastr.error("Fejl: " + jQxhr.responseText);
+				}
+			});
 		}
 		
 		function reloadMetadata() {
@@ -784,6 +884,26 @@
 					toastr.error("Fejl: " + jQxhr.responseText);
 				}
 			});
+		}
+
+		/**
+		* @param {String} serviceProviderName
+		* @param {String} metadata
+		*/
+		function downloadMetadataToClient(serviceProviderName, metadata) {
+			const blob = new Blob([metadata], { type: "application/xml;charset=utf-8" });
+			const url = URL.createObjectURL(blob);
+
+			const a = Object.assign(document.createElement("a"), {
+				href: url,
+				download: `${serviceProviderName}-metadata.xml`
+			});
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+
+			// Ensure download started before removing url
+			setTimeout(() => URL.revokeObjectURL(url), 100);
 		}
 		/*]]>*/
 	</script>

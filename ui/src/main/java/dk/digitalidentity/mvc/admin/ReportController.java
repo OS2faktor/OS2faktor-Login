@@ -128,9 +128,6 @@ public class ReportController {
 
 		model.put("enableRegistrantFeature", commonConfiguration.getCustomer().isEnableRegistrant());
 
-		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Brugerkonti.xlsx\"");
-
 		return new ModelAndView(new PersonsReportXlsView(), model);
 	}
 	
@@ -139,9 +136,6 @@ public class ReportController {
 	public ModelAndView downloadAdminReportLogins(HttpServletRequest request, HttpServletResponse response) {
 		Map<String, Object> model = reportService.getAuditLogReportModelWithAdminActions();
 
-		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport over administratorhandlinger.xlsx\"");
-		
 		return new ModelAndView(new AdminActionReportXlsView(), model);
 	}
 	
@@ -201,9 +195,6 @@ public class ReportController {
 		else {
 			model = reportService.getRolesReportModelByDomain(loggedInPerson.getSupporter().getDomain());
 		}
-
-		response.setContentType("application/ms-excel");
-		response.setHeader("Content-Disposition", "attachment; filename=\"Jobfunktionsroller.xlsx\"");
 
 		return new ModelAndView(new RolesReportXlsView(), model);
 	}
@@ -488,7 +479,6 @@ public class ReportController {
 	}
 
 	private void addFilesToZip(HttpServletRequest request, ZipOutputStream zipOutputStream, int month, String fileNamePrefix, ReportType type) {
-		AuditLogReportXlsView view = new AuditLogReportXlsView();
 		LocalDateTime now = LocalDateTime.now();
 		
 		while (month >= 0) {
@@ -520,11 +510,14 @@ public class ReportController {
 				
 				boolean isEmpty = auditLogService.countAuditLogsByMonth(from, to, type) == 0;
 				if (!isEmpty) {
+					String fileName = fileNamePrefix + from.getYear() + " " + monthStr + ".xlsx";
+					
 					HttpServletResponse response = new HttpServletResponseOutputStreamWrapper();
+					AuditLogReportXlsView view = new AuditLogReportXlsView(fileName);
 					view.render(model, request, response);
 					OutputStreamWrapper outputStream = (OutputStreamWrapper) response.getOutputStream();
 
-					ZipEntry taskfile = new ZipEntry(fileNamePrefix + from.getYear()+ " " + monthStr + ".xlsx");
+					ZipEntry taskfile = new ZipEntry(fileName);
 					zipOutputStream.putNextEntry(taskfile); 
 					outputStream.getByteArrayOutputStream().writeTo(zipOutputStream);
 				}

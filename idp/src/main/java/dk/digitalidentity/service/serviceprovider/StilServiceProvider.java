@@ -238,4 +238,9 @@ public class StilServiceProvider extends ServiceProvider {
 	public boolean validateSignatureOnLogoutRequests() {
 		return false;
 	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return stilConfig.isOnlyAllowLoginFromKnownNetworks();
+	}
 }

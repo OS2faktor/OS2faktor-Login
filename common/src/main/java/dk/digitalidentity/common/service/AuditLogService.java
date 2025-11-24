@@ -155,7 +155,7 @@ public class AuditLogService {
 				
 		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(
 				"SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) AND (a.log_action IN (:type)) LIMIT :limit OFFSET :offset",
-				parameters, (rs, rowNum) -> mapAuditLogResult(rs));
+				parameters, (rs, _) -> mapAuditLogResult(rs));
 		
 		return auditLogs;
 	}
@@ -169,7 +169,7 @@ public class AuditLogService {
 				
 		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(
 				"SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) LIMIT :limit OFFSET :offset",
-				parameters, (rs, rowNum) -> mapAuditLogResult(rs));
+				parameters, (rs, _) -> mapAuditLogResult(rs));
 
 		return auditLogs;
 	}
@@ -214,7 +214,7 @@ public class AuditLogService {
 		}
 
 		String sql = "SELECT a.correlation_id, a.cpr, a.ip_address, a.log_action, a.message, a.performer_name, a.person_name, a.tts, p.samaccount_name FROM auditlogs a LEFT JOIN persons p on p.id = a.person_id WHERE (a.tts BETWEEN :from AND :to) " + whereAuditLog + whereMessage + " LIMIT :limit OFFSET :offset";
-		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(sql, parameters, (rs, rowNum) -> mapAuditLogResult(rs));
+		List<AuditLogDTO> auditLogs = namedParameterJdbcTemplate.query(sql, parameters, (rs, _) -> mapAuditLogResult(rs));
 		
 		return auditLogs;
 	}
@@ -237,5 +237,9 @@ public class AuditLogService {
 
 			return new AuditLogDTO();
 		}
+	}
+
+	public long countByTtsAfterAndTtsBeforeAndLogAction(LocalDateTime start, LocalDateTime end, LogAction action) {
+		return auditLogDao.countByTtsAfterAndTtsBeforeAndLogAction(start, end, action);
 	}
 }

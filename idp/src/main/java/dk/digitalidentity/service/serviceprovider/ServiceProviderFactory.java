@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 import org.apache.http.client.HttpClient;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -16,13 +18,13 @@ import org.springframework.util.StringUtils;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.AdvancedRuleService;
+import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -50,8 +52,11 @@ public class ServiceProviderFactory {
     
     @Autowired
     private AuditLogger auditLogger;
+
+    @Autowired
+    private GroupService groupService;
     
-    @PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
     public void loadServiceProviderFactory() {
         serviceProviders = serviceProviders.stream()
                 .filter(serviceProvider -> !(serviceProvider instanceof SqlServiceProvider) && serviceProvider.enabled())
@@ -120,7 +125,7 @@ public class ServiceProviderFactory {
             if (!foundExisting) {
                 log.info("Creating SQL SP with entityID: " + config.getEntityId());
 
-                serviceProviders.add(new SqlServiceProvider(config, httpClient, roleCatalogueService, advancedRuleService, auditLogger));
+                serviceProviders.add(new SqlServiceProvider(config, httpClient, roleCatalogueService, advancedRuleService, auditLogger, groupService));
             }
         }
         

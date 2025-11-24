@@ -72,6 +72,8 @@ import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.RadiusClientService;
+import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
@@ -109,6 +111,7 @@ import jakarta.persistence.criteria.ListJoin;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.Metamodel;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
@@ -189,6 +192,9 @@ public class AdminRestController {
 	@Autowired
 	private UsernameAndPasswordHelper usernameAndPasswordHelper;
 
+	@Autowired
+	private SqlServiceProviderConfigurationService sqlServiceProviderConfigurationService;
+
 	@RequireSupporter
 	@PostMapping("/rest/admin/eventlog/{id}")
 	public DataTablesOutput<AuditLogViewDTO> selfserviceEventLogsDataTable(@Valid @RequestBody DataTablesInput input, BindingResult bindingResult, @PathVariable("id") long id, Locale locale) {
@@ -226,7 +232,7 @@ public class AdminRestController {
 	}
 		
 	private Specification<AuditLogView> getAdditionalSpecification(long value) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
+		return (root, _, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
 	}
 
 	@RequireSupporter
@@ -293,11 +299,11 @@ public class AdminRestController {
 	}
 	
 	private Specification<AuditLogView> getAuditLogByLogAction(String search) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("logAction"), LogAction.valueOf(search));
+		return (root, _, criteriaBuilder) -> criteriaBuilder.equal(root.get("logAction"), LogAction.valueOf(search));
 	}
 	
 	private Specification<AuditLogView> getAuditLogByDomain(List<String> domains) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.in(root.get("personDomain")).value(domains);
+		return (root, _, criteriaBuilder) -> criteriaBuilder.in(root.get("personDomain")).value(domains);
 	}
 	
 	private DataTablesOutput<AuditLogViewDTO> convertAuditLogDataTablesModelToDTO(DataTablesOutput<AuditLogView> output, Locale locale) {
@@ -373,7 +379,7 @@ public class AdminRestController {
 	}
 	
 	private Specification<AdminPersonView> getByNsisStatusAndDomain (List<NSISStatus> statuses, List<String> domains) {
-		Specification<AdminPersonView> specification = (root, query, criteriaBuilder) -> {
+		Specification<AdminPersonView> specification = (root, _, criteriaBuilder) -> {
 			
 			Predicate finalPredicate = null;
 			if (statuses.contains(NSISStatus.LOCKED_BY_EXPIRE)) {
@@ -479,9 +485,43 @@ public class AdminRestController {
 	}
 
 	private Specification<AdminPersonView> getPersonByDomain(List<String> domains) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.in(root.get("domain")).value(domains);
+		return (root, _, criteriaBuilder) -> criteriaBuilder.in(root.get("domain")).value(domains);
 	}
+	
+	@RequireSupporter
+	@PostMapping("/rest/admin/testmfa/{personId}/{deviceId}")
+	public ResponseEntity<?> testMfaDevice(@PathVariable("personId") String personId, @PathVariable("deviceId") String deviceId, HttpServletRequest request) {
+		Person admin = personService.getById(securityUtil.getPersonId());
+		if (admin == null) {
+			log.warn("No admin on session");
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
 
+		Person person = personService.getById(Long.parseLong(personId));
+		if (person == null) {
+			log.warn("could not find person with id: " + personId);
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+		
+		List<MfaClient> clients = mfaService.getClients(person.getCpr());
+		MfaClient client = clients.stream().filter(c -> Objects.equals(deviceId, c.getDeviceId())).findAny().orElse(null);
+		if (client == null) {
+			log.warn("could not find client with id: " + deviceId + " on client");
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);			
+		}
+
+		auditLogger.testMfaByAdmin(admin, person, deviceId);
+
+		// trigger MFA authentication
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService. authenticate(deviceId, false);
+		if (!mfaResponseDto.isSuccess()) {
+			log.warn("Got an excpetion from response from mfaService.authenticate() on deviceID = " + deviceId + " exception: " + mfaResponseDto.getFailureMessage());
+			return ResponseEntity.status(500).build();
+		}
+
+		return ResponseEntity.ok().build();
+	}
+	
 	@RequireSupporter
 	@PostMapping("/rest/admin/lock/{id}")
 	@ResponseBody
@@ -759,6 +799,21 @@ public class AdminRestController {
 		linkService.deleteById(id);
 
 		return new ResponseEntity<>(HttpStatus.OK);
+	}
+
+	@RequireServiceProviderAdmin
+	@GetMapping(value = "/rest/admin/konfiguration/tjenesteudbydere/{id}/metadata", produces = "application/xml")
+	public ResponseEntity<?> downloadServiceProviderMetadata(final @PathVariable Long id) {
+		if (id == null) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		final SqlServiceProviderConfiguration sp = sqlServiceProviderConfigurationService.getById(id);
+		if (sp == null) {
+			return ResponseEntity.badRequest().build();
+		}
+
+		return ResponseEntity.ok(sp.getMetadataContent());
 	}
 
 	@RequireServiceProviderAdmin
@@ -1181,7 +1236,7 @@ public class AdminRestController {
 	private Specification<AdminPersonView> getPersonByGroup(long groupId) {
 		// SELECT p.* FROM view_person_admin_identities p JOIN view_persons_groups pg ON pg.person_id = p.id WHERE pg.group_id = ?;
 		Specification<AdminPersonView> specification = null;
-		specification = (root, query, criteriaBuilder) -> {
+		specification = (root, _, criteriaBuilder) -> {
 			// get model of child table
 			Metamodel metadataModel = entityManager.getMetamodel();
 			EntityType<AdminPersonView> view_ = metadataModel.entity(AdminPersonView.class);

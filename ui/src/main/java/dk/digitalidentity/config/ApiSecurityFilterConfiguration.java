@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.enums.ApiRole;
 import dk.digitalidentity.common.service.ClientService;
-import dk.digitalidentity.security.ApiSecurityFilter;
+import dk.digitalidentity.common.security.ApiSecurityFilter;
 
 @Configuration
 public class ApiSecurityFilterConfiguration {
@@ -35,7 +35,7 @@ public class ApiSecurityFilterConfiguration {
 
 		return filterRegistrationBean;
 	}
-
+	
 	@Bean
 	public FilterRegistrationBean<ApiSecurityFilter> auditLogApiSecurityFilter() {
 		ApiSecurityFilter filter = new ApiSecurityFilter();

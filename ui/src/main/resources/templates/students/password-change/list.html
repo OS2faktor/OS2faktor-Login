@@ -118,7 +118,8 @@
 													<a th:if="${passwordMatrixEnabled}" th:href="'/andre-brugere/klasser/' + ${class.id} + '/print'" target="_blank" style="color: black;" title="Print kodeords-matrix"><em class="fa fa-fw fa-key"></em></a>
 													<a href="#" th:onclick="'return changePasswordListService.printClass(' + ${class.id} + ');'" style="color: black;" title="Print klasse"><em class="fa fa-fw fa-table"></em></a>
 													<a href="#" th:onclick="'return changePasswordListService.downloadClassCSV(' + ${class.id} + ');'" style="color: black;" title="Print klasse"><em class="fa fa-fw fa-file-excel-o"></em></a>
-												</td>
+                                                    <a th:if="${class.bulkChangeAllowed}" th:href="'/andre-brugere/klasser/' + ${class.id} + '/bulk'" style="color: black;" title="Kodeordsskifte på flere elever"><em class="fa fa-fw fa-magic"></em></a>
+                                                </td>
 											</tr>
 										</tbody>
 									</table>
@@ -216,10 +217,13 @@
 					"destroy": true,
 					"columns": [
 						{
-							"orderable": true
+							"orderable": false
 						},
 						{
-							"orderable": true
+							"orderable": false
+						},
+						{
+							"orderable": false
 						},
 						{
 							"searchable": false,

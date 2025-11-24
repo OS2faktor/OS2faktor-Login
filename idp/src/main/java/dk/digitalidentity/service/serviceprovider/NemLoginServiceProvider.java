@@ -208,4 +208,9 @@ public class NemLoginServiceProvider extends ServiceProvider {
 	public Long getMfaExpiry() {
 		return null;
 	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return nemloginConfig.isOnlyAllowLoginFromKnownNetworks();
+	}
 }

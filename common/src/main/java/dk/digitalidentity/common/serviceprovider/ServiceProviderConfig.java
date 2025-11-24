@@ -17,6 +17,7 @@ public interface ServiceProviderConfig {
     boolean isEncryptAssertions();
     boolean isPreferNIST();
     boolean isRequireOiosaml3Profile();
+    boolean isOnlyAllowLoginFromKnownNetworks();
 	
     default boolean isDelayedMobileLogin() {
         return true;

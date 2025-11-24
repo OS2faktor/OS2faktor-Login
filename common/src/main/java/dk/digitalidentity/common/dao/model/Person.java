@@ -194,9 +194,6 @@ public class Person {
 	private boolean cprNameUpdated;
 	
 	@Column
-	private String rid;
-	
-	@Column
 	private String nemloginUserUuid;
 	
 	// special field used to store the UUID from MitID Erhverv on external consultants, that are

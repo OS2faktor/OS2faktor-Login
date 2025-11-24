@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_configuration ADD COLUMN uni_login_broker_enabled BOOLEAN NOT NULL DEFAULT 0;

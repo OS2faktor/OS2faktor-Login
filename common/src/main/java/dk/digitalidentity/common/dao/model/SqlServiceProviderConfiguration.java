@@ -75,6 +75,10 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     private boolean nemLogInBrokerEnabled;
 
     @Column
+    @NotNull
+    private boolean uniLoginBrokerEnabled;
+
+    @Column
     @Enumerated(EnumType.STRING)
     private NSISLevel nsisLevelRequired;
 
@@ -82,9 +86,12 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     private boolean encryptAssertions;
 
     @Column
+    private boolean signResponse;
+
+    @Column
     private boolean enabled;
     
-    @Column
+    @Column(name = "require_oiosaml3profile")
     private boolean requireOiosaml3Profile;
     
     @Column
@@ -153,6 +160,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
 
     @Column
     private boolean delayedMobileLogin;
+
+    @Column
+    private boolean onlyAllowLoginFromKnownNetworks;
 
     public void loadFully() {
         this.requiredFields.size();

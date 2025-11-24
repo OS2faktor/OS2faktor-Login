@@ -3,18 +3,12 @@ package dk.digitalidentity.common.service.mfa;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.spec.KeySpec;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
@@ -26,6 +20,8 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpEntity;
@@ -34,7 +30,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StopWatch;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
@@ -44,7 +39,6 @@ import dk.digitalidentity.common.dao.model.CachedMfaClient;
 import dk.digitalidentity.common.dao.model.LocalRegisteredMfaClient;
 import dk.digitalidentity.common.dao.model.MfaLoginHistory;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.service.LocalRegisteredMfaClientService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.dto.MfaAuthenticationResponseDTO;
@@ -52,8 +46,6 @@ import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.common.service.mfa.model.MFAClientDetails;
 import dk.digitalidentity.common.service.mfa.model.MfaAuthenticationResponse;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
-import dk.digitalidentity.common.service.mfa.model.ProjectionClient;
-import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -83,10 +75,7 @@ public class MFAService {
 	@Autowired
 	private MfaLoginHistoryDao mfaLoginHistoryDao;
 
-	@Autowired
-	private MFAService self;
-	
-	@PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
 	public void init() throws Exception {
 		if (configuration.getMfaDatabase().getEncryptionKey() != null) {
 			// generate password derived secret key
@@ -101,7 +90,7 @@ public class MFAService {
 		}
 	}
 
-	public MFAClientDetails getClientDetails(String deviceId) {
+	public MFAClientDetails getClientDetails(String deviceId) throws MfaClientNotFoundException {
 		HttpHeaders headers = new org.springframework.http.HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -116,6 +105,10 @@ public class MFAService {
 			return response.getBody();
 		}
 		catch (Exception ex) {
+			// not the best way to handle this, but it allows us to remove it locally
+			if (ex.getMessage() != null && ex.getMessage().contains("Incorrect deviceId")) {
+				throw new MfaClientNotFoundException();
+			}
 			// we don't really care, except for debugging purposes
 			log.warn("Failed to get details for client: " + deviceId + " / " + ex.getMessage());
 		}
@@ -156,45 +149,61 @@ public class MFAService {
 			String url = configuration.getMfa().getBaseUrl() + "/api/server/nsis/clients?ssn=" + encodeSsn(cpr);
 			ResponseEntity<List<MfaClient>> response = restTemplate.exchange(url, HttpMethod.GET, entity, new ParameterizedTypeReference<List<MfaClient>>() { });
 			List<MfaClient> mfaClients = response.getBody();
+			
+			// null safety
+			if (mfaClients == null) {
+				mfaClients = new ArrayList<>();
+			}
+			
 			List<String> mfaClientsDeviceIds = response.getBody().stream().map(m -> m.getDeviceId()).collect(Collectors.toList());
 
+			List<LocalRegisteredMfaClient> localClientsMarkedForRemoval = new ArrayList<>();
+			
 			List<LocalRegisteredMfaClient> localClients = localRegisteredMfaClientService.getByCpr(cpr);
 			for (LocalRegisteredMfaClient localClient : localClients) {
 				if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
 					// local clients might still be locked, so lookup details on backup
-					MFAClientDetails mfaClientDetails = getClientDetails(localClient.getDeviceId());
-					if (mfaClientDetails == null) {
-						continue;
+					try {
+						MFAClientDetails mfaClientDetails = getClientDetails(localClient.getDeviceId());
+						if (mfaClientDetails == null) {
+							continue;
+						}
+						
+						MfaClient client = new MfaClient();
+						client.setDeviceId(localClient.getDeviceId());
+						client.setName(localClient.getName());
+						client.setNsisLevel(localClient.getNsisLevel());
+						client.setType(localClient.getType());
+						client.setLocalClient(true);
+						client.setPrime(false);
+						client.setLocked(false);
+	
+						client.setLocked(mfaClientDetails.isLocked());
+						if (client.isLocked()) {
+							client.setLockedUntil(mfaClientDetails.getLockedUntil());
+						}
+	
+						if (localClient.isPrime()) {
+							client.setPrime(true);
+							mfaClients.forEach(c -> c.setPrime(false));
+						}
+						
+						mfaClients.add(client);
 					}
-					
-					MfaClient client = new MfaClient();
-					client.setDeviceId(localClient.getDeviceId());
-					client.setName(localClient.getName());
-					client.setNsisLevel(localClient.getNsisLevel());
-					client.setType(localClient.getType());
-					client.setLocalClient(true);
-					client.setPrime(false);
-					client.setLocked(false);
-
-					client.setLocked(mfaClientDetails.isLocked());
-					if (client.isLocked()) {
-						client.setLockedUntil(mfaClientDetails.getLockedUntil());
+					catch (MfaClientNotFoundException ex) {
+						log.info("MFA client " + localClient.getDeviceId() + " no longer exists - marked for removal");
+						localClientsMarkedForRemoval.add(localClient);
 					}
-
-					if (localClient.isPrime()) {
-						client.setPrime(true);
-						mfaClients.forEach(c -> c.setPrime(false));
-					}
-					
-					mfaClients.add(client);
 				}
 			}
 
-			if (mfaClients != null) {
-				mfaClients = mfaClients.stream()
-						// robots are not filtered
-						.filter(c -> isRobot || configuration.getMfa().getEnabledClients().contains(c.getType().toString()))
-						.collect(Collectors.toList());
+			mfaClients = mfaClients.stream()
+					// robots are not filtered
+					.filter(c -> isRobot || configuration.getMfa().getEnabledClients().contains(c.getType().toString()))
+					.collect(Collectors.toList());
+
+			if (localClientsMarkedForRemoval.size() > 0) {
+				localRegisteredMfaClientService.deleteAll(localClientsMarkedForRemoval);
 			}
 
 			// update cached MFA clients
@@ -451,133 +460,6 @@ public class MFAService {
 		}
 	}
 	
-	public void synchronizeCachedMfaClients() {
-		StopWatch stopWatch = new StopWatch();
-		stopWatch.start();
-		
-		log.info("Performing a synchronization of all MFA clients from OS2faktor database into cached clients table");
-		
-		// find all active persons and put into a cpr-based map
-		Map<String, List<Person>> personMap = new HashMap<>();
-		for (Person person : personService.getAll(p -> p.getMfaClients().size()).stream().collect(Collectors.toList())) {
-			try {
-				String encodedSsn = encryptAndEncodeSsn(person.getCpr());
-				
-				if (!personMap.containsKey(encodedSsn)) {
-					personMap.put(encodedSsn, new ArrayList<>());
-				}
-
-				personMap.get(encodedSsn).add(person);
-			}
-			catch (Exception ex) {
-				log.error("Unable to encode cpr for person " + person.getId(), ex);
-			}
-		}
-		
-		List<ProjectionClient> allLocallyRegisteredMfaClients = mfaManagementService.lookupLocalMfaClientsInCentral(personMap);
-		Map<String, List<ProjectionClient>> allLocallyRegisteredMfaClientsBySsn = allLocallyRegisteredMfaClients.stream().collect(Collectors.groupingBy(ProjectionClient::getSsn));
-		
-		List<ProjectionClient> allRegisteredMfaClients = mfaManagementService.lookupMfaClientsInCentral(personMap);
-		Map<String, List<ProjectionClient>> allRegisteredMfaClientsBySsn = allRegisteredMfaClients.stream().collect(Collectors.groupingBy(ProjectionClient::getSsn));
-
-		List<LocalRegisteredMfaClient> locallyRegisteredClients = localRegisteredMfaClientService.getAll();
-		Map<String, List<LocalRegisteredMfaClient>> locallyRegisteredClientsBySsn = locallyRegisteredClients.stream().collect(Collectors.groupingBy(LocalRegisteredMfaClient::getCpr));
-
-		for (String encodedSsn : personMap.keySet()) {
-			List<Person> persons = personMap.get(encodedSsn);
-			
-			List<MfaClient> mfaClients = new ArrayList<>();
-			Set<String> mfaClientsDeviceIds = new HashSet<>();
-			
-			// globally stored in OS2faktor MFA
-			List<ProjectionClient> storedMfaClients = allRegisteredMfaClientsBySsn.get(encodedSsn);
-			if (storedMfaClients != null) {
-				for (ProjectionClient localClient : storedMfaClients) {
-					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
-						MfaClient client = new MfaClient();
-						client.setDeviceId(localClient.getDeviceId());
-						client.setName(localClient.getName());
-						client.setPasswordless(localClient.isPasswordless());
-						client.setLocalClient(true);
-						client.setSerialnumber(localClient.getSerialnumber());
-						client.setLastUsed(localClient.getLastUsed());
-						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
-
-						try {
-							client.setType(ClientType.valueOf(localClient.getClientType()));
-							client.setNsisLevel(NSISLevel.valueOf(localClient.getNsisLevel()));
-						}
-						catch (Exception ex) {
-							log.warn("Unable to parse enum value for " + localClient.getDeviceId(), ex);
-							continue;
-						}
-
-						mfaClients.add(client);
-						mfaClientsDeviceIds.add(localClient.getDeviceId());
-					}
-				}
-			}
-
-			// locally stored in OS2faktor MFA
-			List<ProjectionClient> locallyStoredMfaClients = allLocallyRegisteredMfaClientsBySsn.get(encodedSsn);
-			if (locallyStoredMfaClients != null) {
-				for (ProjectionClient localClient : locallyStoredMfaClients) {
-					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
-						MfaClient client = new MfaClient();
-						client.setDeviceId(localClient.getDeviceId());
-						client.setName(localClient.getName());
-						client.setPasswordless(localClient.isPasswordless());
-						client.setLocalClient(true);
-						client.setSerialnumber(localClient.getSerialnumber());
-						client.setLastUsed(localClient.getLastUsed());
-						client.setAssociatedUserTimestamp(localClient.getAssociatedUserTimestamp());
-
-						try {
-							client.setType(ClientType.valueOf(localClient.getClientType()));
-							client.setNsisLevel(NSISLevel.valueOf(localClient.getNsisLevel()));
-						}
-						catch (Exception ex) {
-							log.warn("Unable to parse enum value for " + localClient.getDeviceId(), ex);
-							continue;
-						}
-
-						mfaClients.add(client);
-						mfaClientsDeviceIds.add(localClient.getDeviceId());
-					}
-				}
-			}
-
-			// locally stored in OS2faktor Login
-			List<LocalRegisteredMfaClient> localClients = locallyRegisteredClientsBySsn.get(persons.get(0).getCpr());
-			if (localClients != null) {
-				for (LocalRegisteredMfaClient localClient : localClients) {
-					if (!mfaClientsDeviceIds.contains(localClient.getDeviceId())) {
-						MfaClient client = new MfaClient();
-						client.setDeviceId(localClient.getDeviceId());
-						client.setName(localClient.getName());
-						client.setNsisLevel(localClient.getNsisLevel());
-						client.setType(localClient.getType());
-						client.setLocalClient(true);
-
-						if (localClient.getAssociatedUserTimestamp() != null) {
-							client.setAssociatedUserTimestamp(Instant.ofEpochMilli(localClient.getAssociatedUserTimestamp().getTime())
-									.atZone(ZoneId.systemDefault())
-									.toLocalDateTime());
-						}
-
-						mfaClients.add(client);
-						mfaClientsDeviceIds.add(localClient.getDeviceId());
-					}
-				}
-			}
-
-			self.maintainCachedClients(persons, mfaClients);
-		}
-		
-		stopWatch.stop();
-		log.info("completed in: " + stopWatch.toString());
-	}
-
 	private void maintainCachedClients(String cpr, List<MfaClient> mfaClients) {
 		maintainCachedClients(personService.getByCpr(cpr, p -> p.getMfaClients().size()), mfaClients);
 	}	

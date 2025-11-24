@@ -1,7 +1,7 @@
 package dk.digitalidentity.service;
 
 import java.io.IOException;
-import java.security.Security;
+import java.util.Objects;
 
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 
@@ -37,13 +37,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.log.ErrorLogDto;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.opensaml.CustomHTTPPostEncoder;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletResponse;
@@ -72,6 +75,9 @@ public class ErrorResponseService {
 
 	@Autowired
 	private CredentialService credentialService;
+	
+	@Autowired
+	private ServiceProviderFactory serviceProviderFactory;
 
 	public void sendError(HttpServletResponse response, LoginRequest loginRequest, Exception ex) throws RequesterException, ResponderException {
 		sendError(response, loginRequest, ex, true, false);
@@ -90,7 +96,9 @@ public class ErrorResponseService {
 					return;
 				}
 
-				AuthnRequest authnRequest = loginRequest.getAuthnRequest();
+				AuthnRequest authnRequest = loginRequest.getAuthnRequest();				
+				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(authnRequest);
+				
 				String destination = authnRequestHelper.getConsumerEndpoint(authnRequest);
 				String inResponseTo = authnRequest.getID();
 				String statusCode = StatusCode.RESPONDER;
@@ -99,7 +107,7 @@ public class ErrorResponseService {
 					statusCode = StatusCode.REQUESTER;
 				}
 
-				sendError(response, destination, inResponseTo, statusCode, ex, logged, logoutOfSession);
+				sendError(response, destination, inResponseTo, statusCode, ex, logged, logoutOfSession, serviceProvider);
 				break;
 			case OIDC10:
 				if (loginRequest.getToken() == null) {
@@ -168,20 +176,20 @@ public class ErrorResponseService {
 		response.sendRedirect(uriBuilder.toUriString());
 	}
 
-	public void sendError(HttpServletResponse response, String destination, String inResponseTo, Exception ex) {
+	public void sendError(HttpServletResponse response, String destination, String inResponseTo, Exception ex, ServiceProvider serviceProvider) {
 		if (ex instanceof RequesterException) {
-			sendError(response, destination, inResponseTo, StatusCode.REQUESTER, ex);
+			sendError(response, destination, inResponseTo, StatusCode.REQUESTER, ex, serviceProvider);
 		}
 		else {
-			sendError(response, destination, inResponseTo, StatusCode.RESPONDER, ex);
+			sendError(response, destination, inResponseTo, StatusCode.RESPONDER, ex, serviceProvider);
 		}
 	}
 
-	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e) {
-		sendError(response, destination, inResponseTo, statusCode, e, true, false);
+	public void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, ServiceProvider serviceProvider) {
+		sendError(response, destination, inResponseTo, statusCode, e, true, false, serviceProvider);
 	}
 
-	private void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, boolean logged, boolean logoutOfSession) {
+	private void sendError(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, boolean logged, boolean logoutOfSession, ServiceProvider serviceProvider) {
 		if (logged) {
 			log.warn("Sending error to " + destination, e);
 		}
@@ -199,11 +207,11 @@ public class ErrorResponseService {
 			sessionHelper.invalidateSession();
 		}
 		
-		send(response, destination, inResponseTo, statusCode, e, relayState);
+		send(response, destination, inResponseTo, statusCode, e, relayState, serviceProvider);
 	}
 
-	private void send(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, String relayState) {
-		// attempt to clear any residual incoming authnRequest, to avoid strange behaviour on
+	private void send(HttpServletResponse response, String destination, String inResponseTo, String statusCode, Exception e, String relayState, ServiceProvider serviceProvider) {
+		// attempt to clear any residual incoming authnRequest, to avoid strange behavior on
 		// any following actions that might not be related to an authnRequest
 		try {
 			sessionHelper.setLoginRequest(null);
@@ -213,7 +221,7 @@ public class ErrorResponseService {
 		}
 
 		try {
-			MessageContext<SAMLObject> errorMessageContext = createErrorMessageContext(destination, inResponseTo, statusCode, e);
+			MessageContext<SAMLObject> errorMessageContext = createErrorMessageContext(destination, inResponseTo, statusCode, e, serviceProvider);
 
 			// Set RelayState
 			if (StringUtils.hasLength(relayState)) {
@@ -236,7 +244,7 @@ public class ErrorResponseService {
 		}
 	}
 
-	private MessageContext<SAMLObject> createErrorMessageContext(String destination, String inResponseTo, String statusCode, Exception e) throws ResponderException {
+	private MessageContext<SAMLObject> createErrorMessageContext(String destination, String inResponseTo, String statusCode, Exception e, ServiceProvider serviceProvider) throws ResponderException {
 
 		// Create MessageContext
 		MessageContext<SAMLObject> messageContext = new MessageContext<>();
@@ -270,7 +278,7 @@ public class ErrorResponseService {
 
 		statusMessage.setMessage(e.getMessage());
 		
-		signErrorResponse(response);
+		signErrorResponse(response, serviceProvider);
 
 		// Set destination
 		SAMLPeerEntityContext peerEntityContext = messageContext.getSubcontext(SAMLPeerEntityContext.class, true);
@@ -285,27 +293,28 @@ public class ErrorResponseService {
 		return messageContext;
 	}
 	
-	private void signErrorResponse(Response response) throws ResponderException {
+	private void signErrorResponse(Response response, ServiceProvider serviceProvider) throws ResponderException {
 		Signature signature = samlHelper.buildSAMLObject(Signature.class);
 
-		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider != null && serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
 
 		signature.setSigningCredential(x509Credential);
 		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
 		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
-		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo(x509Credential));
 		response.setSignature(signature);
 
 		try {
 			StatusResponseTypeMarshaller marshaller = new StatusResponseTypeMarshaller() {};
-			
-			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
-				marshaller.marshall(response, Security.getProvider("KMS"));
-			}
-			else {
-				marshaller.marshall(response);
-			}
+			marshaller.marshall(response);
 
 			Signer.signObject(signature);
 		}

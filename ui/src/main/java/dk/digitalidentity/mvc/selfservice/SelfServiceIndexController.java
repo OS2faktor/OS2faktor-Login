@@ -165,6 +165,7 @@ public class SelfServiceIndexController {
 			model.addAttribute("clients", clients);
 		}
 
+		model.addAttribute("personId", person.getId());
 		model.addAttribute("showDeleteAction", true);
 		model.addAttribute("showEditAction", true);
 		model.addAttribute("showPrimaryAction", false);

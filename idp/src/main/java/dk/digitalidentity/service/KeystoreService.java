@@ -3,9 +3,6 @@ package dk.digitalidentity.service;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.security.KeyStore;
-import java.security.Security;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,26 +16,19 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ResourceUtils;
 import org.springframework.util.StringUtils;
 
-import dk.digitalidentity.aws.kms.jce.provider.KmsProvider;
 import dk.digitalidentity.common.dao.KeystoreDao;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.controller.MetadataController;
 import dk.digitalidentity.samlmodule.service.DISAML_CredentialService;
 import dk.digitalidentity.service.model.KeystoreEntry;
 import lombok.extern.slf4j.Slf4j;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.kms.KmsClient;
 
 @Slf4j
-@EnableScheduling
 @Service
 public class KeystoreService {
 	private LocalDateTime lastLoaded = LocalDateTime.of(1970, 1, 1, 0, 0);
@@ -50,12 +40,6 @@ public class KeystoreService {
 	
 	@Autowired
 	private OS2faktorConfiguration configuration;
-
-	@Autowired
-	private MetadataController metadataController;
-	
-	@Autowired
-	private CredentialService credentialService;
 	
 	@Autowired
 	private DISAML_CredentialService diSamlCredentialService;
@@ -90,26 +74,9 @@ public class KeystoreService {
 		return null;
 	}
 	
-	public String getKmsAlias(String alias) {
-		ensureInitialized();
-		
-		KeystoreEntry entry = keyStoreMap.get(alias);
-		if (entry != null) {
-			return entry.getKmsAlias();
-		}
-		
-		log.debug("Missing keystore with alias " + alias);
-		
-		return null;
-	}
-
 	@SuppressWarnings("deprecation")
 	@EventListener(ApplicationReadyEvent.class)
 	public void runOnStartup() {
-		// make sure KMS provider is loaded
-		KmsClient kmsClient = KmsClient.builder().region(Region.EU_WEST_1).build();
-		KmsProvider kmsProvider = new KmsProvider(kmsClient);			
-		Security.addProvider(kmsProvider);
 
 		// bootstrap database if empty (selfsigned certificate does not count)
 		List<Keystore> keystores = keystoreDao.findAll().stream()
@@ -117,10 +84,10 @@ public class KeystoreService {
 				.collect(Collectors.toList());
 
 		if (keystores.size() == 0) {
+			// attempt to migrate from configured keystore files from filesystem
+
 			Keystore primaryKeystore = getKeystoreFromConfiguration(configuration.getKeystore().getLocation(), configuration.getKeystore().getPassword(), true);
 			
-			// TODO: this code can go away when we move 100% to KMS created keystores
-			// make sure we have a NemLog-in Keystore as well			
 			if (primaryKeystore != null) {
 				keystoreDao.save(primaryKeystore);
 				
@@ -131,15 +98,13 @@ public class KeystoreService {
 			}
 		}
 		else {
-			// TODO: this code can go away when we move 100% to KMS created keystores
-			// make sure we have a NemLog-in Keystore as well
+			// if no NEMLOGIN keystore is available, create one
+
 			if (!keystores.stream().anyMatch(k -> Objects.equals(k.getAlias(), KnownCertificateAliases.NEMLOGIN.toString()))) {
 				Keystore oces = keystores.stream().filter(k -> Objects.equals(k.getAlias(), KnownCertificateAliases.OCES.toString())).findFirst().orElse(null);
+
 				if (oces != null) {
-					// save a non-KMS version of this keystore
 					oces.setId(0);
-					oces.setKms(false);
-					oces.setKmsAlias(null);
 					oces.setAlias(KnownCertificateAliases.NEMLOGIN.toString());
 					keystoreDao.save(oces);					
 				}
@@ -154,11 +119,10 @@ public class KeystoreService {
 		loadKeystores();
 	}
 	
-	@Scheduled(cron = "0 0/5 * * * ?")
-	public synchronized void loadKeystores() {
-		// wait till KMS is loaded
+	public synchronized boolean loadKeystores() {
+		// wait till everything is loaded
 		if (classInitialized == false) {
-			return;
+			return false;
 		}
 
 		LocalDateTime newReload = LocalDateTime.now();
@@ -184,17 +148,17 @@ public class KeystoreService {
 			changes = true;
 
 			KeyStore ks = loadKeystore(keystore);
-			keyStoreMap.put(keystore.getAlias(), new KeystoreEntry(ks, keystore.getPassword(), keystore.getKmsAlias()));
+			keyStoreMap.put(keystore.getAlias(), new KeystoreEntry(ks, keystore.getPassword()));
 		}
-		
+
 		if (changes) {
-			metadataController.evictCache();
-			credentialService.evictCache();
 			diSamlCredentialService.reset();
 		}
 
 		lastLoaded = newReload;
 		initialized = true;
+
+		return changes;
 	}
 
 	private void ensureInitialized() {
@@ -219,24 +183,11 @@ public class KeystoreService {
 	
 	private KeyStore loadKeystore(Keystore keystore) {
 		try {
-			if (keystore.isKms()) {
-		        ByteArrayInputStream inputStream = new ByteArrayInputStream(keystore.getCertificate());
-		        CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+			KeyStore keyStore = KeyStore.getInstance("PKCS12");
 
-				Certificate certificate = certificateFactory.generateCertificate(inputStream);
-				
-				KeyStore keyStore = KeyStore.getInstance("KMS");
-				keyStore.load(new ByteArrayInputStream(certificate.getEncoded()), null);
-				
-				return keyStore;
-			}
-			else {
-				KeyStore keyStore = KeyStore.getInstance("PKCS12");
+			keyStore.load(new ByteArrayInputStream(keystore.getKeystore()), keystore.getPassword().toCharArray());
 
-				keyStore.load(new ByteArrayInputStream(keystore.getKeystore()), keystore.getPassword().toCharArray());
-
-				return keyStore;
-			}
+			return keyStore;
 		}
 		catch (Exception ex) {
 			log.error("Failed to initialize keystore: " + keystore.getSubjectDn(), ex);

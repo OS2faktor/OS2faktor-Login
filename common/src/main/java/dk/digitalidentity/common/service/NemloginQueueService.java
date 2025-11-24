@@ -48,7 +48,9 @@ public class NemloginQueueService {
 		List<NemloginQueue> queue = nemloginQueueDao.findByFailedFalse();
 		
 		queue.forEach(q -> {
-			q.getPerson().getDomain().getName();
+			if (q.getPerson() != null) {
+				q.getPerson().getDomain().getName();
+			}
 		});
 		
 		return queue;

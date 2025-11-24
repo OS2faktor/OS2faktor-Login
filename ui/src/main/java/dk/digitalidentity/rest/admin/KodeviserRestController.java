@@ -79,7 +79,7 @@ public class KodeviserRestController {
 	}
 
 	private Specification<KodeviserView> getByLocked(boolean locked) {
-		Specification<KodeviserView> specification = (root, query, criteriaBuilder) -> {
+		Specification<KodeviserView> specification = (root, _, criteriaBuilder) -> {
 			return criteriaBuilder.equal(root.get("locked"), locked);
 		};
 

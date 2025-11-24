@@ -12,4 +12,6 @@ public class NemLoginSPConfiguration {
 	
 	private String entityId = "https://saml.nemlog-in.dk";
 	private String metadataUrl = "https://www.digital-identity.dk/metadata/nemlogin3-prod-idp-metadata.xml";
+
+	private boolean onlyAllowLoginFromKnownNetworks;
 }

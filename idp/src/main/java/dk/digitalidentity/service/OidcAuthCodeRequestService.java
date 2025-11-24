@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -24,8 +26,8 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.savedrequest.SavedRequest;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -34,7 +36,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 
 @Service
@@ -44,7 +45,7 @@ public class OidcAuthCodeRequestService {
 	@Autowired
 	private AuthorizationServerSettings providerSettings;
 
-	@PostConstruct
+    @EventListener(ApplicationReadyEvent.class)
 	public void postConstruct() {
 		this.authorizationEndpointMatcher = createDefaultRequestMatcher(providerSettings.getAuthorizationEndpoint()); // default:  /oauth2/authorize
 	}
@@ -182,9 +183,8 @@ public class OidcAuthCodeRequestService {
 	}
 
 	private static RequestMatcher createDefaultRequestMatcher(String authorizationEndpointUri) {
-		RequestMatcher authorizationRequestGetMatcher = new AntPathRequestMatcher(authorizationEndpointUri, HttpMethod.GET.name());
-		
-		RequestMatcher authorizationRequestPostMatcher = new AntPathRequestMatcher(authorizationEndpointUri, HttpMethod.POST.name());
+		RequestMatcher authorizationRequestGetMatcher = PathPatternRequestMatcher.pathPattern(HttpMethod.GET, authorizationEndpointUri);		
+		RequestMatcher authorizationRequestPostMatcher = PathPatternRequestMatcher.pathPattern(HttpMethod.POST, authorizationEndpointUri);
 		
 		RequestMatcher openidScopeMatcher = request -> {
 			String scope = request.getParameter(OAuth2ParameterNames.SCOPE);

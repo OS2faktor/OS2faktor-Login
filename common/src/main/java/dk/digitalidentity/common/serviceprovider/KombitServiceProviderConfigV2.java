@@ -76,4 +76,9 @@ public class KombitServiceProviderConfigV2 implements ServiceProviderConfig {
 	public boolean isRequireOiosaml3Profile() {
 		return true;
 	}
+
+	@Override
+	public boolean isOnlyAllowLoginFromKnownNetworks() {
+		return config.getKombit().isOnlyAllowLoginFromKnownNetworks();
+	}
 }

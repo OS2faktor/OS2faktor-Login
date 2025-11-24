@@ -1,0 +1,1 @@
+ALTER TABLE sql_service_provider_configuration ADD COLUMN only_allow_login_from_known_networks BOOLEAN NOT NULL DEFAULT 0;

@@ -9,9 +9,9 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.CprStatusCheckService;
 import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class CPRNameSyncTask {
 
 	@Autowired

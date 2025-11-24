@@ -49,14 +49,7 @@ public class NemLoginQueueRestController {
 			return new ResponseEntity<>("Ordren findes ikke", HttpStatus.NOT_FOUND);
 		}
 
-		if (queue.getAction().equals(NemloginAction.CREATE)) {
-			String rid = StringUtils.hasLength(retry.getRid()) ? retry.getRid() : null;
-			Person person = queue.getPerson();
-			if (!Objects.equals(person.getRid(), rid)) {
-				person.setRid(rid);
-				personService.save(person);
-			}
-		}
+		// TODO: fjern alt om RID i UI - det bruger vi ikke længere
 
 		queue.setFailed(false);
 		queue.setFailureReason(null);

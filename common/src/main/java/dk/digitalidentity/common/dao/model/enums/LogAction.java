@@ -31,6 +31,7 @@ public enum LogAction {
 	SESSION_EXPIRED("enum.logaction.sessionExpired", ReportType.NONE),
 	USED_NEMID("enum.logaction.usedNemID", ReportType.NONE),
 	USED_NEMLOGIN("enum.logaction.usedNemLogin", ReportType.NONE),
+	USED_UNILOGIN("enum.logaction.usedUniLogin", ReportType.NONE),
 	REJECTED_UNKNOWN_PERSON("enum.logaction.rejectedUnknownPerson", ReportType.NONE),
 	DEACTIVATE_BY_PWD("enum.logaction.deactivateByPwd", ReportType.NONE),
 
@@ -39,7 +40,6 @@ public enum LogAction {
 	RADIUS_LOGIN_REQUEST_ACCEPTED("enum.logaction.radiusLoginRequestAccepted", ReportType.NONE),
 	RADIUS_LOGIN_REQUEST_REJECTED("enum.logaction.radiusLoginRequestRejected", ReportType.NONE),
 	DELETED_USER("enum.logaction.deletedUser", ReportType.NONE),
-	REACTIVATE_BY_PWD("enum.logaction.deletedUser", ReportType.NONE), // not used anymore, can be removed from code on 1/6-2023
 
 	// for the large report, the 13 month version
 	ACTIVATE("enum.logaction.activate", ReportType.GENERAL_HISTORY),
@@ -84,6 +84,8 @@ public enum LogAction {
 	TRACE_LOG("enum.logaction.tracelogging", ReportType.NONE),
 	MITID_ERVHERV_ACTION("enum.logaction.mitiderhverv.action", ReportType.GENERAL_HISTORY),
 	MUST_CHANGE_PASSWORD("enum.logaction.must.change.password", ReportType.GENERAL_HISTORY),
+	ADMIN_MFA_TEST("enum.logaction.adminMfaTest", ReportType.GENERAL_HISTORY),
+	LOGIN_REJECTED_IP("enum.logaction.rejected.ip", ReportType.GENERAL_HISTORY),
 
 	// can be removed at some future point in time, when we know that NONE are present in the DB
 	SESSION_KEY_ISSUED("enum.logaction.sessionKeyIssued", false, ReportType.NONE),

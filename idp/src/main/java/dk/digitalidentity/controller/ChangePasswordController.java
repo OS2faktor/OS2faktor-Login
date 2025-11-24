@@ -335,7 +335,7 @@ public class ChangePasswordController {
 
 	// check if a group of people who can not change password is set and if the person is member of it
     private boolean isInCanNotChangePasswordGroup(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettings(person);
+    	PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
     	if (settings.isCanNotChangePasswordEnabled() && settings.getCanNotChangePasswordGroup() != null && GroupService.memberOfGroup(person, Collections.singletonList(settings.getCanNotChangePasswordGroup()))) {
     		return true;
         }
@@ -345,7 +345,7 @@ public class ChangePasswordController {
     
 	// check if there is a limit of how many times a person can change password a day and then if that limit is exceeded    
     private boolean changedPasswordTooManyTimes(Person person) {
-    	PasswordSetting settings = passwordSettingService.getSettings(person);
+    	PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
     	if (settings.isMaxPasswordChangesPrDayEnabled() && person.getDailyPasswordChangeCounter() >= settings.getMaxPasswordChangesPrDay()) {
     		return true;
         }

@@ -22,6 +22,7 @@ import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
 import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import lombok.SneakyThrows;
@@ -43,6 +44,9 @@ public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
 
 	@Autowired
 	private SettingService settingService;
+	
+	@Autowired
+	private SessionHelper sessionHelper;
 
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
@@ -87,7 +91,13 @@ public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
 
 		// we could probably do better, but this allows us some backwards compatibility for non-NSIS users
 		if (!person.hasActivatedNSISUser()) {
-			map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
+			// value "2" if logged in with username/password and value "3" if logged in with 2-faktor
+			String NISTValue = "2";
+			if (sessionHelper.hasUsedMFA()) {
+				NISTValue = "3";
+			}
+
+			map.put("dk:gov:saml:attribute:AssuranceLevel", NISTValue);
 		}
 		
 		// persistent identifier attribute (KOMBIT will forward this to SEB who needs it for NL3 mapping)

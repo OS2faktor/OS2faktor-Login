@@ -1,0 +1,2 @@
+ALTER TABLE persons DROP COLUMN rid;
+ALTER TABLE persons_aud DROP COLUMN rid;

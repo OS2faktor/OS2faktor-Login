@@ -4,17 +4,23 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientResponseException;
@@ -25,11 +31,13 @@ import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.log.AuditLogger;
+import dk.digitalidentity.common.service.dto.ChildDTO;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@EnableCaching
 public class CprService {
 
 	@Autowired
@@ -122,7 +130,7 @@ public class CprService {
 
 		try {
 			ResponseEntity<CprLookupDTO> response = restTemplate.getForEntity(cprResourceUrl, CprLookupDTO.class);
-			return new AsyncResult<CprLookupDTO>(response.getBody());
+			return CompletableFuture.completedFuture(response.getBody());
 		}
 		catch (IllegalArgumentException ex) {
 			log.warn("Failed to lookup: " + safeCprSubstring(cpr), ex);
@@ -137,7 +145,7 @@ public class CprService {
 				
 				CprLookupDTO dto = new CprLookupDTO();
 				dto.setDoesNotExist(true);
-				return new AsyncResult<CprLookupDTO>(dto);
+				return CompletableFuture.completedFuture(dto);
 			}
 			else {
 				log.warn("Failed to lookup: " + safeCprSubstring(cpr), ex);
@@ -147,6 +155,75 @@ public class CprService {
 		}
 	}
 
+	@CacheEvict(value = "getChildren", allEntries = true)
+	public void cleanChildrenCache() {
+		;
+	}
+
+	@Cacheable("getChildren")
+	public List<Person> getChildrenPasswordAllowed(String cpr) {
+		List<Person> result = new ArrayList<>();
+		
+		Future<CprLookupDTO> cprFuture = getByCpr(cpr);
+		CprLookupDTO personLookup = null;
+
+		try {
+			personLookup = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
+		}
+		catch (InterruptedException | ExecutionException | TimeoutException ex) {
+			log.warn("Got a timeout on lookup of children", ex);
+			return result;
+		}
+
+		if (personLookup != null && personLookup.getChildren() != null && !personLookup.getChildren().isEmpty()) {
+			for (ChildDTO child : personLookup.getChildren()) {
+				List<Person> childPersons = personService.getByCpr(child.getCpr());
+
+				for (Person person : childPersons) {
+					if (person.isNsisAllowed()) {
+						continue;
+					}
+					
+					if (person.isLocked()) {
+						continue;
+					}
+					
+					if (isAdult(getBirthDateFromCpr(person.getCpr()))) {
+						continue;
+					}
+					
+					result.add(person);
+				}
+			}
+		}
+
+		return result;
+	}
+
+	private boolean isAdult(LocalDate birthday) {
+		return LocalDate.from(birthday).until(LocalDate.now(), ChronoUnit.YEARS) >= 16;
+	}
+
+	private LocalDate getBirthDateFromCpr(String cpr) {
+		var datePart = Integer.parseInt(cpr.substring(0, 2));
+		var monthPart = Integer.parseInt(cpr.substring(2, 4));
+		var yearPart = Integer.parseInt(cpr.substring(4, 6));
+		var seventh = Integer.parseInt(cpr.substring(6, 7));
+		var century = 0;
+		
+		if (seventh < 4) {
+			century = 1900;
+		}
+		else if (seventh == 4 || seventh == 9) {
+			century = yearPart < 37 ? 2000 : 1900;
+		}
+		else {
+			century = yearPart < 58 ? 2000 : 1800;
+		}
+		
+		return LocalDate.of(century + yearPart, monthPart, datePart);
+	}
+	
 	public static String safeCprSubstring(String cpr) {
 		if (cpr.length() >= 6) {
 			return cpr.substring(0, 6) + "-XXXX";

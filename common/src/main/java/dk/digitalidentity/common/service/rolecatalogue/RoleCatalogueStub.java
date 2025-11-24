@@ -59,7 +59,7 @@ class RoleCatalogueStub {
 			headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
 	
 			HttpEntity<OIOBPP> request = new HttpEntity<>(headers);
-			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", system);
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromUriString(roleCatalogueUrl).queryParam("system", system);
 			if (StringUtils.hasText(domain)) {
 				urlParamBuilder.queryParam("domain", domain);
 			}
@@ -99,7 +99,7 @@ class RoleCatalogueStub {
 			HttpHeaders headers = new HttpHeaders();
 			headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
 	
-			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl);
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromUriString(roleCatalogueUrl);
 			if (StringUtils.hasText(domain)) {
 				urlParamBuilder.queryParam("domain", domain);
 			}
@@ -148,7 +148,7 @@ class RoleCatalogueStub {
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
 	
-			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl);
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromUriString(roleCatalogueUrl);
 			if (StringUtils.hasText(domain)) {
 				urlParamBuilder.queryParam("domain", domain);
 			}
@@ -189,7 +189,7 @@ class RoleCatalogueStub {
 			headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
-			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", itSystem);
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromUriString(roleCatalogueUrl).queryParam("system", itSystem);
 			if (StringUtils.hasText(domain)) {
 				urlParamBuilder.queryParam("domain", domain);
 			}
@@ -224,7 +224,7 @@ class RoleCatalogueStub {
 			headers.add("ApiKey", configuration.getRoleCatalogue().getApiKey());
 	
 			HttpEntity<String> request = new HttpEntity<>(headers);
-			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromHttpUrl(roleCatalogueUrl).queryParam("system", itSystem);
+			UriComponentsBuilder urlParamBuilder = UriComponentsBuilder.fromUriString(roleCatalogueUrl).queryParam("system", itSystem);
 			if (StringUtils.hasText(domain)) {
 				urlParamBuilder.queryParam("domain", domain);
 			}

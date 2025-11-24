@@ -11,7 +11,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.springframework.web.servlet.view.document.AbstractXlsxStreamingView;
+import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.Person;
@@ -19,29 +19,44 @@ import dk.digitalidentity.common.service.PersonService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class RolesReportXlsView extends AbstractXlsxStreamingView {
+public class RolesReportXlsView implements View {
+	private static final String CONTENT_TYPE = "application/ms-excel";
+	
 	private List<Person> persons;
 	private CellStyle headerStyle;
 	private CellStyle wrapStyle;
 
+	@Override
+	public String getContentType() {
+		return CONTENT_TYPE;
+	}
+
 	@SuppressWarnings("unchecked")
 	@Override
-	protected void buildExcelDocument(Map<String, Object> model, Workbook workbook, HttpServletRequest request, HttpServletResponse response) throws Exception {
+	public void render(Map<String, ?> model, HttpServletRequest request, HttpServletResponse response) throws Exception {
 		// Get data
 		persons = (List<Person>) model.get("persons");
 
-		// Setup shared resources
-		Font headerFont = workbook.createFont();
-		headerFont.setBold(true);
+		response.setContentType(getContentType());
+		response.setHeader("Content-Disposition", "attachment; filename=\"Jobfunktionsroller.xlsx\"");
 
-		headerStyle = workbook.createCellStyle();
-		headerStyle.setFont(headerFont);
-
-		wrapStyle = workbook.createCellStyle();
-		wrapStyle.setWrapText(true);
-
-		// Create Sheets
-		createRolesSheet(workbook);
+		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+	
+			// Setup shared resources
+			Font headerFont = workbook.createFont();
+			headerFont.setBold(true);
+	
+			headerStyle = workbook.createCellStyle();
+			headerStyle.setFont(headerFont);
+	
+			wrapStyle = workbook.createCellStyle();
+			wrapStyle.setWrapText(true);
+	
+			// Create Sheets
+			createRolesSheet(workbook);
+			
+			workbook.write(response.getOutputStream());
+		}
 	}
 
 	private void createRolesSheet(Workbook workbook) {

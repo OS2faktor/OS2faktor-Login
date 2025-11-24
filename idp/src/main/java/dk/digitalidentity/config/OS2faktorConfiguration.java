@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.FeatureDocumentation;
+import dk.digitalidentity.config.modules.ClaimsProviderConfiguration;
 import dk.digitalidentity.config.modules.IdPKeystoreConfiguration;
 import dk.digitalidentity.config.modules.OIDCConfiguration;
 import dk.digitalidentity.config.modules.PasswordConfiguration;
@@ -18,6 +19,7 @@ public class OS2faktorConfiguration {
 	private IdPKeystoreConfiguration keystore = new IdPKeystoreConfiguration();
 	private OIDCConfiguration oidc = new OIDCConfiguration();
 	private PasswordConfiguration password = new PasswordConfiguration();
+	private ClaimsProviderConfiguration claimsProvider = new ClaimsProviderConfiguration();
 	private String entityId;
 	private String baseUrl;
 

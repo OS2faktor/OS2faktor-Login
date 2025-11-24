@@ -132,6 +132,12 @@ public class HttpServletResponseOutputStreamWrapper implements HttpServletRespon
 	public void sendRedirect(String location) throws IOException {
 		;
 	}
+	
+	@Override
+	public void sendRedirect(String location, int sc, boolean clearBuffer) throws IOException {
+		// TODO Auto-generated method stub
+		
+	}
 
 	@Override
 	public void setDateHeader(String name, long date) {
@@ -186,5 +192,6 @@ public class HttpServletResponseOutputStreamWrapper implements HttpServletRespon
 	@Override
 	public Collection<String> getHeaderNames() {
 		return null;
-	} 
+	}
+
 }

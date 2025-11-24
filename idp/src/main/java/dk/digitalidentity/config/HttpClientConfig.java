@@ -25,7 +25,7 @@ public class HttpClientConfig {
 
 	@Bean
 	public HttpClient httpClient() throws KeyStoreException, NoSuchAlgorithmException, KeyManagementException {
-		TrustStrategy acceptingTrustStrategy = (cert, authType) -> true;
+		TrustStrategy acceptingTrustStrategy = (_, _) -> true;
 		SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy).build();
 		SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
 

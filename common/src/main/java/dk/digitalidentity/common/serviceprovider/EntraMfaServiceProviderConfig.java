@@ -50,7 +50,7 @@ public class EntraMfaServiceProviderConfig implements ServiceProviderConfig {
 
     @Override
     public boolean isPreferNemid() {
-        return false;
+    	return commonConfiguration.getEntraMfa().isMitIdOnly();
     }
 
     @Override
@@ -76,5 +76,10 @@ public class EntraMfaServiceProviderConfig implements ServiceProviderConfig {
 	@Override
 	public boolean isDoNotMonitorCertificates() {
 		return true;
+	}
+
+	@Override
+	public boolean isOnlyAllowLoginFromKnownNetworks() {
+		return commonConfiguration.getEntraMfa().isOnlyAllowLoginFromKnownNetworks();
 	}
 }

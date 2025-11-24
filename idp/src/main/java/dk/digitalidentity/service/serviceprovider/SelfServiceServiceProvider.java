@@ -219,4 +219,9 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 	public Long getMfaExpiry() {
 		return null;
 	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return config.isOnlyAllowLoginFromKnownNetworks();
+	}
 }

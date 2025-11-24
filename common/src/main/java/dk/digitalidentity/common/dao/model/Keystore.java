@@ -46,14 +46,5 @@ public class Keystore {
 	// "soft-delete" feature - certificate is NOT loaded from the database if this is set
 	@Column
 	private boolean disabled;
-	
-	@Column
-	private boolean kms;
 
-	// only set if KMS is true
-	@Column
-	private byte[] certificate;
-	
-	// only set if KMS is true
-	private String kmsAlias;
 }

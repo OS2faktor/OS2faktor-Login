@@ -9,9 +9,9 @@ import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class PersonAttributeAggregatorTask {
 
 	@Autowired

@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class DeleteTemporarySessionKeyTask {
 
     @Autowired

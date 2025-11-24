@@ -57,7 +57,23 @@ public class CoreDataApi {
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			// handle this error message in a special way - standalone domains throws this often, and we don't want alarms on that
+			if (ex.getMessage() != null && ex.getMessage().contains("Tom entryList for domæne")) {
+				try {
+					Domain domain = domainService.getByName(coreData.getDomain());
+					if (domain.isStandalone()) {
+						log.warn("Failed to parse payload for fullLoad", ex);
+					}
+				}
+				catch (Exception _) {
+					log.error("Failed to parse payload for fullLoad", ex);
+				}
+
+				return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);				
+			}
+
 			log.error("Failed to parse payload for fullLoad", ex);
+
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
@@ -329,7 +345,7 @@ public class CoreDataApi {
 			boolean success = coreDataService.setForceChangePassword(coreData);
 			coreDataLogService.addLog("/api/coredata/passwordchange/force", coreData.getDomain(), null);
 
-			return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body("No person found");
+			return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body("No person found");
 		}
 		catch (Exception ex) {
 			log.error("Failed to parse payload for forceChangePassword", ex);

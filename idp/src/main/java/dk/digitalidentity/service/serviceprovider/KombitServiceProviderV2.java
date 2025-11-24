@@ -35,6 +35,7 @@ import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
 import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
 import dk.digitalidentity.controller.dto.LoginRequest;
+import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -64,6 +65,9 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 	@Autowired
 	private SettingService settingService;
+	
+	@Autowired
+	private SessionHelper sessionHelper;
 	
 	@Override
 	public boolean nemLogInBrokerEnabled() {
@@ -107,37 +111,32 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	public Map<String, Object> getAttributes(LoginRequest loginRequest, Person person, boolean includeDuplicates) {
 		Map<String, Object> map = new HashMap<>();
 
-		if (commonConfig.getKombit().isOiosaml2()) {
-			map.put("dk:gov:saml:attribute:SpecVer", "DK-SAML-2.0");
-			map.put("dk:gov:saml:attribute:KombitSpecVer", "1.0");
-			map.put("dk:gov:saml:attribute:CvrNumberIdentifier", commonConfig.getCustomer().getCvr());
-			map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
-			
-			// needed for SEB
-			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
+		map.put("dk:gov:saml:attribute:KombitSpecVer", "2.0");
+		map.put("https://data.gov.dk/model/core/specVersion", "OIO-SAML-3.0");
+		map.put("https://data.gov.dk/model/core/eid/professional/cvr", commonConfig.getCustomer().getCvr());			
+	
+		if (StringUtils.hasLength(person.getEmail())) {
+			map.put("https://data.gov.dk/model/core/eid/email", person.getEmail());
 		}
-		else {
-			map.put("dk:gov:saml:attribute:KombitSpecVer", "2.0");
-			map.put("https://data.gov.dk/model/core/specVersion", "OIO-SAML-3.0");
-			map.put("https://data.gov.dk/model/core/eid/professional/cvr", commonConfig.getCustomer().getCvr());			
 		
-			if (StringUtils.hasLength(person.getEmail())) {
-				map.put("https://data.gov.dk/model/core/eid/email", person.getEmail());
-			}
-			
-			// we could probably do better, but this allows us some backwards compatibility for non-NSIS users
-			if (!person.hasActivatedNSISUser()) {
-				map.put("dk:gov:saml:attribute:AssuranceLevel", commonConfig.getKombit().getAssuranceLevel());
+		// we could probably do better, but this allows us some backwards compatibility for non-NSIS users
+		if (!person.hasActivatedNSISUser()) {
+			// value "2" if logged in with username/password and value "3" if logged in with 2-faktor
+			String NISTValue = "2";
+			if (sessionHelper.hasUsedMFA()) {
+				NISTValue = "3";
 			}
 
-			// persistent identifier attribute and cpr (KOMBIT will forward this to SEB who needs it for NL3 mapping)
-			if (StringUtils.hasLength(person.getNemloginUserUuid())) {
-				map.put("https://data.gov.dk/model/core/eid/professional/uuid/persistent", person.getNemloginUserUuid());
-			}
-			
-			// needed for SEB
-			map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
+			map.put("dk:gov:saml:attribute:AssuranceLevel", NISTValue);
 		}
+
+		// persistent identifier attribute and cpr (KOMBIT will forward this to SEB who needs it for NL3 mapping)
+		if (StringUtils.hasLength(person.getNemloginUserUuid())) {
+			map.put("https://data.gov.dk/model/core/eid/professional/uuid/persistent", person.getNemloginUserUuid());
+		}
+		
+		// needed for SEB
+		map.put("dk:gov:saml:attribute:CprNumberIdentifier", person.getCpr());
 
 		String lookupIdentifier = "KOMBIT";
 		String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
@@ -157,12 +156,7 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		}
 		
 		if (oiobpp != null) {
-			if (commonConfig.getKombit().isOiosaml2()) {
-				map.put("dk:gov:saml:attribute:Privileges_intermediate", oiobpp);
-			}
-			else {
-				map.put("https://data.gov.dk/model/core/eid/privilegesIntermediate", oiobpp);
-			}
+			map.put("https://data.gov.dk/model/core/eid/privilegesIntermediate", oiobpp);
 		}
 		
 		if (person.getKombitAttributes() != null && person.getKombitAttributes().size() > 0) {
@@ -418,7 +412,7 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	// always return an NSIS level if available
 	@Override
 	public boolean supportsNsisLoaClaim() {
-		return commonConfig.getKombit().isNsis();
+		return true;
 	}
 	
 	@Override
@@ -461,5 +455,10 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 		}
 		
 		return true;
+	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return kombitConfig.isOnlyAllowLoginFromKnownNetworks();
 	}
 }

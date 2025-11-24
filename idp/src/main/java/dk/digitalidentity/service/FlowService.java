@@ -1,5 +1,7 @@
 package dk.digitalidentity.service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -23,6 +25,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
@@ -39,6 +42,7 @@ import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.EvaluationException;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.KnownNetworkService;
+import dk.digitalidentity.common.service.LoginInfoMessageService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.PersonService;
@@ -60,6 +64,7 @@ import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.util.IPUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -102,7 +107,10 @@ public class FlowService {
 	private PersonAttributeService personAttributeService;
 
 	@Autowired
-	private LoginService loginService;
+    private LoginInfoMessageService loginInfoMessageService;
+
+    @Autowired
+    private UserAgentParser userAgentParser;
 
 	@Autowired
 	private PersonService personService;
@@ -127,6 +135,9 @@ public class FlowService {
 
 	@Autowired
 	private RoleCatalogueService roleCatalogueService;
+
+	@Autowired
+	private GroupService groupService;
 	
 	public ModelAndView initiateFlowOrSendLoginResponse(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
 		ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
@@ -187,7 +198,7 @@ public class FlowService {
 				return initiateMFA(model, person, requiredNSISLevel);
 			}
 
-			return loginService.initiateLogin(model, request, serviceProvider.preferNemId());
+			return initiateLogin(model, request, serviceProvider.preferNemId());
 		}
 
 		// At this point the user is actually logged in, so we can start validation against the session
@@ -283,7 +294,7 @@ public class FlowService {
 						return initiateNemIDOnlyLogin(model, request, null);
 					}
 
-					return loginService.initiateLogin(model, request, serviceProvider.preferNemId());
+					return initiateLogin(model, request, serviceProvider.preferNemId());
 			}
 		}
 		
@@ -312,6 +323,53 @@ public class FlowService {
 		// user is already logged in at the required level
 		return createAndSendLoginResponse(response, person, serviceProvider, loginRequest, model);
 	}
+	
+    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid) {
+        return initiateLogin(model, request, preferNemid, false, null, false);
+    }
+
+    public ModelAndView initiateLogin(Model model, HttpServletRequest request, boolean preferNemid, boolean incorrectInput, String username, boolean forceShowPasswordDialogue) {
+        model.addAttribute("infobox", loginInfoMessageService.getInfobox());
+
+        String changePasswordUrl = "/sso/saml/forgotpworlocked";
+        if (StringUtils.hasLength(request.getQueryString())) {
+            String params = URLEncoder.encode("/sso/saml/login?" + request.getQueryString(), StandardCharsets.UTF_8);
+            changePasswordUrl += "?redirectUrl=" + params;
+        }
+        model.addAttribute("changePasswordUrl", changePasswordUrl);
+
+        model.addAttribute("username", username);
+
+        if (incorrectInput) {
+            model.addAttribute("incorrectInput", true);
+            model.addAttribute("preferNemid", false);
+        }
+        else {
+            model.addAttribute("preferNemid", preferNemid);
+        }
+
+        // if "Using NemLog-in for other SPs feature" is not enabled, we will only show NemLog-in on SelfService
+        model.addAttribute("showNemLogIn", showNemLogIn());
+
+        // hack to support embedded IE browsers
+        boolean isMobile = false;
+        try {
+	        String ua = request.getHeader("user-agent").toLowerCase();
+	        if (ua.indexOf("trident") >= 0 || ua.indexOf("edge/") >= 0) {
+	            return new ModelAndView("login-ie", model.asMap());
+	        }
+	        
+	        isMobile = userAgentParser.isMobile(ua);
+        }
+        catch (Exception ignored) {
+        	;
+        }
+        
+    	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa() && (commonConfiguration.getCustomer().isEnablePasswordlessMfaMobileOnly() == false || isMobile));
+    	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
+        
+        return new ModelAndView("login", model.asMap());
+    }
 
 	public ModelAndView initiateUserSelect(Model model, List<Person> people, NSISLevel authenticationLevel, LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
 
@@ -470,7 +528,7 @@ public class FlowService {
 					return null;
 				}
 
-				PasswordSetting settings = passwordSettingService.getSettings(person);
+				PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 				LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
 
 				long daysLeftPassword = (person.getPasswordTimestamp() != null) ? ChronoUnit.DAYS.between(expiredTimestamp, person.getPasswordTimestamp()) : Long.MAX_VALUE;
@@ -646,13 +704,37 @@ public class FlowService {
 	}
 
 	private void handleSingleValueOnlyGroupClaims(Person person, SqlServiceProvider sqlSP, Map<String, ClaimValueDTO> toBeDecided) {
-		//filter by person's groups
+
+		// 1. single group assignment scenario
+		// filter by person's groups
 		List<SqlServiceProviderGroupClaim> groupClaims = sqlSP.getGroupClaims().stream()
+				.filter(c -> !c.isValuePrefix()) // filter out prefix groupClaims
 				.filter(c -> GroupService.memberOfGroup(person, c.getGroup()))
 				.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
 				.collect(Collectors.toList());
 		
-		//Find duplicate claims
+		// 2. prefix groupClaims scenario
+		List<SqlServiceProviderGroupClaim> prefixClaims = sqlSP.getGroupClaims().stream()
+						.filter(c -> c.isValuePrefix())
+						.filter(c -> GroupService.memberOfAnyGroupWithPrefix(person, c.getClaimValue(), groupService.getAll()))
+						.sorted((o1, o2) -> o1.getClaimName().compareToIgnoreCase(o2.getClaimName()))
+						.collect(Collectors.toList());
+		
+		// expand prefix groupClaims
+		for (SqlServiceProviderGroupClaim prefixClaim : prefixClaims) {
+			for (Group group : groupService.getAll()) {
+				if (GroupService.memberOfGroup(person, group)) {
+					SqlServiceProviderGroupClaim newClaim = new SqlServiceProviderGroupClaim();
+					newClaim.setClaimName(prefixClaim.getClaimName());
+					newClaim.setClaimValue(prefixClaim.isRemovePrefix() ? group.getName().replace(prefixClaim.getClaimValue(), "") : group.getName());
+					newClaim.setSingleValueOnly(prefixClaim.isSingleValueOnly());
+					
+					groupClaims.add(newClaim);
+				}
+			}
+		}
+
+		// find duplicate claims
 		HashSet<String> seenClaimNames = new HashSet<>();
 		HashSet<String> duplicateClaimNames = new HashSet<>();
 		Map<String, HashSet<SqlServiceProviderGroupClaim>> duplicateGroupClaims = new HashMap<>();
@@ -663,7 +745,7 @@ public class FlowService {
 			}
 		}
 		
-		// Generate a map of name and claims <String, Set<GroupClaim>>
+		// generate a map of name and claims <String, Set<GroupClaim>>
 		for (SqlServiceProviderGroupClaim claim : groupClaims) {
 			if (duplicateClaimNames.contains(claim.getClaimName())) {
 				if (duplicateGroupClaims.containsKey(claim.getClaimName())) {
@@ -684,7 +766,7 @@ public class FlowService {
 		}
 		
 		for (String key : duplicateGroupClaims.keySet()) {
-			// Check if any of the claims is marked as singleValueOnly
+			// check if any of the claims is marked as singleValueOnly
 			if (duplicateGroupClaims.get(key).stream().anyMatch(claim -> claim.isSingleValueOnly())) {
 				List<String> values = new ArrayList<>();
 				for (SqlServiceProviderGroupClaim claim : duplicateGroupClaims.get(key)) {
@@ -775,7 +857,7 @@ public class FlowService {
 			throw new ResponderException("Person var ikke gemt på session da fortsæt password skift blev tilgået");
 		}
 
-		PasswordSetting settings = passwordSettingService.getSettings(person);
+		PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 		String samaccountName = null;
 
 		if (person.getSamaccountName() != null && !person.getDomain().isStandalone()) {
@@ -841,6 +923,27 @@ public class FlowService {
 		
 		return false;
 	}
+
+	// used from Thymeleaf
+    public boolean showNemLogIn() {
+    	// we should prevent showing MitID if the request is from NemLog-in, as NL3 gets confused with 2 parallel logins
+        // Try to determine if ServiceProvider is the SelfService since it is always allowed to use NemLog-in
+        try {
+            LoginRequest loginRequest = sessionHelper.getLoginRequest();
+            if (loginRequest != null) {
+                ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+                if (serviceProvider != null && Objects.equals(NemLoginServiceProvider.SP_NAME, serviceProvider.getName(null))) {
+                    return false;
+                }
+            }
+        }
+        catch (RequesterException | ResponderException ex) {
+            log.warn("Could not determine where user is trying to login to", ex);
+        }
+
+    	// otherwise show it
+        return true;
+    }
 
 	private void movePrimeClientToTop(List<MfaClient> clients) {
 		if (clients == null || clients.size() == 1) {

@@ -1,2 +1,0 @@
--- rerun this whenever we make changes to email template children
-delete from email_template_children where email_template_id in (select id from email_templates where template_type in ('FULL_SERVICE_IDP_REMOVED', 'FULL_SERVICE_IDP_ASSIGNED'));

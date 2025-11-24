@@ -13,23 +13,20 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.util.Pair;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import dk.digitalidentity.common.dao.AuditLogDao;
 import dk.digitalidentity.common.dao.PersonDao;
-import dk.digitalidentity.common.dao.model.AuditLog;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.enums.LogAction;
 import dk.digitalidentity.common.service.ADPasswordService;
+import dk.digitalidentity.common.service.AuditLogService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 
 @Service
 public class StatisticsService {
 
-	// TODO: autowire service instead, instead of direct DAO access, and recode to use count() instead of find()
 	@Autowired
-	private AuditLogDao auditLogDao;
+	private AuditLogService auditLogService;
 
 	@Autowired
 	private PersonDao personDao;
@@ -39,9 +36,6 @@ public class StatisticsService {
 	
 	@Autowired
 	private PasswordSettingService passwordSettingsService;
-
-	@Autowired
-	private StatisticsService self;
 
 	@Cacheable("websocketConnections")
 	public Map<String, Pair<Integer, Integer>> getWebsocketConnections() {
@@ -58,8 +52,8 @@ public class StatisticsService {
 	}
 
 	@Cacheable("lastHourLogins")
-	public List<Integer> getLoginCountLastHour() {
-		List<Integer> loginCounts = new ArrayList<>();
+	public List<Long> getLoginCountLastHour() {
+		List<Long> loginCounts = new ArrayList<>();
 		LocalDateTime now = LocalDateTime.now();
 
 		for (int i = 6; i > 0; i--) {
@@ -69,16 +63,16 @@ public class StatisticsService {
 				end = now.minusMinutes((i - 1) * 10);
 			}
 
-			loginCounts.add(findLoginsByTimePeriod(start, end).size());
+			loginCounts.add(countLoginsByTimePeriod(start, end));
 		}
 
 		return loginCounts;
 	}
 
 	@Cacheable("TotalLastHourLogins")
-	public int getTotalLoginCountLastHour() {
+	public long getTotalLoginCountLastHour() {
 		int total = 0;
-		for (int count : getLoginCountLastHour()) {
+		for (long count : getLoginCountLastHour()) {
 			total += count;
 		}
 
@@ -86,8 +80,8 @@ public class StatisticsService {
 	}
 
 	@Cacheable("yesterdayLogins")
-	public List<Integer> getLoginCountYesterday() {
-		List<Integer> loginCounts = new ArrayList<>();
+	public List<Long> getLoginCountYesterday() {
+		List<Long> loginCounts = new ArrayList<>();
 		LocalDateTime yesterday = LocalDateTime.now().minus(1, ChronoUnit.DAYS);
 		LocalDateTime lastHourYesterday = yesterday.with(LocalTime.of(23, 59, 59));
 		LocalDateTime firstHourYesterday = yesterday.with(LocalTime.of(0, 0, 0));
@@ -99,16 +93,16 @@ public class StatisticsService {
 				end = lastHourYesterday;
 			}
 
-			loginCounts.add(findLoginsByTimePeriod(start, end).size());
+			loginCounts.add(countLoginsByTimePeriod(start, end));
 		}
 
 		return loginCounts;
 	}
 
 	@Cacheable("TotalYesterdayLogins")
-	public int getTotalLoginCountYesterday() {
+	public long getTotalLoginCountYesterday() {
 		int total = 0;
-		for (int count : getLoginCountYesterday()) {
+		for (long count : getLoginCountYesterday()) {
 			total += count;
 		}
 
@@ -156,22 +150,7 @@ public class StatisticsService {
 
 	}
 	
-	@Scheduled(fixedRate = 2 * 60 * 1000)
-	public void cleanUpTaskRealtimeValues() {
-		self.cleanupRealtimeValues();
-	}
-
-	@Scheduled(fixedRate = 10 * 60 * 1000)
-	public void cleanUpTaskLastHourLogins() {
-		self.cleanupHourly();
-	}
-
-	@Scheduled(cron = "0 4 * * * *")
-	public void cleanupDailyTask() {
-		self.cleanupDaily();
-	}
-
-	private List<AuditLog> findLoginsByTimePeriod(LocalDateTime start, LocalDateTime end) {
-		return auditLogDao.findByTtsAfterAndTtsBeforeAndLogAction(start, end, LogAction.LOGIN);
+	private long countLoginsByTimePeriod(LocalDateTime start, LocalDateTime end) {
+		return auditLogService.countByTtsAfterAndTtsBeforeAndLogAction(start, end, LogAction.LOGIN);
 	}
 }

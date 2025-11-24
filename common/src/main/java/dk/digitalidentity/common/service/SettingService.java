@@ -7,7 +7,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.dao.SettingDao;
@@ -20,9 +19,6 @@ public class SettingService {
 	
 	@Autowired
 	private SettingDao settingDao;
-	
-	@Autowired
-	private SettingService self;
 	
 	@Cacheable("booleanSetting")
 	public boolean getBoolean(SettingKey key) {
@@ -89,8 +85,6 @@ public class SettingService {
 
 		setting.setValue(tts.toString());
 		settingDao.save(setting);
-		
-		self.cleanupCache();
 	}
 
 	public void setBoolean(SettingKey key, boolean value) {
@@ -102,8 +96,6 @@ public class SettingService {
 
 		setting.setValue(Boolean.toString(value));
 		settingDao.save(setting);
-		
-		self.cleanupCache();
 	}
 	
 	public void setString(SettingKey key, String value) {
@@ -115,8 +107,6 @@ public class SettingService {
 
 		setting.setValue(value);
 		settingDao.save(setting);
-		
-		self.cleanupCache();
 	}
 
 	public void setLong(SettingKey key, Long value) {
@@ -128,8 +118,6 @@ public class SettingService {
 
 		setting.setValue(value == null ? "" : value.toString());
 		settingDao.save(setting);
-		
-		self.cleanupCache();
 	}
 	
 	@Caching(evict = {
@@ -140,10 +128,5 @@ public class SettingService {
 	})
 	public void cleanupCache() {
 
-	}
-	
-	@Scheduled(fixedRate = 10 * 60 * 1000)
-	public void cleanUpTaskRealtimeValues() {
-		self.cleanupCache();
 	}
 }

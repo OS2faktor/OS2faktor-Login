@@ -122,7 +122,7 @@ public class WSFederationMetadataController {
 		KeyDescriptor keyDescriptor = samlHelper.buildSAMLObject(KeyDescriptor.class);
 
 		keyDescriptor.setUse(usageType);
-		keyDescriptor.setKeyInfo(credentialService.getPublicKeyInfo());
+		keyDescriptor.setKeyInfo(credentialService.getPrimaryPublicKeyInfo());
 
 		return keyDescriptor;
 	}

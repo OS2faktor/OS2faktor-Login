@@ -7,33 +7,54 @@
 	<packaging>jar</packaging>
 	<name>TinyRadius Java Radius Library</name>
 
-        <parent>
-                <groupId>dk.digitalidentity.os2faktor</groupId>
-                <artifactId>os2faktor-nsis-parent</artifactId>
-                <version>1.0.0</version>
-        </parent>
+	<parent>
+		<groupId>dk.digitalidentity.os2faktor</groupId>
+		<artifactId>os2faktor-nsis-parent</artifactId>
+		<version>1.0.0</version>
+	</parent>
 
-        <build>
-                <plugins>
-                        <plugin>
-                                <groupId>org.apache.maven.plugins</groupId>
-                                <artifactId>maven-eclipse-plugin</artifactId>
-                                <version>2.9</version>
-                                <configuration>
-                                        <downloadSources>true</downloadSources>
-                                        <downloadJavadocs>true</downloadJavadocs>
-                                </configuration>
-                        </plugin>
-                </plugins>
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>25</java.version>
+	</properties>
 
-                <finalName>os2faktor-tinyradius</finalName>
-        </build>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-eclipse-plugin</artifactId>
+				<version>2.9</version>
+				<configuration>
+					<downloadSources>true</downloadSources>
+					<downloadJavadocs>true</downloadJavadocs>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>25</source>
+					<target>25</target>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+		</plugins>
+
+		<finalName>os2faktor-tinyradius</finalName>
+	</build>
 
 	<dependencies>
-                <dependency>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-starter</artifactId>
-                </dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>com.github.seancfoley</groupId>
@@ -41,10 +62,9 @@
 			<version>5.3.1</version>
 		</dependency>
 
-                <dependency>
-                        <groupId>org.projectlombok</groupId>
-                        <artifactId>lombok</artifactId>
-                        <version>1.18.30</version>
-                </dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+		</dependency>
 	</dependencies>
 </project>

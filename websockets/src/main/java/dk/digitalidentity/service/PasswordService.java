@@ -2,9 +2,9 @@ package dk.digitalidentity.service;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.api.dto.PasswordRequest;
@@ -25,7 +25,7 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
+			CompletableFuture<PasswordResponse> result = socketHandler.validatePassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
 
 			return result.get();
 		}
@@ -43,7 +43,7 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
+			CompletableFuture<PasswordResponse> result = socketHandler.setPassword(request.getUserName(), request.getPassword(), request.getDomain(), true);
 
 			// convert technical error to insufficent permissions if needed
 			PasswordResponse res = result.get();
@@ -67,7 +67,7 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.setPasswordWithForcedChange(request.getUserName(), request.getPassword(), request.getDomain(), true);
+			CompletableFuture<PasswordResponse> result = socketHandler.setPasswordWithForcedChange(request.getUserName(), request.getPassword(), request.getDomain(), true);
 
 			// convert technical error to insufficent permissions if needed
 			PasswordResponse res = result.get();
@@ -91,7 +91,7 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.unlockAccount(request.getUserName(), request.getDomain(), true);
+			CompletableFuture<PasswordResponse> result = socketHandler.unlockAccount(request.getUserName(), request.getDomain(), true);
 
 			// convert technical error to insufficent permissions if needed
 			PasswordResponse res = result.get();
@@ -115,7 +115,7 @@ public class PasswordService {
 		response.setStatus(PasswordStatus.FAILURE);
 
 		try {
-			AsyncResult<PasswordResponse> result = socketHandler.passwordExpires(request.getUserName(), request.getDomain(), true);
+			CompletableFuture<PasswordResponse> result = socketHandler.passwordExpires(request.getUserName(), request.getDomain(), true);
 
 			return result.get();
 		}

@@ -21,6 +21,8 @@ import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.ShowErrorToUserException;
+
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -44,7 +46,7 @@ public class WSFederationController {
 	private ServiceProviderFactory serviceProviderFactory;
 
 	@RequestMapping(value = { "/ws/login", "/ws/login/", }, method = { RequestMethod.GET, RequestMethod.POST})
-	public ModelAndView login(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO parameters) throws RequesterException, ResponderException {
+	public ModelAndView login(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO parameters) throws RequesterException, ResponderException, ShowErrorToUserException {
 		// handle logout case
 		if ("wsignout1.0".equals(parameters.getWa()) || "wsignoutcleanup1.0".equals(parameters.getWa())) {
 			return logout(httpServletRequest, httpServletResponse, model, parameters);

@@ -14,6 +14,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
@@ -31,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class PasswordValidationService {
+	private long timeoutCounter = 0;
 
 	@Autowired
 	private BadPasswordService badPasswordService;
@@ -243,6 +245,8 @@ public class PasswordValidationService {
 
 				List<String> suffixes = callPwnedApi(prefix);
 
+				timeoutCounter = 0;
+
 				if (suffixes.contains(suffix)) {
 					log.warn("Detected leaked password for " + person.getSamaccountName());
 					return true;
@@ -250,7 +254,19 @@ public class PasswordValidationService {
 			}
 		}
 		catch (Exception ex) {
-			log.error("Problem checking if password is leaked", ex);
+			if (ex instanceof ResourceAccessException && ex.getMessage() != null && ex.getMessage().contains("timed out")) {
+				timeoutCounter++;
+				
+				if (timeoutCounter < 10) {
+					log.warn("Connection timeout on api.pwnedpasswords.com");
+				}
+				else {
+					log.error("Connection timeout on api.pwnedpasswords.com", ex);
+				}
+			}
+			else {
+				log.error("Problem checking if password is leaked", ex);
+			}
 		}
 
 		return false;

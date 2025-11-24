@@ -62,7 +62,7 @@
                                         <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b wcag-btn-danger">Afbryd login</a>
 
                                         <br>
-                                        <a th:href="${changePasswordUrl}" class="wcag-small-blue">Glemt kodeord eller låst ude?</a>
+                                        <a th:href="${changePasswordUrl}" class="wcag-small-blue"><th:block th:text="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></th:block></a>
 
                                         <hr/>
 
@@ -84,7 +84,7 @@
                                         </div>
                                         <br>
                                         <div class="form-group">
-                                            <a th:href="@{/nemlogin/saml/login}" class="btn btn-primary block full-width m-b">Login med MitID</a>
+                                            <a th:href="@{/nemlogin/saml/login?idp=https://saml.nemlog-in.dk}" class="btn btn-primary block full-width m-b">Login med MitID</a>
                                         </div>
                                     </form>
                                 </div>

@@ -8,14 +8,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PasswordSettingDao;
 import dk.digitalidentity.common.dao.model.Domain;
 import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.dao.model.enums.PasswordHintsPosition;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -28,29 +29,24 @@ public class PasswordSettingService {
 
 	@Autowired
 	private DomainService domainService;
-	
+
 	@Autowired
-	private PasswordSettingService self;
+	private CommonConfiguration commonConfiguration;
 
 	@CacheEvict(value = "passwordSettingsByDomain", allEntries = true)
 	public void cleanPasswordSettingsCache() {
 		;
 	}
 
-	@Scheduled(fixedRate = 5 * 60 * 1000)
-	public void cleanUpTask() {
-		self.cleanPasswordSettingsCache();
-	}
-
-	public PasswordSetting getSettings(Person person) {
+	public Domain getSettingsDomainForPerson(Person person) {
 		if (person.isTrustedEmployee()) {
 			Domain domain = domainService.getTrustedEmployeesDomain();
 			if (domain != null) {
-				return self.getSettings(domain);
+				return domain;
 			}
 		}
 
-		return self.getSettings(person.getDomain());
+		return person.getDomain();
 	}
 
 	public String getDisallowedNames(Person person) {
@@ -73,10 +69,17 @@ public class PasswordSettingService {
 
 		if (all.size() == 0) {
 			PasswordSetting settings = new PasswordSetting();
-			settings.setMinLength(10L);
+			
+			if (commonConfiguration.getFullServiceIdP().isEnabled()) {
+				settings.setMinLength(commonConfiguration.getFullServiceIdP().getMinimumPasswordLength());
+			}
+			else {
+				settings.setMinLength(10L);
+			}
+
 			settings.setMaxLength(64L);
 			settings.setRequireComplexPassword(false);
-			settings.setRequireLowercaseLetters(true);
+			settings.setRequireLowercaseLetters(false);
 			settings.setRequireUppercaseLetters(false);
 			settings.setRequireDigits(false);
 			settings.setRequireSpecialCharacters(false);
@@ -93,6 +96,7 @@ public class PasswordSettingService {
 			settings.setAllowedSpecialCharacters(null);
 			settings.setForceChangePasswordEnabled(false);
 			settings.setForceChangePasswordInterval(365L);
+			settings.setPasswordHintsPosition(PasswordHintsPosition.BELOW_COLLAPSED);
 
 			return settings;
 		}

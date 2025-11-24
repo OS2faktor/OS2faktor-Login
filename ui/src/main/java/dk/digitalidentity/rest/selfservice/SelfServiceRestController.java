@@ -86,7 +86,7 @@ public class SelfServiceRestController {
 	}
 	
 	private Specification<AuditLogView> getAdditionalSpecification(long value) {
-		return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
+		return (root, _, criteriaBuilder) -> criteriaBuilder.equal(root.get("personId"), value);
 	}
 
 	@PostMapping("/rest/selvbetjening/rename")

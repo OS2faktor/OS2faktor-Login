@@ -107,6 +107,10 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.unlockAccount.insufficient-permission", getDescription("cms.unlockAccount.insufficient-permission")));
 		all.add(new CmsMessageListDTO("cms.changePassword.insufficient-permission", getDescription("cms.changePassword.insufficient-permission")));
 		
+		all.add(new CmsMessageListDTO("cms.changePassword.button", getDescription("cms.changePassword.button")));
+
+		all.add(new CmsMessageListDTO("cms.login.rejected.ip", getDescription("cms.login.rejected.ip")));
+
 		return all;
 	}
 	
@@ -224,6 +228,10 @@ public class CmsMessageBundle {
 				return "Teksten der vises hvis en brugers nuværende kodeord er fundet i lister med lækkede kodeord, og brugeren stadig har en periode til at nå at skifte kodeordet i";
 			case "cms.password.leak.final":
 				return "Teksten der vises hvis en brugers nuværende kodeord er fundet i lister med lækkede kodeord, og brugeren er tvunget til at skifte kodeordet vha MitID";
+			case "cms.changePassword.button":
+				return "Teksten på knappen der anvendes når man vil afslutte et kodeordsskifte";
+            case "cms.login.rejected.ip":
+                return "Teksten der vises hvis en brugers login afvises pga IP adresse udenfor kendte netværk";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

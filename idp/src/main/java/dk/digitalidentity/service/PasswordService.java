@@ -99,7 +99,7 @@ public class PasswordService {
 		}
 
 		// Any other prompting of password change needs PasswordSetting.isForceChangePasswordEnabled=true
-		PasswordSetting settings = passwordSettingService.getSettings(person);
+		PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 		if (settings.isForceChangePasswordEnabled()) {
 
 			// person does not actually have a password set (yet)
@@ -329,7 +329,7 @@ public class PasswordService {
 				}
 				
 				// if password leakage control is enabled, perform a background check if needed
-				PasswordSetting passwordSetting = passwordSettingService.getSettings(person);
+				PasswordSetting passwordSetting = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 				if (passwordSetting.isCheckLeakedPasswords()) {
 					// only check every X days according to settings
 					if (person.getBadPasswordLeakCheckTts() == null ||

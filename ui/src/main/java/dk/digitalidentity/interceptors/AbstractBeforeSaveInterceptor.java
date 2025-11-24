@@ -6,28 +6,23 @@ import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
-import dk.digitalidentity.common.dao.PersonDao;
 import dk.digitalidentity.common.dao.model.NemloginQueue;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.service.NemloginQueueService;
+import dk.digitalidentity.common.service.PersonService;
 
 @Component
 public class AbstractBeforeSaveInterceptor {
 	
 	@Autowired
-	private PersonDao personDao;
+	private PersonService personService;
 
 	@Autowired
 	private NemloginQueueService nemloginQueueService;
-	
-	@Autowired
-	private AbstractBeforeSaveInterceptor self;
 	
 	@Autowired
 	private CommonConfiguration commonConfiguration;
@@ -38,7 +33,7 @@ public class AbstractBeforeSaveInterceptor {
 		if (commonConfiguration.getNemLoginApi().isEnabled()) {
 			List<NemloginQueue> actions = new ArrayList<>();
 
-			Person oldPerson = self.loadOldPerson(person.getId());
+			Person oldPerson = personService.loadOldPerson(person.getId());
 			if (oldPerson != null) {
 
 				if (!StringUtils.hasLength(person.getNemloginUserUuid())) {
@@ -108,10 +103,5 @@ public class AbstractBeforeSaveInterceptor {
 				nemloginQueueService.saveAll(actions);
 			}
 		}
-	}
-
-	@Transactional(propagation = Propagation.REQUIRES_NEW) // this is OK - we ensure a fresh copy is loaded by setting the propagation
-	public Person loadOldPerson(long id) {
-		return personDao.findById(id);
 	}
 }

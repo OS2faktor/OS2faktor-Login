@@ -34,4 +34,6 @@ public class StilSPConfiguration {
 		
 		return metadataBaseUrl + municipalityId.trim();
 	}
+
+    private boolean onlyAllowLoginFromKnownNetworks;
 }

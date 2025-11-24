@@ -130,12 +130,12 @@ public class LogoutController {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
 			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 
-			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex);
+			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex, serviceProvider);
 		}
 		catch (ResponderException ex) {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
 			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex);
+			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex, serviceProvider);
 		}
 
         return null;
@@ -171,12 +171,12 @@ public class LogoutController {
         catch (ResponderException ex) {
             SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
             String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.RESPONDER, ex);
+            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.RESPONDER, ex, serviceProvider);
         }
         catch (RequesterException ex) {
             SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
             String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
-            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.REQUESTER, ex);
+            errorResponseService.sendError(httpServletResponse, destination, logoutRequest != null ? logoutRequest.getID() : null, StatusCode.REQUESTER, ex, serviceProvider);
         }
     }
 }

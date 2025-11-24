@@ -1,7 +1,7 @@
 package dk.digitalidentity.config;
 
 import java.io.IOException;
-import java.security.cert.X509Certificate;
+import java.time.Duration;
 
 import javax.net.ssl.SSLContext;
 
@@ -11,8 +11,8 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactoryBuilder;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.apache.hc.core5.ssl.TrustStrategy;
 import org.apache.hc.core5.util.Timeout;
@@ -23,7 +23,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.util.ResourceUtils;
 import org.springframework.web.client.ResponseErrorHandler;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 
@@ -33,63 +33,58 @@ public class RestTemplateConfiguration {
 	@Autowired
 	private CommonConfiguration config;
 	
-	@Bean(name = "nemLoginRestTemplate")
-	public RestTemplate nemLoginRestTemplate() throws Exception {
-		TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
+	@Bean(name = "nemLoginRestClient")
+	public RestClient nemLoginRestClient() throws Exception {
+	    TrustStrategy acceptingTrustStrategy = (_, _) -> true;
 
-		RequestConfig requestConfig = RequestConfig.custom()
-			.setCookieSpec(StandardCookieSpec.RELAXED)
-			.setConnectionRequestTimeout(Timeout.ofSeconds(180))
-			.setResponseTimeout(Timeout.ofSeconds(180))
-			.build();
+	    RequestConfig requestConfig = RequestConfig.custom()
+	        .setCookieSpec(StandardCookieSpec.RELAXED)
+	        .setConnectionRequestTimeout(Timeout.ofSeconds(180))
+	        .setResponseTimeout(Timeout.ofSeconds(180))
+	        .build();
 
-		CloseableHttpClient client = null;
-		if (config.getNemLoginApi().isEnabled()) {
-			SSLContext sslContext = SSLContextBuilder.create()
-		        .loadKeyMaterial(
-	        		ResourceUtils.getFile(config.getNemLoginApi().getKeystoreLocation()),
-	        		config.getNemLoginApi().getKeystorePassword().toCharArray(),
-	        		config.getNemLoginApi().getKeystorePassword().toCharArray())
-		        .loadTrustMaterial(acceptingTrustStrategy)
-		        .build();
+	    CloseableHttpClient client = null;
+	    if (config.getNemLoginApi().isEnabled()) {
+	        SSLContext sslContext = SSLContextBuilder.create()
+	            .loadKeyMaterial(
+	                ResourceUtils.getFile(config.getNemLoginApi().getKeystoreLocation()),
+	                config.getNemLoginApi().getKeystorePassword().toCharArray(),
+	                config.getNemLoginApi().getKeystorePassword().toCharArray())
+	            .loadTrustMaterial(acceptingTrustStrategy)
+	            .build();
 
-	        SSLConnectionSocketFactory sslSocketFactory = SSLConnectionSocketFactoryBuilder.create()
-	                .setSslContext(sslContext)
-	                .build();
+	        TlsSocketStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+	            .setSslContext(sslContext)
+	            .buildClassic();
 
 	        HttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
-	                .setSSLSocketFactory(sslSocketFactory)
-	                .build();
+	            .setTlsSocketStrategy(tlsStrategy)
+	            .build();
 
-			client = HttpClients.custom()
-				.setConnectionManager(connectionManager)
-				.setDefaultRequestConfig(requestConfig)
-				.build();			
-		}
-		else {
-			client = HttpClients.custom()
-				.setDefaultRequestConfig(requestConfig)
-				.build();
-		}
+	        client = HttpClients.custom()
+	            .setConnectionManager(connectionManager)
+	            .setDefaultRequestConfig(requestConfig)
+	            .build();
+	    }
+	    else {
+	        client = HttpClients.custom()
+	            .setDefaultRequestConfig(requestConfig)
+	            .build();
+	    }
 
-		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
-		requestFactory.setConnectionRequestTimeout(3 * 60 * 1000);
-		requestFactory.setConnectTimeout(3 * 60 * 1000);
-		requestFactory.setHttpClient(client);
+	    HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(client);
+	    requestFactory.setConnectionRequestTimeout(Duration.ofMinutes(3));
+	    requestFactory.setReadTimeout(Duration.ofMinutes(3));
 
-		RestTemplate restTemplate = new RestTemplate(requestFactory);
-		restTemplate.setErrorHandler(new ResponseErrorHandler() {
-			
-			@Override
-			public boolean hasError(ClientHttpResponse response) throws IOException {
-				return false;
-			}
-			
-			@Override
-			public void handleError(ClientHttpResponse response) throws IOException {
-			}
-		});
+	    return RestClient.builder()
+	        .requestFactory(requestFactory)
+	        .defaultStatusHandler(new ResponseErrorHandler() {
 
-		return restTemplate;
+	            @Override
+	            public boolean hasError(ClientHttpResponse response) throws IOException {
+	                return false;
+	            }
+	        })
+	        .build();
 	}
 }

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="~{fragments/topbar :: topbar (page = 'otherUsers.change-password-list')}"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-users"></em> &nbsp; Elever i <span th:text="${className}"></span> fra <span th:text="${institution}"></span></h5>
+                                <div class="ibox-tools" style="top: 8px !important;right: 8px !important;">
+                                    <button onclick="changePasswordListService.bulkChangePassword()" class="btn btn-primary">
+                                        <em class="fa fa-magic"></em>
+                                        &nbsp;
+                                        Skift kodeord på valgte
+                                    </button>
+                                </div>
+                            </div>
+
+							<div class="ibox-content">
+								<p>
+									Nedenfor listes alle de elever fra klassen, som du kan skifte kodeord på. Man kan anvende søgefelter over hver kolonne for at filtrere listen af brugere.
+								</p>
+                                <p>
+                                    Hvis der er nogen brugere, du ikke vil skifte kodeord på, kan du fravælge dem i tabellen herunder. Når kodeordet er skiftet, vil du kunne finde det ved at downloade en klasseliste med kodeord.
+                                </p>
+								
+								<h4>Elever</h4>
+								<div class="table-responsive">
+									<table id="students" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th>Skift kodeord</th>
+                                                <th>Person</th>
+												<th style="width: 200px;">Brugernavn</th>
+											</tr>
+										</thead>
+										
+										<tfoot style="display: table-row-group">
+											<tr>
+                                                <td></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
+											</tr>
+										</tfoot>
+
+										<tbody>
+											<tr th:each="person : ${students}">
+                                                <td style="width: 100px; text-align: center">
+                                                    <input type="checkbox" class="i-checks changePWCheckbox" th:data-id="${person.id}" checked="checked"/>
+                                                </td>
+												<td th:text="${person.name}" />
+												<td th:text="${person.samaccountName}" />
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="~{fragments/rightbar :: otherUsers (page = 'otherUsers.change-password-list')}"></div>
+				</div>
+			</div>
+
+			<div th:replace="~{fragments/footer :: footer}"></div>
+		</div>
+	</div>
+
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		/*[+
+		var flashSuccess = [[${flashSuccess}]];
+		var flashWarning = [[${flashWarning}]];
+		var flashError = [[${flashError}]];
+		var schoolClassId = [[${schoolClassId}]];
+		+]*/
+
+		var token = $("meta[name='_csrf']").attr("content");
+        var table;
+		var changePasswordListService;
+
+		$(document).ready(function(){
+            if (flashSuccess != undefined) {
+                toastr.success(flashSuccess);
+            }
+            if (flashWarning != undefined) {
+                toastr.warning(flashWarning);
+            }
+            if (flashError != undefined) {
+                toastr.error(flashError);
+            }
+
+            changePasswordListService = new ChangePasswordListService();
+            changePasswordListService.initializeDatatable();
+
+            // Initialize i-checks
+            $('.i-checks').iCheck({
+                checkboxClass: 'icheckbox_square-green'
+            });
+        });
+
+        function ChangePasswordListService() {
+
+			this.initializeDatatable = function() {
+				table = $('#students').DataTable({
+					"destroy": true,
+					"columns": [
+						{
+							"searchable": false,
+							"orderable": false
+						},
+						{
+							"orderable": true
+						},
+						{
+							"orderable": true
+						}
+					],
+					"ordering": true,
+					"order": [1, 'asc'],
+					"info": true,
+					"paging": false,
+					"lengthChange": false,
+					"bSort": false,
+					"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+					"responsive": true,
+					"language": {
+						"search":	   "Søg",
+						"lengthMenu":   "_MENU_ rækker per side",
+						"info":		 "Viser _START_ til _END_ af _TOTAL_ brugere",
+						"zeroRecords":  "Ingen data...",
+						"infoEmpty":	"Henter data...",
+						"infoFiltered": "(ud af _MAX_ brugere)",
+						"paginate": {
+							"previous": "Forrige",
+							"next": "Næste"
+						}
+					}
+				});
+
+				$.each($('.input-filter', table.table().footer()), function() {
+					var column = table.column($(this).index());
+
+					$('input', this).on('keyup change', function () {
+						if (column.search() !== this.value) {
+							column.search(this.value).draw();
+						}
+					});
+				});
+			}
+
+			this.bulkChangePassword = function() {
+                // Collect all checked person IDs
+                var selectedIds = [];
+                $('.changePWCheckbox').each(function() {
+                    if ($(this).prop('checked')) {
+                        selectedIds.push($(this).data('id'));
+                    }
+                });
+
+                if (selectedIds.length === 0) {
+                    toastr.warning('Vælg mindst én elev at skifte kodeord på');
+                    return;
+                }
+
+                // Show loading state
+                var btn = $('button:contains("Skift kodeord på valgte")');
+                var originalHtml = btn.html();
+                btn.prop('disabled', true);
+                btn.html('<em class="fa fa-spinner fa-spin"></em> Skifter kodeord...');
+
+                // Send request to backend
+                $.ajax({
+                    url: '/rest/student/bulkchangepassword/' + schoolClassId,
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRF-TOKEN': token
+                    },
+                    data: JSON.stringify(selectedIds),
+                    success: function(response) {
+                        toastr.success(response);
+                        if (response.indexOf("Fejlede for") === -1) {
+                            // Navigate to list page after 3 seconds if no failures
+                            setTimeout(function() {
+                                window.location.href = '/andre-brugere/kodeord/skift/list';
+                            }, 3000);
+                        } else {
+                            // Restore button if there were failures
+                            btn.prop('disabled', false);
+                            btn.html(originalHtml);
+                        }
+                    },
+                    error: function(xhr) {
+                        var errorMsg = xhr.responseText || 'Der opstod en fejl ved skift af kodeord';
+                        toastr.error(errorMsg);
+
+                        // Restore button
+                        btn.prop('disabled', false);
+                        btn.html(originalHtml);
+                    }
+                });
+            }
+		}
+
+		/*]]>*/
+	</script>
+</body>
+</html>

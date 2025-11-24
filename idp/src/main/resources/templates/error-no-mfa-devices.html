@@ -10,9 +10,10 @@
                     <h5><em class="fa fa-key"></em> &nbsp; Ingen 2-faktor enheder registreret</h5>
                 </div>
 
-                <div th:if="${@loginService.showNemLogIn()}" class="ibox-content">
+                <div class="ibox-content">
                     <p th:utext="${@cmsMessageBundle.getText('cms.login.mfa.noClients')}" />
 
+					<th:block th:if="${@flowService.showNemLogIn()}">
                     <h4>Login med MitID</h4>
                     <p>
                     Du kan også vælge at bruge dit MitID til at foretage et login
@@ -22,6 +23,7 @@
                         &nbsp;
                         Log ind med MitID
                     </a>
+					</th:block>
                 </div>
             </div>
         </div>

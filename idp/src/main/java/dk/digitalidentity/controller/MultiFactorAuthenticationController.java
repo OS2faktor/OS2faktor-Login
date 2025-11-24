@@ -142,7 +142,7 @@ public class MultiFactorAuthenticationController {
 			model.addAttribute("redirectUrl", redirectUrl);
 		}
 		
-		model.addAttribute("isAndroidOrIOS", (matchingClient.getType() == ClientType.ANDROID || matchingClient.getType() == ClientType.IOS));
+		model.addAttribute("isAndroidOrIOS", (configuration.getMfa().isShowMfaButton() && (matchingClient.getType() == ClientType.ANDROID || matchingClient.getType() == ClientType.IOS)));
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 		

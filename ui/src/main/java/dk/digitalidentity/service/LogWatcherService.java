@@ -103,7 +103,7 @@ public class LogWatcherService {
 
 		LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 		List<AuditLogFailedLoginDTO> dtoList = jdbcTemplate.query(SELECT_WRONG_PASSWORD_NON_WHITELIST_IP,
-				(rs, rowNum) -> failedLoginMapper(rs),
+				(rs, _) -> failedLoginMapper(rs),
 				LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
 				LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
@@ -196,7 +196,7 @@ public class LogWatcherService {
 		}
 		
 		List<AuditLogLocationDto> dtoList = jdbcTemplate.query(SELECT_LOGIN_AUDITLOGS_WITH_LOCATION_NON_DK,
-			(rs, rowNum) -> {
+			(rs, _) -> {
 				return new AuditLogLocationDto(rs.getLong("person_id"), rs.getString("location"));
 			},
 			LocalDateTime.now().minusMinutes(70).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
@@ -249,7 +249,7 @@ public class LogWatcherService {
 		}
 
 		List<AuditLogLocationDto> logsWithLocation = jdbcTemplate.query(SELECT_LOGIN_AUDITLOGS_WITH_LOCATION,
-			(rs, rowNum) -> {
+			(rs, _) -> {
 				String location = rs.getString("location");
 				if ((translateGermany && "Germany".equals(location)) || (translateSweeden && "Sweden".equals(location)) || (translateHolland && "The Netherlands".equals(location))) {
 					location = "Denmark";
@@ -328,7 +328,7 @@ public class LogWatcherService {
 
 		long logCount = 0;
 		List<Long> logCountList = jdbcTemplate.query(SELECT_WRONG_PASSWORD_LAST_HOUR,
-				(rs, rowNum) -> rs.getLong("antal"),
+				(rs, _) -> rs.getLong("antal"),
 				LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
 				LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 

@@ -15,10 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -28,12 +24,11 @@ import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -55,15 +50,12 @@ import dk.digitalidentity.common.dao.model.enums.RoleSettingType;
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.log.AuditLogger;
-import dk.digitalidentity.common.service.dto.ChildDTO;
-import dk.digitalidentity.common.service.dto.CprLookupDTO;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@EnableCaching
 public class PersonService {
 
 	/*
@@ -122,13 +114,17 @@ public class PersonService {
 	@Autowired
 	private NemloginQueueService nemloginQueueService;
 	
-	@Autowired
-	private CprService cprService;
-
 	public Person getById(long id) {
 		return personDao.findById(id);
 	}
+	
+	// this is OK - we ensure a fresh copy is loaded by setting the propagation
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public Person loadOldPerson(long id) {
+		return personDao.findById(id);
+	}
 
+	@Transactional
 	public Person getById(long id, Consumer<Person> consumer) {
 		Person person = personDao.findById(id);
 		
@@ -209,6 +205,10 @@ public class PersonService {
 
 	public List<Person> getByUPN(String username) {
 		return personDao.findByAttributeValue("upn", username);
+	}
+	
+	public List<Person> getByUniID(String uniID) {
+		return personDao.findByAttributeValue("UniID", uniID);
 	}
 
 	@Transactional // this is OK, need transaction for isolated read
@@ -521,7 +521,7 @@ public class PersonService {
 	public void badPasswordAttempt(Person person, boolean isWCP) {
 		auditLogger.badPassword(person, isWCP);
 		person.setBadPasswordCount(person.getBadPasswordCount() + 1);
-		PasswordSetting setting = passwordSettingService.getSettings(person);
+		PasswordSetting setting = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 
 		if (person.getBadPasswordCount() >= setting.getTriesBeforeLockNumber()) {
 			auditLogger.tooManyBadPasswordAttempts(person, setting.getLockedMinutes());
@@ -577,7 +577,7 @@ public class PersonService {
 		 */
 		if (!bypassReplication && !person.isDoNotReplicatePassword() && !person.getDomain().isStandalone()) {
 			if (StringUtils.hasLength(person.getSamaccountName())) {
-				adPasswordStatus = passwordChangeQueueService.attemptPasswordChangeFromUI(person, newPassword, forceChangePassword);
+				adPasswordStatus = adPasswordService.attemptPasswordChangeFromUI(person, newPassword, forceChangePassword);
 
 				switch (adPasswordStatus) {
 					case FAILURE:
@@ -873,7 +873,7 @@ public class PersonService {
 	public void cleanUp() {
 
 		@SuppressWarnings("deprecation")
-		List<Long> idsToBeDeleted = jdbcTemplate.query(SELECT_PERSON_IDS, new Object[] {}, (RowMapper<Long>) (rs, rownum) -> {
+		List<Long> idsToBeDeleted = jdbcTemplate.query(SELECT_PERSON_IDS, new Object[] {}, (RowMapper<Long>) (rs, _) -> {
 			return rs.getLong("id");
 		});
 		
@@ -983,70 +983,6 @@ public class PersonService {
 
 	public void deleteAll(List<Person> toDelete) {
 		personDao.deleteAll(toDelete);		
-	}
-
-	@Cacheable("getChildren")
-	public List<Person> getChildrenPasswordAllowed(String cpr) {
-		List<Person> result = new ArrayList<>();
-		
-		Future<CprLookupDTO> cprFuture = cprService.getByCpr(cpr);
-		CprLookupDTO personLookup = null;
-
-		try {
-			personLookup = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
-		}
-		catch (InterruptedException | ExecutionException | TimeoutException ex) {
-			log.warn("Got a timeout on lookup of children", ex);
-			return result;
-		}
-
-		if (personLookup != null && personLookup.getChildren() != null && !personLookup.getChildren().isEmpty()) {
-			for (ChildDTO child : personLookup.getChildren()) {
-				List<Person> childPersons = getByCpr(child.getCpr());
-
-				for (Person person : childPersons) {
-					if (person.isNsisAllowed()) {
-						continue;
-					}
-					
-					if (person.isLocked()) {
-						continue;
-					}
-					
-					if (isAdult(getBirthDateFromCpr(person.getCpr()))) {
-						continue;
-					}
-					
-					result.add(person);
-				}
-			}
-		}
-
-		return result;
-	}
-
-	private boolean isAdult(LocalDate birthday) {
-		return LocalDate.from(birthday).until(LocalDate.now(), ChronoUnit.YEARS) >= 16;
-	}
-
-	private LocalDate getBirthDateFromCpr(String cpr) {
-		var datePart = Integer.parseInt(cpr.substring(0, 2));
-		var monthPart = Integer.parseInt(cpr.substring(2, 4));
-		var yearPart = Integer.parseInt(cpr.substring(4, 6));
-		var seventh = Integer.parseInt(cpr.substring(6, 7));
-		var century = 0;
-		
-		if (seventh < 4) {
-			century = 1900;
-		}
-		else if (seventh == 4 || seventh == 9) {
-			century = yearPart < 37 ? 2000 : 1900;
-		}
-		else {
-			century = yearPart < 58 ? 2000 : 1800;
-		}
-		
-		return LocalDate.of(century + yearPart, monthPart, datePart);
 	}
 
 	public List<Person> getByExternalNemloginUserUuid(String uuid) {

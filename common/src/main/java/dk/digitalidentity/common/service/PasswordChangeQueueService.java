@@ -23,25 +23,19 @@ import org.springframework.transaction.annotation.Transactional;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.PasswordChangeQueueDao;
 import dk.digitalidentity.common.dao.model.PasswordChangeQueue;
-import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.ReplicationStatus;
-import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
 public class PasswordChangeQueueService {
+	private SecretKeySpec secretKey;
 	
-	@Autowired
-	private ADPasswordService adPasswordService;
-
 	@Autowired
 	private PasswordChangeQueueDao passwordChangeQueueDao;
 
 	@Autowired
 	private CommonConfiguration commonConfiguration;
-
-	private SecretKeySpec secretKey;
 
 	public PasswordChangeQueue save(PasswordChangeQueue passwordChangeQueue) {
 		return save(passwordChangeQueue, true);
@@ -55,6 +49,9 @@ public class PasswordChangeQueueService {
 		if (deleteOldEntries) {
 			List<PasswordChangeQueue> oldQueued = passwordChangeQueueDao.findBySamaccountNameAndDomainAndStatusNot(passwordChangeQueue.getSamaccountName(), passwordChangeQueue.getDomain(), ReplicationStatus.SYNCHRONIZED);
 			if (oldQueued != null && oldQueued.size() > 0) {
+				// do not delete the current one, it might not have a SYNCHRONIZED status
+				oldQueued.removeIf(q -> q.getId() == passwordChangeQueue.getId());
+				
 				passwordChangeQueueDao.deleteAll(oldQueued);
 			}
 		}
@@ -76,39 +73,6 @@ public class PasswordChangeQueueService {
 
 	public List<PasswordChangeQueue> getUnsynchronized() {
 		return passwordChangeQueueDao.findByStatusNotIn(ReplicationStatus.SYNCHRONIZED, ReplicationStatus.FINAL_ERROR, ReplicationStatus.DO_NOT_REPLICATE);
-	}
-
-	// only to be used from the UI
-	public ADPasswordStatus attemptPasswordChangeFromUI(Person person, String newPassword, boolean forceChangePassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
-		PasswordChangeQueue change = new PasswordChangeQueue(person, encryptPassword(newPassword), forceChangePassword);
-
-		ADPasswordStatus status = adPasswordService.attemptPasswordReplication(change);
-		switch (status) {
-			// inform user through UI (but also save result in queue for debugging purposes)
-			case FAILURE:
-			case TECHNICAL_ERROR:
-			case INSUFFICIENT_PERMISSION:
-				// FINAL_ERROR prevent any retries on this
-				change.setStatus(ReplicationStatus.FINAL_ERROR);
-				save(change);
-				break;
-
-			case NOOP:
-				log.error("Got a NOOP case here - that should not happen");
-				break;
-
-			// save result - so it is correctly logged to the queue
-			case OK:
-				save(change);
-				break;
-
-			// delay replication in case of a timeout
-			case TIMEOUT:
-				save(change);
-				break;
-		}
-
-		return status;
 	}
 
 	public PasswordChangeQueue getOldestUnsynchronizedByDomain(String domain) {

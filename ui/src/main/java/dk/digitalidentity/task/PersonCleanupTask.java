@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 
+@Slf4j
 @Component
 @EnableScheduling
-@Slf4j
 public class PersonCleanupTask {
 
 	@Autowired

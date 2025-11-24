@@ -25,6 +25,7 @@ public class CoreDataSyncMonitoringTask {
             log.info("Monitoring of CoreDataAPI calls started");
 
             try {
+                coreDataLogService.cleanup();
                 coreDataLogService.monitorCoreDataSync();
             }
             catch (Exception ex) {

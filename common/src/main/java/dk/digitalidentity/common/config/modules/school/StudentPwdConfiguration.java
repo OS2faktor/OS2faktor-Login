@@ -14,6 +14,8 @@ public class StudentPwdConfiguration {
 	@FeatureDocumentation(name = "Kodeordsskifte på elever", description = "Gør det muligt for udvalgte skole-roller at skifte kodeord på elever")
 	private boolean enabled;
 	
+	private boolean frontPageLinkEnabled;
+	
 	// this setting shows the dropdown special for selecting a new password
 	private boolean indskolingSpecialEnabled;
 
@@ -22,6 +24,9 @@ public class StudentPwdConfiguration {
 
 	// student needs to change password at next login
 	private boolean forceChangePasswordTeacherChoiceEnabled = true;
+
+	// max level for bulk change password
+	private Long bulkChangePasswordOnLevelAndBelow = 0L;
 
 	// for loading data from STIL
 	private String apiKey;

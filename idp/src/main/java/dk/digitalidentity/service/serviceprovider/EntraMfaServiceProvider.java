@@ -60,7 +60,7 @@ public class EntraMfaServiceProvider extends ServiceProvider {
 
 	@Override
 	public boolean preferNemId() {
-		return false;
+		return entraConfig.isPreferNemid();
 	}
 
 	@Override
@@ -145,5 +145,10 @@ public class EntraMfaServiceProvider extends ServiceProvider {
 		}
 		
 		return upn;
+	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return entraConfig.isOnlyAllowLoginFromKnownNetworks();
 	}
 }

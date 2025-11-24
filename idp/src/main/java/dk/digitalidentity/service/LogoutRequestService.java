@@ -1,7 +1,7 @@
 package dk.digitalidentity.service;
 
-import java.security.Security;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.xml.crypto.dsig.CanonicalizationMethod;
@@ -36,9 +36,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
+import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.service.validation.LogoutRequestValidationService;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
@@ -132,8 +133,16 @@ public class LogoutRequestService {
 		endpoint.setLocation(destination);
 
 		// Signing info
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureSigningParameters signatureSigningParameters = new SignatureSigningParameters();
-		signatureSigningParameters.setSigningCredential(credentialService.getBasicX509Credential());
+		signatureSigningParameters.setSigningCredential(x509Credential);
 		signatureSigningParameters.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
 		messageContext.getSubcontext(SecurityParametersContext.class, true).setSignatureSigningParameters(signatureSigningParameters);
 
@@ -181,32 +190,34 @@ public class LogoutRequestService {
 			sessionIndex.setSessionIndex(map.get(Constants.SESSION_INDEX));
 		}
 		
-		signLogoutRequest(outgoingLR);
+		signLogoutRequest(outgoingLR, serviceProvider);
 
 		return outgoingLR;
 	}
 
-	private void signLogoutRequest(LogoutRequest logoutRequest) throws ResponderException {
+	// TODO: should sign with SP specific certificate
+	private void signLogoutRequest(LogoutRequest logoutRequest, ServiceProvider serviceProvider) throws ResponderException {
 		Signature signature = samlHelper.buildSAMLObject(Signature.class);
 
-		BasicX509Credential x509Credential = credentialService.getBasicX509Credential();
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider != null && serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
 		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
 
 		signature.setSigningCredential(x509Credential);
 		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
 		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
-		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo(x509Credential));
 		logoutRequest.setSignature(signature);
 
 		try {
 			LogoutRequestMarshaller marshaller = new LogoutRequestMarshaller();
-			
-			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
-				marshaller.marshall(logoutRequest, Security.getProvider("KMS"));
-			}
-			else {
-				marshaller.marshall(logoutRequest);
-			}
+			marshaller.marshall(logoutRequest);
 
 			Signer.signObject(signature);
 		}

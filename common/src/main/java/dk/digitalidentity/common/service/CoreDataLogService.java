@@ -23,9 +23,6 @@ public class CoreDataLogService {
 	@Autowired
 	private DomainService domainService;
 	
-	@Autowired
-	private CoreDataLogService self;
-
 	public CoreDataLog getById(long id) {
 		return coreDataLogDao.getById(id);
 	}
@@ -42,9 +39,6 @@ public class CoreDataLogService {
 				continue;
 			}
 			
-			// cleanup old log entries
-			self.cleanup();
-
 			// find latest log entry
 			CoreDataLog latestLog = coreDataLogDao.findTopByDomainOrderByTtsDesc(domain);
 

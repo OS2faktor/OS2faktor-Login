@@ -29,6 +29,7 @@ import dk.digitalidentity.controller.dto.EntraPayload;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.model.enums.RequireNemIdReason;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -147,6 +148,10 @@ public class EntraMfaController {
 		auditLogger.entraMfaLoginRequest(person, upn, loginRequest.getUserAgent());
 
 		sessionHelper.setInEntraMfaFlow(person, loginRequest);
+
+		if (commonConfiguration.getEntraMfa().isMitIdOnly()) {
+			return flowService.initiateNemIDOnlyLogin(model, request, RequireNemIdReason.ENTRAMFA);
+		}
 
 		return flowService.initiateMFA(model, person, NSISLevel.NONE);
 	}

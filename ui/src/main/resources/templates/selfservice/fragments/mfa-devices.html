@@ -22,7 +22,6 @@
 						<td>
 							<span th:text="${client.name}"></span>
 							<span th:if="${client.prime}" class="badge badge-primary">Primær</span>
-							<span th:if="${client.roaming}" class="badge badge-warning">Roaming</span>
 							<span th:if="${client.passwordless && showPasswordless}" class="badge badge-primary">Kodeordsfri</span>
 						</td>
 						<td th:text="#{__${client.nsisLevel.message}__}" />
@@ -36,6 +35,7 @@
 								<em th:if="${client.prime}" class="fa fa-fw fa-heart" title="Fravælg enhed som primær"></em>
 							</a>
 							<a th:if="${#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction}" style="color: black;" onclick="detailService.getDetails(this)" th:attr="data-deviceid=${client.deviceId}" title="Hent information"><em class="fa fa-fw fa-info"></em></a>
+							<a th:if="${#authorization.expression('hasRole(''ROLE_SUPPORTER'')') && showDetailsAction}" style="color: black;" onclick="testLoginService.testLogin(this)" th:attr="data-deviceid=${client.deviceId}" title="Send test-login"><em class="fa fa-fw fa-share-square-o"></em></a>
 						</td>
 					</tr>
 				</tbody>
@@ -88,8 +88,10 @@
 
 		var token = $("meta[name='_csrf']").attr("content");
 		var detailService;
+		var testLoginService;
         $(document).ready(function() {
 			detailService = new DetailService();
+			testLoginService = new TestLoginService();
         });
 
         function DetailService() {
@@ -105,6 +107,25 @@
 				});
 			}
         }
+
+		function TestLoginService() {
+			this.testLogin = function(obj) {
+				var deviceId = $(obj).data('deviceid');
+				
+				$.ajax({
+					method : "POST",
+					url: "/rest/admin/testmfa/" + personId + "/" + deviceId,
+					headers: {
+						"content-type": "application/json",
+						'X-CSRF-TOKEN': token
+					}
+				}).done(function (data) {
+					toastr.success("Loginbesked sendt til klienten");
+				}).fail(function(jqXHR, textStatus, errorThrown) {
+					toastr.warning("Kunne ikke kontakte klienten");
+				});
+			}
+		}
 
         /*]]>*/
 	</script>

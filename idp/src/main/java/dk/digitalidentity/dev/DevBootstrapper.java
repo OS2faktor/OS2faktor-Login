@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -48,9 +47,6 @@ public class DevBootstrapper {
 	@Autowired
 	private DomainService domainService;
 
-	@Autowired
-	private Flyway flyway;
-	
 	@Autowired
 	private PasswordChangeQueueService passwordChangeQueueService;
 
@@ -296,20 +292,7 @@ public class DevBootstrapper {
 	private String randomUserId() {
 		return "user" + getInt(1, 999999);
 	}
-	
-	// TODO This is part of the nonsecured pages, should probably have "test" apiKey on endpoint
-	@GetMapping("/bootstrap/db/clean")
-	public ResponseEntity<?> cleanDB() {
-		if (!configuration.getDev().isEnabled()) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-		}
 
-		flyway.clean();
-		flyway.migrate();
-		
-		return new ResponseEntity<>(HttpStatus.OK);
-	}
-	
 	@GetMapping("/bootstrap/users/init")
 	public ResponseEntity<?> initUsers() {
 		if (!configuration.getDev().isEnabled()) {

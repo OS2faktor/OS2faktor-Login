@@ -21,6 +21,7 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.util.StringUtils;
 
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderCondition;
@@ -53,14 +54,16 @@ public class SqlServiceProvider extends ServiceProvider {
     private RoleCatalogueService roleCatalogueService;
     private AdvancedRuleService advancedRuleService;
     private AuditLogger auditLogger;
+    private GroupService groupService;
 
-    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient, RoleCatalogueService roleCatalogueService, AdvancedRuleService advancedRuleService, AuditLogger auditLogger) {
+    public SqlServiceProvider(SqlServiceProviderConfiguration config, HttpClient httpClient, RoleCatalogueService roleCatalogueService, AdvancedRuleService advancedRuleService, AuditLogger auditLogger, GroupService groupService) {
         super.httpClient = httpClient;
 
         this.roleCatalogueService = roleCatalogueService;
         this.config = config;
         this.advancedRuleService = advancedRuleService;
         this.auditLogger = auditLogger;
+        this.groupService = groupService;
     }
 
     @Override
@@ -215,16 +218,43 @@ public class SqlServiceProvider extends ServiceProvider {
 			}
 		}
 
-		// Group claims
+		// group claims
 		Set<SqlServiceProviderGroupClaim> groupClaims = config.getGroupClaims();
-		for (SqlServiceProviderGroupClaim groupClaim : groupClaims) {
-			if (GroupService.memberOfGroup(person, groupClaim.getGroup())) {
-				addAttribute(attributes, groupClaim.getClaimName(), groupClaim.getClaimValue(), includeDuplicates, false);
+		if (groupClaims.size() > 0) {
+			List<Group> groups = null;
+
+			for (SqlServiceProviderGroupClaim groupClaim : groupClaims) {
+				if (groupClaim.isValuePrefix()) {
+					// delay loading till we know we need the groups
+					if (groups == null) {
+						groups = groupService.getAll();
+					}
+
+					List<String> selectedGroups = groups.stream()
+						.filter(g -> GroupService.memberOfGroup(person, g))
+						.filter(g -> g.getName().startsWith(groupClaim.getClaimValue()))
+						.map(g -> groupClaim.isRemovePrefix()
+							? g.getName().replace(groupClaim.getClaimValue(), "")
+							: g.getName())
+						.collect(Collectors.toList());
+
+					for (String group : selectedGroups) {
+						addAttribute(attributes, groupClaim.getClaimName(), group, includeDuplicates, false);
+					}
+				}
+				else if (GroupService.memberOfGroup(person, groupClaim.getGroup())) {
+					addAttribute(attributes, groupClaim.getClaimName(), groupClaim.getClaimValue(), includeDuplicates, false);
+				}
 			}
 		}
 
 		return attributes;
 	}
+    
+    @Override
+    public boolean signResponse() {
+    	return config.isSignResponse();
+    }
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private void addAttribute(HashMap<String, Object> attributes, String claimKey, String newClaimVal, boolean includeDuplicates, boolean singleValue) {
@@ -241,7 +271,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		}
 
 		// If value already exists, merge values
-		Object computed = attributes.computeIfPresent(claimKey, (key, value) -> {
+		Object computed = attributes.computeIfPresent(claimKey, (_, value) -> {
 			if (value instanceof List) {
 				((List) value).add(newClaimVal);
 			} else {
@@ -275,7 +305,7 @@ public class SqlServiceProvider extends ServiceProvider {
 		}
 
 		// If value (List) already exists, merge values
-		Object computed = attributes.computeIfPresent(claimKey, (key, value) -> {
+		Object computed = attributes.computeIfPresent(claimKey, (_, value) -> {
 			if (value instanceof List) {
 				((List) value).addAll(newClaimVal);
 			}
@@ -410,6 +440,11 @@ public class SqlServiceProvider extends ServiceProvider {
 	@Override
 	public boolean nemLogInBrokerEnabled() {
 		return config.isNemLogInBrokerEnabled();
+	}
+	
+	@Override
+	public boolean isUniLoginBrokerEnabled() {
+		return config.isUniLoginBrokerEnabled();
 	}
 
 	@Override
@@ -610,5 +645,10 @@ public class SqlServiceProvider extends ServiceProvider {
 	@Override
 	public boolean isDelayedMobileLogin(LoginRequest loginRequest) {
 		return config.isDelayedMobileLogin();
+	}
+
+	@Override
+	public boolean onlyAllowLoginFromKnownNetworks() {
+		return config.isOnlyAllowLoginFromKnownNetworks();
 	}
 }

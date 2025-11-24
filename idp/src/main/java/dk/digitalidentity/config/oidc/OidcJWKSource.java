@@ -18,7 +18,6 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;
@@ -88,11 +87,7 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 	public KeyPair getKeyPair() throws CertificateException, IOException, NoSuchAlgorithmException, KeyStoreException, UnrecoverableKeyException {
 		KeyStore ks = keystoreService.getJavaKeystore(configuration.getKeystore().getOidcAlias());
 		
-		String alias = keystoreService.getKmsAlias(configuration.getKeystore().getOidcAlias());
-		// if no alias to KMS is available, load from keystore and find first
-		if (!StringUtils.hasLength(alias)) {
-			alias = ks.aliases().nextElement();
-		}
+		String alias = ks.aliases().nextElement();
 
 		String pwd = keystoreService.getJavaKeystorePassword(configuration.getKeystore().getOidcAlias());
 		

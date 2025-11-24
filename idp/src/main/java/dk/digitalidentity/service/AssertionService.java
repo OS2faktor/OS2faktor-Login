@@ -2,7 +2,6 @@ package dk.digitalidentity.service;
 
 import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
 
-import java.security.Security;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +46,7 @@ import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml.saml2.core.impl.AssertionMarshaller;
 import org.opensaml.saml.saml2.core.impl.AttributeStatementMarshaller;
 import org.opensaml.saml.saml2.core.impl.AttributeStatementUnmarshaller;
+import org.opensaml.saml.saml2.core.impl.ResponseMarshaller;
 import org.opensaml.saml.saml2.encryption.Encrypter;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.x509.BasicX509Credential;
@@ -65,7 +65,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
-import dk.digitalidentity.aws.kms.jce.provider.rsa.KmsRSAPrivateKey;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
@@ -170,7 +169,7 @@ public class AssertionService {
 			AuthnRequest authnRequest = loginRequest.getAuthnRequest();
 
 			// TODO change: i dont like that the assertion service class is concerning itself with returning errors, it should create (and *maybe* send assertions) and throw exceptions otherwise
-			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex);
+			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex, serviceProvider);
 		}
 	}
 
@@ -216,7 +215,7 @@ public class AssertionService {
 		signature.setSigningCredential(x509Credential);
 		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
 		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
-		signature.setKeyInfo(credentialService.getPublicKeyInfo());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo(x509Credential));
 		assertion.setSignature(signature);
 
 		// Sign Assertion
@@ -224,13 +223,7 @@ public class AssertionService {
 			// If the object hasnt been marshalled first it can't be signed
 			AssertionMarshaller marshaller = new AssertionMarshaller();
 	
-			// when using KMS keys, make sure to use the KMS provider
-			if (x509Credential.getPrivateKey() instanceof KmsRSAPrivateKey) {
-				marshaller.marshall(assertion, Security.getProvider("KMS"));
-			}
-			else {
-				marshaller.marshall(assertion);
-			}
+			marshaller.marshall(assertion);
 	
 			Signer.signObject(signature);
 		}
@@ -416,7 +409,47 @@ public class AssertionService {
 			response.getAssertions().add(assertion);
 		}
 
+		if (serviceProvider.signResponse()) {
+			signResponse(response, serviceProvider);
+		}
+		
 		return response;
+	}
+	
+	private void signResponse(Response response, ServiceProvider serviceProvider) throws ResponderException {
+		// Prepare Response for Signing
+		Signature signature = samlHelper.buildSAMLObject(Signature.class);
+
+		BasicX509Credential x509Credential = null;
+		if (serviceProvider instanceof SqlServiceProvider sp && Objects.equals(sp.getCertificateAlias(), KnownCertificateAliases.SELFSIGNED.toString())) {
+			x509Credential = credentialService.getSelfsignedX509Credential();
+		}
+		else {
+			x509Credential = credentialService.getBasicX509Credential();
+		}
+
+		SignatureRSASHA256 signatureRSASHA256 = new SignatureRSASHA256();
+
+		signature.setSigningCredential(x509Credential);
+		signature.setCanonicalizationAlgorithm(CanonicalizationMethod.EXCLUSIVE);
+		signature.setSignatureAlgorithm(signatureRSASHA256.getURI());
+		signature.setKeyInfo(credentialService.getPublicKeyInfo(x509Credential));
+		response.setSignature(signature);
+
+		// Sign Response
+		try {
+			// If the object hasn't been marshalled first it can't be signed
+			ResponseMarshaller marshaller = new ResponseMarshaller();	
+			marshaller.marshall(response);
+	
+			Signer.signObject(signature);
+		}
+		catch (MarshallingException e) {
+			throw new ResponderException("Kunne ikke omforme login besked (Response) før signering", e);
+		}
+		catch (SignatureException e) {
+			throw new ResponderException("Kunne ikke signere login besked (Response)", e);
+		}
 	}
 
 	public Assertion createAssertion(DateTime issueInstant, LoginRequest loginRequest, Person person, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
@@ -601,14 +634,10 @@ public class AssertionService {
 		audienceRestriction.getAudiences().add(audience);
 		audience.setAudienceURI(audienceValue);
 
-		// Claims
-		List<AttributeStatement> attributeStatements = assertion.getAttributeStatements();
-		attributeStatements.addAll(calculatedAttributeStatements);
-
 		// allow claims to override the Name ID value
 		String alternativeNameID = null;
-		if (attributeStatements.size() > 0) {
-			Map<String, String> attributeMap = openSAMLHelperService.extractAttributeValues(attributeStatements.get(0));
+		if (calculatedAttributeStatements.size() > 0) {
+			Map<String, String> attributeMap = openSAMLHelperService.extractAttributeValues(calculatedAttributeStatements.get(0));
 			if (attributeMap.containsKey("Name ID")) {
 				String customNameIDValue = attributeMap.get("Name ID");
 				if (StringUtils.hasText(customNameIDValue)) {
@@ -620,6 +649,25 @@ public class AssertionService {
 		if (StringUtils.hasText(alternativeNameID)) {
 			nameID.setValue(alternativeNameID);
 		}
+
+		// Claims
+		
+		// remove "Name ID" attribute - this code is needed, as the list they use does not support easy removal :(
+		
+		Attribute rAttr = null;
+		for (Attribute attr : calculatedAttributeStatements.get(0).getAttributes()) {
+			if ("Name ID".equals(attr.getName())) {
+				rAttr = attr;
+				break;
+			}
+		}
+		
+		if (rAttr != null) {
+			calculatedAttributeStatements.get(0).getAttributes().remove(rAttr);
+		}
+
+		List<AttributeStatement> attributeStatements = assertion.getAttributeStatements();
+		attributeStatements.addAll(calculatedAttributeStatements);
 
 		return assertion;
 	}

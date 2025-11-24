@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.service;
 
+import java.io.UnsupportedEncodingException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -193,6 +194,39 @@ public class ADPasswordService {
 			log.error("Failed to connect to AD Password validation service for " + person.getId(), ex);
 			return ADPasswordStatus.TECHNICAL_ERROR;
 		}
+	}
+
+	// only to be used from the UI
+	public ADPasswordStatus attemptPasswordChangeFromUI(Person person, String newPassword, boolean forceChangePassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
+		PasswordChangeQueue change = new PasswordChangeQueue(person, passwordChangeQueueService.encryptPassword(newPassword), forceChangePassword);
+
+		ADPasswordStatus status = attemptPasswordReplication(change);
+		switch (status) {
+			// inform user through UI (but also save result in queue for debugging purposes)
+			case FAILURE:
+			case TECHNICAL_ERROR:
+			case INSUFFICIENT_PERMISSION:
+				// FINAL_ERROR prevent any retries on this
+				change.setStatus(ReplicationStatus.FINAL_ERROR);
+				passwordChangeQueueService.save(change);
+				break;
+
+			case NOOP:
+				log.error("Got a NOOP case here - that should not happen");
+				break;
+
+			// save result - so it is correctly logged to the queue
+			case OK:
+				passwordChangeQueueService.save(change);
+				break;
+
+			// delay replication in case of a timeout
+			case TIMEOUT:
+				passwordChangeQueueService.save(change);
+				break;
+		}
+
+		return status;
 	}
 
 	public void syncPasswordsToAD() {

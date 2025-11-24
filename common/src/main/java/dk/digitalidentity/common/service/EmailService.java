@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
-import dk.digitalidentity.common.log.AuditLogger;
+//import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
 import jakarta.mail.Message;
 import jakarta.mail.Multipart;
@@ -28,10 +28,10 @@ public class EmailService {
 
 	@Autowired
 	private CommonConfiguration configuration;
-	
+	/*
 	@Autowired
 	private AuditLogger auditlogger;
-
+*/
 	public boolean sendMessage(String email, String subject, String message, Person person) {
 		return sendMessage(email, subject, message, null, person);
 	}
@@ -122,14 +122,14 @@ public class EmailService {
 				log.warn("Error occured while trying to terminate connection", ex);
 			}
 		}
-
+/*
 		try {
 			auditlogger.sentEmail(person, subject);
 		}
 		catch (Exception ex) {
 			log.error("Failed to auditlog sending email '" + subject + "' to " + person.getSamaccountName() + " / " + person.getId());
 		}
-		
+*/
 		return true;
 	}
 }

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+
 import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
@@ -66,7 +68,15 @@ public class ServiceProviderDTO {
 	private boolean requirePKCE;
 	private String certificate;
 	private boolean delayedMobileLogin;
+	private boolean onlyAllowLoginFromKnownNetworks;
 
+	// Advanced fields
+	private boolean allowUnsignedAuthnRequests;
+	private boolean disableSubjectConfirmation;
+	private boolean disableSubjectConfirmationRecipient;
+	private String additionalEntityIds;
+
+	@JsonCreator
 	public ServiceProviderDTO() {
 		this.id = "0";
 		this.protocol = Protocol.SAML20.name();
@@ -101,6 +111,7 @@ public class ServiceProviderDTO {
 		this.certificate = config.getCertificateAlias();
 		this.doNotMonitorCertificates = config.isDoNotMonitorCertificates();
 		this.delayedMobileLogin = config.isDelayedMobileLogin();
+		this.onlyAllowLoginFromKnownNetworks = config.isOnlyAllowLoginFromKnownNetworks();
 
 		for (NameIdFormat format : NameIdFormat.values()) {
 			if (Objects.equals(format.value, config.getNameIdFormat().value)) {
@@ -118,6 +129,12 @@ public class ServiceProviderDTO {
 			this.badMetadata = sqlConfig.isBadMetadata();
 			this.passwordExpiry = sqlConfig.getCustomPasswordExpiry();
 			this.mfaExpiry = sqlConfig.getCustomMfaExpiry();
+
+			// Advanced fields
+			this.allowUnsignedAuthnRequests = sqlConfig.isAllowUnsignedAuthnRequests();
+			this.disableSubjectConfirmation = sqlConfig.isDisableSubjectConfirmation();
+			this.disableSubjectConfirmationRecipient = sqlConfig.isDisableSubjectConfirmationRecipient();
+			this.additionalEntityIds = sqlConfig.getAdditionalEntityIds();
 
 			if (passwordExpiry != null && mfaExpiry != null) {
 				this.hasCustomSessionExpiry = true;

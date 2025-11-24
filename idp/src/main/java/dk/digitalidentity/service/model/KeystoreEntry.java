@@ -10,11 +10,9 @@ import lombok.Setter;
 public class KeystoreEntry {
 	private KeyStore keystore;
 	private String password;
-	private String kmsAlias;
 	
-	public KeystoreEntry(KeyStore keystore, String password, String kmsAlias) {
+	public KeystoreEntry(KeyStore keystore, String password) {
 		this.keystore = keystore;
-		this.kmsAlias = kmsAlias;
 		this.password = (password != null) ? password : "";
 	}
 }
