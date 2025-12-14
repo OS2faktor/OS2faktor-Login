@@ -69,6 +69,7 @@ public class ServiceProviderDTO {
 	private String certificate;
 	private boolean delayedMobileLogin;
 	private boolean onlyAllowLoginFromKnownNetworks;
+	private String notes = "";
 
 	// Advanced fields
 	private boolean allowUnsignedAuthnRequests;
@@ -129,6 +130,7 @@ public class ServiceProviderDTO {
 			this.badMetadata = sqlConfig.isBadMetadata();
 			this.passwordExpiry = sqlConfig.getCustomPasswordExpiry();
 			this.mfaExpiry = sqlConfig.getCustomMfaExpiry();
+			this.notes = sqlConfig.getNotes();
 
 			// Advanced fields
 			this.allowUnsignedAuthnRequests = sqlConfig.isAllowUnsignedAuthnRequests();
@@ -162,7 +164,10 @@ public class ServiceProviderDTO {
 				claims.add(new ClaimDTO(groupClaim));
 			}
 
-			claims.sort(Comparator.comparing(ClaimDTO::getAttribute).thenComparing(ClaimDTO::getValue));
+			claims.sort(
+			    Comparator.comparing(ClaimDTO::getAttribute, Comparator.nullsFirst(String::compareTo))
+			              .thenComparing(ClaimDTO::getValue, Comparator.nullsFirst(String::compareTo))
+			);
 
 			this.conditionsDomains = sqlConfig.getConditions()
 					.stream()

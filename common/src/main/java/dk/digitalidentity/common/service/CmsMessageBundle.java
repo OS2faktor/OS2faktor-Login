@@ -45,6 +45,13 @@ public class CmsMessageBundle {
 
 		return value;
 	}
+
+	public void resetText(String key) {
+		CmsMessage cmsMessage = cmsMessageService.getByCmsKey(key);
+		if (cmsMessage != null) {
+			cmsMessageService.deleteById(cmsMessage.getId());
+		}
+	}
 	
 	public List<CmsMessageListDTO> getAll() {
 		List<CmsMessageListDTO> all = new ArrayList<>();

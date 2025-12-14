@@ -170,21 +170,43 @@ public class CoreDataService {
 
 		// Get a list of all account of the domain, even if Global subdomain is set,
 		// this is used to move accounts between subdomains without locking and creating a new one
-		List<Person> personsByDomain = personService.getByDomain(domain, true, p -> {
-			p.getDomain().getName();
-			p.getAttributes().size();
-			p.getKombitJfrs().size();
+		List<Person> personsByDomain = null;
+		if (!fullLoad && coreData.getEntryList().size() < 50) {
+			Set<String> cprs = coreData.getEntryList().stream().map(e -> e.getCpr()).collect(Collectors.toSet());
+			// TODO: extract consumer so we do not double that code
+			personsByDomain = personService.getByDomainAndCprIn(domain, cprs, true, p -> {
+				p.getDomain().getName();
+				p.getAttributes().size();
+				p.getKombitJfrs().size();
 
-			p.getGroups().forEach(gm -> {
-				gm.getGroup().getName();
-			});			
-			
-			if (p.getSupporter() != null) {
-				if (p.getSupporter().getDomain() != null) {
-					p.getSupporter().getDomain().getName();
+				p.getGroups().forEach(gm -> {
+					gm.getGroup().getName();
+				});			
+				
+				if (p.getSupporter() != null) {
+					if (p.getSupporter().getDomain() != null) {
+						p.getSupporter().getDomain().getName();
+					}
 				}
-			}
-		});
+			});
+		}
+		else {
+			personsByDomain = personService.getByDomain(domain, true, p -> {
+				p.getDomain().getName();
+				p.getAttributes().size();
+				p.getKombitJfrs().size();
+
+				p.getGroups().forEach(gm -> {
+					gm.getGroup().getName();
+				});			
+				
+				if (p.getSupporter() != null) {
+					if (p.getSupporter().getDomain() != null) {
+						p.getSupporter().getDomain().getName();
+					}
+				}
+			});
+		}
 
 		Map<String, Person> personMap = personsByDomain
 				.stream()
@@ -204,6 +226,13 @@ public class CoreDataService {
 			// is locked (dataset), then we will only allow reactivation if the cpr+uuid matches, otherwise it is a fresh person
 			if (person != null && person.isLockedDataset()) {
 				if (!compareCpr(person, coreDataEntry) || !Objects.equals(person.getUuid(), coreDataEntry.getUuid())) {
+					log.info("Person with sAMAccountName " + person.getSamaccountName() + " was found in database with different CPR or different UUID - but existing record is locked, so the old record is deleted : " + person.getId());
+
+					// if we delete the person outright, we do not have a later trigger for cleanup in MitID Erhverv, so do it now
+					if (StringUtils.hasText(person.getNemloginUserUuid())) {
+						nemLoginService.deleteMitIDErhverv(person);
+					}
+					
 					// delete (side-effect it gets auditlogged)
 					personService.delete(person, null);
 
@@ -214,6 +243,13 @@ public class CoreDataService {
 
 			// in the special case that the CPR changes on an existing person, it should be treated as a delete followed by a create
 			if (person != null && !compareCpr(person, coreDataEntry)) {
+				log.info("Person with sAMAccountName " + person.getSamaccountName() + " was found in database with different CPR (and still active) - new record will replace the old record, so we will delete the old entry: " + person.getId());
+
+				// if we delete the person outright, we do not have a later trigger for cleanup in MitID Erhverv, so do it now
+				if (StringUtils.hasText(person.getNemloginUserUuid())) {
+					nemLoginService.deleteMitIDErhverv(person);
+				}
+
 				// delete (side-effect it gets auditlogged)
 				personService.delete(person, null);
 

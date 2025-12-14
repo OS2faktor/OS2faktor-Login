@@ -46,15 +46,35 @@ public class MitidErhvervCacheService {
 	
 	public MitidErhvervCache fromEmployee(Employee employee) {
 		MitidErhvervCache cache = new MitidErhvervCache();
-		cache.setCpr(employee.getProfile() != null ? employee.getProfile().getCprNumber() : null);
-		cache.setEmail(employee.getEmailAddress());
-		cache.setGivenname(employee.getProfile() != null ? employee.getProfile().getGivenName() : null);
-		cache.setLocalCredential(employee.getEmployeeCredentials() != null ? employee.getEmployeeCredentials().stream().anyMatch(c -> Objects.equals("Local", c.getId())) : false);
+		cache.setCpr(employee.getProfile() != null
+				? employee.getProfile().getCprNumber()
+				: null);
+		cache.setGivenname(employee.getProfile() != null
+				? employee.getProfile().getGivenName()
+				: null);
+		cache.setLocalCredential(employee.getAuthenticators() != null
+				? employee.getAuthenticators().stream()
+						.anyMatch(c -> Objects.equals("LocalIdentityProvider", c.getType()))
+				: false);
+		cache.setLocalCredentialUserId(employee.getAuthenticators() != null
+				? employee.getAuthenticators().stream()
+						.filter(c -> Objects.equals("LocalIdentityProvider", c.getType()))
+						.map(a -> a.getId())
+						.findFirst()
+						.orElse(null)
+				: null);
+		cache.setMitidPrivatCredential(employee.getAuthenticators() != null
+				? employee.getAuthenticators().stream()
+						.anyMatch(c -> Objects.equals("PrivateMitId", c.getType()))
+				: false);
+		cache.setSurname(employee.getProfile() != null
+				? employee.getProfile().getSurname()
+				: null);
+
 		cache.setMitidErhvervId(employee.getId());
-		cache.setMitidPrivatCredential(employee.getEmployeeCredentials() != null ? employee.getEmployeeCredentials().stream().anyMatch(c -> Objects.equals("PrivateMitID", c.getId())) : false);
+		cache.setEmail(employee.getEmailAddress());
 		cache.setRid(employee.getRid());
 		cache.setStatus(employee.getStatus());
-		cache.setSurname(employee.getProfile() != null ? employee.getProfile().getSurname() : null);
 		cache.setUuid(employee.getUuid());
 		cache.setQualifiedSignature(employee.isQualifiedSignature());
 		
@@ -63,5 +83,9 @@ public class MitidErhvervCacheService {
 
 	public MitidErhvervCache findByUuid(String uuid) {
 		return mitidErhvervCacheDao.findByUuid(uuid);
+	}
+
+	public List<MitidErhvervCache> findByCpr(String cpr) {
+		return mitidErhvervCacheDao.findByCpr(cpr);
 	}
 }

@@ -274,6 +274,10 @@ public abstract class ServiceProvider {
 	public boolean isUniLoginBrokerEnabled() {
 		return false;
 	}
+	
+	public String getNotes() {
+		return "";
+	}
 
 	// END-SECTION
 

@@ -11,4 +11,6 @@ public class Authenticator {
 	// Many more fields, but these are the ones we care about
 	private String uuid;
 	private String type;
+	private String status;
+	private String id;
 }

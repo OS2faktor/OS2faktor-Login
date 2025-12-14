@@ -26,4 +26,6 @@ public class CustomerConfiguration {
 	private boolean enablePasswordlessMfaMobileOnly = false;
 
 	private String contactLocationForMails = "";
+	
+	private String optionalText = "";
 }

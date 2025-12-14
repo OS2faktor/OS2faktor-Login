@@ -1,0 +1,1 @@
+ALTER TABLE mitid_erhverv_cache ADD COLUMN local_credential_user_id VARCHAR(255) NULL;

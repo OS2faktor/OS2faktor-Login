@@ -164,6 +164,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private boolean onlyAllowLoginFromKnownNetworks;
 
+    @Column
+    private String notes;
+
     public void loadFully() {
         this.requiredFields.size();
         this.staticClaims.size();

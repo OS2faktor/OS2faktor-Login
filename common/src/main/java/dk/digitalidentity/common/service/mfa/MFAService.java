@@ -1,6 +1,7 @@
 package dk.digitalidentity.common.service.mfa;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.spec.KeySpec;
 import java.time.LocalDateTime;
@@ -32,6 +33,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.MfaLoginHistoryDao;
@@ -311,8 +313,15 @@ public class MFAService {
 				// TODO: emitChallenge=false undertrykker kontrolkoden, men nyeste logik i app'en undertrykker visning af 2 ens kontrolkoder. Det skal den så ikke hvis dette
 				// skal virke. Så app'en skal tillade kontrolkoder der er blanke altid, og kun undertrykke dubletter med faktiske kontrolkoder. Dette skal være kommenteret
 				// ud til ændringen er lavet i app'en
-				String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + client.getDeviceId() + "/authenticate"; // ?emitChallenge=false";
 
+				UriComponentsBuilder builder = UriComponentsBuilder
+						.fromUriString(configuration.getMfa().getBaseUrl())
+						.path("/api/server/client/" + client.getDeviceId() + "/authenticate");
+
+				builder.queryParam("systemName", "RADIUS");
+
+				String url = builder.toUriString();
+				
 				ResponseEntity<MfaAuthenticationResponse> result = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 				response.add(result.getBody());
 			}
@@ -349,7 +358,7 @@ public class MFAService {
 		return response;
 	}
 
-	public MfaAuthenticationResponseDTO authenticate(String deviceId, boolean passwordless) {
+	public MfaAuthenticationResponseDTO authenticate(String deviceId, boolean passwordless, String systemName, String username) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
 		headers.add("connectorVersion", connectorVersion);
@@ -357,10 +366,24 @@ public class MFAService {
 		MfaAuthenticationResponseDTO dto = new MfaAuthenticationResponseDTO();
 
 		try {
-			String url = configuration.getMfa().getBaseUrl() + "/api/server/client/" + deviceId + "/authenticate";
-			if (passwordless) {
-				url = url + "?passwordless=true";
+			UriComponentsBuilder builder = UriComponentsBuilder
+							.fromUriString(configuration.getMfa().getBaseUrl())
+							.path("/api/server/client/" + deviceId + "/authenticate");
+
+			if (systemName != null) {
+				String encodedSystemName = Base64.getEncoder().encodeToString(systemName.getBytes(StandardCharsets.UTF_8));
+				builder.queryParam("systemName", encodedSystemName);
 			}
+			
+			if (username != null) {
+				builder.queryParam("username", username);
+			}
+			
+			if (passwordless) {
+				builder.queryParam("passwordless", "true");
+			}
+
+			String url = builder.toUriString();
 
 			ResponseEntity<MfaAuthenticationResponse> response = restTemplate.exchange(url, HttpMethod.PUT, entity, new ParameterizedTypeReference<MfaAuthenticationResponse>() { });
 			dto.setMfaAuthenticationResponse(response.getBody());

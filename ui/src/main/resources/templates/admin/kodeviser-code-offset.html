@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.kodeviser')}"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-clock-o"></em> &nbsp; Justér ur på kodeviser</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Indstast serienummer og 2 på hinanden følgende koder fra kodeviseren, og systemet vil forsøge at justere uret. Denne funktion kan bruges til at håndtere kodevisere hvis interne ur er kommet for langt væk fra virkeligheden.
+								</p>
+
+								<form method="post" th:object="${form}" th:action="@{/admin/konfiguration/offset}">
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Serienummer</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="*{serialnumber}" th:classappend="${#fields.hasErrors('serialnumber')} ? 'is-invalid' : ''"/>
+											<div class="invalid-feedback" th:if="${#fields.hasErrors('serialnumber')}" th:errors="*{serialnumber}"></div>
+										</div>
+									</div>
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Første kode</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="*{firstCode}" th:classappend="${#fields.hasErrors('firstCode')} ? 'is-invalid' : ''" maxlength="6" pattern="\d{6}"/>
+											<div class="invalid-feedback" th:if="${#fields.hasErrors('firstCode')}" th:errors="*{firstCode}"></div>
+										</div>
+									</div>
+									<div class="form-group row">
+										<label class="col-sm-3 col-form-label">Anden kode</label>
+										<div class="col-sm-9">
+											<input type="text" class="form-control" th:field="*{secondCode}" th:classappend="${#fields.hasErrors('secondCode')} ? 'is-invalid' : ''" maxlength="6" pattern="\d{6}"/>
+											<div class="invalid-feedback" th:if="${#fields.hasErrors('secondCode')}" th:errors="*{secondCode}"></div>
+										</div>
+									</div>
+									
+									<button type="submit" class="btn btn-primary block full-width m-b">Justér ur</button>
+								</form>
+
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.kodeviser')}"></div>
+				</div>
+			</div>
+
+			<div th:replace="~{fragments/footer :: footer}"></div>
+		</div>
+	</div>
+
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
+	
+	<style>
+		.container-fluid {
+			width: 100%;
+			padding-right: 0px !important;
+			padding-left: 0px !important;
+			margin-right: auto;
+			margin-left: auto;
+		}
+	</style>
+	
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+			
+		/*[+
+			var baseUrl = [[@{/}]];
+			var resetButtonConfirm = [[#{shared.button.yes}]];
+			var resetButtonCancel = [[#{shared.button.no}]];
+		+]*/
+		
+		var successMessage = /*[[${success}]]*/ null;
+		var errorMessage = /*[[${error}]]*/ null;
+
+		var token = $("meta[name='_csrf']").attr("content");
+
+		$(document).ready(function() {
+			if (successMessage) {
+				toastr.success(successMessage);
+			}
+			if (errorMessage) {
+				toastr.error(errorMessage);
+			}
+		});
+
+		/*]]>*/
+	</script>
+</body>
+</html>

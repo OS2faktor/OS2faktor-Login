@@ -155,10 +155,12 @@ public class LoginController {
 		try {
 			loggingUtil.logAuthnRequest(authnRequest, Constants.INCOMING);
 
-			authnRequestValidationService.validate(httpServletRequest, messageContext);
-
 			SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
 			String relayState = subcontext != null ? subcontext.getRelayState() : null;
+
+			sessionHelper.setRelayState(relayState);
+
+			authnRequestValidationService.validate(httpServletRequest, messageContext);
 
 			sessionHelper.setRequestedUsername(getRequestedUsername(authnRequest));
 

@@ -26,7 +26,7 @@ public class OS2faktorRadiusServer extends RadiusServer {
 		
 		if (this.radiusConfiguration.isEnabled()) {
 			// configure thread pool
-			this.executor =  Executors.newFixedThreadPool(5);
+			this.executor =  Executors.newFixedThreadPool(5, Thread.ofPlatform().factory());
 
 			this.start();
 		}		

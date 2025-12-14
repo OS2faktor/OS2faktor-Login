@@ -71,6 +71,10 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public String getNameId(Person person) throws ResponderException {
+		if (person == null) {
+			return "";
+		}
+
         String requiredField = commonConfig.getStil().getUniloginAttribute();
 
         String result = null;

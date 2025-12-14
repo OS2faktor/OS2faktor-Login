@@ -337,6 +337,24 @@
 											</label>
 										</div>
 									</div>
+
+									<div class="form-group row">
+										<div id="notesDropdownToggle" class="col-sm-3 col-form-label" style="cursor: pointer; user-select: none;">
+											<em id="notesToggleIconDown" class="fa fa-caret-right" th:style="${serviceprovider.notes != null and !#strings.isEmpty(serviceprovider.notes)} ? 'display: none;' : ''"></em>
+											<em id="notesToggleIconUp" class="fa fa-caret-down" th:style="${serviceprovider.notes != null and !#strings.isEmpty(serviceprovider.notes)} ? '' : 'display: none;'"></em>
+											<span>Noter</span>
+										</div>
+									</div>
+									<div id="notesDropdownBody" th:style="${serviceprovider.notes != null and !#strings.isEmpty(serviceprovider.notes)} ? '' : 'display: none;'">
+										<div class="form-group row">
+											<label class="col-sm-3 col-form-label">
+												Noter
+											</label>
+											<div class="col-sm-9">
+												<textarea th:field="${serviceprovider.notes}" class="form-control" rows="5" maxlength="1024"></textarea>
+											</div>
+										</div>
+									</div>
 								</form>
 							</div>
 						</div>
@@ -1063,6 +1081,14 @@
 				advToggleIconDown.style.display = advToggleIconDown.style.display === "none" ? "inline" : "none";
 				advToggleIconUp.style.display = advToggleIconUp.style.display === "none" ? "inline" : "none";
 			});
+			
+			const notesDropdownToggle = document.getElementById("notesDropdownToggle");
+			const notesDropdownBody = document.getElementById("notesDropdownBody");
+			notesDropdownToggle.addEventListener("click", () => {
+				notesDropdownBody.style.display = notesDropdownBody.style.display === "none" ? "block" : "none";
+				notesToggleIconDown.style.display = notesToggleIconDown.style.display === "none" ? "inline" : "none";
+				notesToggleIconUp.style.display = notesToggleIconUp.style.display === "none" ? "inline" : "none";
+			});
 
 			const downloadMetadataBtn = document.getElementById("metadataDownloadBtn");
 			downloadMetadataBtn.addEventListener("click", () => {
@@ -1336,6 +1362,7 @@
 							data.entityId = $('#entityId').val();
 							data.nameIdValue = $('#nameIdValueDropdown').children("option:selected").val();
 							data.clientSecret = $('input[name=clientSecret]').val();
+							data.notes = $('#notes').val();
 
 							// Handle dropdowns
 							data.nameIdFormat = $('#nameIdFormatSelect option:selected').val();

@@ -10,4 +10,6 @@ public interface MitidErhvervCacheDao extends JpaRepository<MitidErhvervCache, L
 	List<MitidErhvervCache> findAll();
 
 	MitidErhvervCache findByUuid(String uuid);
+
+	List<MitidErhvervCache> findByCpr(String cpr);
 }

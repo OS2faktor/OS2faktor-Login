@@ -4,7 +4,6 @@ import static dk.digitalidentity.util.XMLUtil.copyXMLObject;
 
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -139,9 +138,7 @@ public class AssertionService {
 		}
 
 		try {
-			Map<String, Map<String, String>> spSessions = sessionHelper.getServiceProviderSessions();
-			spSessions.put(serviceProvider.getEntityId(), new HashMap<>());
-			sessionHelper.setServiceProviderSessions(spSessions);
+			sessionHelper.addServiceProviderSession(serviceProvider);
 
 			// Create assertion
 			MessageContext<SAMLObject> message = createMessage(loginRequest, person);
@@ -167,6 +164,8 @@ public class AssertionService {
 		}
 		catch (RequesterException | ResponderException ex) {
 			AuthnRequest authnRequest = loginRequest.getAuthnRequest();
+
+			sessionHelper.removeServiceProviderSession(serviceProvider);
 
 			// TODO change: i dont like that the assertion service class is concerning itself with returning errors, it should create (and *maybe* send assertions) and throw exceptions otherwise
 			errorResponseService.sendError(httpServletResponse, authnRequestHelper.getConsumerEndpoint(authnRequest), authnRequest.getID(), ex, serviceProvider);

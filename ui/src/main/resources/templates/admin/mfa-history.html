@@ -15,27 +15,35 @@
 							</div>
 
 							<div class="ibox-content">
-								<p>
-									Bemærk at nedenstående historik er mindst 30 minutter forsinket i forhold til produktionsdata.
+								<p class="d-flex justify-content-between align-items-center">
+									<span>
+										Bemærk at nedenstående historik er mindst 30 minutter forsinket i forhold til produktionsdata.
+									</span>
+									<a class="btn btn-success ml-2" href="/admin/mfahistory/download">
+										<em class="fa fa-fw fa-file-excel-o"></em>
+										<span class="ml-1">Eksportér CSV</span>
+									</a>
 								</p>
 
 								<div class="table-responsive">
 									<table id="history" width="100%" class="table table-striped table-bordered table-hover" >
 										<thead>
 											<tr>
-												<th style="width: 60px;">Oprettet</th>
-												<th>Anvendt af</th>
-												<th style="width: 110px;">Klient ID</th>
-												<th style="width: 80px;">Klient Type</th>
-												<th style="width: 150px;">Status</th>
-												<th style="width: 60px;">Notifikation</th>
-												<th style="width: 60px;">Hentet</th>
-												<th style="width: 60px;">Svaret</th>
+												<th style="width: 110px;">Oprettet</th>
+												<th style="width: 120px;">Klient ID</th>
+												<th style="width: 90px;">Klient Type</th>
+												<th style="width: 80px;">Status</th>
+												<th style="width: 110px;">Notifikation</th>
+												<th style="width: 110px;">Hentet</th>
+												<th style="width: 110px;">Svaret</th>
+												<th style="width: 100px;">System</th>
+												<th style="width: 100px;">Brugernavn</th>
 											</tr>
 										</thead>
 										
 										<tfoot style="display: table-row-group">
 											<tr>
+												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
 												<td class="input-filter"><input type="text" class="form-control input-sm" style="width: 100%;" placeholder="Søg" /></td>
@@ -89,6 +97,7 @@
 					 	return JSON.stringify(d);
 					}
 				},
+				"order": [ [ 0, "desc" ] ],
 				"serverSide" : true,
 				"columns": [
 					{
@@ -96,12 +105,8 @@
 						"orderable": true
 					},
 					{
-						"data": "serverName",
-						"orderable": true
-					},
-					{
 						"data": "deviceId",
-						"orderable": false
+						"orderable": true
 					},
 					{
 						"data": "clientType",
@@ -121,6 +126,14 @@
 					},
 					{
 						"data": "responseTts",
+						"orderable": true
+					},
+					{
+						"data": "systemName",
+						"orderable": true
+					},
+					{
+						"data": "username",
 						"orderable": true
 					}
 				],

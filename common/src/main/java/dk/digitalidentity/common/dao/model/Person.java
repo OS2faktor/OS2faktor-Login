@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import dk.digitalidentity.common.dao.listener.PersonListener;
 import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
@@ -22,6 +23,7 @@ import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -44,6 +46,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @BatchSize(size = 100)
+@EntityListeners(PersonListener.class)
 public class Person {
 
 	@Id
@@ -244,8 +247,8 @@ public class Person {
 	@Column
 	private boolean institutionStudentPasswordAdmin;
 	
-	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
 	@NotAudited
+	@BatchSize(size = 100)
 	@ElementCollection
 	@CollectionTable(name = "persons_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")
@@ -253,8 +256,8 @@ public class Person {
 	@Column(name = "attribute_value")
 	private Map<String, String> attributes;
 
-	// TODO: kan en @BatchSize hjælpe her for at læse dem ud hurtigere?
 	@NotAudited
+	@BatchSize(size = 100)
 	@ElementCollection
 	@CollectionTable(name = "persons_kombit_attributes", joinColumns = { @JoinColumn(name = "person_id", referencedColumnName = "id") })
 	@MapKeyColumn(name = "attribute_key")

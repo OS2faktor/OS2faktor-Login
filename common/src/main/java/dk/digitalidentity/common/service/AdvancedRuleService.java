@@ -177,6 +177,10 @@ public class AdvancedRuleService {
 				return evaluateOS2rolJfr(commandAndArgument.argument, person);
 			case "OS2ROL_BSR" :
 				return evaluateOS2rolBsr(commandAndArgument.argument, person);
+			case "IF":
+				return evaluateIf(commandAndArgument.argument, person);
+			case "IF_ELSE":
+				return evaluateIfElse(commandAndArgument.argument, person);
 			default:
 				log.error("Should not get here, it should have been handled in extractCommandAndArgument: " + commandAndArgument.command);
 				throw new EvaluationException("Syntaksfejl: Ukendt operation '" + commandAndArgument.command + "'");
@@ -341,7 +345,7 @@ public class AdvancedRuleService {
 		List<String> tokens = tokenize(argument);
 		
 		if (tokens.size() != 2) {
-			throw new EvaluationException("Syntaksfejl: Input til VALUE tager 2 parametre: it-system-id og separator");
+			throw new EvaluationException("Syntaksfejl: Input til OS2ROL_JFR tager 2 parametre: it-system-id og separator");
 		}
 
 		String itSystemId = tokens.get(0).trim().replace("'", "").trim();
@@ -352,11 +356,48 @@ public class AdvancedRuleService {
 		return userRoles.stream().collect(Collectors.joining(delimiter));
 	}
 
-   private String evaluateOS2rolBsr(String argument, Person person) throws EvaluationException {
+	private String evaluateIf(String argument, Person person) throws EvaluationException {
+		List<String> tokens = tokenize(argument);
+
+		if (tokens.size() != 2) {
+			throw new EvaluationException("Syntaksfejl: Input til IF tager 2 parametre: kontrolværdi og værdi");
+		}
+
+		String controlValue = tokens.get(0).trim();
+		String value = tokens.get(1).trim();
+		
+		String result = evaluateRule(controlValue, person);
+		if (StringUtils.hasLength(result)) {
+			return evaluateRule(value, person);
+		}
+		
+		return "";
+	}
+
+	private String evaluateIfElse(String argument, Person person) throws EvaluationException {
+		List<String> tokens = tokenize(argument);
+
+		if (tokens.size() != 3) {
+			throw new EvaluationException("Syntaksfejl: Input til IF_ELSE tager 3 parametre: kontrolværdi og værdi og alternativ værdi");
+		}
+
+		String controlValue = tokens.get(0).trim();
+		String value = tokens.get(1).trim();
+		String fallbackValue = tokens.get(2).trim();
+
+		String result = evaluateRule(controlValue, person);
+		if (StringUtils.hasLength(result)) {
+			return evaluateRule(value, person);
+		}
+
+		return evaluateRule(fallbackValue, person);
+	}
+
+	private String evaluateOS2rolBsr(String argument, Person person) throws EvaluationException {
 		List<String> tokens = tokenize(argument);
 		
 		if (tokens.size() != 2) {
-			throw new EvaluationException("Syntaksfejl: Input til VALUE tager 2 parametre: it-system-id og separator");
+			throw new EvaluationException("Syntaksfejl: Input til OS2ROL_BSR tager 2 parametre: it-system-id og separator");
 		}
 
 		String itSystemId = tokens.get(0).trim().replace("'", "").trim();
@@ -418,6 +459,8 @@ public class AdvancedRuleService {
 			case "BINARY_UUID":
 			case "OS2ROL_JFR":
 			case "OS2ROL_BSR":
+			case "IF":
+			case "IF_ELSE":
 				return true;
 			default:
 				return false;

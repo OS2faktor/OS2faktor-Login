@@ -1,7 +1,10 @@
 package dk.digitalidentity.common.service.mfa;
 
+import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -16,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
@@ -355,7 +359,7 @@ public class MFAManagementService {
 		}
 	}
 
-	record MfaHistoryRecord(String serverName, String clientDeviceId, boolean clientAuthenticated, boolean clientRejected, LocalDateTime created, LocalDateTime sentTimestamp, boolean clientNotified, LocalDateTime clientFetchedTimestamp, LocalDateTime clientResponseTimestamp, String clientType) { }
+	record MfaHistoryRecord(String serverName, String clientDeviceId, boolean clientAuthenticated, boolean clientRejected, LocalDateTime created, LocalDateTime sentTimestamp, boolean clientNotified, LocalDateTime clientFetchedTimestamp, LocalDateTime clientResponseTimestamp, String clientType, String systemName, String username) { }
 	public List<MfaLoginHistory> fetchMfaLoginHistory(LocalDateTime after) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
@@ -377,6 +381,17 @@ public class MFAManagementService {
 				entry.setPushTts(mfaRecord.sentTimestamp());
 				entry.setResponseTts(mfaRecord.clientResponseTimestamp());
 				entry.setServerName(mfaRecord.serverName());
+				entry.setUsername(mfaRecord.username());
+				if (StringUtils.hasLength(mfaRecord.systemName())) {
+					try {
+						String rawString = URLDecoder.decode(mfaRecord.systemName(), Charset.forName("UTF-8"));
+						byte[] raw = Base64.getDecoder().decode(rawString);
+						entry.setSystemName(new String(raw, Charset.forName("UTF-8")));
+					}
+					catch (Exception ex) {
+						log.warn("Failed to decode serverName = " + mfaRecord.systemName());
+					}
+				}
 				
 				String status = mfaRecord.clientAuthenticated()
 						? "Godkendt"
@@ -397,5 +412,18 @@ public class MFAManagementService {
 		}
 
 		return null;
+	}
+
+	private record CodeOffsetBody(String serialnumber, String firstCode, String secondCode) { }
+	public boolean adjustTOTPdrift(String serialnumber, String firstCode, String secondCode) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("ApiKey", configuration.getMfa().getManagementApiKey());
+		headers.add("connectorVersion", connectorVersion);
+		
+		CodeOffsetBody body = new CodeOffsetBody(serialnumber, firstCode, secondCode);
+		HttpEntity<CodeOffsetBody> entity = new HttpEntity<>(body, headers);
+		
+		ResponseEntity<String> response = restTemplate.exchange(getURL("/api/login/kodeviser/adjust"), HttpMethod.POST, entity, String.class);
+		return response.getStatusCode() == HttpStatus.OK;
 	}
 }

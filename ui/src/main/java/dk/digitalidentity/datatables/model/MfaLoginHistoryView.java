@@ -20,9 +20,6 @@ public class MfaLoginHistoryView {
 	private long id;
 	
 	@Column
-	private String serverName;
-
-	@Column
 	private String deviceId;
 
 	@Column
@@ -46,5 +43,11 @@ public class MfaLoginHistoryView {
 
 	@Column
 	private String clientType;
+
+	@Column
+	private String systemName;
+
+	@Column
+	private String username;
 
 }

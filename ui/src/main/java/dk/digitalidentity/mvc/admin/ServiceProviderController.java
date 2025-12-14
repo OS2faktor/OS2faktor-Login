@@ -1,7 +1,6 @@
 package dk.digitalidentity.mvc.admin;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -28,6 +27,7 @@ import dk.digitalidentity.common.service.PersonAttributeService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
+import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderListDTO;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.service.KeystoreService;
 import dk.digitalidentity.service.MetadataService;
@@ -61,13 +61,14 @@ public class ServiceProviderController {
 	
 	@GetMapping("/admin/konfiguration/tjenesteudbydere")
 	public String getServiceProviders(Model model) throws Exception {
-		ArrayList<ServiceProviderDTO> serviceProviders = new ArrayList<>();
-		serviceProviders.addAll(metadataService.getStaticServiceProviderDTOs(false));
+        final List<ServiceProviderListDTO> serviceProviders = metadataService.getStaticServiceProviderListDTOs();
 
-		List<SqlServiceProviderConfiguration> sqlSPs = sqlServiceProviderConfigurationService.getAll();
-		for (SqlServiceProviderConfiguration sqlSP : sqlSPs) {
-			serviceProviders.add(metadataService.getMetadataDTO(sqlSP, false));
-		}
+		final var sqlServiceProviders = sqlServiceProviderConfigurationService.getAll()
+				.stream()
+				.map(sql -> new ServiceProviderListDTO(sql))
+				.toList();
+
+		serviceProviders.addAll(sqlServiceProviders);
 
 		model.addAttribute("serviceproviders", serviceProviders);
 

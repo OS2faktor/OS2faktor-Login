@@ -49,6 +49,9 @@ public class MitidErhvervCache {
 
 	@Column
 	private boolean localCredential;
+	
+	@Column
+	private String localCredentialUserId;
 
 	@Column
 	private boolean mitidPrivatCredential;
@@ -88,6 +91,10 @@ public class MitidErhvervCache {
 		if (!Objects.equals(this.rid, hit.rid)) {
 			return false;
 		}
+		
+		if (!Objects.equals(this.localCredentialUserId, hit.localCredentialUserId)) {
+			return false;
+		}
 
 		if (this.localCredential != hit.localCredential) {
 			return false;
@@ -113,7 +120,8 @@ public class MitidErhvervCache {
 		this.email = employee.getEmail();
 		this.rid = employee.getRid();
 		this.localCredential = employee.isLocalCredential();
-		this.mitidPrivatCredential = employee.isMitidPrivatCredential();		
+		this.mitidPrivatCredential = employee.isMitidPrivatCredential();
+		this.localCredentialUserId = employee.getLocalCredentialUserId();
 		this.qualifiedSignature = employee.isQualifiedSignature();
 	}
 }

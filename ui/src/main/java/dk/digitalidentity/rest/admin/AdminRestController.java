@@ -507,15 +507,15 @@ public class AdminRestController {
 		MfaClient client = clients.stream().filter(c -> Objects.equals(deviceId, c.getDeviceId())).findAny().orElse(null);
 		if (client == null) {
 			log.warn("could not find client with id: " + deviceId + " on client");
-			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);			
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		}
 
 		auditLogger.testMfaByAdmin(admin, person, deviceId);
 
 		// trigger MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService. authenticate(deviceId, false);
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(deviceId, false, "Test af Administrator", person.getSamaccountName());
 		if (!mfaResponseDto.isSuccess()) {
-			log.warn("Got an excpetion from response from mfaService.authenticate() on deviceID = " + deviceId + " exception: " + mfaResponseDto.getFailureMessage());
+			log.warn("Got an exception from response from mfaService.authenticate() on deviceID = " + deviceId + " exception: " + mfaResponseDto.getFailureMessage());
 			return ResponseEntity.status(500).build();
 		}
 

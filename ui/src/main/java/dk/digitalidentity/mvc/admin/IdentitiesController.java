@@ -5,8 +5,10 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -100,8 +102,14 @@ public class IdentitiesController {
 		form.setPersonId(id);
 		form.setUserId(PersonService.getUsername(person));
 		form.setEmail(person.getEmail());
-		form.setAttributes(person.getAttributes());
 		form.setKombitAttributes(person.getKombitAttributes());
+		
+		// make sure to load Kaldenavn into attribute-set
+		Map<String, String> attributes = new HashMap<String, String>(person.getAttributes());
+		if (attributes != null && StringUtils.hasText(person.getNameAlias())) {
+			attributes.put("Kaldenavn", person.getNameAlias());
+		}
+		form.setAttributes(attributes);
 		
 		if (person.isLocked()) {
 			if (person.isLockedAdmin() || person.isLockedDataset()) {

@@ -33,7 +33,10 @@
 											<tr th:each="cms : ${cmsMessages}">
 												<td th:text="${cms.description}"></td>
 												<td th:text="${#strings.abbreviate(@cmsMessageBundle.getText(cms.key, true), 100)}"></td>
-												<td style="text-align: center;"><a th:href="${'/admin/cms/edit?key=' + cms.key}"><em style="color: #212529" class="fa fa-pencil"></em></a></td>
+												<td style="text-align: center;">
+													<a th:href="${'/admin/cms/edit?key=' + cms.key}"><em style="color: #212529" class="fa fa-pencil fa-fw" title="Rediger tekst"></em></a>
+													<a href="javascript:;" onclick="resetKey(this)" th:data-key="${cms.key}"><em style="color: #212529;" class="fa fa-times fa-fw" title="Nulstil tekst"></em></a>
+												</td>
 											</tr>
 										</tbody>
 									</table>
@@ -52,8 +55,13 @@
 
 	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = false)}"></div>
 	
-	<script type="text/javascript">
+	<script th:inline="javascript">
+	/*<![CDATA[*/
 		var token = $("meta[name='_csrf']").attr("content");
+		
+		/*[+
+			var restUrl = [[@{/rest/admin/cms/}]];
+		+]*/
 
 		$(document).ready(function(){
 			$('#cmsTable').DataTable({
@@ -75,6 +83,34 @@
 				}
 			});
 		});
+		
+		function resetKey(element) {
+			var key = $(element).data('key');
+			
+			swal({
+				title: "Er du sikker?",
+				text: "Dette vil nulstille teksten til standardværdien.",
+				type: "warning",
+				showCancelButton: true,
+				confirmButtonColor: "#DD6B55",
+				confirmButtonText: "Ja, nulstil",
+				cancelButtonText: "Annuller",
+				closeOnConfirm: false
+			}, function() {
+				$.ajax({
+					url: restUrl + 'reset?key=' + encodeURIComponent(key),
+					type: 'DELETE',
+					headers: { 'X-CSRF-TOKEN': token },
+					success: function() {
+						location.reload();
+					},
+					error: function() {
+						swal("Fejl!", "Kunne ikke nulstille teksten.", "error");
+					}
+				});
+			});
+		}
+	/*]]>*/
 	</script>
 </body>
 </html>

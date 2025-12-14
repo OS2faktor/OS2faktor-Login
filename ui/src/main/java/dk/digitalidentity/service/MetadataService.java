@@ -84,6 +84,7 @@ import dk.digitalidentity.mvc.admin.dto.serviceprovider.ClaimDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ConditionDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.EndpointDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
+import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderListDTO;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
@@ -124,6 +125,13 @@ public class MetadataService {
 
         return result;
     }
+
+	public List<ServiceProviderListDTO> getStaticServiceProviderListDTOs() {
+		return serviceProviderConfigs.stream()
+				.filter(ServiceProviderConfig::isEnabled)
+				.map(config -> new ServiceProviderListDTO(config))
+				.collect(Collectors.toList());
+	}
     
     public ServiceProviderDTO getStaticServiceProviderDTOByName(String name) {
         if (name == null || serviceProviderConfigs == null || serviceProviderConfigs.size() == 0) {
@@ -217,6 +225,7 @@ public class MetadataService {
 		config.setCertificateAlias(serviceProviderDTO.getCertificate());
 		config.setDelayedMobileLogin(serviceProviderDTO.isDelayedMobileLogin());
 		config.setOnlyAllowLoginFromKnownNetworks(serviceProviderDTO.isOnlyAllowLoginFromKnownNetworks());
+		config.setNotes(serviceProviderDTO.getNotes());
 
 		// Advanced fields
 		config.setAllowUnsignedAuthnRequests(serviceProviderDTO.isAllowUnsignedAuthnRequests());

@@ -64,7 +64,7 @@ public class ClaimsProviderKeystoreProvider implements DISAML_KeystoreProvider {
 				// check if we have already planned a certificate rollover
 				KeyStore secondaryKeystore = keystoreService.getJavaKeystore(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
 				if (secondaryKeystore != null) {
-					X509Certificate secondaryCertificate = (X509Certificate) keyStore.getCertificate(keyStore.aliases().nextElement());
+					X509Certificate secondaryCertificate = (X509Certificate) secondaryKeystore.getCertificate(keyStore.aliases().nextElement());
 					
 					LocalDate secondaryExpiry = secondaryCertificate
 						.getNotAfter()

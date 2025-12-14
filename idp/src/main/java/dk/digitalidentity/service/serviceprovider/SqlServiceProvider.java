@@ -651,4 +651,9 @@ public class SqlServiceProvider extends ServiceProvider {
 	public boolean onlyAllowLoginFromKnownNetworks() {
 		return config.isOnlyAllowLoginFromKnownNetworks();
 	}
+
+	@Override
+	public String getNotes() {
+		return config.getNotes();
+	}
 }

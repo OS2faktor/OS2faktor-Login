@@ -15,5 +15,9 @@ public class WebConfig implements WebMvcConfigurer {
 		registry.addResourceHandler("/webjars/**")
 				.addResourceLocations("classpath:/META-INF/resources/webjars/")
 			    .setCacheControl(CacheControl.maxAge(1, TimeUnit.DAYS));
+		
+        registry.addResourceHandler("/**")
+		        .addResourceLocations("classpath:/static/")
+		        .setCacheControl(CacheControl.maxAge(1, TimeUnit.HOURS));
 	}
 }

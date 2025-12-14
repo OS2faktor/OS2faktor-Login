@@ -17,8 +17,8 @@ public class Employee {
     private String uuid;
     private String emailAddress;
     private String rid;
-    private List<EmployeeCredential> employeeCredentials;
     
     // actually need to look this up through FullEmployee, so this is just a convenience holder
     private transient boolean qualifiedSignature;
+    private transient List<Authenticator> authenticators;
 }

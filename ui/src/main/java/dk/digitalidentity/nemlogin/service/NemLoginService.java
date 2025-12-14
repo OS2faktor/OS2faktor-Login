@@ -2,6 +2,7 @@ package dk.digitalidentity.nemlogin.service;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -127,21 +128,13 @@ public class NemLoginService {
 	private NemLoginTokenCache tokenCache;
 	
 	@EventListener(ApplicationReadyEvent.class)
-	public void runOnStartup() {
-		if (config.getNemLoginApi().isEnabled() && os2faktorConfiguration.getScheduled().isEnabled()) {
-			
-			// migrate existing users if needed
-			if (config.getNemLoginApi().isMigrateExistingUsers()) {
-				migrateExistingNemloginUsers();
-			}
-		}
-		
+	public void runOnStartup() {		
 		defaultClientErrorHandler = new ErrorHandler() {
 			
 			@Override
 			public void handle(HttpRequest req, ClientHttpResponse res) throws IOException {
 	            throw new RestClientResponseException(
-                    "Client error: " + res.getStatusCode() + " : " + IOUtils.readFully(res.getBody(), res.getBody().available()),
+                    "Client error: " + res.getStatusCode() + " : " + new String(IOUtils.readFully(res.getBody(), res.getBody().available())),
                     res.getStatusCode(),
                     res.getStatusText(),
                     null,
@@ -156,7 +149,7 @@ public class NemLoginService {
 			@Override
 			public void handle(HttpRequest req, ClientHttpResponse res) throws IOException {
 	            throw new RestClientResponseException(
-                    "Server error: " + res.getStatusCode() + " : " + IOUtils.readFully(res.getBody(), res.getBody().available()),
+                    "Server error: " + res.getStatusCode() + " : " + new String(IOUtils.readFully(res.getBody(), res.getBody().available())),
                     res.getStatusCode(),
                     res.getStatusText(),
                     null,
@@ -165,6 +158,14 @@ public class NemLoginService {
 	            );
 			}
 		};
+		
+		if (config.getNemLoginApi().isEnabled() && os2faktorConfiguration.getScheduled().isEnabled()) {
+			
+			// migrate existing users if needed
+			if (config.getNemLoginApi().isMigrateExistingUsers()) {
+				migrateExistingNemloginUsers();
+			}
+		}
 	}
 	
 	@Cacheable(value = "token", unless = "#result == null")
@@ -201,6 +202,10 @@ public class NemLoginService {
 	public void deleteMitIDErhverv() {
 		nemloginQueueService.deleteOldEntries();
 		personService.cleanupMitIDErhverv();
+	}
+	
+	public void deleteMitIDErhverv(Person person) {
+		nemloginQueueService.save(new NemloginQueue(person, NemloginAction.DELETE));
 	}
 
 	public void cleanupMitIDErhverv() {
@@ -329,7 +334,7 @@ public class NemLoginService {
 		}
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile";
-		UpdateProfileRequest body = new UpdateProfileRequest(person, config.getNemLoginApi().getDefaultEmail());
+		UpdateProfileRequest body = new UpdateProfileRequest(person, getEmail(person));
 
 		try {
 			restClient.put()
@@ -370,7 +375,7 @@ public class NemLoginService {
 		// step 0 - skal sikre at der er et CPR + folkeregisternavn på kontoen inden vi forsøger at aktivere, ellers går det grueligt galt
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile/draft";
 
-		UpdateProfileRequest body = new UpdateProfileRequest(person, config.getNemLoginApi().getDefaultEmail());
+		UpdateProfileRequest body = new UpdateProfileRequest(person, getEmail(person));
 
 		try {
 			restClient.put()
@@ -531,7 +536,20 @@ public class NemLoginService {
 	}
 
 	private String getUuidOfPrivateMitId(Person person) {
-		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/authenticators";
+		List<Authenticator> authenticators = getAuthenticators(person.getNemloginUserUuid());
+		if (authenticators != null) {
+			Optional<Authenticator> first = authenticators.stream().filter(authenticator -> "PrivateMitId".equals(authenticator.getType())).findFirst();
+
+			if (first.isPresent()) {
+				return first.get().getUuid();
+			}
+		}
+
+		return null;
+	}
+
+	private List<Authenticator> getAuthenticators(String uuid) {
+		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + uuid + "/authenticators";
 
 		try {
 			AuthenticatorsResponse response = restClient.get()
@@ -543,15 +561,11 @@ public class NemLoginService {
 		        .body(AuthenticatorsResponse.class);
 						
 			if (response != null && response.authenticators != null && !response.authenticators.isEmpty()) {
-				Optional<Authenticator> first = response.authenticators.stream().filter(authenticator -> "PrivateMitId".equals(authenticator.getType())).findFirst();
-
-				if (first.isPresent()) {
-					return first.get().getUuid();
-				}
+				return response.authenticators;
 			}
 		}
 		catch (Exception ex) {
-			log.warn("Unable to fetch private MitID information", ex);
+			log.warn("Unable to fetch authenticators for " + uuid, ex);
 		}
 
 		return null;
@@ -711,13 +725,10 @@ public class NemLoginService {
 			}
 		}
 
-		String email = person.getEmail();
+		String email = getEmail(person);
 		if (!StringUtils.hasLength(email)) {
-			email = config.getNemLoginApi().getDefaultEmail();
-			if (!StringUtils.hasLength(email)) {
-				log.error("Will not create employee for person " + person.getId() + ". The person has no email");
-				return "Der mangler en e-mail adresse på personen";
-			}
+			log.error("Will not create employee for person " + person.getId() + ". The person has no email");
+			return "Der mangler en e-mail adresse på personen";
 		}
 
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee";
@@ -808,6 +819,106 @@ public class NemLoginService {
 			}
 		}
 		catch (Exception ex) {
+			// is this a CONFLICT error ? Then there might be an existing account (suspended) that we can reactivate
+			if (person.getNemloginUserUuid() == null && ex instanceof RestClientResponseException) {
+				if (((RestClientResponseException) ex).getStatusCode().value() == 409) {
+					List<MitidErhvervCache> cache = mitidErhvervCacheService.findByCpr(person.getCpr());
+					if (cache != null && cache.size() > 0) {
+						String personEmail = getEmail(person);
+						String potentialUserName = person.getSamaccountName() + person.getDomain().getNemLoginDomain();
+						
+						// option 1 - find active account, not used by other persons,
+						// where that account matches on email and does not have a local credential
+						// OR has this exact credential (old account that has been delinked for some reason)
+						List<MitidErhvervCache> activeCacheHits = cache.stream().filter(c -> c.getStatus().equals("Active")).collect(Collectors.toList());
+						MitidErhvervCache potentialCandidate = null;
+						for (MitidErhvervCache hit : activeCacheHits) {
+							// active account, with exactly the username that we want to use
+							if (hit.isLocalCredential() && potentialUserName.equalsIgnoreCase(hit.getLocalCredentialUserId())) {
+								log.info("Re-associating person " + person.getId() + " with NemLog-in UUID " + hit.getUuid());
+
+								// update person with old UUID
+								person.setNemloginUserUuid(hit.getUuid());
+								personService.save(person);
+
+								// this removes the CREATE order, as it is not needed any more
+								return null;
+							}
+							else if (!hit.isLocalCredential() && Objects.equals(hit.getEmail(), personEmail)) {
+								// we prefer the above hit - so we just keep track of this till the end
+								potentialCandidate = hit;
+							}
+						}
+						
+						if (potentialCandidate != null) {
+							log.info("Associating person " + person.getId() + " with existing unassocated NemLog-in UUID " + potentialCandidate.getUuid());
+
+							// add a assign-local-user-id entry
+							NemloginQueue newQueueEntry = new NemloginQueue();
+							newQueueEntry.setAction(NemloginAction.ASSIGN_LOCAL_USER_ID);
+							newQueueEntry.setPerson(person);
+							newQueueEntry.setNemloginUserUuid(potentialCandidate.getUuid());
+							newQueueEntry.setTts(LocalDateTime.now());
+							nemloginQueueService.save(newQueueEntry);
+
+							// update person with old UUID
+							person.setNemloginUserUuid(potentialCandidate.getUuid());
+							personService.save(person);
+
+							// this removes the CREATE order, as it is not needed any more
+							return null;							
+						}
+						
+						// option 2 - find a suspended account with matching local credential
+						List<MitidErhvervCache> filteredCache = cache.stream()
+								.filter(c -> c.getStatus().equals("Suspended") && c.isLocalCredential() && potentialUserName.equalsIgnoreCase(c.getLocalCredentialUserId()))
+								.collect(Collectors.toList());
+						
+						// if we hit more than one, try to filter on email as well (should never happen - unique constraint an all that)
+						if (filteredCache.size() > 1) {
+							filteredCache = filteredCache.stream().filter(c -> Objects.equals(c.getEmail(), personEmail)).collect(Collectors.toList());
+						}
+
+						if (filteredCache.size() == 1) {
+							String oldUuid = filteredCache.get(0).getUuid();
+
+							// safety check - make sure no other account matches this uuid
+							boolean otherPersonWithSameCpr = personService.getByCpr(person.getCpr())
+									.stream()
+									.anyMatch(p -> p.getId() != person.getId() && Objects.equals(p.getNemloginUserUuid(), oldUuid));
+							
+							if (!otherPersonWithSameCpr) {
+								log.info("Converting CREATE order to a REACTIVATE order for person " + person.getId());
+								
+								// add a reactivate entry
+								NemloginQueue newQueueEntry = new NemloginQueue();
+								newQueueEntry.setAction(NemloginAction.REACTIVATE);
+								newQueueEntry.setPerson(person);
+								newQueueEntry.setNemloginUserUuid(oldUuid);
+								newQueueEntry.setTts(LocalDateTime.now());
+								nemloginQueueService.save(newQueueEntry);
+								
+								// update person with old UUID
+								person.setNemloginUserUuid(oldUuid);
+								personService.save(person);
+								
+								// this removes the CREATE order, as it is not needed any more
+								return null;
+							}
+						}
+					}
+				}
+			}
+
+			ObjectMapper mapper = new ObjectMapper();
+			try {
+				String payload = mapper.writeValueAsString(body);
+				log.info("Payload that failed: " + payload);
+			}
+			catch (Exception _) {
+				;
+			}
+
 			log.error("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid(), ex);
 			return "Teknisk fejl: " + ex.getMessage();
 		}
@@ -826,13 +937,10 @@ public class NemLoginService {
 			return "nemloginUserUuid is null";
 		}
 		
-		String email = person.getEmail();
+		String email = getEmail(person);
 		if (!StringUtils.hasLength(email)) {
-			email = config.getNemLoginApi().getDefaultEmail();
-			if (!StringUtils.hasLength(email)) {
-				log.error("Will not change email for person " + person.getId() + ". The person has no email");
-				return "email is null";
-			}
+			log.error("Will not change email for person " + person.getId() + ". The person has no email");
+			return "email is null";
 		}
 		
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/profile/nonsensitive";
@@ -1112,6 +1220,8 @@ public class NemLoginService {
 							employee.setQualifiedSignature(fullEmployee.getIdentityProfile().isAllowQualifiedCertificateIssuance());
 						}
 					}
+					
+					employee.setAuthenticators(getAuthenticators(employee.getUuid()));
 				}
 			}
 			catch (Exception ex) {
@@ -1268,6 +1378,7 @@ public class NemLoginService {
 			boolean singleMatch = true;
 			
 			for (Person person : personList) {
+				// TODO: email comparison potentially faulty for persons without email address
 				if (Objects.equals(person.getEmail(), cache.getEmail()) &&
 					Objects.equals(cache.getCpr(), person.getCpr()) &&
 					person.getNemloginUserUuid() == null) {
@@ -1505,5 +1616,22 @@ public class NemLoginService {
 		}
 
 		return true;
+	}
+	
+	private String getEmail(Person person) {
+		if (StringUtils.hasLength(person.getEmail())) {
+			return person.getEmail();
+		}
+		
+		String defaultEmailTemplate = config.getNemLoginApi().getDefaultEmail();
+		if (StringUtils.hasLength(defaultEmailTemplate)) {
+			String[] tokens = defaultEmailTemplate.split("@");
+			if (tokens.length == 2) {
+				// prefix-{sAMAccountName}@domain.com
+				return tokens[0] + "-" + person.getSamaccountName() + "@" + tokens[1];
+			}
+		}
+		
+		return null;
 	}
 }

@@ -393,6 +393,19 @@ public class SessionHelper {
 		}
 	}
 
+	public void addServiceProviderSession(final ServiceProvider serviceProvider) {
+		final Map<String, Map<String, String>> spSessions = getServiceProviderSessions();
+		spSessions.put(serviceProvider.getEntityId(), new HashMap<>());
+		setServiceProviderSessions(spSessions);
+	}
+
+	public void removeServiceProviderSession(final ServiceProvider serviceProvider) {
+		final Map<String, Map<String, String>> spSessions = getServiceProviderSessions();
+		spSessions.remove(serviceProvider.getEntityId());
+
+		setServiceProviderSessions(spSessions);
+	}
+
 	public void setServiceProviderSessions(Map<String, Map<String, String>> serviceProviders) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {

@@ -46,4 +46,10 @@ public class MfaLoginHistory {
 	@Column
 	private String clientType;
 
+	@Column
+	private String systemName;
+	
+	@Column
+	private String username;
+
 }

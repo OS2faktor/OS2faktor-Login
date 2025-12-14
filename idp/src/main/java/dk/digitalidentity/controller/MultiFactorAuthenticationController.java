@@ -102,21 +102,31 @@ public class MultiFactorAuthenticationController {
 
 			return null;
 		}
+		
+		Person person = sessionHelper.getPerson();
+		String username = (person != null) ? person.getSamaccountName() : null;
+
+		String systemName = "Ukendt";
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+		if (loginRequest != null) {
+			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+			if (serviceProvider != null) {
+				systemName = serviceProvider.getName(loginRequest);
+			}
+		}
 
 		// start MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId(), sessionHelper.isInPasswordlessMfaFlow());
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId(), sessionHelper.isInPasswordlessMfaFlow(), systemName, username);
 		if (!mfaResponseDto.isSuccess()) {
 			// Handle error in initialising MFA authentication
 			log.warn("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
 
-			Person person = sessionHelper.getPerson();
 			NSISLevel requiredNSISLevel = sessionHelper.getMFAClientRequiredNSISLevel();
 			if (person != null && requiredNSISLevel != null) {
 				return flowService.initiateMFA(model, person, requiredNSISLevel);
 			}
 
 			// Wrong state, show error instead of silently handling it
-			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			ResponderException error = new ResponderException("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
 			if (loginRequest != null) {
 				errorResponseService.sendError(response, loginRequest, error);
@@ -146,7 +156,6 @@ public class MultiFactorAuthenticationController {
 		model.addAttribute("deviceId", deviceId);
 		model.addAttribute("os2faktorBackend", configuration.getMfa().getBaseUrl());
 		
-		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest != null) {
 			ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
 			if (serviceProvider != null) {

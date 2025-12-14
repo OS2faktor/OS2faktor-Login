@@ -1034,9 +1034,13 @@ public class AuditLogger {
 	public void deletedUser(Person person, Person admin) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.DELETED_USER);
-		auditLog.setMessage("Stamdata for person slettet");
+		auditLog.setMessage("Stamdata for person slettet: " + person.getName());
 
-		log(auditLog, person, admin, person.getDomain());
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(person.getId() + " / " + person.getUuid() + " / " + person.getSamaccountName() + " / " + person.getName());
+
+		log(auditLog, null, admin, person.getDomain());
 	}
 
 	public void loginRejectedByIP(String ip) {

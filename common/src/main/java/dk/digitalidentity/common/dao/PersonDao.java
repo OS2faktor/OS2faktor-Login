@@ -23,7 +23,9 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findBySamaccountNameAndDomainIn(String samAccountName, List<Domain> domains);
 	List<Person> findByDomain(Domain domain);
 	List<Person> findByDomainIn(List<Domain> domains);
+	List<Person> findByDomainInAndCprIn(List<Domain> domains, Set<String> cprs);
 	List<Person> findByNsisAllowedTrueAndDomainIn(List<Domain> domains);
+	List<Person> findByNsisAllowedTrueAndDomainInAndCprIn(List<Domain> domains, Set<String> cprs);
 	List<Person> findByDomainAndNsisAllowed(Domain domain, boolean nsisAllowed);
 	List<Person> findByDomainInAndLockedDatasetFalse(List<Domain> domains);
 	List<Person> findByDomainAndCpr(Domain domain, String cpr);

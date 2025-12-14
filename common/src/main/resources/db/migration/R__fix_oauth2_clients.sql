@@ -17,3 +17,15 @@ SET token_settings = REGEXP_REPLACE(
     '"PT\\1S"'
 )
 WHERE token_settings LIKE '%"java.time.Duration"%';
+
+-- and we also need to do this afterwards - to swith these to long-bases Duration (god I hate it when they change the format from version to version)
+UPDATE oauth2_registered_client 
+SET token_settings = REGEXP_REPLACE(
+    REGEXP_REPLACE(
+        token_settings,
+        '"settings\\.token\\.access-token-time-to-live":"(PT[^"]+)"',
+        '"settings.token.access-token-time-to-live":["java.time.Duration","\\1"]'
+    ),
+    '"settings\\.token\\.refresh-token-time-to-live":"(PT[^"]+)"',
+    '"settings.token.refresh-token-time-to-live":["java.time.Duration","\\1"]'
+);

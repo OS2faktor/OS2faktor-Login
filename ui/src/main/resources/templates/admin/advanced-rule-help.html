@@ -33,6 +33,8 @@
 									<li><b>BINARY_UUID(a)</b> - Denne operation kan kun anvendes på UUID værdier, og er lavet specifikt til Danmarks Miljøportal. Den konverterer et UUID til det format som Windows anvender, og derefter Base64 enkoder den værdien</li>
 									<li><b>OS2ROL_JFR(a, b)</b> - Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Jobfunktionsroller (JFR) som brugeren er tildelt, og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.</li>
 									<li><b>OS2ROL_BSR(a, b)</b> - Denne operation kalder OS2rollekatalog med ID’et på et givent it-system (a), og henter Brugersystemroller (BSR) som brugeren er tildelt, og leverer en streng med alle Identifiers (tekniske ID’er) på de givne roller, adskilt med det separatortegn (b) som man har angivet.</li>
+									<li><b>IF(a, b)</b> - Denne operation udsteder værdien b hvis a har en gyldig værdi</li>
+									<li><b>IF_ELSE(a, b, c)</b> - Denne operation udsteder værdian b hvis a har en gyldig værdi, ellers udsteder den værdien c</li>
 								</ul>
 								
 								<p>
@@ -121,6 +123,26 @@ LOWER(JOIN(VALUE(user.name), VALUE(' - '), VALUE(user.email)))</pre>
 
 									Ovenstående eksempel finder alle systemroller tildelt til bruger i OS2rollekatalog <b>os2sofd</b> it-system og adskiller dem med en <b>;</b> karakter.<br>
 									Resultat: <b>admin;edit;losadmin</b>
+								</p>
+
+								<h3>IF</h3>
+								<p>
+									Denne operation udsteder en bestemt værdi, HVIS der er en en given kontrol-værdi.
+
+<pre>IF(VALUE(user.email), VALUE('Emailbruger'))</pre>
+
+									Ovenstående eksempel checker om brugeren har en email adresse, og hvis brugeren har det, så sender den værdien 'Emailbruger'<br>
+									Resultat: <b>Emailbruger</b>
+								</p>
+
+								<h3>IF_ELSE</h3>
+								<p>
+									Denne operation udsteder en bestemt værdi, HVIS der er en given kontrol-værdi, ellers udsteder den en anden værdi.
+
+<pre>IF_ELSE(VALUE(user.upn), VALUE(user.upn), VALUE(user.email))</pre>
+
+									Ovenstående eksempel checker om brugeren har en UPN værdi, og hvis det er tilfældet, så sender den UPN, ellers sender den brugerens EMAIL i stedet<br>
+									Resultat: <b>bsg@digital-identity.dk</b>
 								</p>
 
 								<h3>Kombineret eksempel</h3>

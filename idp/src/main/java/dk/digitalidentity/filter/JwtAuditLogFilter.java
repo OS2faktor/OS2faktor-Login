@@ -66,6 +66,7 @@ public class JwtAuditLogFilter extends OncePerRequestFilter {
 								String idToken = splitKeyAndValue[1];
 								String[] idTokenParts = idToken.split("\\.");
 								if (idTokenParts.length == 3) {
+									// TODO: this never works - need to look at the table oauth2_registered_clients (id column matches)
 									SqlServiceProviderConfiguration sp = serviceProviderService.getByEntityId(token.getRegisteredClientId());
 									
 									byte[] decode = Base64.getUrlDecoder().decode(idTokenParts[1]);

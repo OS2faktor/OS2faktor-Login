@@ -95,17 +95,17 @@ public class LogoutController {
             // Log to Console and AuditLog
             loggingUtil.logLogoutRequest(logoutRequest, Constants.INCOMING);
 
+            // Save RelayState
+            SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
+            String relayState = subcontext != null ? subcontext.getRelayState() : null;
+            sessionHelper.setRelayState(relayState);
+
             if (logoutRequest.getIssuer() == null) {
             	throw new RequesterException("Ingen Issuer i LogoutRequest");
             }
 
             serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
             auditLogger.logoutRequest(sessionHelper.getPerson(), samlHelper.prettyPrint(logoutRequest), false, serviceProvider.getName(null));
-
-            // Save RelayState
-            SAMLBindingContext subcontext = messageContext.getSubcontext(SAMLBindingContext.class);
-            String relayState = subcontext != null ? subcontext.getRelayState() : null;
-            sessionHelper.setRelayState(relayState);
 		}
 		catch (RequesterException | ResponderException e) {
 			log.warn("Error occurred, no destination to send error known", e);

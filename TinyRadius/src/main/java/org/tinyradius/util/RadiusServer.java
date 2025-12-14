@@ -125,23 +125,24 @@ public abstract class RadiusServer {
 	 * Starts the Radius server.
 	 */
 	public void start() {
-		new Thread() {
-			public void run() {
-				setName("Radius Auth Listener");
-				try {
-					log.info("starting RadiusAuthListener on port " + getAuthPort());
-					listenAuth();
-					log.info("RadiusAuthListener is being terminated");
-				}
-				catch (Exception e) {
-					log.error("auth thread stopped by exception", e);
-				}
-				finally {
-					authSocket.close();
-					log.debug("auth socket closed");
-				}
-			}
-		}.start();
+	    Thread.ofPlatform()
+	        .name("Radius Auth Listener")
+	        .start(() -> {
+	            try {
+	                log.info("starting RadiusAuthListener on port " + getAuthPort());
+	                listenAuth();
+	                log.info("RadiusAuthListener is being terminated");
+	            }
+	            catch (Exception e) {
+	                log.error("auth thread stopped by exception", e);
+	            }
+	            finally {
+	                if (authSocket != null) {
+	                    authSocket.close();
+	                    log.debug("auth socket closed");
+	                }
+	            }
+	        });
 	}
 
 	/**

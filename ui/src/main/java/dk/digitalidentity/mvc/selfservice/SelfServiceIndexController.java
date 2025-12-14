@@ -56,7 +56,7 @@ public class SelfServiceIndexController {
 	private ResourceBundleMessageSource resourceBundle;
 
 	@GetMapping("/selvbetjening")
-	public String index(Model model, HttpServletRequest request, @RequestParam(required = false) boolean skipChangePassword, @RequestParam(required = false) boolean result, @RequestParam(required = false) String deviceId, @RequestParam(required = false) String name) {
+	public String index(Model model, HttpServletRequest request, @RequestParam(value = "skipChangePassword", required = false) boolean skipChangePassword, @RequestParam(value = "result", required = false) boolean result, @RequestParam(value = "deviceId", required = false) String deviceId, @RequestParam(value = "name", required = false) String name) {
 		Person person = personService.getById(securityUtil.getPersonId());
 		if (person == null) {
 			log.warn("Tried to access system without being logged in");

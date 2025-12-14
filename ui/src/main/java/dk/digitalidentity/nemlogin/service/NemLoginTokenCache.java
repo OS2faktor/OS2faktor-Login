@@ -5,11 +5,9 @@ import java.io.IOException;
 import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
@@ -36,8 +34,7 @@ public class NemLoginTokenCache {
 	@Autowired
 	private CommonConfiguration config;
 	
-	@EventListener(ApplicationReadyEvent.class)
-	public void runOnStartup() {
+	public NemLoginTokenCache() {
 		defaultClientErrorHandler = new ErrorHandler() {
 			
 			@Override
