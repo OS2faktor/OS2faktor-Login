@@ -172,7 +172,7 @@ public class ClientApiController {
 
 				// Validation
 	            sessionHelper.setPerson(person);
-	            NSISLevel loginState = sessionHelper.getPasswordLevel();
+	            NSISLevel loginState = sessionHelper.getPasswordLevel(null, null, false);
 	            if (loginState == null) {
 	                log.info(people.size() + " loginState was null after password validation");
 	                return ResponseEntity.badRequest().build();

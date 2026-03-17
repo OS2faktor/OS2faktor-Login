@@ -34,7 +34,13 @@ import dk.digitalidentity.common.dao.model.PasswordSetting;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
 import dk.digitalidentity.common.dao.model.SessionSetting;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
 import dk.digitalidentity.common.dao.model.TUTermsAndConditions;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
 import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.dao.model.enums.DetailType;
@@ -1067,6 +1073,19 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
+	public void authnRequestRejected(Person person, String authnRequest, String message) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.AUTHN_REQUEST);
+		auditLog.setMessage("SAML 2.0 Login forespørgsel afvist");
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.XML);
+		auditLog.getDetails().setDetailContent(authnRequest);
+		auditLog.getDetails().setDetailSupplement(message);
+
+		log(auditLog, person, null);
+	}
+
 	public void oidcAuthorizationRequest(Person person, String authorizationRequest, String sentBy) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.AUTHN_REQUEST);
@@ -1313,6 +1332,30 @@ public class AuditLogger {
 		log(auditLog, null, null);
 	}
 
+	public void externalIdPUsed(Person person, String rawToken) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.EXTERNAL_IDP_USED);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(rawToken);
+		detail.setDetailType(DetailType.XML);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("Ekstern IdP anvendt");
+		
+		log(auditLog, person, null);
+	}
+
+	public void externalIdPFailed(String errorMessage) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.EXTERNAL_IDP_FAILED);
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(errorMessage);
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+		auditLog.setMessage("Ekstern IdP fejlede");
+
+		log(auditLog, null, null);
+	}
+
 	public void usedUniLogin(Person person, String uniID, String rawToken) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.USED_UNILOGIN);
@@ -1374,7 +1417,7 @@ public class AuditLogger {
 	public void checkPersonIsDead(Person person, Boolean dead) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.CHECK_DEAD);
-		auditLog.setMessage("Kontrolopslag i CPR registeret for at afgøre om personen er død");
+		auditLog.setMessage("Systemet har udført kontrolopslag i CPR registeret for at afgøre personens civilstand");
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailContent("Civilstand: " + ((dead != null) ? (dead == true ? "død" : "levende") :  "ukendt"));
 		detail.setDetailType(DetailType.TEXT);
@@ -1441,6 +1484,20 @@ public class AuditLogger {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.MITID_ERVHERV_ACTION);
 		auditLog.setMessage("Oprettet i MitID Erhverv med uuid " + person.getNemloginUserUuid());
+
+		log(auditLog, null, null);
+	}
+
+	public void failCreateNemLoginUser(Person person, String details) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.MITID_ERVHERV_ACTION);
+		auditLog.setMessage("Oprettelse i MitID Erhverv fejlet");
+		
+		AuditLogDetail detail = new AuditLogDetail();
+		detail.setDetailContent(details);
+		detail.setDetailType(DetailType.TEXT);
+		auditLog.setDetails(detail);
+
 
 		log(auditLog, null, null);
 	}
@@ -1563,6 +1620,149 @@ public class AuditLogger {
 		LocalDateTime tts = now.plusMonths(-3);
 	
 		auditLogDao.deleteLoginsByTtsBefore(tts);
+	}
+
+	public void kodeviserAutoResetSettingChanged(boolean newValue, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.KODEVISER_AUTO_RESET_SETTING);
+		auditLog.setMessage("Automatisk nulstilling af kodevisere " + (newValue ? "aktiveret" : "deaktiveret"));
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changeCmsText(String key, String value, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_CMS_TEXT);
+		auditLog.setMessage("CMS tekst ændret: " + key);
+
+		auditLog.setDetails(new AuditLogDetail());
+		auditLog.getDetails().setDetailType(DetailType.TEXT);
+		auditLog.getDetails().setDetailContent(value);
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changeEmailTemplate(String templateType, String domainName, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_EMAIL_TEMPLATE);
+		auditLog.setMessage("Mailskabelon ændret: " + templateType + (domainName != null ? " (" + domainName + ")" : ""));
+
+		log(auditLog, admin, admin);
+	}
+
+	public void addBadPassword(String password, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.ADD_BAD_PASSWORD);
+		auditLog.setMessage("Forbudt ord tilføjet: " + password);
+
+		log(auditLog, admin, admin);
+	}
+
+	public void removeBadPassword(String password, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.REMOVE_BAD_PASSWORD);
+		auditLog.setMessage("Forbudt ord fjernet: " + password);
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changeKnownNetworks(List<String> added, List<String> removed, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_KNOWN_NETWORKS);
+		auditLog.setMessage("Kendte netværk ændret");
+
+		if (!added.isEmpty() || !removed.isEmpty()) {
+			auditLog.setDetails(new AuditLogDetail());
+			auditLog.getDetails().setDetailType(DetailType.TEXT);
+			
+			StringBuilder sb = new StringBuilder();
+			if (!added.isEmpty()) {
+				sb.append("Tilføjet: ").append(String.join(", ", added));
+			}
+
+			if (!removed.isEmpty()) {
+				if (!sb.isEmpty()) {
+					sb.append("\n");
+				}
+				sb.append("Fjernet: ").append(String.join(", ", removed));
+			}
+
+			auditLog.getDetails().setDetailContent(sb.toString());
+		}
+
+		log(auditLog, admin, admin);
+	}
+
+	public void changeServiceProvider(SqlServiceProviderConfiguration config, boolean isNew, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.CHANGE_SERVICE_PROVIDER);
+		auditLog.setMessage((isNew ? "Tjenesteudbyder oprettet: " : "Tjenesteudbyder ændret: ") + config.getName());
+
+		Map<String, Object> details = new HashMap<>();
+		details.put("name", config.getName());
+		details.put("entityId", config.getEntityId());
+		details.put("enabled", config.isEnabled());
+		details.put("MFA", config.getForceMfaRequired() != null ? config.getForceMfaRequired().toString() : null);
+		details.put("NSIS", config.getNsisLevelRequired() != null ? config.getNsisLevelRequired().toString() : null);
+		details.put("noter", config.getNotes());
+		
+		// claims
+		Map<String, String> claims = new HashMap<>();
+		
+		if (config.getAdvancedClaims() != null && config.getAdvancedClaims().size() > 0) {
+			for (SqlServiceProviderAdvancedClaim claim : config.getAdvancedClaims()) {
+				claims.put(claim.getClaimName(), "Avanceret regel: " + claim.getClaimValue());
+			}
+		}
+
+		if (config.getGroupClaims() != null && config.getGroupClaims().size() > 0) {
+			for (SqlServiceProviderGroupClaim claim : config.getGroupClaims()) {
+				claims.put(claim.getClaimName(), "Gruppe regel: gruppe=" + (claim.getGroup() != null ? claim.getGroup().getName() : "<null>") + ", værdi=" + claim.getClaimValue());
+			}
+		}
+
+		if (config.getRcClaims() != null && config.getRcClaims().size() > 0) {
+			for (SqlServiceProviderRoleCatalogueClaim claim : config.getRcClaims()) {
+				claims.put(claim.getClaimName(), "OS2rollekatalog regel: operation=" + claim.getExternalOperation().toString() + ", argument=" + claim.getExternalOperationArgument());
+			}
+		}
+
+		if (config.getRequiredFields() != null && config.getRequiredFields().size() > 0) {
+			for (SqlServiceProviderRequiredField claim : config.getRequiredFields()) {
+				claims.put(claim.getAttributeName(), "Personlig regel: felt=" + claim.getPersonField().toString());
+			}
+		}
+
+		if (config.getStaticClaims() != null && config.getStaticClaims().size() > 0) {
+			for (SqlServiceProviderStaticClaim claim : config.getStaticClaims()) {
+				claims.put(claim.getField(), "Fast regel: værdi=" + claim.getValue());
+			}
+		}
+
+		if (claims.size() > 0) {
+			details.put("claims", claims);
+		}
+
+		auditLog.setDetails(new AuditLogDetail());
+		try {
+			auditLog.getDetails().setDetailType(DetailType.JSON);
+			auditLog.getDetails().setDetailContent(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(details));
+		}
+		catch (JacksonException ex) {
+			log.warn("Could not serialize ServiceProvider details when auditlogging.", ex);
+			auditLog.getDetails().setDetailType(DetailType.TEXT);
+			auditLog.getDetails().setDetailContent("name=" + config.getName() + ", entityId=" + config.getEntityId() + ", enabled=" + config.isEnabled() + ", protocol=" + config.getProtocol());
+		}
+
+		log(auditLog, admin, admin);
+	}
+
+	public void deleteServiceProvider(String name, Person admin) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.DELETE_SERVICE_PROVIDER);
+		auditLog.setMessage("Tjenesteudbyder slettet: " + name);
+
+		log(auditLog, admin, admin);
 	}
 
 	@Transactional(rollbackFor = Exception.class) // this is OK, need transaction for bulk delete

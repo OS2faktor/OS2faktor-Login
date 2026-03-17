@@ -8,6 +8,7 @@ import java.util.Map;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.saml2.core.AuthnContextClassRef;
+import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.RequestedAuthnContext;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +26,11 @@ import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 
+@Slf4j
 @Component
 public class StilServiceProvider extends ServiceProvider {
 	private AbstractReloadingMetadataResolver resolver;
@@ -148,11 +151,43 @@ public class StilServiceProvider extends ServiceProvider {
 
 	@Override
 	public NSISLevel nsisLevelRequired(LoginRequest loginRequest) {
-		// even if the AuthnRequest contains a required level, we will simply map it to NONE, to ensure
-		// that everyone CAN perform a login. This might result in a login that only issues a NIST claim,
-		// even though STIL requires an NSIS level, but that is okay, as STIL will then perform a step-up
-		// at their end (this has been agreed upon with STIL)
-		return NSISLevel.NONE;
+		
+		// we also support login for students, as they will never have an NSIS level, we start by checking
+		// if the domain that the person is from, is a non-NSIS domain, and then we just flag it as such.
+		// IF the person doing the login actually needs an NSIS level, then STIL will block the login, but
+		// this allows us to send students through, even though the flow is intended for NSIS logins.
+		try {
+			Person person = sessionHelper.getPerson();
+			if (person != null) {
+				if (person.getDomain() != null && person.getDomain().isNonNsis()) {
+					return NSISLevel.NONE;
+				}
+			}
+		}
+		catch (Exception ex) {
+			log.error("Failed to read session person", ex);
+		}
+
+		AuthnRequest authnRequest = loginRequest.getAuthnRequest();
+
+		// get AuthnRequest supplied level
+        NSISLevel requestedLevel = NSISLevel.NONE;
+        RequestedAuthnContext requestedAuthnContext = authnRequest.getRequestedAuthnContext();
+        if (requestedAuthnContext != null && requestedAuthnContext.getAuthnContextClassRefs() != null) {
+            for (AuthnContextClassRef authnContextClassRef : requestedAuthnContext.getAuthnContextClassRefs()) {
+                if (Constants.LEVEL_OF_ASSURANCE_SUBSTANTIAL.equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    requestedLevel = NSISLevel.SUBSTANTIAL;
+                    break;
+                }
+
+                if (Constants.LEVEL_OF_ASSURANCE_LOW.equals(authnContextClassRef.getAuthnContextClassRef())) {
+                    requestedLevel = NSISLevel.LOW;
+                    break;
+                }
+            }
+        }
+
+        return requestedLevel;
 	}
 
 	@Override

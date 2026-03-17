@@ -72,12 +72,32 @@
 										</div>
 									</div>
 
-									<div class="col-lg-3" th:each="websocketConnection : ${websocketConnections}">
+									<div class="col-lg-6" th:each="websocketConnection : ${websocketConnections}">
 										<div class="ibox">
 											<div class="ibox-content" style="min-height: 260px;">
 												<h5>AD Forbindelser ([[${websocketConnection.key}]])</h5>
-												<h2>[[${websocketConnection.value.first}]] / [[${websocketConnection.value.second}]]</h2>
-												<div th:id="'connections-' + ${#strings.replace(websocketConnection.key, '.', '-')}"></div>
+												<table class="table table-condensed table-hover" style="margin-top: 8px; margin-bottom: 0;">
+													<thead>
+														<tr>
+															<th>Server</th>
+															<th>Status</th>
+															<th>Sidste OK</th>
+														</tr>
+													</thead>
+													<tbody>
+														<tr th:each="s : ${websocketConnection.value.sessions}">
+															<td>
+																<span th:text="${s.serverName != null ? s.serverName : 'ukendt'}"></span>
+																<em th:if="${s.serverName == null}" class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-content="Opgrader til Password Agent version 2.2.0 eller nyere for at se servernavn"></em>
+															</td>
+															<td>
+																<span th:if="${s.up}" class="label label-primary">OK</span>
+																<span th:unless="${s.up}" class="label label-danger">NEDE</span>
+															</td>
+															<td th:text="${s.lastHealthy != null ? #temporals.format(s.lastHealthy, 'yyyy-MM-dd HH:mm:ss') : 'ukendt'}"></td>
+														</tr>
+													</tbody>
+												</table>
 											</div>
 										</div>
 									</div>
@@ -105,7 +125,6 @@
 		var yesterday = [[${yesterdayLogins}]];
 		var personCount = [[${personCount}]];
 		var aprovedConditionsCount = [[${aprovedConditionsCount}]];
-		var webSocketConnectionMap = [[${websocketConnections}]];
 		var transferedToNemloginCount = [[${transferedToNemloginCount}]];
         +]*/
 
@@ -138,16 +157,6 @@
 				height: '140',
 				sliceColors: ['#1ab394', '#F5F5F5']
 			});
-
-			for (var key in webSocketConnectionMap) {
-				var fieldId = '#connections-' + key.replace('.', '-');
-
-				$(fieldId).sparkline([webSocketConnectionMap[key].first, (webSocketConnectionMap[key].second - webSocketConnectionMap[key].first)], {
-					type: 'pie',
-					height: '140',
-					sliceColors: ['#1ab394', '#F5F5F5']					
-				});
-			}
 
 			if (flashMessage != undefined) {
 				toastr.success(flashMessage);

@@ -336,6 +336,15 @@
 												<input th:field="${serviceprovider.additionalEntityIds}" type="text" class="form-control">
 											</label>
 										</div>
+										<div class="from-group row" th:if="${externalIdPEnabled}">
+											<label class="col-sm-3 col-form-label">
+												Foretag automatisk viderestilling til ekstern IdP
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til (og brugeren ikke allerede har en login session), vil brugeren automatisk viderestilles til den konfigurerede 3.parts IdP. Hvis login fejler her, eller tjenestens NSIS indstillinger ikke tillader det, vil brugeren dog stadig skulle gennem et eksisterende login på OS2faktor."></em>
+											</label>
+											<label class="col-sm-9">
+												<input th:field="${serviceprovider.autoNonNsisIdPLogin}" type="checkbox" class="i-checks">
+											</label>
+										</div>
 									</div>
 
 									<div class="form-group row">
@@ -928,6 +937,8 @@
 		var existingSecret = [[${serviceprovider.existingSecret}]];
 		
 		var exemptedMfaDomains = [[${serviceprovider.exemptedDomains}]];
+		
+		var externalIdPEnabled = [[${externalIdPEnabled}]];
 		+]*/
 
 		// messages
@@ -1385,6 +1396,9 @@
 							data.disableSubjectConfirmation = $('input[name=disableSubjectConfirmation]').iCheck('update')[0].checked;
 							data.disableSubjectConfirmationRecipient = $('input[name=disableSubjectConfirmationRecipient]').iCheck('update')[0].checked;
 							data.additionalEntityIds = $('input[name=additionalEntityIds]').val();
+							if (externalIdPEnabled) {
+								data.autoNonNsisIdPLogin = $('input[name=autoNonNsisIdPLogin]').iCheck('update')[0].checked;
+							}
 							
 							if ($('#nsisLevelRequiredSelect option:selected').val() == 'NONE' && $('input[name="hasCustomSessionExpiry"]').iCheck('update')[0].checked) {
 								data.passwordExpiry =  $('input[name=passwordExpiry]').val();

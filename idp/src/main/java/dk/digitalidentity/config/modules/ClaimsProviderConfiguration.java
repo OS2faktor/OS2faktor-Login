@@ -1,5 +1,7 @@
 package dk.digitalidentity.config.modules;
 
+import java.util.List;
+
 import org.springframework.stereotype.Component;
 
 import lombok.Getter;
@@ -16,4 +18,11 @@ public class ClaimsProviderConfiguration {
 	private String stilEntityId = "https://broker.unilogin.dk/auth/realms/broker";
 	private String stilMetadata = "https://www.digital-identity.dk/metadata/stil-metadata-for-sp.xml";
 	private boolean stilEnabled = false;
+	
+	private String nonNsisIdPEntityId;
+	private String nonNsisIdPMetadata;
+	private List<String> nonNsisIdPIpFilter;
+	private boolean nonNsisIdPIsPassive = true;
+	private boolean nonNsisIdPEnabled = false;
+	private boolean nonNsisIdPEnabledForMobile = true;
 }

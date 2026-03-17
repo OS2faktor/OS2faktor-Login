@@ -20,6 +20,8 @@ public class AdminPersonDTO {
 	private boolean qualifiedSignature;
 	private String mitidErhvervRid;
 
+	private boolean validatedPasswordAgainstAd;
+
 	private Long personId;
 	private boolean nameProtected;
 	private Map<String, String> attributes;

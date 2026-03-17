@@ -11,4 +11,5 @@ public class AdConfiguration {
 	private String baseUrl;
 	private String apiKey;
 	private String passwordSecret;
+	private int alarmThresholdMinutes = 10;
 }

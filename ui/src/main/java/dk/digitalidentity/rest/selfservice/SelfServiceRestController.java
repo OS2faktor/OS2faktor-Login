@@ -251,7 +251,7 @@ public class SelfServiceRestController {
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId(), false, "OS2faktor Selvbetjening", person.getSamaccountName());
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient, false, "OS2faktor Selvbetjening", person.getSamaccountName());
 		if (!mfaResponseDto.isSuccess()) {
 			log.warn("Got an exception from response from mfaService.authenticate() on deviceID = " + matchingClient.getDeviceId() + " exception: " + mfaResponseDto.getFailureMessage());
 			return ResponseEntity.status(500).build();

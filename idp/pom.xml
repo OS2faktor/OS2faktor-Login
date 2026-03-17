@@ -65,7 +65,7 @@
 		<dependency>
 			<groupId>dk.digitalidentity</groupId>
 			<artifactId>saml-module</artifactId>
-			<version>os2faktor-4.0.3</version>
+			<version>os2faktor-4.0.5</version>
 		</dependency>
 
 		<dependency>

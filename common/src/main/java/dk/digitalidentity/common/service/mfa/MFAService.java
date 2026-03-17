@@ -310,10 +310,6 @@ public class MFAService {
 
 		for (MfaClient client : clients) {
 			try {
-				// TODO: emitChallenge=false undertrykker kontrolkoden, men nyeste logik i app'en undertrykker visning af 2 ens kontrolkoder. Det skal den så ikke hvis dette
-				// skal virke. Så app'en skal tillade kontrolkoder der er blanke altid, og kun undertrykke dubletter med faktiske kontrolkoder. Dette skal være kommenteret
-				// ud til ændringen er lavet i app'en
-
 				UriComponentsBuilder builder = UriComponentsBuilder
 						.fromUriString(configuration.getMfa().getBaseUrl())
 						.path("/api/server/client/" + client.getDeviceId() + "/authenticate");
@@ -358,6 +354,15 @@ public class MFAService {
 		return response;
 	}
 
+	public MfaAuthenticationResponseDTO authenticate(MfaClient client, boolean passwordless, String systemName, String username) {
+		// force-enable the passwordless flag if configured to do so, and available
+		if (configuration.getCustomer().isEnableMfaChallengeFlow() && client.isSupportsChallengeFlow()) {
+			passwordless = true;
+		}
+
+		return authenticate(client.getDeviceId(), passwordless, systemName, username);
+	}
+
 	public MfaAuthenticationResponseDTO authenticate(String deviceId, boolean passwordless, String systemName, String username) {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("ApiKey", configuration.getMfa().getApiKey());
@@ -367,8 +372,8 @@ public class MFAService {
 
 		try {
 			UriComponentsBuilder builder = UriComponentsBuilder
-							.fromUriString(configuration.getMfa().getBaseUrl())
-							.path("/api/server/client/" + deviceId + "/authenticate");
+				.fromUriString(configuration.getMfa().getBaseUrl())
+				.path("/api/server/client/" + deviceId + "/authenticate");
 
 			if (systemName != null) {
 				String encodedSystemName = Base64.getEncoder().encodeToString(systemName.getBytes(StandardCharsets.UTF_8));

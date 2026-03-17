@@ -634,8 +634,8 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 
 	@Override
-	public boolean isAllowMitidErvhervLogin() {
-		return config.isAllowMitidErvhervLogin();
+	public boolean isAllowMitidErhvervLogin() {
+		return config.isAllowMitidErhvervLogin();
 	}
 
 	public String getCertificateAlias() {
@@ -655,5 +655,10 @@ public class SqlServiceProvider extends ServiceProvider {
 	@Override
 	public String getNotes() {
 		return config.getNotes();
+	}
+	
+	@Override
+	public boolean isAutoNonNsisIdPLogin() {
+		return config.isAutoNonNsisIdPLogin();
 	}
 }

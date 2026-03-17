@@ -62,7 +62,7 @@ public class CoreDataLogService {
 		coreDataLogDao.deleteByTtsBefore(LocalDateTime.now().minusDays(30));
 	}
 	
-	public CoreDataLog addLog(String endpoint, String domainName, String subDomain) {
+	public CoreDataLog addLog(String endpoint, String domainName, String subDomain, long processingTime, boolean success) {
 		if (StringUtils.hasLength(subDomain)) {
 			endpoint = endpoint + "?subdDomain=" + subDomain;
 		}
@@ -73,6 +73,6 @@ public class CoreDataLogService {
 			return null;
 		}
 
-		return save(new CoreDataLog(endpoint, domain));
+		return save(new CoreDataLog(endpoint, domain, processingTime, success));
 	}
 }

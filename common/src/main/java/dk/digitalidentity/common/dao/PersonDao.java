@@ -23,9 +23,7 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findBySamaccountNameAndDomainIn(String samAccountName, List<Domain> domains);
 	List<Person> findByDomain(Domain domain);
 	List<Person> findByDomainIn(List<Domain> domains);
-	List<Person> findByDomainInAndCprIn(List<Domain> domains, Set<String> cprs);
 	List<Person> findByNsisAllowedTrueAndDomainIn(List<Domain> domains);
-	List<Person> findByNsisAllowedTrueAndDomainInAndCprIn(List<Domain> domains, Set<String> cprs);
 	List<Person> findByDomainAndNsisAllowed(Domain domain, boolean nsisAllowed);
 	List<Person> findByDomainInAndLockedDatasetFalse(List<Domain> domains);
 	List<Person> findByDomainAndCpr(Domain domain, String cpr);
@@ -45,6 +43,9 @@ public interface PersonDao extends JpaRepository<Person, Long> {
 	List<Person> findByExternalNemloginUserUuid(String uuid);
 	List<Person> findByBadPasswordCountGreaterThan(long count);
 	long countByLockedPasswordTrue();
+
+	@Query("SELECT p FROM Person p WHERE p.domain IN ?1 AND (p.cpr IN ?2 OR p.samaccountName IN ?3)")
+	List<Person> findByDomainInAndCprOrSamAccountName(List<Domain> domains, Set<String> cprs, Set<String> samAccountNames);
 
 	@Query("SELECT person FROM Person person JOIN person.attributes a WHERE (KEY(a) = :key AND a = :value)")
 	List<Person> findByAttributeValue(String key, String value);

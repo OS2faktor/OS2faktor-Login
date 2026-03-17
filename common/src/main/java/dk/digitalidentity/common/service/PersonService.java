@@ -280,8 +280,19 @@ public class PersonService {
 	}
 
 	@Transactional
-	public List<Person> getByDomainAndCprIn(Domain domain, Set<String> cprs, boolean searchChildren, Consumer<Person> consumer) {
-		List<Person> persons = getByDomainAndCprIn(domain, cprs, searchChildren, false);
+	public List<Person> getByDomainAndCprOrSamAccountName(Domain domain, Set<String> cprs, Set<String> samAccountNames, Consumer<Person> consumer) {
+		ArrayList<Domain> toBeSearched = new ArrayList<>();
+		toBeSearched.add(domain); // Always search the main domain
+
+		if (domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
+			List<Domain> childDomains = domain.getChildDomains();
+
+			if (childDomains != null && !childDomains.isEmpty()) {
+				toBeSearched.addAll(childDomains);
+			}
+		}
+
+		List<Person> persons = personDao.findByDomainInAndCprOrSamAccountName(toBeSearched, cprs, samAccountNames);
 		
 		if (consumer != null) {
 			persons.forEach(consumer);
@@ -292,25 +303,6 @@ public class PersonService {
 	
 	public List<Person> getByDomain(Domain domain, boolean searchChildren) {
 		return getByDomain(domain, searchChildren, false);
-	}
-	
-	public List<Person> getByDomainAndCprIn(Domain domain, Set<String> cprs, boolean searchChildren, boolean onlyNsisAllowed) {
-		ArrayList<Domain> toBeSearched = new ArrayList<>();
-		toBeSearched.add(domain); // Always search the main domain
-
-		if (searchChildren && domain.getChildDomains() != null && !domain.getChildDomains().isEmpty()) {
-			List<Domain> childDomains = domain.getChildDomains();
-
-			if (childDomains != null && !childDomains.isEmpty()) {
-				toBeSearched.addAll(childDomains);
-			}
-		}
-
-		if (onlyNsisAllowed) {
-			return personDao.findByNsisAllowedTrueAndDomainInAndCprIn(toBeSearched, cprs);
-		}
-
-		return personDao.findByDomainInAndCprIn(toBeSearched, cprs);
 	}
 	
 	public List<Person> getByDomain(Domain domain, boolean searchChildren, boolean onlyNsisAllowed) {

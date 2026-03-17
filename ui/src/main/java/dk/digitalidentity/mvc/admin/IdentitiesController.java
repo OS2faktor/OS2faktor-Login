@@ -103,6 +103,7 @@ public class IdentitiesController {
 		form.setUserId(PersonService.getUsername(person));
 		form.setEmail(person.getEmail());
 		form.setKombitAttributes(person.getKombitAttributes());
+		form.setValidatedPasswordAgainstAd(person.isPasswordValidatedAgainstAd());
 		
 		// make sure to load Kaldenavn into attribute-set
 		Map<String, String> attributes = new HashMap<String, String>(person.getAttributes());

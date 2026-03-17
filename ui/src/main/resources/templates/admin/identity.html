@@ -54,6 +54,7 @@
 											</label>
 											<div class="col-sm-10">
 												<input type="text" class="form-control" disabled="disabled" th:value="#{__${form.nsisStatus.message}__}"/>
+												<span th:if="${form.validatedPasswordAgainstAd}" style="color: red">Brugerens kodeord i OS2faktor er ude af sync med Active Directory</span>
 											</div>
 										</div>
 										

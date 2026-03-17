@@ -5,9 +5,15 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
@@ -15,7 +21,6 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.util.Pair;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -38,6 +43,9 @@ import dk.digitalidentity.common.service.model.ADPasswordRequest;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import dk.digitalidentity.common.service.model.UnlockADAccountRequest;
+import dk.digitalidentity.common.service.model.WebsocketConnectionStatus;
+import dk.digitalidentity.common.service.model.WebsocketServerStatus;
+import dk.digitalidentity.common.service.model.WebsocketSessionInfo;
 import lombok.extern.slf4j.Slf4j;
 
 @EnableScheduling
@@ -46,10 +54,13 @@ import lombok.extern.slf4j.Slf4j;
 public class ADPasswordService {
 	private RestTemplate restTemplate = new RestTemplate();
 	private Map<String, Integer> flaggedWebsocketDomains = new HashMap<>();
-	private Map<String, Integer> websocketMaxConnections = new HashMap<>();
+	private Map<String, WebsocketConnectionStatus> websocketStatusMap = new ConcurrentHashMap<>();
 
 	@Autowired
 	private CommonConfiguration configuration;
+
+	@Autowired
+	private EmailService emailService;
 
 	@Autowired
 	private PasswordChangeQueueService passwordChangeQueueService;
@@ -59,18 +70,24 @@ public class ADPasswordService {
 
 	@Autowired
 	private DomainService domainService;
+
+	public Map<String, WebsocketConnectionStatus> getWebsocketConnectionMap() {
+		return websocketStatusMap;
+	}
 	
-	// clear max values at 02:00 every night
-	@Scheduled(cron = "0 2 * * * *")
+	// clear max connection counts at 02:00 every night (keep status and lastHealthy)
+	@Scheduled(cron = "0 0 2 * * *")
 	public void resetCount() {
-		websocketMaxConnections = new HashMap<>();
+		for (WebsocketConnectionStatus status : websocketStatusMap.values()) {
+			status.setMaxConnections(0);
+		}
 	}
 
 	public boolean monitorConnection(String domain) {
 		try {
-			int sessionCount = getWebsocketSessionCount(domain);
+			Integer sessionCount = getWebsocketSessionCount(domain);
 
-			if (sessionCount > 0) {
+			if (sessionCount != null && sessionCount > 0) {
 				if (log.isDebugEnabled()) {
 					log.debug("Websockets monitoring success. " + sessionCount + " active sessions");
 				}
@@ -79,6 +96,8 @@ public class ADPasswordService {
 
 				return true;
 			}
+
+			int count = sessionCount != null ? sessionCount : 0;
 
 			// three consecutive calls should fail before we get an alarm
 			Integer failureCount = flaggedWebsocketDomains.get(domain);
@@ -91,10 +110,10 @@ public class ADPasswordService {
 			}
 
 			if (failureCount >= 3) {
-				log.error("Websockets monitoring error (count = " + failureCount + "). Number of activeSessions was: " + sessionCount + " for domain '" + domain + "'");
+				log.error("Websockets monitoring error (count = " + failureCount + "). Number of activeSessions was: " + count + " for domain '" + domain + "'");
 			}
 			else {
-				log.warn("Websockets monitoring warning (count = " + failureCount + "). Number of activeSessions was: " + sessionCount + " for domain '" + domain + "'");
+				log.warn("Websockets monitoring warning (count = " + failureCount + "). Number of activeSessions was: " + count + " for domain '" + domain + "'");
 				return true;
 			}
 		}
@@ -104,20 +123,120 @@ public class ADPasswordService {
 
 		return false;
 	}
-	
-	public Pair<Integer, Integer> getWebsocketSessionCountPair(String domain) {
-		Integer current = getWebsocketSessionCount(domain);
-		Integer currentMax = websocketMaxConnections.get(domain);
 
-		if (currentMax == null || current > currentMax) {
-			websocketMaxConnections.put(domain, current);
-			currentMax = current;
+	// Fetches current session details from the websocket service and updates the in-memory status map for the given domain.
+	// Tracks per-server up/down state, fires email alarms when a server has been down beyond the configured threshold,
+	// and removes servers that have been down for more than 24 hours.
+	public void updateWebsocketConnectionStatus(String domain) {
+		WebsocketConnectionStatus status = websocketStatusMap.computeIfAbsent(domain, _ -> new WebsocketConnectionStatus());
+
+		List<WebsocketSessionInfo> currentSessions = getWebsocketSessionDetails(domain);
+		Set<String> activeKeys = currentSessions.stream()
+			.map(s -> s.getServerName() != null ? s.getServerName() : String.valueOf(s.getId()))
+			.collect(Collectors.toSet());
+
+		Map<String, WebsocketServerStatus> serverMap = status.getServerMap();
+
+		// Update servers that are currently active
+		for (WebsocketSessionInfo session : currentSessions) {
+			// Set key to server name or session id
+			String key = session.getServerName() != null ? session.getServerName() : String.valueOf(session.getId());
+			WebsocketServerStatus serverStatus = serverMap.computeIfAbsent(key, _ -> new WebsocketServerStatus());
+			serverStatus.setServerName(session.getServerName());
+
+			if (!serverStatus.isUp()) {
+				// Server came back up — reset alarm so it fires again if it goes down later
+				serverStatus.setAlarmSent(false);
+				serverStatus.setDownSince(null);
+			}
+
+			serverStatus.setUp(true);
+			serverStatus.setLastHealthy(LocalDateTime.now());
 		}
-		
-		return Pair.of(current, currentMax);
+
+		// Handle servers no longer in the active list
+		int alarmThreshold = configuration.getAd().getAlarmThresholdMinutes();
+		Iterator<Map.Entry<String, WebsocketServerStatus>> iterator = serverMap.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<String, WebsocketServerStatus> entry = iterator.next();
+			WebsocketServerStatus serverStatus = entry.getValue();
+
+			if (!activeKeys.contains(entry.getKey())) {
+				if (serverStatus.getServerName() == null) {
+					// Unnamed server disconnected — remove to avoid alarms
+					iterator.remove();
+					continue;
+				}
+
+				if (serverStatus.isUp()) {
+					serverStatus.setUp(false);
+					serverStatus.setDownSince(LocalDateTime.now());
+				}
+
+				// Fire alarm once when down longer than threshold
+				if (!serverStatus.isAlarmSent() && serverStatus.getDownSince() != null && serverStatus.getDownSince().isBefore(LocalDateTime.now().minusMinutes(alarmThreshold))) {
+					log.warn("Websocket server '{}' for domain '{}' has been down for more than {} minutes", serverStatus.getServerName(), domain, alarmThreshold);
+					serverStatus.setAlarmSent(true);
+
+					String emails = null;
+					Domain actualDomain = domainService.getByName(domain);
+					if (actualDomain != null) {
+						PasswordSetting settings = passwordSettingService.getSettings(actualDomain);
+						if (settings != null && settings.isMonitoringEnabled()) {
+							emails = settings.getMonitoringEmail();
+						}
+					}
+
+					if (StringUtils.hasLength(emails)) {
+						String subject = "(OS2faktor " + configuration.getEmail().getFromName() + ") forbindelse til AD nede : " + serverStatus.getServerName();
+						String message = "Forbindelsen til servicen 'OS2faktor Password Agent' der kører på serveren '" + serverStatus.getServerName() + "' for domænet '" + domain + "' har været utilgængelig i mere end " + alarmThreshold + " minutter.";
+						emailService.sendMessage(emails, subject, message, null);
+					}
+				}
+			}
+		}
+
+		// Remove servers that have been down for more than 24 hours
+		serverMap.values().removeIf(s -> !s.isUp() && s.getDownSince() != null && s.getDownSince().isBefore(LocalDateTime.now().minusHours(24)));
+
+		// Build the sessions list from tracking map
+		List<WebsocketServerStatus> serverList = new ArrayList<>(serverMap.values());
+		status.setSessions(serverList);
+
+		// Update domain-level counters
+		int current = (int) serverList.stream().filter(WebsocketServerStatus::isUp).count();
+		status.setCurrentConnections(current);
+
+		if (current > status.getMaxConnections()) {
+			status.setMaxConnections(current);
+		}
 	}
 
-	private int getWebsocketSessionCount(String domain) {
+	// Fetch info about AD sessions from websockets project
+	private List<WebsocketSessionInfo> getWebsocketSessionDetails(String domain) {
+		try {
+			HttpHeaders headers = new HttpHeaders();
+			headers.add("apiKey", configuration.getAd().getApiKey());
+
+			ResponseEntity<WebsocketSessionInfo[]> response = restTemplate.exchange(
+				getURL("api/sessionDetails?domain=" + domain),
+				HttpMethod.GET,
+				new HttpEntity<Object>(headers),
+				WebsocketSessionInfo[].class
+			);
+
+			if (response.getStatusCode().value() == 200 && response.getBody() != null) {
+				return Arrays.asList(response.getBody());
+			}
+		}
+		catch (Exception ex) {
+			log.error("Failed to get session details for domain '" + domain + "'", ex);
+		}
+
+		return Collections.emptyList();
+	}
+
+	private Integer getWebsocketSessionCount(String domain) {
 		try {
 			HttpHeaders headers = new HttpHeaders();
 			headers.add("apiKey", configuration.getAd().getApiKey());
@@ -126,11 +245,11 @@ public class ADPasswordService {
 
 			if (response.getStatusCode().value() == 200) {
 				Integer responseValue = response.getBody();
-				
+
 				if (responseValue != null) {
 					return responseValue;
 				}
-				
+
 				log.warn("responseValue is null");
 			}
 			else {
@@ -140,8 +259,8 @@ public class ADPasswordService {
 		catch (Exception ex) {
 			log.error("Websockets monitoring error for domain '" + domain + "'", ex);
 		}
-		
-		return 0;
+
+		return null;
 	}
 
 	public ADPasswordResponse.ADPasswordStatus validatePassword(Person person, String password) {

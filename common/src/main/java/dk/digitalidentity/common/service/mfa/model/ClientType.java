@@ -8,7 +8,8 @@ public enum ClientType {
 	YUBIKEY("enum.clienttype.yubikey"),
 	EDGE("enum.clienttype.edge"),
 	TOTP("enum.clienttype.totp"),
-	TOTPH("enum.clienttype.totph");
+	TOTPH("enum.clienttype.totph"),
+	FIREFOX("enum.clienttype.firefox");
 
 	private String message;
 	

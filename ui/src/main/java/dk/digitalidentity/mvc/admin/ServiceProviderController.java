@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.Keystore;
 import dk.digitalidentity.common.dao.model.PersonAttribute;
@@ -59,6 +60,9 @@ public class ServiceProviderController {
 	@Autowired
 	private GroupService groupService;
 	
+	@Autowired
+	private CommonConfiguration configuration;
+	
 	@GetMapping("/admin/konfiguration/tjenesteudbydere")
 	public String getServiceProviders(Model model) throws Exception {
         final List<ServiceProviderListDTO> serviceProviders = metadataService.getStaticServiceProviderListDTOs();
@@ -74,7 +78,16 @@ public class ServiceProviderController {
 
 		return "admin/serviceproviders-list";
 	}
-	
+
+	@GetMapping("/admin/konfiguration/eksterneloginmetoder")
+	public String getExternalLoginMethods(Model model) {
+		model.addAttribute("mitIDEnabled", true);
+		model.addAttribute("stilEnabled", configuration.getCustomer().isStilLoginMethodEnabled());
+		model.addAttribute("externalIdPEnabled", configuration.getCustomer().isExternalLoginMethodEnabled());
+
+		return "admin/external-login-methods";
+	}
+
 	@GetMapping("/admin/konfiguration/tjenesteudbydere/rulehelp")
 	public String ruleHelp(Model model) {
 		return "admin/advanced-rule-help";
@@ -137,6 +150,7 @@ public class ServiceProviderController {
 		}
 		
 		model.addAttribute("serviceprovider", serviceProviderDTO);
+		model.addAttribute("externalIdPEnabled", configuration.getCustomer().isExternalLoginMethodEnabled());
 		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
 
 		return "admin/serviceprovider-view";
@@ -160,6 +174,7 @@ public class ServiceProviderController {
 		}
 
 		model.addAttribute("serviceprovider", serviceProviderDTO);
+		model.addAttribute("externalIdPEnabled", configuration.getCustomer().isExternalLoginMethodEnabled());
 		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
 		
 		List<Group> groups = groupService.getAll();

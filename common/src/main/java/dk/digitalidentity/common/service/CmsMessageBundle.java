@@ -117,7 +117,11 @@ public class CmsMessageBundle {
 		all.add(new CmsMessageListDTO("cms.changePassword.button", getDescription("cms.changePassword.button")));
 
 		all.add(new CmsMessageListDTO("cms.login.rejected.ip", getDescription("cms.login.rejected.ip")));
+		all.add(new CmsMessageListDTO("cms.login.rejected.nsislevel", getDescription("cms.login.rejected.nsislevel")));
 
+		all.add(new CmsMessageListDTO("cms.login.nonNsisIdP", getDescription("cms.login.nonNsisIdP")));
+		all.add(new CmsMessageListDTO("cms.login.nonNsisIdP.description", getDescription("cms.login.nonNsisIdP.description")));
+		
 		return all;
 	}
 	
@@ -239,6 +243,12 @@ public class CmsMessageBundle {
 				return "Teksten på knappen der anvendes når man vil afslutte et kodeordsskifte";
             case "cms.login.rejected.ip":
                 return "Teksten der vises hvis en brugers login afvises pga IP adresse udenfor kendte netværk";
+            case "cms.login.rejected.nsislevel":
+                return "Teksten der vises hvis en brugers login afvises pga for lavt NSIS niveau (typisk pga mismatch mellem AD kodeord og OS2faktor kodeord)";
+            case "cms.login.nonNsisIdP":
+            	return "Teksten der vises på fanen til ekstern IdP login på loginsiden";
+            case "cms.login.nonNsisIdP.description":
+            	return "Den forklarende tekst på fanen til ekstern IdP login på loginsiden";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

@@ -1,0 +1,1 @@
+ALTER TABLE persons ADD COLUMN password_validated_against_ad BOOLEAN NOT NULL DEFAULT 0 AFTER password;

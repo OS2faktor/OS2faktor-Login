@@ -19,10 +19,9 @@ import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.WSFederationService;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import dk.digitalidentity.util.ShowErrorToUserException;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -46,7 +45,7 @@ public class WSFederationController {
 	private ServiceProviderFactory serviceProviderFactory;
 
 	@RequestMapping(value = { "/ws/login", "/ws/login/", }, method = { RequestMethod.GET, RequestMethod.POST})
-	public ModelAndView login(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO parameters) throws RequesterException, ResponderException, ShowErrorToUserException {
+	public ModelAndView login(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO parameters) throws IdPFlowException {
 		// handle logout case
 		if ("wsignout1.0".equals(parameters.getWa()) || "wsignoutcleanup1.0".equals(parameters.getWa())) {
 			return logout(httpServletRequest, httpServletResponse, model, parameters);
@@ -70,7 +69,7 @@ public class WSFederationController {
 		LoginRequest loginRequest = new LoginRequest(parameters, httpServletRequest.getHeader("User-Agent"), destination);
 		loginRequest.setRelayState(parameters.getWctx());
 
-		return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest);
+		return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest, false);
 	}
 
 	private ModelAndView logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @Valid WSFedRequestDTO logoutParameters) throws RequesterException, ResponderException {

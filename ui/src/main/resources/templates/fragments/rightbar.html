@@ -173,6 +173,7 @@
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere}">Se Tjenesteudbydere</a></li>
 						<li><a th:href="@{/admin/konfiguration/person/attributes}">Administrér bruger attributter</a></li>
 						<li><a th:href="@{/admin/konfiguration/tjenesteudbydere/metadata}">Metadata oplysninger</a></li>
+						<li><a th:href="@{/admin/konfiguration/eksterneloginmetoder}">Eksterne loginmetoder</a></li>
 						
 						<th:block th:if="${@commonConfiguration.radiusConfiguration.enabled == true}">
 						<li><a th:href="@{/admin/konfiguration/radiusklienter/0/edit}">Opret ny RADIUS klient</a></li>

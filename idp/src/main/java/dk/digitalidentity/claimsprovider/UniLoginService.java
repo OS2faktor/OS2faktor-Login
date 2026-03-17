@@ -28,6 +28,7 @@ import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,7 +61,7 @@ public class UniLoginService {
 	@Autowired
 	private PersonService personService;
 
-	public ModelAndView uniLoginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser) throws RequesterException, ResponderException {
+	public ModelAndView uniLoginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser) throws IdPFlowException {
 		
 		// get UniID
 		String uniID = null;
@@ -128,7 +129,7 @@ public class UniLoginService {
 
 			// handle multiple user accounts
 			if (availablePeople.size() != 1) {
-				return flowService.initiateUserSelect(model, availablePeople, NSISLevel.NONE, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
+				return flowService.initiateUserSelect(model, availablePeople);
 			}
 			else {
 				// if we only have one person use that one

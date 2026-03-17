@@ -115,7 +115,8 @@ public abstract class ServiceProvider {
         }
 
         if (match.isEmpty()) {
-            throw new RuntimeException("Could not find Post or Redirect SLO Response endpoint in metadata");
+            log.warn("Could not find Post or Redirect SLO Response endpoint in metadata for " + getName(null));
+        	return null;
         }
 
         return match.get();
@@ -252,7 +253,7 @@ public abstract class ServiceProvider {
 		return false;
 	}
 
-	public boolean isAllowMitidErvhervLogin() {
+	public boolean isAllowMitidErhvervLogin() {
 		return false;
 	}
 	
@@ -277,6 +278,10 @@ public abstract class ServiceProvider {
 	
 	public String getNotes() {
 		return "";
+	}
+	
+	public boolean isAutoNonNsisIdPLogin() {
+		return false;
 	}
 
 	// END-SECTION

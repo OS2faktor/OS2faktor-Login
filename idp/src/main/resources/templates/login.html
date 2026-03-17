@@ -31,7 +31,8 @@
                 	
                     <div class="tabs-container">
                         <ul class="nav nav-tabs" role="tablist">
-                            <li><a th:if="${showNemLogIn}" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
+                            <li><a th:if="${showNemLogIn or showNonNsisIdP}" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
+                            <li><a th:if="${showNonNsisIdP}" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-2" href="#tab-2"><th:block th:text="${@cmsMessageBundle.getText('cms.login.nonNsisIdP')}"></th:block></a></li>
                             <li><a th:if="${showNemLogIn}" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">MitID</a></li>
                         </ul>
 
@@ -70,6 +71,21 @@
                                             <div>
                                                 <label><input id="remember" type="checkbox" class="i-checks" alt="checkbox"> &nbsp; Husk brugernavn</label>
                                             </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div th:if="${showNonNsisIdP}" role="tabpanel" id="tab-2" class="tab-pane">
+                                <div class="panel-body">
+
+                                    <form class="m-t" id="login3" role="form" th:action="@{/sso/login}" method="post">
+                                        <div class="form-group">
+                                            <span th:utext="${@cmsMessageBundle.getText('cms.login.nonNsisIdP.description')}" />
+                                        </div>
+                                        <br>
+                                        <div class="form-group">
+                                            <a th:href="@{/nemlogin/saml/login(idp=${@OS2faktorConfiguration.getClaimsProvider().getNonNsisIdPEntityId()})}" class="btn btn-primary block full-width m-b">Login med <th:block th:text="${@cmsMessageBundle.getText('cms.login.nonNsisIdP')}"></th:block></a>
                                         </div>
                                     </form>
                                 </div>
@@ -125,6 +141,7 @@
 			var url = [[@{/fragment/username}]];
 			var username = [[${username != null ? username : ''}]];
 			var requestedUsername = [[${@sessionHelper.getRequestedUsername()}]];
+			var flashMessage = [[${flashMessage}]];
 		+]*/
 
 		var formService;
@@ -145,6 +162,10 @@
 				$("#toggleView_" + id).toggleClass("fa-eye");
 				$("#toggleView_" + id).toggleClass("fa-eye-slash");
 			});
+			
+			if (flashMessage) {
+				toastr.warning(flashMessage);
+			}
 		});
 
 		function FormService() {

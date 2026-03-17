@@ -823,10 +823,18 @@ public class AdminRestController {
 		try {
 			// Throws exception if claims attribute contains 'data.gov.dk/concept/core/nsis/aal' or 'data.gov.dk/concept/core/nsis/aal'
 			if (serviceProviderDTO.getClaims().stream().map(ClaimDTO::getAttribute).anyMatch(claimValueString -> claimValueString.contains("data.gov.dk/concept/core/nsis/aal") || claimValueString.contains("data.gov.dk/concept/core/nsis/loa"))) {
-				throw new Exception("Det er ikke tilladt at tilføje claims indeholdende 'data.gov.dk/concept/core/nsis/aal' eller 'data.gov.dk/concept/core/nsis/aal'"); 
+				throw new Exception("Det er ikke tilladt at tilføje claims indeholdende 'data.gov.dk/concept/core/nsis/aal' eller 'data.gov.dk/concept/core/nsis/aal'");
 			}
-			
+
+			Person admin = securityUtil.getPerson();
+			if (admin == null) {
+				log.warn("Could not find admin while saving service provider");
+				return new ResponseEntity<>("Could not identify logged in admin", HttpStatus.BAD_REQUEST);
+			}
+
+			boolean isNew = serviceProviderDTO.getId() == null || serviceProviderDTO.getId().isBlank() || serviceProviderDTO.getId().equals("0");
 			SqlServiceProviderConfiguration config = metadataService.saveConfiguration(serviceProviderDTO);
+			auditLogger.changeServiceProvider(config, isNew, admin);
 
 			return ResponseEntity.ok(config.getId());
 		}
@@ -857,7 +865,17 @@ public class AdminRestController {
 	@ResponseBody
 	public ResponseEntity<?> deleteServiceProvider(@PathVariable("id") String serviceProviderId) {
 		try {
+			Person admin = securityUtil.getPerson();
+			if (admin == null) {
+				log.warn("Could not find admin while deleting service provider");
+				return new ResponseEntity<>("Could not identify logged in admin", HttpStatus.BAD_REQUEST);
+			}
+
+			SqlServiceProviderConfiguration sp = sqlServiceProviderConfigurationService.getById(Long.parseLong(serviceProviderId));
+			String spName = sp != null ? sp.getName() : serviceProviderId;
+
 			metadataService.deleteServiceProvider(Long.parseLong(serviceProviderId));
+			auditLogger.deleteServiceProvider(spName, admin);
 
 			return new ResponseEntity<>(HttpStatus.OK);
 		}

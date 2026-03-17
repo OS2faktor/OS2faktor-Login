@@ -461,4 +461,9 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	public boolean onlyAllowLoginFromKnownNetworks() {
 		return kombitConfig.isOnlyAllowLoginFromKnownNetworks();
 	}
+
+	@Override
+	public boolean isAutoNonNsisIdPLogin() {
+		return kombitConfig.isAutoNonNsisIdPLogin();
+	}
 }

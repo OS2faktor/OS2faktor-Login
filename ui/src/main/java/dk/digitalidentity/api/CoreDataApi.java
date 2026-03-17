@@ -49,14 +49,17 @@ public class CoreDataApi {
 
 	@PostMapping("/api/coredata/full")
 	public ResponseEntity<?> fullLoad(@RequestBody CoreData coreData) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+		
 		try {
 			coreDataService.load(coreData, true);
-
-			coreDataLogService.addLog("/api/coredata/full", coreData.getDomain(), coreData.getGlobalSubDomain());
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
+			
 			// handle this error message in a special way - standalone domains throws this often, and we don't want alarms on that
 			if (ex.getMessage() != null && ex.getMessage().contains("Tom entryList for domæne")) {
 				try {
@@ -76,20 +79,28 @@ public class CoreDataApi {
 
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
 		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/full", coreData.getDomain(), coreData.getGlobalSubDomain(), System.currentTimeMillis() - start, success);
+		}
 	}
 
 	@PostMapping("/api/coredata/delta")
 	public ResponseEntity<?> deltaLoad(@RequestBody CoreData coreData) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.load(coreData, false);
-
-			coreDataLogService.addLog("/api/coredata/delta", coreData.getDomain(), coreData.getGlobalSubDomain());
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for deltaLoad", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/delta", coreData.getDomain(), coreData.getGlobalSubDomain(), System.currentTimeMillis() - start, success);
 		}
 	}
 
@@ -97,16 +108,21 @@ public class CoreDataApi {
     //	         som en slags backup kode)
 	@PostMapping("/api/coredata/groups/load/full")
 	public ResponseEntity<?> loadGroupsFully(@RequestBody CoreDataGroupLoad groups) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.loadGroupsFull(groups);
-
-			coreDataLogService.addLog("/api/coredata/groups/load/full", groups.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for Group load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/groups/load/full", groups.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 
@@ -115,16 +131,21 @@ public class CoreDataApi {
 
 	@PostMapping("/api/coredata/groups/load/delta")
 	public ResponseEntity<?> loadGroupsDelta(@RequestBody CoreDataGroupLoad groups) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.loadGroupsDelta(groups);
-
-			coreDataLogService.addLog("/api/coredata/groups/load/delta", groups.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for Group load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/groups/load/delta", groups.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 
@@ -132,16 +153,21 @@ public class CoreDataApi {
     //	         som en slags backup kode)
 	@PostMapping("/api/coredata/kombitAttributes/load/full")
 	public ResponseEntity<?> loadKombitAttributesFully(@RequestBody CoreDataKombitAttributesLoad kombitAttributes) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.loadKombitAttributesFull(kombitAttributes);
-
-			coreDataLogService.addLog("/api/coredata/kombitAttributes/load/full", kombitAttributes.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for KombitAttributes load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/kombitAttributes/load/full", kombitAttributes.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 	
@@ -149,31 +175,41 @@ public class CoreDataApi {
     //	         som en slags backup kode)
 	@PostMapping("/api/coredata/nsisallowed/load")
 	public ResponseEntity<?> loadNSISAllowed(@RequestBody CoreDataNsisAllowed nsisAllowed) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.loadNsisUsers(nsisAllowed);
-
-			coreDataLogService.addLog("/api/coredata/nsisallowed/load", nsisAllowed.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for NSIS allowed load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/nsisallowed/load", nsisAllowed.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 	
 	@PostMapping("/api/coredata/transfertonemlogin/load")
 	public ResponseEntity<?> loadTransferToNemlogin(@RequestBody CoreDataNemLoginAllowed transferToNemlogin) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			coreDataService.loadTransferToNemlogin(transferToNemlogin);
-
-			coreDataLogService.addLog("/api/coredata/transfertonemlogin/load", transferToNemlogin.getDomain(), null);
 
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for transfer to Nemlogin load", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/transfertonemlogin/load", transferToNemlogin.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 
@@ -286,6 +322,9 @@ public class CoreDataApi {
 	// OBS!!! the optional uuid that can be used to identify a user is an external uuid that must be loaded into attributes as azureId
 	@PostMapping("/api/coredata/jfr/full")
 	public ResponseEntity<?> fullLoadKombitJfr(@RequestBody CoreDataFullJfr coreData) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			// validate first
 			if (coreData == null || coreData.getEntryList() == null) {
@@ -297,14 +336,16 @@ public class CoreDataApi {
 			}
 
 			coreDataService.loadFullKombitJfr(coreData);
-			
-			coreDataLogService.addLog("/api/coredata/jfr/full", coreData.getDomain(), null);
-			
+						
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for fullLoadKombitJfr", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/jfr/full", coreData.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 	
@@ -312,6 +353,9 @@ public class CoreDataApi {
 	
 	@PostMapping("/api/coredata/jfr/delta")
 	public ResponseEntity<?> deltaLoadKombitJfr(@RequestBody CoreDataDeltaJfr coreData) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+		
 		try {
 			// validate first
 			if (coreData == null || coreData.getEntryList() == null) {
@@ -323,33 +367,41 @@ public class CoreDataApi {
 			}
 
 			coreDataService.loadDeltaKombitJfr(coreData);
-			
-			coreDataLogService.addLog("/api/coredata/jfr/delta", coreData.getDomain(), null);
-			
+						
 			return ResponseEntity.ok().build();
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for deltaLoadKombitJfr", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/jfr/delta", coreData.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 
 	@PostMapping("/api/coredata/passwordchange/force")
 	public ResponseEntity<?> forceChangePassword(@RequestBody CoreDataForceChangePassword coreData) {
+		long start = System.currentTimeMillis();
+		boolean success = true;
+
 		try {
 			// validate
 			if (coreData == null || !StringUtils.hasLength(coreData.getDomain()) || !StringUtils.hasLength(coreData.getSamAccountName())) {
 				return new ResponseEntity<>("Missing samAccountName or domain", HttpStatus.BAD_REQUEST);
 			}
 
-			boolean success = coreDataService.setForceChangePassword(coreData);
-			coreDataLogService.addLog("/api/coredata/passwordchange/force", coreData.getDomain(), null);
-
+			success = coreDataService.setForceChangePassword(coreData);
+			
 			return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).body("No person found");
 		}
 		catch (Exception ex) {
+			success = false;
 			log.error("Failed to parse payload for forceChangePassword", ex);
 			return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+		}
+		finally {
+			coreDataLogService.addLog("/api/coredata/passwordchange/force", coreData.getDomain(), null, System.currentTimeMillis() - start, success);
 		}
 	}
 

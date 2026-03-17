@@ -86,6 +86,7 @@ public class PersonsReportXlsView implements View {
 		headers.add("Dato for godkendt vilkår");
 		headers.add("NSIS sikringsniveau");
 		headers.add("NSIS status");
+		headers.add("Status på kodeord");
 		headers.add("2-faktor enheder");
 		headers.add("Administratorroller");
 		headers.add("MitID Erhverv UUID");
@@ -162,6 +163,9 @@ public class PersonsReportXlsView implements View {
 			else {
 				createCell(dataRow, column++, "Aktiv (ingen erhvervsidentitet)", null);
 			}
+			
+			// status på kodeord
+			createCell(dataRow, column++, (entry.hasActivatedNSISUser() && entry.isPasswordValidatedAgainstAd()) ? "Brugerens kodeord fra AD matcher ikke kodeordet i OS2faktor" : "OK", null);
 			
 			// MFA klienter
 			StringBuilder mfaClients = new StringBuilder();

@@ -33,7 +33,7 @@ public class IndexController {
 		
 		model.addAttribute("person", sessionHelper.getPerson());
 		model.addAttribute("nsis", loginState);
-		model.addAttribute("mfa", (NSISLevel.LOW.equalOrLesser(sessionHelper.getMFALevel())) ? "Ja" : "Nej");
+		model.addAttribute("mfa", (NSISLevel.LOW.equalOrLesser(sessionHelper.getMFALevel(null, null, false))) ? "Ja" : "Nej");
 
 		List<String> sps = new ArrayList<>();
 		for (String key : sessionHelper.getServiceProviderSessions().keySet()) {

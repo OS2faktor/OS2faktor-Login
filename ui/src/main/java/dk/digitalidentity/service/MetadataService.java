@@ -220,7 +220,7 @@ public class MetadataService {
 		config.setNsisLevelRequired(serviceProviderDTO.getNsisLevelRequired());
 		config.setEncryptAssertions(serviceProviderDTO.isEncryptAssertions());
 		config.setEnabled(serviceProviderDTO.isEnabled());
-		config.setAllowMitidErvhervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
+		config.setAllowMitidErhvervLogin(serviceProviderDTO.isAllowMitidErhvervLogin());
 		config.setAllowAnonymousUsers(serviceProviderDTO.isAllowAnonymousUsers());
 		config.setCertificateAlias(serviceProviderDTO.getCertificate());
 		config.setDelayedMobileLogin(serviceProviderDTO.isDelayedMobileLogin());
@@ -232,6 +232,7 @@ public class MetadataService {
 		config.setDisableSubjectConfirmation(serviceProviderDTO.isDisableSubjectConfirmation());
 		config.setDisableSubjectConfirmationRecipient(serviceProviderDTO.isDisableSubjectConfirmationRecipient());
 		config.setAdditionalEntityIds(serviceProviderDTO.getAdditionalEntityIds());
+		config.setAutoNonNsisIdPLogin(serviceProviderDTO.isAutoNonNsisIdPLogin());
 
 		if (serviceProviderDTO.getPasswordExpiry() != null && serviceProviderDTO.getMfaExpiry() != null) {
 			Long passwordExpiry = serviceProviderDTO.getPasswordExpiry();

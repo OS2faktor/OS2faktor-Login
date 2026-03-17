@@ -684,6 +684,8 @@ public class NemLoginService {
 			return "personen findes ikke i databasen";
 		}
 		
+		boolean conflictError = false;
+		
 		log.info("Creating person " + person.getId());
 		
 		if (!validCpr(person.getCpr()) || cprService.isFictionalCpr(person.getCpr())) {
@@ -822,6 +824,8 @@ public class NemLoginService {
 			// is this a CONFLICT error ? Then there might be an existing account (suspended) that we can reactivate
 			if (person.getNemloginUserUuid() == null && ex instanceof RestClientResponseException) {
 				if (((RestClientResponseException) ex).getStatusCode().value() == 409) {
+					conflictError = true;
+
 					List<MitidErhvervCache> cache = mitidErhvervCacheService.findByCpr(person.getCpr());
 					if (cache != null && cache.size() > 0) {
 						String personEmail = getEmail(person);
@@ -919,7 +923,14 @@ public class NemLoginService {
 				;
 			}
 
-			log.error("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid(), ex);
+			if (!conflictError) {
+				log.error("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid(), ex);
+			}
+			else {
+				auditLogger.failCreateNemLoginUser(person, "Der eksisterer en anden konto i MitID Erhverv, med samme brugernavn som denne (" + (person.getSamaccountName() + person.getDomain().getNemLoginDomain()) + ")");
+				log.warn("Failed to create employee with nemloginApi. Person with uuid " + person.getUuid(), ex);
+			}
+
 			return "Teknisk fejl: " + ex.getMessage();
 		}
 	}
@@ -986,6 +997,14 @@ public class NemLoginService {
 		        .body(String.class);
 		}
 		catch (Exception ex) {
+			if (ex instanceof RestClientResponseException rex) {
+				// 404 is okay - means it has already been deleted
+				if (rex.getStatusCode().value() == 404) {
+					log.info("Already deleted: " + nemloginUserUuid);
+					return null;
+				}
+			}
+
 			log.error("Failed to delete nemlogin employee for deleted person with nemloginUserUuid " + nemloginUserUuid, ex);
 			return "Exception: " + ex.getMessage();
 		}
@@ -1065,7 +1084,7 @@ public class NemLoginService {
 		String url = config.getNemLoginApi().getBaseUrl() + "/api/administration/identity/employee/" + person.getNemloginUserUuid() + "/reactivate";
 
 		try {
-			ResponseEntity<String> response = restClient.put()
+			restClient.put()
 			        .uri(url)
 			        .header("Authorization", "Bearer " + tokenCache.fetchToken())
 			        .retrieve()
@@ -1073,46 +1092,33 @@ public class NemLoginService {
 			        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
 			        .toEntity(String.class);
 
-			if (response.getStatusCode().value() == 204) {
-				auditLogger.reactivatedNemLoginUser(person);
-				
-				EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_ACTIVATED);
-				for (EmailTemplateChild child : emailTemplate.getChildren()) {
-					if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
-						String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
-						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
-						message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
-						emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
-					}
+			auditLogger.reactivatedNemLoginUser(person);
+			
+			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.MITID_ACTIVATED);
+			for (EmailTemplateChild child : emailTemplate.getChildren()) {
+				if (child.isEnabled() && child.getDomain().getId() == person.getDomain().getId()) {
+					String message = EmailTemplateService.safeReplacePlaceholder(child.getMessage(), EmailTemplateService.RECIPIENT_PLACEHOLDER, person.getName());
+					message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.USERID_PLACEHOLDER, person.getSamaccountName());
+					message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.NL3UUID_PLACEHOLDER, person.getNemloginUserUuid());
+					emailTemplateSenderService.send(person.getEmail(), person.getCpr(), person, child.getTitle(), message, child, true);
 				}
-			}
-			else if (response.getStatusCode().value() == 404) {
-				log.info("Could not reactivate " + person.getSamaccountName() + " (" + person.getId() + "), so clearing NL UUID, and doing a CREATE next night");
-				
-				// account in MitID Erhverv no longer exists - reactivating is not possible - we should instead attempt to create
-				// an account, which will happen automatically during the nightly job because transferToNemLogin is true and NemloginUserUuid is not null ;)
-				person.setNemloginUserUuid(null);
-				personService.save(person);
-			}
-			else if (response.getStatusCode().value() == 409) {
-				String body = response.getBody();
-				
-				// just try again - no worries (and no errors)
-				if (body != null && body.contains("OptimisticConcurrency")) {
-					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
-					return "statusCode = " + response.getStatusCode().value();
-				}
-				else {
-					log.warn("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
-					return "statusCode = " + response.getStatusCode().value();
-				}
-			}
-			else {
-				log.error("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid() + ". StatusCode=" + response.getStatusCode().value() + " / body=" + response.getBody());
-				return "statusCode = " + response.getStatusCode().value();
 			}
 		}
 		catch (Exception ex) {
+			if (ex instanceof RestClientResponseException rex) {
+				// 404 is okay
+				if (rex.getStatusCode().value() == 404) {
+					log.info("Could not reactivate " + person.getSamaccountName() + " (" + person.getId() + "), so clearing NL UUID, and doing a CREATE next night");
+					
+					// account in MitID Erhverv no longer exists - reactivating is not possible - we should instead attempt to create
+					// an account, which will happen automatically during the nightly job because transferToNemLogin is true and NemloginUserUuid is not null ;)
+					person.setNemloginUserUuid(null);
+					personService.save(person);
+
+					return null;
+				}
+			}
+
 			log.error("Failed to reactivate nemlogin employee for person with nemloginUserUuid " + person.getNemloginUserUuid(), ex);
 			return "Exception: " + ex.getMessage();
 		}
@@ -1332,17 +1338,20 @@ public class NemLoginService {
 				
 				// no longer active, but person is active, so create a task to reactivate
 				if (Objects.equals(mitidErhvervCache.getStatus(), "Suspended")) {
-					MitIdErhvervAccountError error = new MitIdErhvervAccountError();
-					error.setPerson(person);
-					error.setErrorType(MitIdErhvervAccountErrorType.ACCOUNT_DISABLED_IN_MITID_ERHVERV);
-					error.setNemloginUserUuid(person.getNemloginUserUuid());
-
-					if (!existingErrors.contains(error)) {
-						newErrors.add(error);
-					}
-					else {
-						// matched - so we can remove it from the set so we do not delete it later
-						existingErrors.remove(error);
+					// it is actually okay if person is locked, then Suspended is expected
+					if (!person.isLocked()) {
+						MitIdErhvervAccountError error = new MitIdErhvervAccountError();
+						error.setPerson(person);
+						error.setErrorType(MitIdErhvervAccountErrorType.ACCOUNT_DISABLED_IN_MITID_ERHVERV);
+						error.setNemloginUserUuid(person.getNemloginUserUuid());
+	
+						if (!existingErrors.contains(error)) {
+							newErrors.add(error);
+						}
+						else {
+							// matched - so we can remove it from the set so we do not delete it later
+							existingErrors.remove(error);
+						}
 					}
 				}
 			}

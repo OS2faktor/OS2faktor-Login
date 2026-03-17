@@ -6,6 +6,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
+import dk.digitalidentity.common.service.ADPasswordService;
 import dk.digitalidentity.security.RequireAnyAdminRole;
 import dk.digitalidentity.service.StatisticsService;
 
@@ -19,6 +20,9 @@ public class AdminIndexController {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 
+	@Autowired
+	private ADPasswordService adPasswordService;
+
 	@GetMapping("/admin") 
 	public String index(Model model) {
 		model.addAttribute("lastHourLogins", statisticsService.getLoginCountLastHour());
@@ -27,7 +31,7 @@ public class AdminIndexController {
 		model.addAttribute("yesterdayTotalLogins", statisticsService.getTotalLoginCountYesterday());
 		model.addAttribute("personCount", statisticsService.getPersonCount());
 		model.addAttribute("aprovedConditionsCount", statisticsService.getAprovedConditionCount());
-		model.addAttribute("websocketConnections", statisticsService.getWebsocketConnections());
+		model.addAttribute("websocketConnections", adPasswordService.getWebsocketConnectionMap());
 		model.addAttribute("transferedToNemloginCount", statisticsService.getTransferedToNemloginCount());
 
 		return "admin/index";

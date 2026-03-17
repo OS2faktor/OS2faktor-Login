@@ -148,6 +148,10 @@ public class Person {
 	@Size(max = 255)
 	@Column
 	private String password;
+	
+	@NotAudited
+	@Column
+	private boolean passwordValidatedAgainstAd;
 
 	@Column
 	private LocalDateTime passwordTimestamp;
@@ -264,9 +268,10 @@ public class Person {
 	@Column(name = "attribute_value")
 	private Map<String, String> kombitAttributes;
 
+	// no cascading, but we do orphanRemoval on deleting this object
 	@NotAudited
 	@BatchSize(size = 100)
-	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person")
+	@OneToMany(fetch = FetchType.LAZY, mappedBy = "person", orphanRemoval = true)
 	private List<PersonGroupMapping> groups;
 
 	@NotAudited

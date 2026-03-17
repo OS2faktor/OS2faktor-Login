@@ -35,6 +35,7 @@ import dk.digitalidentity.service.model.enums.PasswordValidationResult;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.IPUtil;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import dk.digitalidentity.util.ShowErrorToUserException;
@@ -85,7 +86,7 @@ public class LoginService {
     /**
      * This method handles receiving any login request, and will then determine based on session what to do with the user
      */
-    public ModelAndView loginRequestReceived(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, LoginRequest loginRequest) throws RequesterException, ResponderException, ShowErrorToUserException  {
+    public ModelAndView loginRequestReceived(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, LoginRequest loginRequest, boolean bypassExternalIdP) throws IdPFlowException {
         // Clear any flow states in session so user does not end up in a bad state with a new AuthnRequest
         sessionHelper.clearFlowStates();
 
@@ -107,9 +108,7 @@ public class LoginService {
                 sessionHelper.invalidateSession();
                 auditLogger.loginRejectedByIP(ip);
 
-                throw new ShowErrorToUserException("Login til tjenesten er afvist", 
-                                                   null, 
-                                                   "cms.login.cms.login.rejected.ip");
+                throw new ShowErrorToUserException("Login til tjenesten er afvist", null, "cms.login.rejected.ip");
             }
         }
 
@@ -134,14 +133,14 @@ public class LoginService {
         if (serviceProvider.isUniLoginBrokerEnabled()) {
             return new ModelAndView("redirect:/nemlogin/saml/login?idp=https://broker.unilogin.dk/auth/realms/broker");
         }
-        
+
         // a ServiceProvider can be configured to just proxy straight to NemLog-in, skipping the build-in IdP login mechanisms.
         // In this case we will always just forward the request, and ignore any existing sessions, as NemLog-in is required here
         // Start login flow against NemLog-in no matter the session
         if (serviceProvider.nemLogInBrokerEnabled() || loginRequest.isRequireBrokering()) {
             sessionHelper.setInNemLogInBrokerFlow(true);
 
-            if (serviceProvider.isAllowMitidErvhervLogin()) {
+            if (serviceProvider.isAllowMitidErhvervLogin()) {
             	sessionHelper.setRequestProfessionalProfile();
             	sessionHelper.setRequestPersonalProfile();
             }
@@ -151,7 +150,17 @@ public class LoginService {
 
             return new ModelAndView("redirect:/nemlogin/saml/login?idp=https://saml.nemlog-in.dk");
         }
-        
+
+        // special case - if the SP in question is configure to trigger auto-external-idp login, and all the requirements are fulfilled, we
+        // abort the local login, and send them to the external login mechanism.
+        if (!bypassExternalIdP && configuration.getClaimsProvider().isNonNsisIdPEnabled() && serviceProvider.isAutoNonNsisIdPLogin() &&
+        	serviceProvider.nsisLevelRequired(loginRequest).equalOrLesser(NSISLevel.NONE) &&
+        	sessionHelper.getPasswordLevel(serviceProvider, loginRequest) == null &&
+        	(configuration.getClaimsProvider().getNonNsisIdPIpFilter() == null || configuration.getClaimsProvider().getNonNsisIdPIpFilter().size() == 0 || IPUtil.isIpInTrustedNetwork(configuration.getClaimsProvider().getNonNsisIdPIpFilter(), httpServletRequest))) {
+
+            return new ModelAndView("redirect:/nemlogin/saml/login?idp=" + configuration.getClaimsProvider().getNonNsisIdPEntityId());
+        }
+
         if (commonConfiguration.getMitIdErhverv().isEnabled()) {
         	sessionHelper.setRequestProfessionalProfile();
         }
@@ -167,7 +176,7 @@ public class LoginService {
         // you will be asked login
         if (loginRequest.isForceAuthn() || loginState == null || !valid) {
             if (loginRequest.isPassive()) {
-                throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har accepteret vilkårene for brug");
+                throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har en gyldig session");
             }
 
             return flowService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
@@ -217,7 +226,7 @@ public class LoginService {
     /**
      * This method is called after the person requesting login has been determined.
      */
-    public ModelAndView continueLoginFlow(Person person, String username, String password, LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
+    public ModelAndView continueLoginFlow(Person person, String username, String password, LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
         // Check that AuthnRequest is present and fetch the ServiceProvider by the AuthnRequest
         // This check is done before validating password, Fetching the service provider can fail because the SP is not supported
         // This error would not give any information about the user that is in the process of login.
@@ -339,7 +348,7 @@ public class LoginService {
         return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
     }
 
-    public ModelAndView continueLoginAfterForceChangePassword(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
+    public ModelAndView continueLoginAfterForceChangePassword(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
         if (!sessionHelper.isInForceChangePasswordFlow()) {
             sessionHelper.clearSession();
             throw new RequesterException("Bruger tilgik en url de ikke havde adgang til, prøv igen");
@@ -369,7 +378,7 @@ public class LoginService {
         return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
     }
 
-    public ModelAndView continueLoginChangePasswordDeclined(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException {
+    public ModelAndView continueLoginChangePasswordDeclined(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
         Person person = sessionHelper.getPerson();
         if (person == null) {
             // it seems weird to ever get here without a person on the session, but the endpoint can be accessed directly,
@@ -466,7 +475,7 @@ public class LoginService {
         return result.stream().distinct().collect(Collectors.toList());
     }
 
-    public ModelAndView continueLoginWithMitIdOrNemId(Person person, NSISLevel authenticationLevel, @Nullable LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException {
+    public ModelAndView continueLoginWithMitIdOrNemId(Person person, NSISLevel authenticationLevel, @Nullable LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
         // Set authentication levels on the session
         sessionHelper.setPerson(person);
         sessionHelper.setPasswordLevel(authenticationLevel);

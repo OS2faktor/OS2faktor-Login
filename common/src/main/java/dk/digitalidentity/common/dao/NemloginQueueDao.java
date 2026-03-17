@@ -16,9 +16,14 @@ public interface NemloginQueueDao extends JpaRepository<NemloginQueue, Long> {
 	List<NemloginQueue> findByPersonAndAction(Person person, NemloginAction action);
 	List<NemloginQueue> findByFailedFalse();
 	List<NemloginQueue> findAll();
-	void deleteByPersonAndFailedTrue(Person person);
-	void deleteByFailedTrueAndTtsBefore(LocalDateTime tts);
 	
+	void deleteByFailedTrueAndTtsBefore(LocalDateTime tts);
+
+	// avoid weird hibernate validation errors, just do the delete
+    @Modifying
+    @Query(value = "DELETE FROM nemlogin_queue WHERE person_id = ?1 AND failed = 1", nativeQuery = true)
+	void deleteByPersonAndFailedTrue(long personId);
+
 	@Modifying
 	@Query(nativeQuery = true, value = """
  INSERT INTO nemlogin_queue (person_id, nemlogin_user_uuid, action)

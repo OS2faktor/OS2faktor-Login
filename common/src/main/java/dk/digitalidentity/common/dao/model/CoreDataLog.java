@@ -34,13 +34,21 @@ public class CoreDataLog {
 
     @Column
     private String endpoint;
+    
+    @Column
+    private long processingTime;
+    
+    @Column
+    private boolean success;
 
     @ManyToOne
     @JoinColumn(name = "domain_id", nullable = false)
     private Domain domain;
 
-    public CoreDataLog(String endpoint, Domain domain) {
+    public CoreDataLog(String endpoint, Domain domain, long processingTime, boolean success) {
         this.endpoint = endpoint;
         this.domain = domain;
+        this.processingTime = processingTime;
+        this.success = success;
     }
 }

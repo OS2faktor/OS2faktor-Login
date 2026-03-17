@@ -21,6 +21,7 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.samlmodule.model.TokenUser;
+import dk.digitalidentity.samlmodule.util.exceptions.ExternalException;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LogoutResponseService;
 import dk.digitalidentity.service.OpenSAMLHelperService;
@@ -28,6 +29,7 @@ import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
@@ -70,6 +72,9 @@ public class ClaimsProviderController {
 
 	@Autowired
 	private UniLoginService uniLoginService;
+	
+	@Autowired
+	private NonNsisProviderService nonNsisProviderService;
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
@@ -77,7 +82,7 @@ public class ClaimsProviderController {
 	// not actually NemLog-in anymore, but a common entrypoint for 3rd party claims providers,
 	// unfortunately this is part of metadata that is already provisioned, so here we are :)
 	@GetMapping("/sso/saml/nemlogin/complete")
-	public ModelAndView loginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
+	public ModelAndView loginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IdPFlowException, ExternalException {
 		TokenUser tokenUser = claimsProviderUtil.getTokenUser();
 		if (tokenUser == null) {
 			return handleErrors(httpServletResponse, "Intet bruger-token modtaget efter afsluttet login");
@@ -89,12 +94,17 @@ public class ClaimsProviderController {
 		else if (configuration.getClaimsProvider().getStilEntityId().equals(tokenUser.getIssuer())) {
 			return uniLoginService.uniLoginComplete(model, httpServletRequest, httpServletResponse, tokenUser);
 		}
+		else if (configuration.getClaimsProvider().getNonNsisIdPEntityId().equals(tokenUser.getIssuer())) {
+			return nonNsisProviderService.nonNsisLoginComplete(model, httpServletRequest, httpServletResponse, tokenUser);
+		}
 
 		return handleErrors(httpServletResponse, "Ukendt udsteder: " + tokenUser.getIssuer());
 	}
 
 	@GetMapping("/sso/saml/nemlogin/logout/complete")
 	public String nemLogInLogout(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
+
+		// TODO: why do we have this check on logout?
 
 		// redirect to error page instead of logout
 		if (sessionHelper.isInInsufficientNSISLevelFromMitIDFlow()) {
@@ -114,6 +124,9 @@ public class ClaimsProviderController {
 		// Create LogoutResponse
 		ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
 		SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
+		if (logoutEndpoint == null) {
+			throw new RequesterException("Kunne ikke sende et logud svar - tjenesten understøtter ikke at modtage svar på logud");
+		}
 
 		String destination = StringUtils.hasLength(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
 		MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination, logoutEndpoint.getBinding(), serviceProvider);

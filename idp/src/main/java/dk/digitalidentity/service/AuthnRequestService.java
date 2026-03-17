@@ -82,8 +82,20 @@ public class AuthnRequestService {
 		}
 	}
 
-	public AuthnRequest getAuthnRequest(MessageContext<SAMLObject> messageContext) {
-		return (AuthnRequest) messageContext.getMessage();
+	public AuthnRequest getAuthnRequest(MessageContext<SAMLObject> messageContext) throws RequesterException {
+		SAMLObject message = messageContext.getMessage();
+
+		if (!(message instanceof AuthnRequest)) {
+			String errMsg = "Besked indhold burde være AuthnRequest";
+
+			if (message != null && message.getClass() != null) {
+				errMsg += " men er af typen: " + message.getClass().getName();
+			}
+
+			throw new RequesterException(errMsg);
+		}
+
+		return (AuthnRequest) message;
 	}
 
 	public boolean requireNemId(AuthnRequest authnRequest) {

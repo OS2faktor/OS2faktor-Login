@@ -43,6 +43,9 @@ import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.model.enums.RequireNemIdReason;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -87,13 +90,16 @@ public class ActivateAccountController {
 	@Autowired
 	private CprService cprService;
 	
+	@Autowired
+	private ServiceProviderFactory serviceProviderFactory;
+	
 	@InitBinder("passwordForm")
 	public void initClientBinder(WebDataBinder binder) {
 		binder.setValidator(passwordChangeFormValidator);
 	}
 
 	@GetMapping("/konto/aktiver")
-	public ModelAndView beginActivateAccount(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
+	public ModelAndView beginActivateAccount(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IdPFlowException {
 		// Sanity checks
 		String error = null;
 		Person person = sessionHelper.getPerson();
@@ -110,9 +116,10 @@ public class ActivateAccountController {
 			error = "Kunne ikke aktivere kontoen, da personen er låst";
 		}
 
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+
 		// If not in activate account flow, check for stored authnRequest on session and proceed with login. Otherwise send error.
 		if (error == null && !sessionHelper.isInActivateAccountFlow()) {
-			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			if (loginRequest == null) {
 				error = "Prøvede at tilgå aktiver erhvervsidentitet endpoint, men var ikke i activateAccountFlow";
 			}
@@ -139,7 +146,6 @@ public class ActivateAccountController {
 
 		// handle error in sanity checks
 		if (error != null) {
-			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			if (loginRequest != null) {
 				errorResponseService.sendError(httpServletResponse, loginRequest, new RequesterException(error));
 				return null;
@@ -149,11 +155,21 @@ public class ActivateAccountController {
 			}
 		}
 
+		ServiceProvider serviceProvider = null;
+		if (loginRequest != null) {
+			try {
+				serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest.getServiceProviderId());
+			}
+			catch (Exception _) {
+				;
+			}
+		}
+
 		// check if the person has authorized with MitID, if so both PasswordLevel and MFALevel should be SUBSTANTIAL
 		// and MitID NameID should be saved on session
 		String mitIDNameID = sessionHelper.getMitIDNameID();
-		NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
-		NSISLevel mfaLevel = sessionHelper.getMFALevel();
+		NSISLevel passwordLevel = sessionHelper.getPasswordLevel(serviceProvider, loginRequest);
+		NSISLevel mfaLevel = sessionHelper.getMFALevel(serviceProvider, loginRequest);
 		if (!StringUtils.hasLength(mitIDNameID) || !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
 			return flowService.initiateNemIDOnlyLogin(model, httpServletRequest, RequireNemIdReason.ACTIVATE_ACCOUNT);
 		}
@@ -221,7 +237,7 @@ public class ActivateAccountController {
 	}
 
 	@GetMapping("/konto/fortsaetlogin")
-	public ModelAndView continueLogin(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
+	public ModelAndView continueLogin(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IdPFlowException {
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 
 		try {
@@ -325,7 +341,7 @@ public class ActivateAccountController {
 	}
 
 	@PostMapping("/konto/vaelgkode")
-	public ModelAndView postChangePassword(Model model, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
+	public ModelAndView postChangePassword(Model model, @Valid @ModelAttribute("passwordForm") PasswordChangeForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws IdPFlowException {
 		if (!sessionHelper.isInActivateAccountFlow()) {
 			// User his postChangePassword in activate account controller without being in the activate account flow
 			return new ModelAndView("redirect:/sso/saml/changepassword");
@@ -386,7 +402,7 @@ public class ActivateAccountController {
 	}
 	
 	@PostMapping("/konto/valideradkodeord")
-	public ModelAndView postValidateADPassword(Model model, @ModelAttribute("validateADPasswordForm") ValidateADPasswordForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws ResponderException, RequesterException {
+	public ModelAndView postValidateADPassword(Model model, @ModelAttribute("validateADPasswordForm") ValidateADPasswordForm form, BindingResult bindingResult, HttpServletRequest request, HttpServletResponse response) throws IdPFlowException {
 		RequesterException ex = null;
 		Person person = sessionHelper.getPerson();
 		if (person == null || !person.hasActivatedNSISUser()) {

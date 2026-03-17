@@ -76,6 +76,7 @@ public class ServiceProviderDTO {
 	private boolean disableSubjectConfirmation;
 	private boolean disableSubjectConfirmationRecipient;
 	private String additionalEntityIds;
+	private boolean autoNonNsisIdPLogin;
 
 	@JsonCreator
 	public ServiceProviderDTO() {
@@ -107,7 +108,7 @@ public class ServiceProviderDTO {
 		this.sqlServiceProvider = (config instanceof SqlServiceProviderConfiguration);
 		this.kombitServiceProvider = ((config instanceof KombitServiceProviderConfigV2) || (config instanceof KombitTestServiceProviderConfigV2));
 		this.hasCustomSessionExpiry = false;
-		this.allowMitidErhvervLogin = config.isAllowMitidErvhervLogin();
+		this.allowMitidErhvervLogin = config.isAllowMitidErhvervLogin();
 		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
 		this.certificate = config.getCertificateAlias();
 		this.doNotMonitorCertificates = config.isDoNotMonitorCertificates();
@@ -137,6 +138,7 @@ public class ServiceProviderDTO {
 			this.disableSubjectConfirmation = sqlConfig.isDisableSubjectConfirmation();
 			this.disableSubjectConfirmationRecipient = sqlConfig.isDisableSubjectConfirmationRecipient();
 			this.additionalEntityIds = sqlConfig.getAdditionalEntityIds();
+			this.autoNonNsisIdPLogin = sqlConfig.isAutoNonNsisIdPLogin();
 
 			if (passwordExpiry != null && mfaExpiry != null) {
 				this.hasCustomSessionExpiry = true;

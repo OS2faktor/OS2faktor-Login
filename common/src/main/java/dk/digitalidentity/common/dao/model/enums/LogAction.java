@@ -32,6 +32,8 @@ public enum LogAction {
 	USED_NEMID("enum.logaction.usedNemID", ReportType.NONE),
 	USED_NEMLOGIN("enum.logaction.usedNemLogin", ReportType.NONE),
 	USED_UNILOGIN("enum.logaction.usedUniLogin", ReportType.NONE),
+	EXTERNAL_IDP_USED("enum.logaction.externalIdPUsed", ReportType.NONE),
+	EXTERNAL_IDP_FAILED("enum.logaction.externalIdPFailed", ReportType.NONE),
 	REJECTED_UNKNOWN_PERSON("enum.logaction.rejectedUnknownPerson", ReportType.NONE),
 	DEACTIVATE_BY_PWD("enum.logaction.deactivateByPwd", ReportType.NONE),
 
@@ -79,6 +81,7 @@ public enum LogAction {
 	SESSION_NOT_ISSUED_IP_CHANGED("enum.logaction.session.ip.changed", ReportType.GENERAL_HISTORY),
 	UPDATE_FROM_CPR("enum.logaction.updateFromCPR", ReportType.GENERAL_HISTORY),
 	KODEVISER_RESET("enum.logaction.kodeviserReset", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	KODEVISER_AUTO_RESET_SETTING("enum.logaction.kodeviserAutoResetSetting", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
 	SENT_EBOKS("enum.logaction.sentEboks", ReportType.GENERAL_HISTORY),
 	SENT_MAIL("enum.logaction.sentEmail", ReportType.GENERAL_HISTORY),
 	TRACE_LOG("enum.logaction.tracelogging", ReportType.NONE),
@@ -86,6 +89,13 @@ public enum LogAction {
 	MUST_CHANGE_PASSWORD("enum.logaction.must.change.password", ReportType.GENERAL_HISTORY),
 	ADMIN_MFA_TEST("enum.logaction.adminMfaTest", ReportType.GENERAL_HISTORY),
 	LOGIN_REJECTED_IP("enum.logaction.rejected.ip", ReportType.GENERAL_HISTORY),
+	CHANGE_CMS_TEXT("enum.logaction.changeCmsText", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	CHANGE_EMAIL_TEMPLATE("enum.logaction.changeEmailTemplate", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	ADD_BAD_PASSWORD("enum.logaction.addBadPassword", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	REMOVE_BAD_PASSWORD("enum.logaction.removeBadPassword", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	CHANGE_KNOWN_NETWORKS("enum.logaction.changeKnownNetworks", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	CHANGE_SERVICE_PROVIDER("enum.logaction.changeServiceProvider", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
+	DELETE_SERVICE_PROVIDER("enum.logaction.deleteServiceProvider", ReportType.GENERAL_HISTORY, ReportType.ADMIN_ACTION),
 
 	// can be removed at some future point in time, when we know that NONE are present in the DB
 	SESSION_KEY_ISSUED("enum.logaction.sessionKeyIssued", false, ReportType.NONE),

@@ -288,7 +288,7 @@ public class AdvancedRuleService {
 				inString = !inString;
 			}
 			else if (c == ',') {
-				if (counter == 0) {
+				if (counter == 0 && !inString) {
 					result.add(builder.toString().trim());
 					builder = new StringBuilder();
 					

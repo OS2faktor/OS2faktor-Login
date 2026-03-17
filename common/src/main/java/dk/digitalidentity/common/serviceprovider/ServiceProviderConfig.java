@@ -27,7 +27,7 @@ public interface ServiceProviderConfig {
 		return false;
 	}
 
-    default boolean isAllowMitidErvhervLogin() {
+    default boolean isAllowMitidErhvervLogin() {
     	return false;
     }
 
@@ -37,5 +37,9 @@ public interface ServiceProviderConfig {
 
     default String getCertificateAlias() {
     	return KnownCertificateAliases.OCES.toString();
+    }
+    
+    default boolean isAutoNonNsisIdPLogin() {
+    	return false;
     }
 }

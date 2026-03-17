@@ -47,6 +47,7 @@ import dk.digitalidentity.service.WSFederationService;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -94,7 +95,7 @@ public class MitIDService {
 	@Autowired
 	private CommonConfiguration commonConfiguration;
 
-	public ModelAndView nemLogInComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser) throws RequesterException, ResponderException {
+	public ModelAndView nemLogInComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser) throws IdPFlowException {
 		
 		// get LOA
 		NSISLevel nsisLevel = NSISLevel.NONE;
@@ -187,7 +188,7 @@ public class MitIDService {
 
 			// handle multiple user accounts
 			if (availablePeople.size() != 1) {
-				return flowService.initiateUserSelect(model, availablePeople, nsisLevel, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
+				return flowService.initiateUserSelect(model, availablePeople);
 			}
 			else {
 				// if we only have one person use that one

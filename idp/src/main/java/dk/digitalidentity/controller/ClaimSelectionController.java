@@ -17,6 +17,7 @@ import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,7 +39,7 @@ public class ClaimSelectionController {
 	private FlowService flowService;
 
 	@PostMapping(value = "/sso/saml/claims/completed", consumes = { MediaType.APPLICATION_FORM_URLENCODED_VALUE })
-	public ModelAndView mfaChallengePage(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @RequestParam Map<String, String> selectedParameters) throws ResponderException, RequesterException {
+	public ModelAndView mfaChallengePage(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, @RequestParam Map<String, String> selectedParameters) throws IdPFlowException {
 
 		if (sessionHelper.isInActivateAccountFlow()) {
 			return handleError(httpServletRequest, httpServletResponse, model, "/sso/saml/claims/completed", "Bruger tilgik valg af claims men var ikke i det korrekte flow");

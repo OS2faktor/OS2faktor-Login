@@ -16,11 +16,6 @@ public class ExpireCacheTask {
     @Autowired
     private StatisticsService statisticsService;
 
-	@Scheduled(fixedRate = 2 * 60 * 1000)
-	public void everyTwoMinutes() {
-		statisticsService.cleanupRealtimeValues();
-	}
-
 	@Scheduled(fixedRate = 10 * 60 * 1000)
 	public void everyTenMinutes() {
 		statisticsService.cleanupHourly();

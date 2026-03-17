@@ -354,7 +354,7 @@ public abstract class RadiusServer {
 		}
 		catch (RadiusException re) {
 			// malformed packet
-			log.error("malformed Radius packet", re);
+			log.warn("malformed Radius packet", re);
 		}
 	}
 

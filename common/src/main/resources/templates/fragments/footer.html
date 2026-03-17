@@ -20,6 +20,24 @@
 			toastr.options = {
 			  "positionClass": "toast-top-right toastr-buffer"
 			}
+			
+			// check if there are any actual links/items in the navbar
+			function updateToggler() {
+				try {
+					const navbar = document.getElementById('navbar');
+					const toggler = document.querySelector('.navbar-toggler');
+				    const hasItems = navbar.querySelectorAll('ul li').length > 0;
+
+				    toggler.style.display = hasItems ? '' : 'none';
+				}
+				catch (e) {
+					console.log("cannot update style on burgermenu", e);
+				}
+			}
+
+			$(document).ready(function () {
+				updateToggler();
+			});
 		</script>
 
         <th:block th:if="${checkbox == true}">
@@ -33,7 +51,7 @@
 			});
         </script>
         </th:block>
-        
+
         <th:block th:if="${datatables == true}">
 		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/dataTables/datatables.min.js}"></script>
 		<script th:src="@{/webjars/inspinia/2.9.3/js/plugins/dataTables/dataTables.bootstrap4.min.js}"></script>

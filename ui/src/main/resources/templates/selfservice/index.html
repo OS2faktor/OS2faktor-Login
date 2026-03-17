@@ -45,7 +45,7 @@
 									
 									<!-- Visible on mobile -->
 									<div class="d-block d-lg-none" style="text-align: right; margin-right: 15px">
-										<a th:if="${@commonConfiguration.customer.enableRegistrant == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg btn-block">
+										<a th:if="${@commonConfiguration.customer.showRegisterMfaClient == true}" href="#" onclick="addDeviceModalService.openModal()" class="btn btn-primary btn-lg btn-block">
 											<em class="fa fa-plus"></em> &nbsp; Tilknyt 2-faktor enhed
 										</a>
 										<a href="#" onclick="primaryModalService.openModal()" class="btn btn-primary btn-lg btn-block">

@@ -38,8 +38,9 @@ public class LoginRequest {
 	private EntraPayload entraPayload;
 
 	public LoginRequest(AuthnRequest authnRequest, String userAgent) {
-		protocol = Protocol.SAML20;
 		serviceProviderId = authnRequest.getIssuer().getValue();
+
+		protocol = Protocol.SAML20;
 		returnURL = authnRequest.getAssertionConsumerServiceURL();
 		destination = authnRequest.getDestination();
 		forceAuthn = authnRequest.isForceAuthn();
@@ -57,8 +58,9 @@ public class LoginRequest {
 	}
 
 	public LoginRequest(OAuth2AuthorizationCodeRequestAuthenticationToken token, String userAgent) {
-		this.protocol = Protocol.OIDC10;
 		this.serviceProviderId = token.getClientId();
+
+		this.protocol = Protocol.OIDC10;
 		this.returnURL = token.getRedirectUri();
 		this.destination = token.getAuthorizationUri();
 		this.forceAuthn = false;
@@ -69,24 +71,22 @@ public class LoginRequest {
 	}
 
 	public LoginRequest(WSFedRequestDTO loginParameters, String userAgent, String destination) {
-		this.protocol = Protocol.WSFED;
-
 		// the service provider can be determined by wtrealm (roughly the same as AppliesTo value used to scope usage of response assertion)
 		this.serviceProviderId = loginParameters.getWtrealm();
 
+		this.protocol = Protocol.WSFED;
 		this.returnURL = destination;
 		this.destination = destination;
-
 		this.forceAuthn = Objects.equals(0,  loginParameters.getWfresh());
-
 		this.passive = false;
 		this.userAgent = userAgent;
 		this.wsFedLoginParameters = loginParameters.toString();
 	}
 
 	public LoginRequest(LoginRequestDTO loginRequestDTO, AuthnRequest authnRequest, String userAgent) {
-		this.protocol = loginRequestDTO.getProtocol();
 		this.serviceProviderId = loginRequestDTO.getServiceProviderId();
+
+		this.protocol = loginRequestDTO.getProtocol();
 		this.returnURL = loginRequestDTO.getReturnURL();
 		this.destination = loginRequestDTO.getDestination();
 		this.forceAuthn = loginRequestDTO.isForceAuthn();
@@ -99,8 +99,9 @@ public class LoginRequest {
 	}
 
 	public LoginRequest(EntraPayload payload, String userAgent) {
+		this.serviceProviderId = "https://login.microsoftonline.com/";
+		
 		this.protocol = Protocol.ENTRAMFA;
-
 		this.entraPayload = payload;
 		this.forceAuthn = false;
 		this.passive = false;

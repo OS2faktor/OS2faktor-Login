@@ -165,6 +165,11 @@ public class PasswordService {
 			BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
 			if (encoder.matches(password, person.getPassword())) {
+				
+				if (person.isPasswordValidatedAgainstAd()) {
+					person.setPasswordValidatedAgainstAd(false);
+					personService.save(person);
+				}
 
 				// password matches, check for expiry
 				PasswordExpireStatus passwordStatus = getPasswordExpireStatus(person);
@@ -224,6 +229,11 @@ public class PasswordService {
 					
 					// not actually a cache, as this is the student pwd database
 					result = PasswordValidationResult.VALID;
+					
+					if (person.isPasswordValidatedAgainstAd()) {
+						person.setPasswordValidatedAgainstAd(false);
+						personService.save(person);
+					}
 				}
 			}
 			catch (Exception ex) {
@@ -246,6 +256,12 @@ public class PasswordService {
 				}
 
 				result = PasswordValidationResult.VALID;
+				
+				// for NSIS-users, we need to store that the user did a fallback to AD, so we can show it in the UI
+				if (!person.isPasswordValidatedAgainstAd() && person.hasActivatedNSISUser()) {
+					person.setPasswordValidatedAgainstAd(true);
+					personService.save(person);
+				}
 
 				// if the person is a non-nsis user, we also store the password in the database for later validation purposes
 				if (!person.hasActivatedNSISUser()) {

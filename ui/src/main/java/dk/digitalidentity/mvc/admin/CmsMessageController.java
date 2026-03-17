@@ -12,20 +12,31 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import dk.digitalidentity.common.dao.model.CmsMessage;
+import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.CmsMessageBundle;
 import dk.digitalidentity.common.service.CmsMessageService;
 import dk.digitalidentity.mvc.admin.dto.CmsMessageDTO;
 import dk.digitalidentity.security.RequireAdministrator;
+import dk.digitalidentity.security.SecurityUtil;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RequireAdministrator
 @Controller
 public class CmsMessageController {
 	
 	@Autowired
+	private AuditLogger auditLogger;
+
+	@Autowired
 	private CmsMessageBundle cmsMessageBundle;
-	
+
 	@Autowired
 	private CmsMessageService cmsMessageService;
+
+	@Autowired
+	private SecurityUtil securityUtil;
 	
 	@GetMapping("/admin/cms/list") 
 	public String listCms(Model model) {
@@ -74,9 +85,16 @@ public class CmsMessageController {
 			cms.setCmsKey(cmsMessageDTO.getKey());
 		}
 
+		Person admin = securityUtil.getPerson();
+		if (admin == null) {
+			log.warn("Could not find admin while saving CMS text for key: {}", cmsMessageDTO.getKey());
+			return "error";
+		}
+
 		cms.setCmsValue(safeHTML);
 		cms.setLastUpdated(LocalDateTime.now());
 		cmsMessageService.save(cms);
+		auditLogger.changeCmsText(cmsMessageDTO.getKey(), cmsMessageDTO.getValue(), admin);
 
 		return "redirect:/admin/cms/list";
 	}

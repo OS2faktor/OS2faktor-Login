@@ -1,6 +1,8 @@
 package dk.digitalidentity.api;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -14,10 +16,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.api.dto.PasswordRequest;
 import dk.digitalidentity.api.dto.PasswordResponse;
+import dk.digitalidentity.api.dto.SessionInfoDTO;
 import dk.digitalidentity.api.dto.UnlockRequest;
 import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.AzureProxy;
 import dk.digitalidentity.service.PasswordService;
+import dk.digitalidentity.service.Session;
 import jakarta.validation.Valid;
 
 @RestController
@@ -38,6 +42,9 @@ public class PasswordApi {
 			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
 		}
 		
+		// perform domain conversion
+		updateDomain(request);
+		
 		PasswordResponse response = null;
 		if (configuration.getAzureProxy().isEnabled() && Objects.equals(configuration.getAzureProxy().getDomain(), request.getDomain())) {
 			response = azureProxy.validatePassword(request);
@@ -54,6 +61,9 @@ public class PasswordApi {
 		if (bindingResult.hasErrors()) {
 			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
 		}
+
+		// perform domain conversion
+		updateDomain(request);
 
 		PasswordResponse response = null;
 		if (configuration.getAzureProxy().isEnabled() && Objects.equals(configuration.getAzureProxy().getDomain(), request.getDomain())) {
@@ -72,6 +82,9 @@ public class PasswordApi {
 			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
 		}
 
+		// perform domain conversion
+		updateDomain(request);
+
 		PasswordResponse response = null;
 		if (configuration.getAzureProxy().isEnabled() && Objects.equals(configuration.getAzureProxy().getDomain(), request.getDomain())) {
 			response = azureProxy.setPasswordWithForcedChange(request);
@@ -88,6 +101,9 @@ public class PasswordApi {
 		if (bindingResult.hasErrors()) {
 			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
 		}
+
+		// perform domain conversion
+		updateDomain(request);
 
 		PasswordResponse response = null;
 		if (configuration.getAzureProxy().isEnabled() && Objects.equals(configuration.getAzureProxy().getDomain(), request.getDomain())) {
@@ -106,6 +122,9 @@ public class PasswordApi {
 			return new ResponseEntity<>(bindingResult.getAllErrors(), HttpStatus.BAD_REQUEST);
 		}
 
+		// perform domain conversion
+		updateDomain(request);
+
 		PasswordResponse response = null;
 		if (configuration.getAzureProxy().isEnabled() && Objects.equals(configuration.getAzureProxy().getDomain(), request.getDomain())) {
 			response = azureProxy.passwordExpires(request);
@@ -115,6 +134,13 @@ public class PasswordApi {
 		}
 
 		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+	@GetMapping("/api/sessionDetails")
+	public ResponseEntity<?> sessionDetails(@RequestParam(value = "domain", required = false) String domain) {
+		List<Session> sessions = passwordService.getSessions(domain);
+		List<SessionInfoDTO> result = sessions.stream().map(SessionInfoDTO::new).collect(Collectors.toList());
+		return new ResponseEntity<>(result, HttpStatus.OK);
 	}
 
 	@GetMapping("/api/sessions")
@@ -128,5 +154,27 @@ public class PasswordApi {
 		}
 
 		return new ResponseEntity<>(activeSessions, HttpStatus.OK);
+	}
+	
+	private void updateDomain(PasswordRequest request) {
+		String domain = request.getDomain();
+
+		if (configuration.getDomainMap() != null && configuration.getDomainMap().containsKey(domain)) {
+			domain = configuration.getDomainMap().get(domain);
+			if (domain != null) {
+				request.setDomain(domain);
+			}
+		}
+	}
+
+	private void updateDomain(UnlockRequest request) {
+		String domain = request.getDomain();
+
+		if (configuration.getDomainMap() != null && configuration.getDomainMap().containsKey(domain)) {
+			domain = configuration.getDomainMap().get(domain);
+			if (domain != null) {
+				request.setDomain(domain);
+			}
+		}
 	}
 }

@@ -37,7 +37,7 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 
 	@Autowired
 	private SessionHelper sessionHelper;
-
+	
 	@Override
 	public EntityDescriptor getMetadata() throws ResponderException, RequesterException {
 		if (resolver == null || !resolver.isInitialized()) {
@@ -87,8 +87,8 @@ public final class SelfServiceServiceProvider extends ServiceProvider {
 		// - enrolling new MFA devices (if they use NemID/MitID to login, we will allow enrolling MFA devices at those levels, even if they did
 		//   not have an "erhvervsidentitet" at that time.
 		if (sessionHelper.isAuthenticatedWithNemIdOrMitId()) {
-			NSISLevel authAssuranceLevel = sessionHelper.getMFALevel();
-			
+			NSISLevel authAssuranceLevel = sessionHelper.getMFALevel(this, loginRequest);
+
 			if (authAssuranceLevel != null) {
 				switch (authAssuranceLevel) {
 					case SUBSTANTIAL:

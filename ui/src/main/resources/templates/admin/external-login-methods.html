@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head th:replace="~{fragments/header :: header (datatables = true, checkbox = true)}"></head>
+<body class="top-navigation">
+	<div id="wrapper">
+		<div id="page-wrapper" class="gray-bg">
+			<div th:replace="~{fragments/topbar :: topbar (page = 'admin.external-login-methods')}"></div>
+
+			<div class="wrapper wrapper-content">
+				<div class="row">
+					<div class="col-lg-9">
+						<div class="ibox">
+							<div class="ibox-title">
+								<h5><em class="fa fa-cogs"></em> &nbsp; Eksterne loginmetoder</h5>
+							</div>
+
+							<div class="ibox-content">
+								<p>
+									Eksterne loginmetoder, er brugernes muligheder for at udføre et login vha metoder som ikke er direkte indbygget i OS2faktor. Det kan fx være anvendelsen
+									af privat MitID. Nedenfor er listet de eksterne loginmetoder som er understøttet af OS2faktor - ud for hver kan man se om denne metode er slået til.
+								</p>
+								
+								<p>
+									Hvis man ønsker at gøre brug af en metode som IKKE er slået til, skal man have fat i driftsoperatøren. Ofte skal der opsættes en teknisk integration til
+									en 3.parts løsning, som kræver udveksling af certifikater, indgåelse af aftaler m.m.
+								</p>
+								
+								<h4>Eksterne loginmetoder</h4>
+								
+								<div class="table-responsive">
+									<table id="loginmethods" class="table table-striped table-bordered table-hover" >
+										<thead>
+											<tr>
+												<th style="text-align: center; width: 100px;">Slået til</th>
+												<th style="width: 250px;">Loginmetode</th>
+												<th>Beskrivelse</th>
+											</tr>
+										</thead>
+										
+										<tbody>
+											<tr>
+												<td style="text-align: center;"><em th:if="mitIDEnabled" class="fa fa-check"></em></td>
+												<td>Privat MitID</td>
+												<td>Denne metode gør det muligt for brugerne at anvende deres private MitID som en loginmetode. Denne loginmetode fungerer også som en egentligt MFA loginmetode, og kan gennemføre et login på et NSIS sikringsniveau. Forudsætningen for at kunne slå denne funktion til, er at der opsættes en integration til NemLog-in infrastrukturen omkring anvendelse af privat MitID til loginformål.</td>
+											</tr>
+											
+											<tr>
+												<td style="text-align: center;"><em th:if="stilEnabled" class="fa fa-check"></em></td>
+												<td>STIL UniLogin Broker</td>
+												<td>Denne metode gør det muligt at anvende STILs UniLogin Broker som en loginmetode - den kan kun bruges som erstatning for brugernavn/kodeord, og kan kun anvendes for brugere på skoleområdet. Der er en løbende økonomisk omkostning ved denne integration, da den kræver tilslutning hos STIL, som tager et <a target="_BLANK" href="https://viden.stil.dk/spaces/OFFSKOLELOGIN/pages/161061375/Priser+for+tilslutning">årligt vederlag</a> for denne tilslutning.</td>
+											</tr>
+											
+											<tr>
+												<td style="text-align: center;"><em th:if="${externalIdPEnabled}" class="fa fa-check"></em></td>
+												<td>Ekstern IdP</td>
+												<td>Denne metode gør det muligt at anvende en lokal IdP (fx AD FS eller EntraID) som loginmetode - den kan kun bruges som erstatning for brugernavn/kodeord, og kan ikke anvendes i login-scenarier der kræver et NSIS sikringsniveau. Der skal udveksles SAML metadata mellem OS2faktor og den valgte Identity Provider for at denne integration vil fungere. Følgende yderligere konfiguration skal vælges i forbindelse med opsætningen:<br><br>
+													<ul>
+														<li>Skal login være rent passivt (dvs den eksterne IdP spørges efter eksisterende sesion, men må ikke aktivt lave nyt login)</li>
+														<li>Skal muligheden vises på mobile enheder</li>
+														<li>Skal muligheden kun vises hvis man kommer fra udvalgte IP adresser</li>
+													</ul>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					
+					<div th:replace="~{fragments/rightbar :: admin (page = 'admin.external-login-methods')}"></div>
+				</div>
+			</div>
+
+			<div th:replace="~{fragments/footer :: footer}"></div>
+		</div>
+	</div>
+
+	<div th:replace="~{fragments/footer :: scripts (datatables = true, checkbox = true)}"></div>
+
+	<script th:inline="javascript">
+		/*<![CDATA[*/
+
+		$(document).ready(function() {
+			var table = $('#loginmethods').DataTable({
+                "pageLength": 25,
+                "bLengthChange": false,
+                "bSort": false,
+                "responsive": true,
+				"dom": "<'row'<'col-sm-12'tr>><'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
+		        "language": {
+		        	"search":	   "Søg",
+					"lengthMenu":   "_MENU_ loginmetoder per side",
+					"info":		 "Viser _START_ til _END_ af _TOTAL_ loginmetoder",
+					"zeroRecords":  "Ingen loginmetoder...",
+					"infoEmpty":	"Henter loginmetoder...",
+					"infoFiltered": "(ud af _MAX_ loginmetoder)",
+		            "paginate": {
+		                "previous": "Forrige",
+		                "next": "Næste"
+		            }
+		        }
+            });
+		});
+		/*]]>*/
+	</script>
+</body>
+</html>

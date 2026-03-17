@@ -5,6 +5,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -768,6 +770,7 @@ public class SocketHandler extends TextWebSocketHandler {
 			session.setAuthenticated(true);
 			session.setDomain(message.getTarget());
 			session.setVersion(message.getClientVersion());
+			session.setServerName(message.getServerName());
 
 			log.info("Authenticated connection from client (version=" + message.getClientVersion() + ", server=" + message.getServerName() + ") for domain " + message.getTarget() + " - sessionID = " + session.getId() + ", activeSession=" + activeConnections(session.getDomain()));
 		}
@@ -956,7 +959,10 @@ public class SocketHandler extends TextWebSocketHandler {
 	}
 
 	public void closeStaleSessions() {
-		for (Session session : sessions) {
+		Iterator<Session> iterator = sessions.iterator();
+		while (iterator.hasNext()) {
+			Session session = iterator.next();
+
 			if (session.isStale()) {
 				try {
 					log.info("Closing stale connection on websocket client. " + session.toString());
@@ -966,8 +972,8 @@ public class SocketHandler extends TextWebSocketHandler {
 				catch (Exception ex) {
 					log.warn("Failed to close connection - sessionID = " + session.getIdentifier(), ex);
 				}
-				
-				// only close a single state connection per loop - do not want to end up with 0 connections during a single cleanup run
+
+				// only close a single stale connection per loop - do not want to end up with 0 connections during a single cleanup run
 				break;
 			}
 		}

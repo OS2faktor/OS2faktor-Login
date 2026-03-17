@@ -17,7 +17,7 @@ public class IdPFlowControllerAdvice {
 	
 	@ExceptionHandler(IdPFlowException.class)
 	public String handleException(Model model, IdPFlowException ex) {
-		model.addAttribute("origin", (ex instanceof RequesterException) ? "requester" : "responder" );
+		model.addAttribute("origin", (ex instanceof RequesterException) ? "Fejl i kommunikation fra fagsystem" : "Fejl i opsætning, brugerdata eller login" );
 		model.addAttribute("errorMessage", ex.getMessage());
 		model.addAttribute("errorCode", ex.getErrorCode());
 		model.addAttribute("helpMessage", bundle.getText(ex.getHelpMessage()));

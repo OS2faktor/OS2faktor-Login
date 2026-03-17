@@ -117,7 +117,14 @@ public class KodeviserRestController {
 			return ResponseEntity.badRequest().build();
 		}
 
+		Person admin = securityUtil.getPerson();
+		if (admin == null) {
+			log.warn("Could not find admin while changing kodeviser auto-reset setting");
+			return ResponseEntity.badRequest().build();
+		}
+
 		settingsService.setBoolean(SettingKey.REMOVE_DEVICE_WHEN_PERSON_LOCKED, form.removeDeviceSetting.booleanValue());
+		auditLogger.kodeviserAutoResetSettingChanged(form.removeDeviceSetting.booleanValue(), admin);
 
 		return ResponseEntity.ok().build();
 	}

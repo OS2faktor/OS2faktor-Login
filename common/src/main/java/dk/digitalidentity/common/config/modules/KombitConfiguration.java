@@ -34,4 +34,6 @@ public class KombitConfiguration {
 	private Map<String, String> extraKombitClaims;
 
 	private boolean onlyAllowLoginFromKnownNetworks;
+
+	public boolean autoNonNsisIdPLogin = false;
 }

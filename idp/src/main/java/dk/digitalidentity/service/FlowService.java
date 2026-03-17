@@ -51,6 +51,7 @@ import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.common.service.mfa.MFAService;
 import dk.digitalidentity.common.service.mfa.model.MfaClient;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.controller.dto.ClaimValueDTO;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.controller.dto.PasswordChangeForm;
@@ -62,8 +63,10 @@ import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.util.IPUtil;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import dk.digitalidentity.util.ShowErrorToUserException;
 import dk.digitalidentity.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -139,7 +142,10 @@ public class FlowService {
 	@Autowired
 	private GroupService groupService;
 	
-	public ModelAndView initiateFlowOrSendLoginResponse(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws ResponderException, RequesterException {
+	@Autowired
+	private OS2faktorConfiguration configuration;
+	
+	public ModelAndView initiateFlowOrSendLoginResponse(Model model, HttpServletResponse response, HttpServletRequest request, Person person) throws IdPFlowException {
 		ResponderException cannotPerformPassiveLogin = new ResponderException("Passiv login krævet, men bruger er ikke logget ind på det krævede niveau");
 
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
@@ -239,6 +245,8 @@ public class FlowService {
 			ModelAndView selectClaimsPage = null;
 			
 			switch (currentNSISLevel) {
+				case HIGH:
+					throw new ResponderException("Understøtter ikke NSIS Høj");
 				case SUBSTANTIAL:
 					selectClaimsPage = initiateSelectClaims(person, model, serviceProvider);
 					if (selectClaimsPage != null) {
@@ -281,15 +289,22 @@ public class FlowService {
 						throw cannotPerformPassiveLogin;
 					}
 
-					if (!NSISLevel.LOW.equalOrLesser(person.getNsisLevel())) {
-						throw new ResponderException("Brugerens sikringsniveau er for lavt og brugeren kan derfor kun logge ind på tjenesteudbydere, der ikke kræver et NSIS sikringsniveau");
+					// if the user already tried once before, we just show an error page
+					if (sessionHelper.isInExtraAttemptNsisRequiredLoginFlow()) {
+						sessionHelper.setInExtraAttemptNsisRequiredLoginFlow(false);
+						
+						log.warn("Login rejected due to low NSIS level for user " + person.getSamaccountName());
+						
+						throw new ShowErrorToUserException(
+								"Det var ikke muligt at opnå et højt nok sikringsniveau under login",
+								"Krævet niveau: " + requiredNSISLevel.toString(),
+								"cms.login.rejected.nsislevel");
 					}
 
-					RequireNemIdReason reason = requireNemId(loginRequest) ? null : RequireNemIdReason.AD;
-					return initiateNemIDOnlyLogin(model, request, reason);
-				default:
-					// catch-all, should not really happen though, due to previous validations
-					sessionHelper.clearSession();
+					// clear any residual non-NSIS level authentications and let the user try ONCE more
+					sessionHelper.clearAuthentication();
+					sessionHelper.setInExtraAttemptNsisRequiredLoginFlow(true);
+
 					if (requireNemId(loginRequest)) {
 						return initiateNemIDOnlyLogin(model, request, null);
 					}
@@ -299,7 +314,7 @@ public class FlowService {
 		}
 		
 		// in this case, the service provider does not require NSIS
-		if (serviceProvider.mfaRequired(loginRequest, person.getDomain(), IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), request)) && !NSISLevel.NONE.equalOrLesser(sessionHelper.getMFALevel())) {
+		if (serviceProvider.mfaRequired(loginRequest, person.getDomain(), IPUtil.isIpInTrustedNetwork(knownNetworkService.getAllIPs(), request)) && !NSISLevel.NONE.equalOrLesser(sessionHelper.getMFALevel(serviceProvider, loginRequest))) {
 			if (loginRequest.isPassive()) {
 				throw cannotPerformPassiveLogin;
 			}
@@ -348,9 +363,6 @@ public class FlowService {
             model.addAttribute("preferNemid", preferNemid);
         }
 
-        // if "Using NemLog-in for other SPs feature" is not enabled, we will only show NemLog-in on SelfService
-        model.addAttribute("showNemLogIn", showNemLogIn());
-
         // hack to support embedded IE browsers
         boolean isMobile = false;
         try {
@@ -364,14 +376,33 @@ public class FlowService {
         catch (Exception ignored) {
         	;
         }
-        
+
+        // if "Using NemLog-in for other SPs feature" is not enabled, we will only show NemLog-in on SelfService
+        model.addAttribute("showNemLogIn", showNemLogIn());
+
+        boolean isSelfService = false;
+        try {
+	        LoginRequest loginRequest = sessionHelper.getLoginRequest();
+	        if (loginRequest != null) {
+	        	ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+	        	if (serviceProvider instanceof SelfServiceServiceProvider) {
+	        		isSelfService = true;
+	        	}
+	        }
+        }
+        catch (Exception _) {
+        	;
+        }
+
+        model.addAttribute("showNonNsisIdP", showNonNsisIdP(isMobile, isSelfService, request));
+
     	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa() && (commonConfiguration.getCustomer().isEnablePasswordlessMfaMobileOnly() == false || isMobile));
     	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
         
         return new ModelAndView("login", model.asMap());
     }
 
-	public ModelAndView initiateUserSelect(Model model, List<Person> people, NSISLevel authenticationLevel, LoginRequest loginRequest, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws RequesterException, ResponderException {
+	public ModelAndView initiateUserSelect(Model model, List<Person> people) throws RequesterException, ResponderException {
 
 		// if the person is in a dedicated activation flow, the list of available people will be
 		// filtered to only match the people that CAN be activated
@@ -922,6 +953,29 @@ public class FlowService {
 		}
 		
 		return false;
+	}
+
+	private boolean showNonNsisIdP(boolean isMobile, boolean isSelfService, HttpServletRequest httpServletRequest) {
+		if (isSelfService) {
+			return false;
+		}
+
+		if (!configuration.getClaimsProvider().isNonNsisIdPEnabled()) {
+			return false;
+		}
+		
+		if (!configuration.getClaimsProvider().isNonNsisIdPEnabledForMobile() && isMobile) {
+			return false;
+		}
+		
+    	if (configuration.getClaimsProvider().getNonNsisIdPIpFilter() != null &&
+    		configuration.getClaimsProvider().getNonNsisIdPIpFilter().size() > 0 &&
+    		!IPUtil.isIpInTrustedNetwork(configuration.getClaimsProvider().getNonNsisIdPIpFilter(), httpServletRequest)) {
+    		
+    		return false;
+    	}
+
+    	return true;
 	}
 
 	// used from Thymeleaf

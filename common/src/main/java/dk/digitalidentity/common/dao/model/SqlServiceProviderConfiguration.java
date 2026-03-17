@@ -149,8 +149,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
     @Column
     private Long customMfaExpiry;
 
-    @Column
-    private boolean allowMitidErvhervLogin;
+    // bad spelling on SQL table - refactor at some point
+    @Column(name = "allow_mitid_ervherv_login")
+    private boolean allowMitidErhvervLogin;
 
     @Column
     private boolean allowAnonymousUsers;
@@ -166,6 +167,9 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
 
     @Column
     private String notes;
+    
+    @Column(name = "auto_non_nsis_idp_login")
+    private boolean autoNonNsisIdPLogin;
 
     public void loadFully() {
         this.requiredFields.size();

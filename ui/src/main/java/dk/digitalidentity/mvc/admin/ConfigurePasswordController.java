@@ -266,6 +266,12 @@ public class ConfigurePasswordController {
 	@RequireAdministrator
 	@PostMapping("/rest/admin/konfiguration/badPassword/add")
 	public ResponseEntity<?> addBadPassword(@RequestBody String badPassword) {
+		Person admin = securityUtil.getPerson();
+		if (admin == null) {
+			log.warn("Could not find admin while adding bad password");
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
 		if (badPasswordService.findByPassword(badPassword).size() > 0) {
 			return new ResponseEntity<>(HttpStatus.CONFLICT);
 		}
@@ -273,14 +279,26 @@ public class ConfigurePasswordController {
 		BadPassword bp = new BadPassword();
 		bp.setPassword(badPassword);
 		badPasswordService.save(bp);
+		auditLogger.addBadPassword(badPassword, admin);
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
-	
+
 	@RequireAdministrator
 	@PostMapping("/rest/admin/konfiguration/badPassword/remove/{id}")
-	public ResponseEntity<?> removeBadPassword(@PathVariable("id") long id){
+	public ResponseEntity<?> removeBadPassword(@PathVariable("id") long id) {
+		Person admin = securityUtil.getPerson();
+		if (admin == null) {
+			log.warn("Could not find admin while removing bad password");
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
+		BadPassword bp = badPasswordService.getById(id);
 		badPasswordService.delete(id);
+
+		if (bp != null) {
+			auditLogger.removeBadPassword(bp.getPassword(), admin);
+		}
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}

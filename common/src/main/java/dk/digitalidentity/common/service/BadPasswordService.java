@@ -32,6 +32,10 @@ public class BadPasswordService {
 		cache = badPasswordDao.findAll().stream().map(p -> p.getPassword().toLowerCase()).collect(Collectors.toSet());
 	}
 
+	public BadPassword getById(long id) {
+		return badPasswordDao.findById(id).orElse(null);
+	}
+
 	public void delete(long id) {
 		badPasswordDao.deleteById(id);
 	}

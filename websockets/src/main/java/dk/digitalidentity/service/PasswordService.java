@@ -130,11 +130,21 @@ public class PasswordService {
 
 	public int activeSessions(String domain) {
 		List<Session> sessions = socketHandler.getSessions();
-		
+
 		if (domain != null) {
 			return (int) sessions.stream().filter(s -> Objects.equals(domain, s.getDomain())).count();
 		}
-		
+
 		return sessions.size();
+	}
+
+	public List<Session> getSessions(String domain) {
+		List<Session> sessions = socketHandler.getSessions();
+
+		if (domain != null) {
+			return sessions.stream().filter(s -> Objects.equals(domain, s.getDomain())).collect(java.util.stream.Collectors.toList());
+		}
+
+		return sessions;
 	}
 }

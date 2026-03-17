@@ -197,7 +197,7 @@ public class ErrorResponseService {
 		// If we have a person on the session AuditLog error, so Municipalities can troubleshoot via SelfService
 		Person person = sessionHelper.getPerson();
 		if (person != null) {
-			ErrorLogDto errorDetail = new ErrorLogDto(e, destination, person, sessionHelper.getPasswordLevel(), sessionHelper.getPasswordLevelTimestamp(), sessionHelper.getMFALevel(), sessionHelper.getMFALevelTimestamp());
+			ErrorLogDto errorDetail = new ErrorLogDto(e, destination, person, sessionHelper.getPasswordLevel(null, null, false), sessionHelper.getPasswordLevelTimestamp(), sessionHelper.getMFALevel(null, null, false), sessionHelper.getMFALevelTimestamp());
 			auditLogger.errorSentToSP(person, errorDetail);
 		}
 

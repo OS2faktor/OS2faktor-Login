@@ -18,10 +18,9 @@ import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.LoginService;
 import dk.digitalidentity.service.OidcAuthCodeRequestService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import dk.digitalidentity.util.ShowErrorToUserException;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +45,7 @@ public class OIDCLoginController {
 	private SessionHelper sessionHelper;
 
 	@GetMapping("/oauth2/login")
-	public ModelAndView oidcLogin(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws RequesterException, ResponderException, ShowErrorToUserException {
+	public ModelAndView oidcLogin(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");
 			return new ModelAndView("redirect:/");
@@ -66,17 +65,23 @@ public class OIDCLoginController {
 				loginRequest = new LoginRequest(authorizationCodeRequestAuthentication, httpServletRequest.getHeader("User-Agent"));
 				sessionHelper.setRequestedUsername(null);
 
-				return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest);
+				return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest, false);
 			}
 			catch (OAuth2AuthenticationException ex) {
+				log.warn("Failed call on /oauth2/login", ex);
+				
 				// Call Auth Fail if anything went wrong
 				errorResponseService.sendOIDCError(httpServletResponse, null, new OAuth2Error(OAuth2ErrorCodes.INVALID_REQUEST));
 			}
 			catch (RequesterException | ResponderException ex) {
+				log.warn("Failed call on /oauth2/login", ex);
+				
 				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
 			}
 		}
 		catch (IOException ex) {
+			log.warn("Failed call on /oauth2/login", ex);
+
 			errorHandlingService.error("/oauth2/authorize", model);
 			return null;
 		}

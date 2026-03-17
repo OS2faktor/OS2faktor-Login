@@ -192,6 +192,9 @@ public class CprService {
 						continue;
 					}
 					
+					// preload data, as we cache here
+					person.getSchoolRoles().forEach(sr -> sr.getSchoolClasses().forEach(sc -> sc.getSchoolClass().getName()));
+					
 					result.add(person);
 				}
 			}

@@ -3,6 +3,7 @@ package dk.digitalidentity.service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,13 +15,10 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import dk.digitalidentity.api.dto.CoreDataForceChangePassword;
-import dk.digitalidentity.common.dao.model.EmailTemplate;
-import dk.digitalidentity.common.dao.model.EmailTemplateChild;
-import dk.digitalidentity.common.service.EmailTemplateService;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -35,6 +33,8 @@ import dk.digitalidentity.api.dto.CoreDataDeltaJfr;
 import dk.digitalidentity.api.dto.CoreDataDeltaJfrEntry;
 import dk.digitalidentity.api.dto.CoreDataEntry;
 import dk.digitalidentity.api.dto.CoreDataEntryLight;
+import dk.digitalidentity.api.dto.CoreDataExtendedLookup;
+import dk.digitalidentity.api.dto.CoreDataForceChangePassword;
 import dk.digitalidentity.api.dto.CoreDataFullJfr;
 import dk.digitalidentity.api.dto.CoreDataFullJfrEntry;
 import dk.digitalidentity.api.dto.CoreDataGroup;
@@ -43,7 +43,6 @@ import dk.digitalidentity.api.dto.CoreDataKombitAttributeEntry;
 import dk.digitalidentity.api.dto.CoreDataKombitAttributesLoad;
 import dk.digitalidentity.api.dto.CoreDataNemLoginAllowed;
 import dk.digitalidentity.api.dto.CoreDataNemLoginEntry;
-import dk.digitalidentity.api.dto.CoreDataExtendedLookup;
 import dk.digitalidentity.api.dto.CoreDataNemLoginStatus;
 import dk.digitalidentity.api.dto.CoreDataNsisAllowed;
 import dk.digitalidentity.api.dto.CoreDataStatus;
@@ -52,6 +51,8 @@ import dk.digitalidentity.api.dto.Jfr;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.config.Constants;
 import dk.digitalidentity.common.dao.model.Domain;
+import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Group;
 import dk.digitalidentity.common.dao.model.KombitJfr;
 import dk.digitalidentity.common.dao.model.MitidErhvervCache;
@@ -63,6 +64,7 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.mapping.PersonGroupMapping;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.DomainService;
+import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.GroupService;
 import dk.digitalidentity.common.service.MessageQueueService;
 import dk.digitalidentity.common.service.PersonService;
@@ -168,44 +170,34 @@ public class CoreDataService {
 
 		HashMap<String, Domain> subDomainMap = new HashMap<>(subDomains.stream().collect(Collectors.toMap(Domain::getName, Function.identity())));
 
+		// preloader for persons so we have all the fields we need to compare with (optimize SQL lookup)
+		Consumer<Person> consumer =  p -> {
+			p.getDomain().getName();
+			p.getAttributes().size();
+			p.getKombitJfrs().size();
+
+			p.getGroups().forEach(gm -> {
+				gm.getGroup().getName();
+			});			
+			
+			if (p.getSupporter() != null) {
+				if (p.getSupporter().getDomain() != null) {
+					p.getSupporter().getDomain().getName();
+				}
+			}
+		};
+		
 		// Get a list of all account of the domain, even if Global subdomain is set,
 		// this is used to move accounts between subdomains without locking and creating a new one
 		List<Person> personsByDomain = null;
 		if (!fullLoad && coreData.getEntryList().size() < 50) {
 			Set<String> cprs = coreData.getEntryList().stream().map(e -> e.getCpr()).collect(Collectors.toSet());
-			// TODO: extract consumer so we do not double that code
-			personsByDomain = personService.getByDomainAndCprIn(domain, cprs, true, p -> {
-				p.getDomain().getName();
-				p.getAttributes().size();
-				p.getKombitJfrs().size();
-
-				p.getGroups().forEach(gm -> {
-					gm.getGroup().getName();
-				});			
-				
-				if (p.getSupporter() != null) {
-					if (p.getSupporter().getDomain() != null) {
-						p.getSupporter().getDomain().getName();
-					}
-				}
-			});
+			Set<String> samAccountNames = coreData.getEntryList().stream().map(e -> e.getLowerSamAccountName()).collect(Collectors.toSet());
+			
+			personsByDomain = personService.getByDomainAndCprOrSamAccountName(domain, cprs, samAccountNames, consumer);
 		}
 		else {
-			personsByDomain = personService.getByDomain(domain, true, p -> {
-				p.getDomain().getName();
-				p.getAttributes().size();
-				p.getKombitJfrs().size();
-
-				p.getGroups().forEach(gm -> {
-					gm.getGroup().getName();
-				});			
-				
-				if (p.getSupporter() != null) {
-					if (p.getSupporter().getDomain() != null) {
-						p.getSupporter().getDomain().getName();
-					}
-				}
-			});
+			personsByDomain = personService.getByDomain(domain, true, consumer);
 		}
 
 		Map<String, Person> personMap = personsByDomain
@@ -993,7 +985,13 @@ public class CoreDataService {
 
 		String dateToCompare = (person.getExpireTimestamp() == null) ? null : person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 		if (!Objects.equals(dateToCompare, coreDataEntry.getExpireTimestamp())) {
-			person.setExpireTimestamp((coreDataEntry.getExpireTimestamp() != null) ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
+			try {
+				person.setExpireTimestamp((coreDataEntry.getExpireTimestamp() != null) ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
+			}
+			catch (DateTimeParseException _) {
+				// some callers send datetime with a T between date and timestamp
+				person.setExpireTimestamp(LocalDateTime.parse(coreDataEntry.getExpireTimestamp().replace("T", " "), formatter));
+			}
 			
 			if (person.getExpireTimestamp() != null && person.getExpireTimestamp().isBefore(LocalDateTime.now())) {
 				person.setLockedExpired(true);

@@ -43,7 +43,18 @@ public class ClaimsProviderProvider implements SamlIdentityProviderProvider {
 
 			identityProviders.add(nl3Provider);
 		}
-		
+
+		if (configuration.getClaimsProvider().isNonNsisIdPEnabled()) {
+			IdentityProvider nonNsisProvider = new IdentityProvider();
+			nonNsisProvider.setContextClassRefEnabled(false);
+			nonNsisProvider.setRequirePersonProfile(false);
+			nonNsisProvider.setPassive(configuration.getClaimsProvider().isNonNsisIdPIsPassive());
+			nonNsisProvider.setEntityId(configuration.getClaimsProvider().getNonNsisIdPEntityId());
+			nonNsisProvider.setMetadata(configuration.getClaimsProvider().getNonNsisIdPMetadata());
+
+			identityProviders.add(nonNsisProvider);
+		}
+
 		return identityProviders;
 	}
 

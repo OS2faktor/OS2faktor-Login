@@ -27,6 +27,7 @@ import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -116,7 +117,7 @@ public class MultiFactorAuthenticationController {
 		}
 
 		// start MFA authentication
-		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient.getDeviceId(), sessionHelper.isInPasswordlessMfaFlow(), systemName, username);
+		MfaAuthenticationResponseDTO mfaResponseDto = mfaService.authenticate(matchingClient, sessionHelper.isInPasswordlessMfaFlow(), systemName, username);
 		if (!mfaResponseDto.isSuccess()) {
 			// Handle error in initialising MFA authentication
 			log.warn("mfaResponse was null exception: " + mfaResponseDto.getFailureMessage());
@@ -146,7 +147,7 @@ public class MultiFactorAuthenticationController {
 		String redirectUrl = mfaResponseDto.getMfaAuthenticationResponse().getRedirectUrl();
 		if (StringUtils.isEmpty(redirectUrl)) {
 			model.addAttribute("challenge", mfaResponseDto.getMfaAuthenticationResponse().getChallenge());
-			model.addAttribute("wakeEvent", ClientType.CHROME.equals(matchingClient.getType()) || ClientType.EDGE.equals(matchingClient.getType()));
+			model.addAttribute("wakeEvent", ClientType.CHROME.equals(matchingClient.getType()) || ClientType.EDGE.equals(matchingClient.getType()) || ClientType.FIREFOX.equals(matchingClient.getType()));
 		}
 		else {
 			model.addAttribute("redirectUrl", redirectUrl);
@@ -173,7 +174,7 @@ public class MultiFactorAuthenticationController {
 	}
 
 	@GetMapping("/sso/saml/mfa/{deviceId}/completed")
-	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response, @PathVariable("deviceId") String deviceId) throws ResponderException, RequesterException {
+	public ModelAndView mfaChallengeDone(Model model, HttpServletRequest request, HttpServletResponse response, @PathVariable("deviceId") String deviceId) throws IdPFlowException {
 		Person person = sessionHelper.getPerson();
 		if (person == null) {
 			ModelAndView modelAndView = errorHandlingService.modelAndViewError("/sso/saml/mfa/deviceId/completed", request, "Der er ingen bruger på sessionen", model);

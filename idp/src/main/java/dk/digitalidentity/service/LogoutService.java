@@ -68,7 +68,8 @@ public class LogoutService {
                 sessionHelper.invalidateSession();
                 httpServletResponse.sendRedirect("/");
                 return;
-            } catch (IOException e) {
+            }
+            catch (IOException e) {
                 throw new ResponderException("Kunne ikke vidrestille til forsiden efter logud");
             }
         }
@@ -76,6 +77,15 @@ public class LogoutService {
         // Create LogoutResponse
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(logoutRequest.getIssuer().getValue());
         SingleLogoutService logoutEndpoint = serviceProvider.getLogoutResponseEndpoint();
+        if (logoutEndpoint == null) {
+            try {
+	            httpServletResponse.sendRedirect("/");
+	            return;
+            }
+            catch (IOException e) {
+                throw new ResponderException("Kunne ikke vidrestille til forsiden efter logud");
+            }
+        }
 
         String destination = StringUtils.hasLength(logoutEndpoint.getResponseLocation()) ? logoutEndpoint.getResponseLocation() : logoutEndpoint.getLocation();
         MessageContext<SAMLObject> messageContext = logoutResponseService.createMessageContextWithLogoutResponse(logoutRequest, destination, logoutEndpoint.getBinding(), serviceProvider);
@@ -94,7 +104,8 @@ public class LogoutService {
         // Deflating and sending the message
         try {
             sendMessage(httpServletResponse, logoutEndpoint, messageContext);
-        } catch (ComponentInitializationException | MessageEncodingException e) {
+        }
+        catch (ComponentInitializationException | MessageEncodingException e) {
             throw new ResponderException("Kunne ikke sende logout svar (LogoutResponse)", e);
         }
     }

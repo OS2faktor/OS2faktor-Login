@@ -21,8 +21,9 @@ public class Session {
 	private LocalDateTime cleanupTimestamp;
 	private boolean authenticated;
 	private String version;
+	private String serverName;
 	private boolean badState = false;
-	
+
 	class RequestTracker {
 		int count;
 		long totalTime;
@@ -39,7 +40,7 @@ public class Session {
 		this.authenticated = false;
 		this.id = Session.getNextId();
 	}
-	
+
 	public synchronized void logRequest(String command, long timeToComplete) {
 		requestCount++;
 		

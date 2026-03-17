@@ -81,4 +81,9 @@ public class KombitServiceProviderConfigV2 implements ServiceProviderConfig {
 	public boolean isOnlyAllowLoginFromKnownNetworks() {
 		return config.getKombit().isOnlyAllowLoginFromKnownNetworks();
 	}
+	
+	@Override
+	public boolean isAutoNonNsisIdPLogin() {
+		return config.getKombit().isAutoNonNsisIdPLogin();
+	}
 }

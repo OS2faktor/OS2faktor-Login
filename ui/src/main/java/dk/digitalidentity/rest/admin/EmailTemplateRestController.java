@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Person;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.EmailService;
 import dk.digitalidentity.common.service.EmailTemplateChildService;
 import dk.digitalidentity.common.service.EmailTemplateService;
@@ -40,8 +41,11 @@ import lombok.extern.slf4j.Slf4j;
 public class EmailTemplateRestController {
 	
 	@Autowired
+	private AuditLogger auditLogger;
+
+	@Autowired
 	private EmailService emailService;
-	
+
 	@Autowired
 	private SecurityUtil securityUtil;
 
@@ -129,8 +133,12 @@ public class EmailTemplateRestController {
 			}
 			
 			emailTemplateChildService.save(template);
+
+			String templateType = template.getEmailTemplate().getTemplateType().toString();
+			String domainName = template.getDomain() != null ? template.getDomain().getName() : null;
+			auditLogger.changeEmailTemplate(templateType, domainName, person);
 		}
-		
+
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
 		

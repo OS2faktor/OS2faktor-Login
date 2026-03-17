@@ -22,8 +22,10 @@ import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
+import dk.digitalidentity.service.serviceprovider.ServiceProvider;
+import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.RequesterException;
-import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -52,10 +54,13 @@ public class ApproveConditionsController {
 
 	@Autowired
 	private CprService cprService;
+	
+	@Autowired
+	private ServiceProviderFactory serviceProviderFactory;
 
 	// Hitting this endpoint is not intended, but if a user does it is likely due to hitting the back button in the login flow.
 	@GetMapping("/vilkaar/godkendt")
-	public ModelAndView approvedConditionsGet(Model model, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+	public ModelAndView approvedConditionsGet(Model model, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws IdPFlowException {
 		Person person = sessionHelper.getPerson();
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		RequesterException ex = new RequesterException("Tilgik '/vilkaar/godkendt'. Sessionen var ikke korrekt, kan ikke fortsætte login. Prøv igen.");
@@ -86,10 +91,11 @@ public class ApproveConditionsController {
 	}
 
 	@PostMapping("/vilkaar/godkendt")
-	public ModelAndView approvedConditions(Model model, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest, @RequestParam(value="doNotUseCurrentADPassword", required = false, defaultValue = "false") boolean doNotUseCurrentADPassword) throws ResponderException, RequesterException {
+	public ModelAndView approvedConditions(Model model, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest, @RequestParam(value="doNotUseCurrentADPassword", required = false, defaultValue = "false") boolean doNotUseCurrentADPassword) throws IdPFlowException {
+		LoginRequest loginRequest = sessionHelper.getLoginRequest();
+
 		// Access not allowed
 		if (!sessionHelper.isInApproveConditionsFlow()) {
-			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			if (loginRequest == null) {
 				log.warn("No loginRequest found on session");
 				return new ModelAndView("redirect:/");
@@ -102,7 +108,6 @@ public class ApproveConditionsController {
 		// Get person
 		Person person = sessionHelper.getPerson();
 		if (person == null) {
-			LoginRequest loginRequest = sessionHelper.getLoginRequest();
 			if (loginRequest == null) {
 				log.warn("No loginRequest found on session");
 				return new ModelAndView("redirect:/");
@@ -124,9 +129,19 @@ public class ApproveConditionsController {
 
 		// if in dedicated activation flow
 		if (sessionHelper.isInDedicatedActivateAccountFlow()) {
+			ServiceProvider serviceProvider = null;
+			if (loginRequest != null) {
+				try {
+					serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest.getServiceProviderId());
+				}
+				catch (Exception _) {
+					;
+				}
+			}
+
 			String mitIDNameID = sessionHelper.getMitIDNameID();
-			NSISLevel passwordLevel = sessionHelper.getPasswordLevel();
-			NSISLevel mfaLevel = sessionHelper.getMFALevel();
+			NSISLevel passwordLevel = sessionHelper.getPasswordLevel(serviceProvider, loginRequest);
+			NSISLevel mfaLevel = sessionHelper.getMFALevel(serviceProvider, loginRequest);
 
 			if (!StringUtils.hasLength(mitIDNameID) || !NSISLevel.SUBSTANTIAL.equalOrLesser(passwordLevel) || !NSISLevel.SUBSTANTIAL.equalOrLesser(mfaLevel)) {
 				sessionHelper.invalidateSession();

@@ -128,12 +128,20 @@ public class LogoutController {
 		}
 		catch (RequesterException ex) {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
+			if (endpoint == null) {
+				return null;
+			}
+			
 			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 
 			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.REQUESTER, ex, serviceProvider);
 		}
 		catch (ResponderException ex) {
 			SingleLogoutService endpoint = serviceProvider.getLogoutResponseEndpoint();
+			if (endpoint == null) {
+				return null;
+			}
+
 			String destination = StringUtils.hasLength(endpoint.getResponseLocation()) ? endpoint.getResponseLocation() : endpoint.getLocation();
 			errorResponseService.sendError(httpServletResponse, destination, logoutRequest.getID(), StatusCode.RESPONDER, ex, serviceProvider);
 		}

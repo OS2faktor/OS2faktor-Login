@@ -35,7 +35,7 @@ public class NemloginQueueService {
 	
 	@Transactional // this is OK, need to delete like this
 	public void deleteFailedByPerson(Person person) {
-		nemloginQueueDao.deleteByPersonAndFailedTrue(person);
+		nemloginQueueDao.deleteByPersonAndFailedTrue(person.getId());
 	}
 	
 	@Transactional //  this is OK, isolated read

@@ -28,6 +28,7 @@ import org.springframework.web.servlet.ModelAndView;
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
 import dk.digitalidentity.common.service.mfa.MFAService;
@@ -38,15 +39,15 @@ import dk.digitalidentity.service.ErrorHandlingService;
 import dk.digitalidentity.service.ErrorResponseService;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.LoginService;
+import dk.digitalidentity.service.OpenSAMLHelperService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.service.validation.AuthnRequestValidationService;
 import dk.digitalidentity.util.Constants;
+import dk.digitalidentity.util.IdPFlowException;
 import dk.digitalidentity.util.LoggingUtil;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
-import dk.digitalidentity.util.ShowErrorToUserException;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -97,6 +98,12 @@ public class LoginController {
 	@Autowired
 	private ServiceProviderFactory serviceProviderFactory;
 
+    @Autowired
+    private AuditLogger auditLogger;
+    
+    @Autowired
+    private OpenSAMLHelperService samlHelper;
+
 	@GetMapping("/fragment/username")
 	public String getLoginUsernameFragment(Model model, @RequestParam(name = "username", required = false, defaultValue = "") String username) {
 		if (!StringUtils.hasText(username)) {
@@ -109,7 +116,7 @@ public class LoginController {
 	}
 	
 	@RequestMapping(value = { "/sso/saml/login", "/sso/saml/login/" }, method = { POST, GET } )
-	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws ResponderException, RequesterException, ShowErrorToUserException {
+	public ModelAndView loginRequest(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model) throws IdPFlowException {
 		if ("HEAD".equals(httpServletRequest.getMethod())) {
 			log.warn("Rejecting HEAD request in login handler from " + getIpAddress(httpServletRequest) + "(" + httpServletRequest.getHeader("referer") + ")");
 			return new ModelAndView("redirect:/");
@@ -167,9 +174,10 @@ public class LoginController {
 			LoginRequest loginRequest = new LoginRequest(authnRequest, httpServletRequest.getHeader("User-Agent"));
 			loginRequest.setRelayState(relayState);
 
-			return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest);
+			return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest, false);
 		}
 		catch (RequesterException | ResponderException | SecurityException ex) {
+			auditLogger.authnRequestRejected(sessionHelper.getPerson(), samlHelper.prettyPrint(authnRequest), ex.getMessage());
 
 			// special case - the signature might be invalid, so we will trigger a refresh of metadata, in case that is the issue (new certificate)
 			if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("signatur")) {
@@ -209,7 +217,7 @@ public class LoginController {
 	}
 
 	@PostMapping(value = "/sso/login-passwordless")
-	public ModelAndView loginPasswordless(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+	public ModelAndView loginPasswordless(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws IdPFlowException {
 		// if passwordless is not enabled, handle this request with the normal login
 		if (!commonConfiguration.getCustomer().isEnablePasswordlessMfa()) {
 			log.warn("Attempted to access /sso/login-passwordless when not enabled");
@@ -265,7 +273,7 @@ public class LoginController {
 	}
 	
 	@PostMapping(value = "/sso/login")
-	public ModelAndView login(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+	public ModelAndView login(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws IdPFlowException {
 		// get post data
 		String username = body.get("username");
 		String password = body.get("password");
@@ -287,7 +295,7 @@ public class LoginController {
 		if (people.size() != 1) {
 			sessionHelper.setPassword(password);
 			
-			return flowService.initiateUserSelect(model, people, null, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
+			return flowService.initiateUserSelect(model, people);
 		}
 
 		// if only one match continue login flow
@@ -304,7 +312,7 @@ public class LoginController {
 		Person person = sessionHelper.getPerson();
 
 		if (availablePeople != null && !availablePeople.isEmpty() && person != null && availablePeople.contains(person)) {
-			return flowService.initiateUserSelect(model, availablePeople, null, sessionHelper.getLoginRequest(), httpServletRequest, httpServletResponse);
+			return flowService.initiateUserSelect(model, availablePeople);
 		}
 		else {
 			LoginRequest loginRequest = sessionHelper.getLoginRequest();
@@ -324,7 +332,7 @@ public class LoginController {
 	}
 
 	@PostMapping(value = "/sso/saml/login/multiple/accounts")
-	public ModelAndView altLogin(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws ResponderException, RequesterException {
+	public ModelAndView altLogin(Model model, @RequestParam Map<String, String> body, HttpServletResponse httpServletResponse, HttpServletRequest httpServletRequest) throws IdPFlowException {
 		// This is the list of people the user was presented with, and matched what they logged in with
 		// so the personid that is returned from the person select page should be among these
 		List<Person> availablePeople = sessionHelper.getAvailablePeople();
@@ -361,6 +369,18 @@ public class LoginController {
 			
 			try {
 				return loginService.continueLoginWithMitIdOrNemId(person, sessionHelper.getNemIDMitIDNSISLevel(), loginRequest, httpServletRequest, httpServletResponse, model);
+			}
+			catch (RequesterException | ResponderException ex) {
+				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
+				return null;
+			}
+		}
+		
+		if (sessionHelper.isInNonNsisIdPLoginFlow()) {
+			sessionHelper.setPerson(person);
+
+			try {
+				return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
 			}
 			catch (RequesterException | ResponderException ex) {
 				errorResponseService.sendError(httpServletResponse, loginRequest, ex);
@@ -410,7 +430,7 @@ public class LoginController {
 	}
 
 	@GetMapping("/sso/saml/login/forceChangePassword/continueLogin")
-	public ModelAndView continueLoginAfterForceChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
+	public ModelAndView continueLoginAfterForceChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IdPFlowException {
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest == null) {
 			log.warn("No loginRequest found on session");
@@ -428,7 +448,7 @@ public class LoginController {
 	}
 
 	@GetMapping("/sso/saml/login/continueLogin")
-	public ModelAndView continueLoginWithoutChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
+	public ModelAndView continueLoginWithoutChangePassword(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IdPFlowException {
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest == null) {
 			log.warn("No loginRequest found on session");

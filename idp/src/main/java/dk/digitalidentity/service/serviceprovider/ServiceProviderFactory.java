@@ -170,6 +170,7 @@ public class ServiceProviderFactory {
         throw new RequesterException("Ingen Issuer fundet i AuthnRequest (" + (authnRequest != null ? authnRequest.getID() : "null") + ") og kunne derfor ikke finde tjenesteudbyderens instillinger");
     }
 
+    // TODO: loginRequest.getServiceProviderId() contains the entityId, so a direct call to getServiceProvider(String entityId) should always work
     public ServiceProvider getServiceProvider(LoginRequest loginRequest) throws RequesterException, ResponderException {
         switch (loginRequest.getProtocol()) {
             case SAML20:
@@ -182,6 +183,7 @@ public class ServiceProviderFactory {
 
                 // TODO: this is a common error, we need this to track down the issues and fix them - remove once we are error free :)
                 log.warn("session data dump: " + sessionHelper.serializeSessionAsString());
+
                 throw new RequesterException("Ingen Issuer fundet i AuthnRequest (" + (authnRequest != null ? authnRequest.getID() : "null") + ") og kunne derfor ikke finde tjenesteudbyderens instillinger");
             case OIDC10:
                 OAuth2AuthorizationCodeRequestAuthenticationToken token = loginRequest.getToken();

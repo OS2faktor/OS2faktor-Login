@@ -69,6 +69,8 @@ public class MonitorPasswordSyncTask {
 				boolean noConnections = false;
 				boolean pendingChanges = false;
 
+				adPasswordService.updateWebsocketConnectionStatus(setting.getDomain().getName());
+
 				if (!adPasswordService.monitorConnection(setting.getDomain().getName())) {
 					noConnections = true;
 				}

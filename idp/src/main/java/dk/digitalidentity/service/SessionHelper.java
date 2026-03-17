@@ -130,11 +130,11 @@ public class SessionHelper {
 		return null;
 	}
 
-	public NSISLevel getPasswordLevel() {
-		return getPasswordLevel(null, null);
+	public NSISLevel getPasswordLevel(ServiceProvider serviceProvider, LoginRequest loginRequest) {
+		return getPasswordLevel(serviceProvider, loginRequest, true);
 	}
 
-	public NSISLevel getPasswordLevel(ServiceProvider serviceProvider, LoginRequest loginRequest) {
+	public NSISLevel getPasswordLevel(ServiceProvider serviceProvider, LoginRequest loginRequest, boolean enforceExpiry) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
@@ -147,7 +147,9 @@ public class SessionHelper {
 		if (attribute != null && timestamp != null && person != null) {
 			Long passwordExpiry = getSessionLifetimePassword(person, serviceProvider, loginRequest);
 
-			if (LocalDateTime.now().minusMinutes(passwordExpiry).isAfter(timestamp)) {
+			if (enforceExpiry && LocalDateTime.now().minusMinutes(passwordExpiry).isAfter(timestamp)) {
+				log.info("Expired password session: person = " + ((person != null) ? person.getSamaccountName() : "<null>") + ", serviceProvider = " + ((serviceProvider != null) ? serviceProvider.getName(loginRequest) : "<null>") + ", passwordExpiry = " + passwordExpiry + ", timestamp compared against : " + timestamp);
+
 				auditLogger.sessionExpired(person);
 				setPasswordLevelTimestamp(null);
 				setPasswordLevel(null);
@@ -172,15 +174,15 @@ public class SessionHelper {
 		setMFALevel(null);
 
 		if (nsisLevel == null) {
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORD_AUTHENTIFICATION_LEVEL, null);
+			updateSession(Constants.PASSWORD_AUTHENTIFICATION_LEVEL, null);
 			setPasswordLevelTimestamp(null);
 
 			return;
 		}
 
-		NSISLevel passwordLevel = getPasswordLevel();
+		NSISLevel passwordLevel = getPasswordLevel(null, null, false);
 		if (passwordLevel == null || !passwordLevel.isGreater(nsisLevel)) {
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORD_AUTHENTIFICATION_LEVEL, nsisLevel);
+			updateSession(Constants.PASSWORD_AUTHENTIFICATION_LEVEL, nsisLevel);
 			setPasswordLevelTimestamp(LocalDateTime.now());
 		}
 
@@ -210,18 +212,18 @@ public class SessionHelper {
 		}
 
 		if (timestamp == null) {
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP, null);
+			updateSession(Constants.PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP, null);
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP, timestamp);
-	}
-
-	public NSISLevel getMFALevel() {
-		return getMFALevel(null, null);
+		updateSession(Constants.PASSWORD_AUTHENTIFICATION_LEVEL_TIMESTAMP, timestamp);
 	}
 
 	public NSISLevel getMFALevel(ServiceProvider serviceProvider, LoginRequest loginRequest) {
+		return getMFALevel(serviceProvider, loginRequest, true);
+	}
+	
+	public NSISLevel getMFALevel(ServiceProvider serviceProvider, LoginRequest loginRequest, boolean enforceExpiry) {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
 			return null;
@@ -234,7 +236,9 @@ public class SessionHelper {
 		if (attribute != null && timestamp != null && person != null) {
 			long mfaExpiry = getSessionLifetimeMfa(person, serviceProvider, loginRequest);
 
-			if (LocalDateTime.now().minusMinutes(mfaExpiry).isAfter(timestamp)) {
+			if (enforceExpiry && LocalDateTime.now().minusMinutes(mfaExpiry).isAfter(timestamp)) {
+				log.info("Expired mfa session: person = " + ((person != null) ? person.getSamaccountName() : "<null>") + ", serviceProvider = " + ((serviceProvider != null) ? serviceProvider.getName(loginRequest) : "<null>") + ", mfaExpiry = " + mfaExpiry + ", timestamp compared against : " + timestamp);
+
 				setMFALevelTimestamp(null);
 				setMFALevel(null);
 				return null;
@@ -247,9 +251,10 @@ public class SessionHelper {
 	}
 	
 	public boolean hasUsedMFA() {
-		if (getMFALevel() != null) {
+		if (getMFALevel(null, null, false) != null) {
 			return true;
 		}
+
 		return false;
 	}
 
@@ -264,7 +269,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.NEMID_MITID_AUTHENTICATION_LEVEL, nsisLevel);
+		updateSession(Constants.NEMID_MITID_AUTHENTICATION_LEVEL, nsisLevel);
 
 		if (log.isDebugEnabled()) {
 			log.debug("setNemIDMitIDNSISLevel: " + nsisLevel);
@@ -298,9 +303,9 @@ public class SessionHelper {
 			return;
 		}
 
-		NSISLevel mfaLevel = getMFALevel();
+		NSISLevel mfaLevel = getMFALevel(null, null, false);
 		if (mfaLevel == null || !mfaLevel.isGreater(nsisLevel)) {
-			httpServletRequest.getSession().setAttribute(Constants.MFA_AUTHENTICATION_LEVEL, nsisLevel);
+			updateSession(Constants.MFA_AUTHENTICATION_LEVEL, nsisLevel);
 			LocalDateTime now = LocalDateTime.now();
 			setMFALevelTimestamp(now);
 			setPasswordLevelTimestamp(now);
@@ -332,11 +337,11 @@ public class SessionHelper {
 		}
 
 		if (timestamp == null) {
-			httpServletRequest.getSession().setAttribute(Constants.MFA_AUTHENTICATION_LEVEL_TIMESTAMP, null);
+			updateSession(Constants.MFA_AUTHENTICATION_LEVEL_TIMESTAMP, null);
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.MFA_AUTHENTICATION_LEVEL_TIMESTAMP, timestamp);
+		updateSession(Constants.MFA_AUTHENTICATION_LEVEL_TIMESTAMP, timestamp);
 	}
 
 	public LogoutRequest getLogoutRequest() throws ResponderException {
@@ -366,13 +371,13 @@ public class SessionHelper {
 		}
 
 		if (logoutRequest == null) {
-			httpServletRequest.getSession().setAttribute(Constants.LOGOUT_REQUEST, null);
+			updateSession(Constants.LOGOUT_REQUEST, null);
 			return;
 		}
 
 		try {
 			Element marshall = new LogoutRequestMarshaller().marshall(logoutRequest);
-			httpServletRequest.getSession().setAttribute(Constants.LOGOUT_REQUEST, marshall);
+			updateSession(Constants.LOGOUT_REQUEST, marshall);
 		} catch (MarshallingException ex) {
 			throw new ResponderException("Kunne ikke omforme logout forespørgsel (LogoutRequest)", ex);
 		}
@@ -412,7 +417,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.SERVICE_PROVIDER, serviceProviders);
+		updateSession(Constants.SERVICE_PROVIDER, serviceProviders);
 	}
 
 	public void setIPAddress(String ipAddress) {
@@ -421,7 +426,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.IP_ADDRESS, ipAddress);
+		updateSession(Constants.IP_ADDRESS, ipAddress);
 	}
 
 	public boolean handleValidateIP() {
@@ -442,7 +447,7 @@ public class SessionHelper {
 		// Validate IP against one stored on session
 		if (attribute == null) {
 			// If nothing stored on session save remoteAddr on session
-			httpServletRequest.getSession().setAttribute(Constants.IP_ADDRESS, remoteAddr);
+			updateSession(Constants.IP_ADDRESS, remoteAddr);
 			return true;
 		}
 		else {
@@ -463,7 +468,7 @@ public class SessionHelper {
 				setMFALevel(null);
 				setPasswordLevel(null);
 				
-				httpServletRequest.getSession().setAttribute(Constants.IP_ADDRESS, remoteAddr);
+				updateSession(Constants.IP_ADDRESS, remoteAddr);
 				
 				return false;
 			}
@@ -498,13 +503,13 @@ public class SessionHelper {
 		}
 
 		if (authnRequest == null) {
-			httpServletRequest.getSession().setAttribute(Constants.AUTHN_REQUEST, null);
+			updateSession(Constants.AUTHN_REQUEST, null);
 			return;
 		}
 
 		try {
 			Element marshall = new AuthnRequestMarshaller().marshall(authnRequest);
-			httpServletRequest.getSession().setAttribute(Constants.AUTHN_REQUEST, marshall);
+			updateSession(Constants.AUTHN_REQUEST, marshall);
 		}
 		catch (MarshallingException ex) {
 			throw new ResponderException("Kunne ikke omforme login forespørgsel (AuthnRequest)", ex);
@@ -518,7 +523,7 @@ public class SessionHelper {
 		}
 
 		if (loginRequest == null) {
-			httpServletRequest.getSession().setAttribute(Constants.LOGIN_REQUEST, null);
+			updateSession(Constants.LOGIN_REQUEST, null);
 			setAuthnRequest(null);
 			return;
 		}
@@ -526,7 +531,7 @@ public class SessionHelper {
 		// TODO maybe refactor this at some point, the LoginRequest/LoginRequestDTO is an inelegant solution
 		setAuthnRequest(loginRequest.getAuthnRequest());
 		setRelayState(loginRequest.getRelayState());
-		httpServletRequest.getSession().setAttribute(Constants.LOGIN_REQUEST, new LoginRequestDTO(loginRequest));
+		updateSession(Constants.LOGIN_REQUEST, new LoginRequestDTO(loginRequest));
 	}
 
 	public LoginRequest getLoginRequest() throws ResponderException {
@@ -558,7 +563,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.RELAY_STATE, relayState);
+		updateSession(Constants.RELAY_STATE, relayState);
 	}
 
 	public DateTime getAuthnInstant() {
@@ -575,7 +580,7 @@ public class SessionHelper {
 		HttpServletRequest httpServletRequest = getServletRequest();
 
 		if (httpServletRequest != null) {
-			httpServletRequest.getSession().setAttribute(Constants.AUTHN_INSTANT, dateTime);
+			updateSession(Constants.AUTHN_INSTANT, dateTime);
 		}
 	}
 
@@ -603,7 +608,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PERSON_ID, person == null ? null : person.getId());
+		updateSession(Constants.PERSON_ID, person == null ? null : person.getId());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -638,7 +643,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.MFA_CLIENTS, mfaDevices);
+		updateSession(Constants.MFA_CLIENTS, mfaDevices);
 	}
 
 	public NSISLevel getMFAClientRequiredNSISLevel() {
@@ -662,11 +667,11 @@ public class SessionHelper {
 		}
 
 		if (nsisLevel == null) {
-			httpServletRequest.getSession().setAttribute(Constants.MFA_CLIENT_REQUIRED_NSIS_LEVEL, null);
+			updateSession(Constants.MFA_CLIENT_REQUIRED_NSIS_LEVEL, null);
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.MFA_CLIENT_REQUIRED_NSIS_LEVEL, nsisLevel);
+		updateSession(Constants.MFA_CLIENT_REQUIRED_NSIS_LEVEL, nsisLevel);
 	}
 
 	public MfaClient getSelectedMFAClient() {
@@ -688,7 +693,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.MFA_SELECTED_CLIENT, mfaClient);
+		updateSession(Constants.MFA_SELECTED_CLIENT, mfaClient);
 	}
 
 	public String getSubscriptionKey() {
@@ -706,7 +711,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.SUBSCRIPTION_KEY, subscriptionKey);
+		updateSession(Constants.SUBSCRIPTION_KEY, subscriptionKey);
 	}
 
 	public boolean isAuthenticatedWithADPassword() {
@@ -725,7 +730,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.AUTHENTICATED_WITH_AD_PASSWORD, b);
+		updateSession(Constants.AUTHENTICATED_WITH_AD_PASSWORD, b);
 	}
 	
 	public boolean isDoNotUseCurrentADPassword() {
@@ -745,7 +750,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.DO_NOT_USE_CURRENT_AD_PASSWORD, b);
+		updateSession(Constants.DO_NOT_USE_CURRENT_AD_PASSWORD, b);
 	}
 
 	public boolean isAuthenticatedWithNemIdOrMitId() {
@@ -764,9 +769,28 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.AUTHENTICATED_WITH_NEMID_OR_MITID, b);
+		updateSession(Constants.AUTHENTICATED_WITH_NEMID_OR_MITID, b);
 	}
 
+	public boolean isInNonNsisIdPLoginFlow() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return false;
+		}
+
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.NON_NSIS_IDP_FLOW);
+		return (boolean) (attribute != null ? attribute : false);
+	}
+
+	public void setInNonNsisIdPLoginFlow(Boolean b) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		updateSession(Constants.NON_NSIS_IDP_FLOW, b);
+	}
+	
 	public boolean isInNemIdOrMitIDAuthenticationFlow() {
 		HttpServletRequest httpServletRequest = getServletRequest();
 		if (httpServletRequest == null) {
@@ -783,7 +807,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.NEMID_OR_MITID_AUTHENTICATION_FLOW, b);
+		updateSession(Constants.NEMID_OR_MITID_AUTHENTICATION_FLOW, b);
 	}
 
 	public String getPassword() {
@@ -803,10 +827,10 @@ public class SessionHelper {
 		}
 
 		if (password == null) {
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORD, null);
+			updateSession(Constants.PASSWORD, null);
 			return;
 		}
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD, encryptString(password));
+		updateSession(Constants.PASSWORD, encryptString(password));
 	}
 
 	private SecretKeySpec getKey(String myKey) {
@@ -883,7 +907,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.REQUESTED_USERNAME, requestedUsername);
+		updateSession(Constants.REQUESTED_USERNAME, requestedUsername);
 	}
 
 	public String getMitIDNameID() {
@@ -901,7 +925,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.MIT_ID_NAME_ID, nameId);
+		updateSession(Constants.MIT_ID_NAME_ID, nameId);
 	}
 
 	public Person getADPerson() {
@@ -925,7 +949,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.AD_PERSON_ID, person == null ? null : person.getId());
+		updateSession(Constants.AD_PERSON_ID, person == null ? null : person.getId());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -950,7 +974,7 @@ public class SessionHelper {
 		}
 
 		List<Long> peopleIds = people.stream().map(Person::getId).collect(Collectors.toList());
-		httpServletRequest.getSession().setAttribute(Constants.AVAILABLE_PEOPLE, peopleIds);
+		updateSession(Constants.AVAILABLE_PEOPLE, peopleIds);
 	}
 
 	public boolean isInDedicatedActivateAccountFlow() {
@@ -969,7 +993,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.DEDICATED_ACTIVATE_ACCOUNT_FLOW, b);
+		updateSession(Constants.DEDICATED_ACTIVATE_ACCOUNT_FLOW, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InDedicatedActivateAccountFlow: " + b);
@@ -992,7 +1016,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.NEM_LOG_IN_BROKER_FLOW, b);
+		updateSession(Constants.NEM_LOG_IN_BROKER_FLOW, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InNemLogInBrokerFlow: " + b);
@@ -1015,7 +1039,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.CHOOSE_PASSWORD_RESET_OR_UNLOCK_ACCOUNT_FLOW, b);
+		updateSession(Constants.CHOOSE_PASSWORD_RESET_OR_UNLOCK_ACCOUNT_FLOW, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InChoosePasswordResetOrUnlockAccountFlow: " + b);
@@ -1038,7 +1062,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_CHANGE_NOT_APPROVED_CONDITIONS, b);
+		updateSession(Constants.PASSWORD_CHANGE_NOT_APPROVED_CONDITIONS, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InChangePasswordFlowAndHasNotApprovedConditions: " + b);
@@ -1061,7 +1085,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.INSUFFICIENT_NSIS_LEVEL_FROM_MIT_ID, b);
+		updateSession(Constants.INSUFFICIENT_NSIS_LEVEL_FROM_MIT_ID, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InDedicatedActivateAccountFlow: " + b);
@@ -1074,7 +1098,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.ACTIVATE_ACCOUNT_FLOW, b);
+		updateSession(Constants.ACTIVATE_ACCOUNT_FLOW, b);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InActivateAccountFlow: " + b);
@@ -1097,7 +1121,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.APPROVE_CONDITIONS_FLOW, inApproveConditionsFlow);
+		updateSession(Constants.APPROVE_CONDITIONS_FLOW, inApproveConditionsFlow);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InApproveConditionsFlow: " + inApproveConditionsFlow);
@@ -1120,7 +1144,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_CHANGE_FLOW, inPasswordChangeFlow);
+		updateSession(Constants.PASSWORD_CHANGE_FLOW, inPasswordChangeFlow);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InPasswordChangeFlow: " + inPasswordChangeFlow);
@@ -1143,7 +1167,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(SessionConstant.PROFESSIONAL_PROFILE_ENABLED.getKey(), true);
+		updateSession(SessionConstant.PROFESSIONAL_PROFILE_ENABLED.getKey(), true);
 
 		if (log.isDebugEnabled()) {
 			log.debug("requestProfessionalProfile: true");
@@ -1156,7 +1180,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(SessionConstant.PERSONAL_PROFILE_ENABLED.getKey(), true);
+		updateSession(SessionConstant.PERSONAL_PROFILE_ENABLED.getKey(), true);
 
 		if (log.isDebugEnabled()) {
 			log.debug("requestPersonalProfile: true");
@@ -1169,7 +1193,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_EXPIRY_FLOW, inPasswordExpiryFlow);
+		updateSession(Constants.PASSWORD_EXPIRY_FLOW, inPasswordExpiryFlow);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InPasswordExpiryFlow: " + inPasswordExpiryFlow);
@@ -1192,7 +1216,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_FORCE_CHANGE_FLOW, inForceChangePasswordFlow);
+		updateSession(Constants.PASSWORD_FORCE_CHANGE_FLOW, inForceChangePasswordFlow);
 
 		if (log.isDebugEnabled()) {
 			log.debug("InForceChangePasswordFlow: " + inForceChangePasswordFlow);
@@ -1215,7 +1239,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.LOGIN_SELECT_CLAIMS_FLOW, inSelectClaimsFlow);
+		updateSession(Constants.LOGIN_SELECT_CLAIMS_FLOW, inSelectClaimsFlow);
 
 		if (log.isDebugEnabled()) {
 			log.debug("inSelectClaimsFlow: " + inSelectClaimsFlow);
@@ -1238,7 +1262,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.DECLINE_USER_ACTIVATION, declineUserActivation);
+		updateSession(Constants.DECLINE_USER_ACTIVATION, declineUserActivation);
 
 		if (log.isDebugEnabled()) {
 			log.debug("DeclineUserActivation: " + declineUserActivation);
@@ -1275,7 +1299,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_CHANGE_SUCCESS_REDIRECT, redirectUrl);
+		updateSession(Constants.PASSWORD_CHANGE_SUCCESS_REDIRECT, redirectUrl);
 	}
 	
 	public ChangePasswordResult getPasswordChangeFailureReason() {
@@ -1298,7 +1322,7 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.PASSWORD_CHANGE_FAILURE_REASON, passwordChangeFailureReason);
+		updateSession(Constants.PASSWORD_CHANGE_FAILURE_REASON, passwordChangeFailureReason);
 	}
 
 	public void setSelectableClaims(Map<String, ClaimValueDTO> selectableClaims) {
@@ -1311,7 +1335,7 @@ public class SessionHelper {
 			httpServletRequest.getSession().removeAttribute(Constants.LOGIN_SELECTABLE_CLAIMS);
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.LOGIN_SELECTABLE_CLAIMS, selectableClaims);
+		updateSession(Constants.LOGIN_SELECTABLE_CLAIMS, selectableClaims);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1339,7 +1363,7 @@ public class SessionHelper {
 			httpServletRequest.getSession().removeAttribute(Constants.LOGIN_SELECTED_CLAIMS);
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.LOGIN_SELECTED_CLAIMS, selectedClaims);
+		updateSession(Constants.LOGIN_SELECTED_CLAIMS, selectedClaims);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1380,6 +1404,25 @@ public class SessionHelper {
 		}
 	}
 
+	public boolean isInExtraAttemptNsisRequiredLoginFlow() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return false;
+		}
+
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.EXTRA_ATTEMPT_NSIS_LOGIN_FLOW);
+		return (boolean) (attribute != null ? attribute : false);
+	}
+	
+	public void setInExtraAttemptNsisRequiredLoginFlow(boolean flag) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		updateSession(Constants.EXTRA_ATTEMPT_NSIS_LOGIN_FLOW, flag);
+	}
+
 	public void clearAuthentication() {
 		setPasswordLevel(null);
 		setMFALevel(null);
@@ -1387,6 +1430,7 @@ public class SessionHelper {
 		setMFAClients(null);
 		setAuthenticatedWithADPassword(false);
 		setAuthenticatedWithNemIdOrMitId(false);
+		setInExtraAttemptNsisRequiredLoginFlow(false);
 	}
 
 	public void clearSession() {
@@ -1421,12 +1465,14 @@ public class SessionHelper {
 		setInForceChangePasswordFlow(false);
 		setInDedicatedActivateAccountFlow(false);
 		setInInsufficientNSISLevelFromMitIDFlow(false);
+		setInNonNsisIdPLoginFlow(false);
 		setInChangePasswordFlowAndHasNotApprovedConditions(false);
 		setInNemIdOrMitIDAuthenticationFlow(false);
 		setInChoosePasswordResetOrUnlockAccountFlow(false);
 		setInSelectClaimsFlow(false);
 		setInEntraMfaFlow(null, null);
 		setInPasswordlessMfaFlow(false, null);
+		setInExtraAttemptNsisRequiredLoginFlow(false);
 		
 		// bit of a special case, but we ONLY use this field for the login-flow, so it IS a flow-state
 		setNemIDMitIDNSISLevel(null);
@@ -1642,8 +1688,8 @@ public class SessionHelper {
 		}
 
 		if (person == null || loginRequest == null) {
-			httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_IN_FLOW, false);
-			httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_PERSON, null);
+			updateSession(Constants.ENTRAID_MFA_IN_FLOW, false);
+			updateSession(Constants.ENTRAID_MFA_PERSON, null);
 			
 			if (log.isDebugEnabled()) {
 				log.debug("setInEntraMfaFlow: false");
@@ -1652,8 +1698,8 @@ public class SessionHelper {
 			return;
 		}
 
-		httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_IN_FLOW, true);
-		httpServletRequest.getSession().setAttribute(Constants.ENTRAID_MFA_PERSON, person.getId());
+		updateSession(Constants.ENTRAID_MFA_IN_FLOW, true);
+		updateSession(Constants.ENTRAID_MFA_PERSON, person.getId());
 		setLoginRequest(loginRequest);
 
 		if (log.isDebugEnabled()) {
@@ -1668,8 +1714,8 @@ public class SessionHelper {
 		}
 
 		if (inPasswordlessMfaFlow) {
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORDLESS_MFA_FLOW, true);
-			httpServletRequest.getSession().setAttribute(Constants.PASSWORDLESS_MFA_FLOW_USERNAME, username);
+			updateSession(Constants.PASSWORDLESS_MFA_FLOW, true);
+			updateSession(Constants.PASSWORDLESS_MFA_FLOW_USERNAME, username);
 		}
 		else {
 			httpServletRequest.getSession().removeAttribute(Constants.PASSWORDLESS_MFA_FLOW);
@@ -1709,5 +1755,29 @@ public class SessionHelper {
 		}
 
 		clearFlowStates();
+	}
+	
+	private void updateSession(String field, Object value) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (log.isDebugEnabled()) {
+			Exception ex = new Exception();
+			System.out.println("Setting session: " + field + " = " + value);
+			for (StackTraceElement element : ex.getStackTrace()) {
+		        if (element.getClassName().startsWith("dk.digitalidentity")) {
+		            System.out.println("\tat " + element);
+		        }
+			}
+		}
+		
+		if (value == null) {
+			httpServletRequest.getSession().removeAttribute(field);
+		}
+		else {
+			httpServletRequest.getSession().setAttribute(field, value);
+		}
 	}
 }
