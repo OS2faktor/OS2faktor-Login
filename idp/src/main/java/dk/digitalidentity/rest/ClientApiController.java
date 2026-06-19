@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
@@ -109,8 +110,8 @@ public class ClientApiController {
             return ResponseEntity.badRequest().build();
         }
 
-		// Strip domain from username if provided
-		if (StringUtils.hasLength(username) && username.contains("@")) {
+        String upn = (StringUtils.hasLength(username) && username.contains("@")) ? username : null;
+        if (upn != null) {
 			String[] split = username.split("@");
 			username = split[0];
 		}
@@ -145,6 +146,14 @@ public class ClientApiController {
 		}
 
         List<Person> people = personService.getBySamaccountNameAndDomains(username, domains);
+
+        if (people.isEmpty() && upn != null) {
+			people = personService.getByUPN(upn).stream().filter(p -> domains.contains(p.getDomain())).collect(Collectors.toCollection(ArrayList::new));
+			if (people.size() == 1) {
+				log.debug("Resolved person via UPN fallback (upn: {})", upn);
+			}
+		}
+
         if (people.size() != 1) {
             log.info(people.size() + " persons found that matched client request, has to be 1 (username: " + username + ")");
             return ResponseEntity.badRequest().build();
@@ -326,6 +335,17 @@ public class ClientApiController {
 		}
 
         List<Person> people = personService.getBySamaccountNameAndDomain(username, domain);
+
+		if (people.isEmpty() && username.contains("@")) {
+			people = personService.getByUPN(username).stream()
+					.filter(person -> Objects.equals(person.getDomain() != null ? person.getDomain().getId() : null, domain.getId()))
+					.collect(Collectors.toCollection(ArrayList::new));
+
+			if (people.size() == 1) {
+				log.debug("Resolved person via UPN fallback (upn: {})", username);
+			}
+		}
+        
         if (people.size() != 1) {
             log.info(people.size() + " persons found that matched client request, has to be 1 (username: " + username + ")");
             return ResponseEntity.badRequest().build();

@@ -21,7 +21,7 @@ public class CleanUpLoginAlarms {
 	private LoginAlarmService loginAlarmService;
 
 	// cleanup in the morning
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 5 * * *")
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 5 * * *")
 	public void cleanUp() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.info("Running cleanupLoginAlarms");

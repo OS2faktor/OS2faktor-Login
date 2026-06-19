@@ -29,11 +29,15 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.methods.HttpGet;
+import org.apache.hc.client5.http.classic.HttpClient;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.cookie.StandardCookieSpec;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.HttpException;
+import org.apache.hc.core5.http.io.HttpClientResponseHandler;
+import org.apache.hc.core5.util.Timeout;
 import org.bouncycastle.util.encoders.Base64;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.metadata.resolver.impl.DOMMetadataResolver;
@@ -45,7 +49,6 @@ import org.opensaml.security.credential.UsageType;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -87,16 +90,39 @@ import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderListDTO;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import net.shibboleth.shared.component.ComponentInitializationException;
+import net.shibboleth.shared.xml.impl.BasicParserPool;
 
 @Service
 @Slf4j
-public class MetadataService {
+public class SamlMetadataService {
+	private static final BasicParserPool PARSER_POOL;
 
-	@Autowired
-	@Qualifier("DISAML_HTTPClient")
+	static {
+		try {
+			PARSER_POOL = new BasicParserPool();
+			PARSER_POOL.initialize();
+		}
+		catch (ComponentInitializationException ex) {
+			throw new ExceptionInInitializerError(ex);
+		}
+	}
+
+	// TODO: make this autowired from an actual config - the constructor stuff is silly
 	private HttpClient httpClient;
 
+	public SamlMetadataService() {
+	    RequestConfig requestConfig = RequestConfig.custom()
+		        .setCookieSpec(StandardCookieSpec.RELAXED)
+		        .setConnectionRequestTimeout(Timeout.ofSeconds(180))
+		        .setResponseTimeout(Timeout.ofSeconds(180))
+		        .build();
+	
+	    httpClient = HttpClients.custom()
+	            .setDefaultRequestConfig(requestConfig)
+	            .build();
+	}
+	
     @Autowired
     private SqlServiceProviderConfigurationService configurationService;
 
@@ -226,6 +252,7 @@ public class MetadataService {
 		config.setDelayedMobileLogin(serviceProviderDTO.isDelayedMobileLogin());
 		config.setOnlyAllowLoginFromKnownNetworks(serviceProviderDTO.isOnlyAllowLoginFromKnownNetworks());
 		config.setNotes(serviceProviderDTO.getNotes());
+		config.setNotificationEmail(serviceProviderDTO.getNotificationEmail());
 
 		// Advanced fields
 		config.setAllowUnsignedAuthnRequests(serviceProviderDTO.isAllowUnsignedAuthnRequests());
@@ -349,17 +376,23 @@ public class MetadataService {
 	                }
 	                else {
 		                Map<UsageType, List<X509Certificate>> certMap = convertKeyDescriptorsToCert(spssoDescriptor.getKeyDescriptors());
-		
+
 		                for (Map.Entry<UsageType, List<X509Certificate>> entry : certMap.entrySet()) {
+		                	boolean hasValidCert = entry.getValue().stream().anyMatch(c -> !c.getNotAfter().before(futereDate));
 		                    for (X509Certificate x509Certificate : entry.getValue()) {
 		                        if (x509Certificate.getNotAfter().before(futereDate)) {
-		                            log.warn(constructCertWarnMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()));
-		                            badMetadata = true;
+		                        	if (hasValidCert) {
+		                        		log.info(constructCertWarnMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()) + " (OK - another valid certificate exists for this usage type)");
+		                        	}
+		                        	else {
+		                        		log.warn(constructCertWarnMessage("SP: " + sqlSPConfig.getName(), entry.getKey().toString(), x509Certificate.getNotAfter()));
+		                        		badMetadata = true;
+		                        	}
 		                        }
 		                    }
 		                }
 	                }
-                }                
+                }
             }
             catch (Exception ex) {
                 log.error("Error in Monitor Certificates task while checking SQL configured ServiceProvider (" + sqlSPConfig.getName() + ")", ex);
@@ -936,7 +969,7 @@ public class MetadataService {
 	    	Document doc = documentBuilder.parse(is);
 	    	
 	    	resolver = new DOMMetadataResolver(doc.getDocumentElement());
-	    	resolver.setParserPool(new BasicParserPool());
+	    	resolver.setParserPool(PARSER_POOL);
 	    	resolver.setFailFastInitialization(true);
 	    	resolver.setId(resolver.getClass().getCanonicalName());
 	        resolver.initialize();
@@ -958,10 +991,10 @@ public class MetadataService {
     	return null;
     }
     
-	static class MetadataDownloadResponseHandler implements ResponseHandler<String> {
+	static class MetadataDownloadResponseHandler implements HttpClientResponseHandler<String> {
 
 		@Override
-		public String handleResponse(HttpResponse response) throws ClientProtocolException, IOException {
+		public String handleResponse(ClassicHttpResponse response) throws HttpException, IOException {
 			InputStream source = response.getEntity().getContent();
 			byte[] bytes = source.readAllBytes();
 			

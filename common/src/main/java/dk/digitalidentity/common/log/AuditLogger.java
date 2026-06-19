@@ -35,12 +35,12 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.PrivacyPolicy;
 import dk.digitalidentity.common.dao.model.SessionSetting;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderAdvancedClaim;
-import dk.digitalidentity.common.dao.model.TUTermsAndConditions;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderGroupClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRequiredField;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderRoleCatalogueClaim;
 import dk.digitalidentity.common.dao.model.SqlServiceProviderStaticClaim;
+import dk.digitalidentity.common.dao.model.TUTermsAndConditions;
 import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
 import dk.digitalidentity.common.dao.model.TermsAndConditions;
 import dk.digitalidentity.common.dao.model.enums.DetailType;
@@ -106,7 +106,7 @@ public class AuditLogger {
 		refreshIpMap();
 	}
 	
-	@Scheduled(cron = "#{new java.util.Random().nextInt(59)} #{new java.util.Random().nextInt(59)} 5 * * ?")
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 5 * * ?")
 	public void refreshIpMapJob() {
 		refreshIpMap();
 	}

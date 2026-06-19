@@ -6,6 +6,7 @@ import java.util.Map;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.enums.LogAction.ReportType;
@@ -42,7 +43,7 @@ public class AuditLogReportXlsView  implements View {
 		response.setContentType(getContentType());
 		response.setHeader("Content-Disposition", "attachment; filename=\"" + filename +"\"");
 
-		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+		try (Workbook workbook = new SXSSFWorkbook()) {
 
 			// Setup shared resources
 			Font headerFont = workbook.createFont();

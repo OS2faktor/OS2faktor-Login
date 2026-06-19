@@ -35,10 +35,16 @@ import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.SqlServiceProvider;
 import dk.digitalidentity.service.validation.LogoutResponseValidationService;
-import dk.digitalidentity.util.HttpRedirectUtil;
+import org.opensaml.messaging.decoder.MessageDecodingException;
+import org.opensaml.saml.saml2.binding.decoding.impl.HTTPPostDecoder;
+import org.opensaml.saml.saml2.binding.decoding.impl.HTTPRedirectDeflateDecoder;
+import org.opensaml.messaging.decoder.servlet.BaseHttpServletRequestXMLMessageDecoder;
+
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
+import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
+import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import net.shibboleth.utilities.java.support.security.RandomIdentifierGenerationStrategy;
 
 @Service
@@ -57,7 +63,29 @@ public class LogoutResponseService {
 	private OS2faktorConfiguration configuration;
 
 	public MessageContext<SAMLObject> getMessageContext(HttpServletRequest request) throws RequesterException, ResponderException {
-		return HttpRedirectUtil.getMessageContext(request);
+		try {
+			BaseHttpServletRequestXMLMessageDecoder<SAMLObject> decoder = "POST".equals(request.getMethod()) ? new HTTPPostDecoder() : new HTTPRedirectDeflateDecoder();
+
+			decoder.setHttpServletRequest(request);
+
+			BasicParserPool parserPool = new BasicParserPool();
+			parserPool.initialize();
+			decoder.setParserPool(parserPool);
+
+			decoder.initialize();
+			decoder.decode();
+
+			MessageContext<SAMLObject> msgContext = decoder.getMessageContext();
+			decoder.destroy();
+
+			return msgContext;
+		}
+		catch (ComponentInitializationException e) {
+			throw new ResponderException("Kunne ikke initialisere afkoder", e);
+		}
+		catch (MessageDecodingException e) {
+			throw new RequesterException("Kunne ikke afkode besked", e);
+		}
 	}
 
 	public LogoutResponse getLogoutResponse(MessageContext<SAMLObject> messageContext) {

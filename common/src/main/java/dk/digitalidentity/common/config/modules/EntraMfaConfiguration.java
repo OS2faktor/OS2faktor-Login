@@ -18,4 +18,7 @@ public class EntraMfaConfiguration {
 	private boolean mitIdOnly = false;
 
 	private boolean onlyAllowLoginFromKnownNetworks;
+	
+	// TODO: remove at some point, we just set it to false for all existing installations, and then flip it when they are ready to move
+	private boolean newEndpointModel = true;
 }

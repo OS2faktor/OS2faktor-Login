@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.FrameOptionsConfig;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
@@ -101,23 +102,25 @@ public class SecurityConfig  {
         	req.anyRequest().denyAll();
         });
 
-        // disable x-frame-options
-        if (configuration.isDisableXFrameOptions()) {
-	        http.headers((h) -> {
-	        	h.frameOptions((o) -> {
-	        		o.disable();
-	        	});
-	        });
-	        
-	        if (StringUtils.hasText(configuration.getIFrameCspPolicy())) {
-	        	http.headers((h) -> {
-	        		h.contentSecurityPolicy((c) -> {
-	        			c.policyDirectives("frame-ancestors 'self' " + configuration.getIFrameCspPolicy());
-	        		});
-	        	});
-	        }
-        }
-        
+        http.headers(h -> {
+            // disable the built-in X-Frame-Options writer so we can control it dynamically
+            h.frameOptions(FrameOptionsConfig::disable);
+
+            // dynamic X-Frame-Options: only emit the header when config says NOT to disable it
+            h.addHeaderWriter((_, response) -> {
+                if (!configuration.isDisableXFrameOptions()) {
+                    response.setHeader("X-Frame-Options", "DENY");
+                }
+            });
+
+            // dynamic CSP frame-ancestors: only emit when frame options are disabled and a policy value is configured
+            h.addHeaderWriter((_, response) -> {
+                if (configuration.isDisableXFrameOptions() && StringUtils.hasText(configuration.getIFrameCspPolicy())) {
+                    response.setHeader("Content-Security-Policy", "frame-ancestors 'self' " + configuration.getIFrameCspPolicy());
+                }
+            });
+        });
+
         return http.build();
     }
 }

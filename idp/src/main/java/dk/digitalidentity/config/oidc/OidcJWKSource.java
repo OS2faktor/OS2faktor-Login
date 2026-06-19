@@ -48,6 +48,11 @@ public class OidcJWKSource implements JWKSource<SecurityContext> {
 	@Autowired
 	private OS2faktorConfiguration configuration;
 
+	// CRaC support
+	public void clearCache() {
+		jwkSet = null;
+	}
+
 	@Override
 	public List<JWK> get(JWKSelector jwkSelector, SecurityContext context) throws KeySourceException {
 		if (jwkSet != null) {

@@ -2,6 +2,7 @@ package dk.digitalidentity.common.security;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import org.springframework.util.StringUtils;
 
@@ -28,7 +29,7 @@ public class ApiSecurityFilter implements Filter {
     private ClientService clientService;
 
     @Setter
-    private boolean enabled;
+    private Supplier<Boolean> enabledSupplier;
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
@@ -36,7 +37,7 @@ public class ApiSecurityFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
         String authHeader = request.getHeader("ApiKey");
 
-        if (!enabled) {
+        if (enabledSupplier.get() == false) {
             unauthorized(response, "API (" + apiRole.toString() + ") is not enabled", authHeader);
             return;
         }

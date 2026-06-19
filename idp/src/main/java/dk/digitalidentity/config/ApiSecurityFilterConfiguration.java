@@ -20,7 +20,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.INTERNAL);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("InternalApiSecurityBean");

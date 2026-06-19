@@ -6,6 +6,7 @@ import java.security.cert.X509Certificate;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,11 +26,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import dk.digitalidentity.api.dto.KeystoreInfo;
 import dk.digitalidentity.api.dto.KeystorePayload;
+import dk.digitalidentity.common.dao.model.EmailTemplate;
+import dk.digitalidentity.common.dao.model.EmailTemplateChild;
 import dk.digitalidentity.common.dao.model.Keystore;
+import dk.digitalidentity.common.dao.model.SqlServiceProviderConfiguration;
+import dk.digitalidentity.common.dao.model.enums.EmailTemplateType;
 import dk.digitalidentity.common.dao.model.enums.KnownCertificateAliases;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.CertificateChangelogService;
+import dk.digitalidentity.common.service.EmailService;
+import dk.digitalidentity.common.service.EmailTemplateService;
 import dk.digitalidentity.common.service.SettingService;
+import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import dk.digitalidentity.service.KeystoreService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,12 +48,24 @@ public class CertManagerApi {
 
 	@Autowired
 	private KeystoreService keystoreService;
-	
+
 	@Autowired
 	private CertificateChangelogService certificateChangelogService;
-	
+
 	@Autowired
 	private SettingService settingService;
+
+	@Autowired
+	private EmailTemplateService emailTemplateService;
+
+	@Autowired
+	private EmailService emailService;
+
+	@Autowired
+	private SqlServiceProviderConfigurationService sqlServiceProviderConfigurationService;
+
+	@Autowired
+	private OS2faktorConfiguration os2faktorConfiguration;
 
 	@GetMapping("/api/certmanager/all")
 	@ResponseBody
@@ -137,8 +159,49 @@ public class CertManagerApi {
 		// plan rollover
 		settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_NL_TTS, keystorePayload.getRolloverTts());
 		settingService.setLocalDateTimeSetting(SettingKey.CERTIFICATE_ROLLOVER_TTS, keystorePayload.getRolloverTts());
-		
+
+		// send vendor notification emails
+		sendVendorCertificateRolloverEmails(secondaryOCES, keystorePayload.getRolloverTts());
+
 		return ResponseEntity.ok().build();
+	}
+
+	private void sendVendorCertificateRolloverEmails(Keystore keystore, LocalDateTime rolloverTts) {
+		EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.SP_VENDOR_CERTIFICATE_ROLLOVER);
+		if (emailTemplate == null || emailTemplate.getChildren() == null || emailTemplate.getChildren().isEmpty()) {
+			return;
+		}
+
+		EmailTemplateChild child = emailTemplate.getChildren().get(0);
+		if (!child.isEnabled()) {
+			return;
+		}
+
+		DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+		String idpUrl = os2faktorConfiguration.getIdp().getBaseUrl();
+		if (idpUrl.endsWith("/")) {
+			idpUrl = idpUrl.substring(0, idpUrl.length() - 1);
+		}
+		String expireDate = keystore.getExpires() != null ? keystore.getExpires().format(dateFormatter) : "";
+		String rolloverTtsFormatted = rolloverTts.format(dateTimeFormatter);
+
+		List<SqlServiceProviderConfiguration> allSPs = sqlServiceProviderConfigurationService.getAll();
+		for (SqlServiceProviderConfiguration sp : allSPs) {
+			if (!StringUtils.hasLength(sp.getNotificationEmail())) {
+				continue;
+			}
+
+			String message = child.getMessage();
+			message = message.replace(EmailTemplateService.IDP_URL_PLACEHOLDER, idpUrl);
+			message = message.replace(EmailTemplateService.ROLLOVER_TTS_PLACEHOLDER, rolloverTtsFormatted);
+			message = message.replace(EmailTemplateService.EXPIRE_DATE_PLACEHOLDER, expireDate);
+
+			boolean sent = emailService.sendMessage(sp.getNotificationEmail(), child.getTitle(), message, null);
+			if (!sent) {
+				log.warn("Failed to send vendor certificate rollover email to: " + sp.getNotificationEmail() + " for SP: " + sp.getName());
+			}
+		}
 	}
 
 	private void getKeystoreFromPfx(Keystore keystore, String payload, String password) throws Exception {

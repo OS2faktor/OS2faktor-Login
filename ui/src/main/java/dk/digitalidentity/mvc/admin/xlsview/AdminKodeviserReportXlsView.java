@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.CachedMfaClient;
@@ -40,7 +41,7 @@ public class AdminKodeviserReportXlsView implements View {
 		response.setContentType(getContentType());
 		response.setHeader("Content-Disposition", "attachment; filename=\"kodeviser.xlsx\"");
 
-		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+		try (Workbook workbook = new SXSSFWorkbook()) {
 
 	        Sheet sheet = workbook.createSheet("Kodeviser");
 	        Font headerFont = workbook.createFont();

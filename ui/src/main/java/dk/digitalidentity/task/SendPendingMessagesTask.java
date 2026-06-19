@@ -43,8 +43,8 @@ public class SendPendingMessagesTask {
 	private EmailTemplateService emailTemplateService;
 
 	// every minute during "daytime"
-	@Scheduled(cron = "#{new java.util.Random().nextInt(55)} * 5-23 * * ?")
-	public void processChanges() {
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} * 5-23 * * ?")
+	public void sendPendingMessagesTask() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.debug("Send pending messages");
 

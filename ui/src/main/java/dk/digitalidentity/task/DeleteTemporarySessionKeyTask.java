@@ -1,16 +1,17 @@
 package dk.digitalidentity.task;
 
-import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
-import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
-import dk.digitalidentity.config.OS2faktorConfiguration;
-import lombok.extern.slf4j.Slf4j;
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import dk.digitalidentity.common.dao.model.TemporaryClientSessionKey;
+import dk.digitalidentity.common.service.TemporaryClientSessionKeyService;
+import dk.digitalidentity.config.OS2faktorConfiguration;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
@@ -24,8 +25,8 @@ public class DeleteTemporarySessionKeyTask {
     private OS2faktorConfiguration configuration;
 
     // Every night at 2(ish)
-    @Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 2 * * *")
-    public void processChanges() {
+    @Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 2 * * *")
+    public void deleteTemporarySessionKeyTask() {
     	if (configuration.getScheduled().isEnabled()) {
 			log.info("Deleting all Temporary SessionKeys that are older than five minutes");
 

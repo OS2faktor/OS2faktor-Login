@@ -28,7 +28,7 @@ import dk.digitalidentity.common.dao.model.enums.SchoolClassType;
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.service.DomainService;
-import dk.digitalidentity.common.service.PasswordChangeQueueService;
+import dk.digitalidentity.util.EncryptionUtil;
 
 @Controller
 @Component
@@ -46,9 +46,9 @@ public class DevBootstrapper {
 
 	@Autowired
 	private DomainService domainService;
-
+	
 	@Autowired
-	private PasswordChangeQueueService passwordChangeQueueService;
+	private EncryptionUtil encryptionUtil;
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void init() {
@@ -205,7 +205,7 @@ public class DevBootstrapper {
 							person.getSchoolRoles().add(schoolRole);
 							
 							try {
-								String encrypted = passwordChangeQueueService.encryptPassword("Test1234-" + i);
+								String encrypted = encryptionUtil.encryptPassword("Test1234-" + i);
 								person.setStudentPassword(encrypted);
 							}
 							catch (Exception ignored) {

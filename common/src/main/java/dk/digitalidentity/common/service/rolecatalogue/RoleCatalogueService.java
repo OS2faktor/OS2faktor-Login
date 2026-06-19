@@ -78,12 +78,26 @@ public class RoleCatalogueService {
 		return response.getOioBPP();
 	}
 
+	// TODO: rewrite to match hasSystemRole because it uses the single-lookup cached data
 	public boolean hasUserRole(Person person, String userRoleId) {
 		return stub.hasUserRole(person.getSamaccountName(), userRoleId, person.getDomain().getRoleCatalogueDomain());
 	}
 
 	public boolean hasSystemRole(Person person, String systemRoleId) {
-		return stub.hasSystemRole(person.getSamaccountName(), systemRoleId, person.getDomain().getRoleCatalogueDomain());
+		RoleCatalogueRolesResponse response = stub.lookupRoles(person.getSamaccountName(), "", person.getDomain().getRoleCatalogueDomain());
+		if (response == null) {
+			return false;
+		}
+		
+		if (response.getSystemRoles() != null) {
+			for (String assignedSystemRole : response.getSystemRoles()) {
+				if (assignedSystemRole.equals(systemRoleId)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 	
 	private RoleCatalogueOIOBPPResponse lookupRolesAsOIOBPP(Person person, String itSystem) {

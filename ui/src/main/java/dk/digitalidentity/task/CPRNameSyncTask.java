@@ -19,9 +19,9 @@ public class CPRNameSyncTask {
 
 	@Autowired
 	private OS2faktorConfiguration configuration;
-
+	
 	@Scheduled(cron = "${cron.cpr.sync:0 #{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(4) + 18} * * ?}")
-	public void processChanges() {
+	public void cprNameSyncTask() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.info("Syncing names and civilstand from cpr service started");
 

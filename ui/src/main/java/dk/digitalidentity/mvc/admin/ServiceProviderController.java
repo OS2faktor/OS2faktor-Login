@@ -31,7 +31,7 @@ import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderDTO;
 import dk.digitalidentity.mvc.admin.dto.serviceprovider.ServiceProviderListDTO;
 import dk.digitalidentity.security.RequireServiceProviderAdmin;
 import dk.digitalidentity.service.KeystoreService;
-import dk.digitalidentity.service.MetadataService;
+import dk.digitalidentity.service.SamlMetadataService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -43,7 +43,7 @@ public class ServiceProviderController {
 	private SqlServiceProviderConfigurationService sqlServiceProviderConfigurationService;
 
 	@Autowired
-	private MetadataService metadataService;
+	private SamlMetadataService metadataService;
 
 	@Autowired
 	private KombitSubSystemService kombitSubsystemService;

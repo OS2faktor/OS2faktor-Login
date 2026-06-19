@@ -82,6 +82,7 @@
             var pollingKey = [[${pollingKey}]];
             var redirectUrl = [[${redirectUrl}]];
             var delayedLoginOnMobile = [[${delayedLoginOnMobile}]];
+			var useTouchDeviceDetection = [[${@OS2faktorConfiguration.useTouchDeviceDetection}]];
             var finishUrl = [[${@OS2faktorConfiguration.baseUrl} + '/sso/saml/mfa/' + ${deviceId} + '/completed']];
             var wakeEvent = [[${wakeEvent}]];
 		+]*/
@@ -92,7 +93,7 @@
 		$(document).ready(function() {
             mfaService = new MfaService();
             mfaService.init();
-            
+
             try {
 	            // catch app browsers returning from hibernate, and force a poll
 	            window.addEventListener('visibilitychange', function(ev) {
@@ -108,7 +109,7 @@
             
             // if not already enabled, enable delayedLogin on mobile devices
             try {
-            	if (!delayedLogin && delayedLoginOnMobile && hasTouchSupport()) {
+            	if (delayedLoginOnMobile && isMobileDevice()) {
             		delayedLogin = true;
             	}
             }
@@ -116,7 +117,7 @@
             	;
             }
             
-            if (hasTouchSupport()) {
+            if (isMobileDevice()) {
 				var elem = document.getElementById('openInApp');
 				if (elem) {
 					elem.style.cssText = 'display: block;';
@@ -138,12 +139,21 @@
 		    }
 		}
 		
-		function hasTouchSupport() {
+		function isMobileDevice() {
+			if (useTouchDeviceDetection) {
+				return hasTouchSupport();
+			}
+
 			const uap = new UAParser();
-			
+			const deviceType = uap.getDevice().type;
+
 			// some platforms will not correctly detect as mobile, but those are rare, and we
 			// would rather default to desktop behaviour, than the other way
-			return uap.getDevice().is('mobile');
+			return deviceType === 'mobile' || deviceType === 'tablet';
+		}
+		
+		function hasTouchSupport() {
+			return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 		}
 		
         function MfaService() {

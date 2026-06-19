@@ -17,13 +17,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.http.conn.HttpHostConnectException;
+import org.apache.hc.client5.http.HttpHostConnectException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatusCode;
@@ -86,10 +87,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 public class NemLoginService {
+	private static final ObjectMapper mapper = new ObjectMapper();
 	private long readAllIdentitiesFailureInARow = 0;
 	private ErrorHandler defaultClientErrorHandler;
 	private ErrorHandler defaultServerErrorHandler;
 	
+	@Lazy(true)
 	@Qualifier("nemLoginRestClient")
 	@Autowired
 	private RestClient restClient;
@@ -128,7 +131,7 @@ public class NemLoginService {
 	private NemLoginTokenCache tokenCache;
 	
 	@EventListener(ApplicationReadyEvent.class)
-	public void runOnStartup() {		
+	public void runOnStartup() {
 		defaultClientErrorHandler = new ErrorHandler() {
 			
 			@Override
@@ -699,7 +702,7 @@ public class NemLoginService {
 		}
 
 		if (StringUtils.hasLength(person.getNemloginUserUuid())) {
-			log.error("Will not create employee for person " + person.getId() + ". The person has a nemloginUserUuid " + person.getNemloginUserUuid());
+			log.warn("Will not create employee for person " + person.getId() + ". The person has a nemloginUserUuid " + person.getNemloginUserUuid());
 			return "Personen har allerede en konto i MitID Erhverv";
 		}
 
@@ -793,7 +796,6 @@ public class NemLoginService {
 		        .onStatus(HttpStatusCode::is5xxServerError, defaultServerErrorHandler)
 		        .body(String.class);
 			
-			ObjectMapper mapper = new ObjectMapper();
 			EmployeeCreateResponse responseBody = mapper.readValue(response, EmployeeCreateResponse.class);
 			uuid = responseBody.getEmployeeUuid();
 

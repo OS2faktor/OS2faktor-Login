@@ -17,7 +17,6 @@ import dk.digitalidentity.common.dao.model.enums.BadPasswordReason;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.ADPasswordService;
-import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PasswordValidationService;
 import dk.digitalidentity.common.service.PersonService;
@@ -26,6 +25,7 @@ import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
 import dk.digitalidentity.service.model.enums.PasswordExpireStatus;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
+import dk.digitalidentity.util.EncryptionUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -48,13 +48,13 @@ public class PasswordService {
 	private ADPasswordService adPasswordService;
 	
 	@Autowired
-	private PasswordChangeQueueService passwordChangeQueueService;
-
-	@Autowired
 	private CommonConfiguration commonConfiguration;
 
 	@Autowired
 	private AuditLogger auditLogger;
+	
+	@Autowired
+	private EncryptionUtil encryptionUtil;
 
 	/**
 	 * attempt to validate password in this order (until successful)
@@ -103,7 +103,7 @@ public class PasswordService {
 		if (settings.isForceChangePasswordEnabled()) {
 
 			// person does not actually have a password set (yet)
-			if (person.getPasswordTimestamp() == null || !StringUtils.hasLength(person.getPassword())) {
+			if (person.getOldestPasswordTimestamp() == null || !StringUtils.hasLength(person.getPassword())) {
 
 				// reset persons NSIS level if set - they skipped an important step during activation
 				if (NSISLevel.LOW.equalOrLesser(person.getNsisLevel())) {
@@ -123,13 +123,13 @@ public class PasswordService {
 
 			// password expired
 			LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
-			if (person.getPasswordTimestamp().isBefore(expiredTimestamp)) {
+			if (person.getOldestPasswordTimestamp().isBefore(expiredTimestamp)) {
 				return PasswordExpireStatus.EXPIRED;
 			}
 
 			// password almost expired
 			LocalDateTime almostExpiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval()).plusDays(commonConfiguration.getPasswordSoonExpire().getReminderDaysBeforeExpired());
-			if (person.getPasswordTimestamp().isBefore(almostExpiredTimestamp)) {
+			if (person.getOldestPasswordTimestamp().isBefore(almostExpiredTimestamp)) {
 				return PasswordExpireStatus.ALMOST_EXPIRED;
 			}
 		}
@@ -216,7 +216,7 @@ public class PasswordService {
 		 */
 		if (result == null && StringUtils.hasLength(person.getStudentPassword()) && personService.isStudent(person) && personService.isStudentInIndskolingOrSpecialNeedsClass(person)) {
 			try {
-				String pwd = passwordChangeQueueService.decryptPassword(person.getStudentPassword());
+				String pwd = encryptionUtil.decryptPassword(person.getStudentPassword());
 				
 				if (Objects.equals(pwd, password)) {
 					if (modifySession) {

@@ -46,6 +46,7 @@ import dk.digitalidentity.common.service.model.UnlockADAccountRequest;
 import dk.digitalidentity.common.service.model.WebsocketConnectionStatus;
 import dk.digitalidentity.common.service.model.WebsocketServerStatus;
 import dk.digitalidentity.common.service.model.WebsocketSessionInfo;
+import dk.digitalidentity.util.EncryptionUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @EnableScheduling
@@ -70,6 +71,9 @@ public class ADPasswordService {
 
 	@Autowired
 	private DomainService domainService;
+	
+	@Autowired
+	private EncryptionUtil encryptionUtil;
 
 	public Map<String, WebsocketConnectionStatus> getWebsocketConnectionMap() {
 		return websocketStatusMap;
@@ -317,7 +321,7 @@ public class ADPasswordService {
 
 	// only to be used from the UI
 	public ADPasswordStatus attemptPasswordChangeFromUI(Person person, String newPassword, boolean forceChangePassword) throws InvalidKeyException, NoSuchPaddingException, NoSuchAlgorithmException, UnsupportedEncodingException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException {
-		PasswordChangeQueue change = new PasswordChangeQueue(person, passwordChangeQueueService.encryptPassword(newPassword), forceChangePassword);
+		PasswordChangeQueue change = new PasswordChangeQueue(person, encryptionUtil.encryptPassword(newPassword), forceChangePassword);
 
 		ADPasswordStatus status = attemptPasswordReplication(change);
 		switch (status) {
@@ -542,7 +546,7 @@ public class ADPasswordService {
 		HttpHeaders headers = new HttpHeaders();
 		headers.add("apiKey", configuration.getAd().getApiKey());
 
-		ADPasswordRequest adPasswordRequest = new ADPasswordRequest(change, passwordChangeQueueService.decryptPassword(change.getPassword()));
+		ADPasswordRequest adPasswordRequest = new ADPasswordRequest(change, encryptionUtil.decryptPassword(change.getPassword()));
 		return new HttpEntity<>(adPasswordRequest, headers);
 	}
 	

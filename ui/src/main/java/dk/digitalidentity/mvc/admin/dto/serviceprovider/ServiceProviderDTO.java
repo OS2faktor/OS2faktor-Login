@@ -70,6 +70,7 @@ public class ServiceProviderDTO {
 	private boolean delayedMobileLogin;
 	private boolean onlyAllowLoginFromKnownNetworks;
 	private String notes = "";
+	private String notificationEmail;
 
 	// Advanced fields
 	private boolean allowUnsignedAuthnRequests;
@@ -132,6 +133,7 @@ public class ServiceProviderDTO {
 			this.passwordExpiry = sqlConfig.getCustomPasswordExpiry();
 			this.mfaExpiry = sqlConfig.getCustomMfaExpiry();
 			this.notes = sqlConfig.getNotes();
+			this.notificationEmail = sqlConfig.getNotificationEmail();
 
 			// Advanced fields
 			this.allowUnsignedAuthnRequests = sqlConfig.isAllowUnsignedAuthnRequests();

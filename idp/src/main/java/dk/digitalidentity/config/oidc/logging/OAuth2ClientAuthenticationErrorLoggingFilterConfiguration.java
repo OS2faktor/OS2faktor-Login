@@ -5,15 +5,11 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 
 import dk.digitalidentity.filter.OAuth2ClientAuthenticationErrorLoggingFilter;
 
 @Configuration
 public class OAuth2ClientAuthenticationErrorLoggingFilterConfiguration {
-
-	@Autowired
-	private AuthorizationServerSettings providerSettings;
 
 	@Autowired
 	private RegisteredClientRepository registeredClientRepository;
@@ -25,7 +21,7 @@ public class OAuth2ClientAuthenticationErrorLoggingFilterConfiguration {
 		FilterRegistrationBean<OAuth2ClientAuthenticationErrorLoggingFilter> filterRegistrationBean = new FilterRegistrationBean<>(oauth2ClientAuthenticationErrorLoggingFilter);
 		
 		// default: "/oauth2/token"
-		filterRegistrationBean.addUrlPatterns(providerSettings.getTokenEndpoint());
+		filterRegistrationBean.addUrlPatterns("/oauth2/token");
 
 		// just before the filter that authenticates clients (SPs)
 		filterRegistrationBean.setOrder(1209);

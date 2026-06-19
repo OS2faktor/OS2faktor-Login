@@ -149,7 +149,7 @@ public class LogoutController {
         return null;
     }
     
-    @GetMapping("/sso/saml/logout/response")
+    @RequestMapping(value = "/sso/saml/logout/response", method = { POST, GET })
     public void logoutResponse(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ResponderException, RequesterException {
         MessageContext<SAMLObject> messageContext;
         LogoutResponse logoutResponse;

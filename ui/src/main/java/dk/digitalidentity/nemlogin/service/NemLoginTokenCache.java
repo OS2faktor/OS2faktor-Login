@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
@@ -27,6 +28,7 @@ public class NemLoginTokenCache {
 	private ErrorHandler defaultClientErrorHandler;
 	private ErrorHandler defaultServerErrorHandler;
 	
+	@Lazy(true)
 	@Qualifier("nemLoginRestClient")
 	@Autowired
 	private RestClient restClient;

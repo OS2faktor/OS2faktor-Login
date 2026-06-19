@@ -20,7 +20,7 @@ public class GenerateSchoolClassPasswordWords {
 	@Autowired
 	private SchoolClassService schoolClassService;
 	
-    @Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 3 * * *")
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 3 * * *")
 //    @Scheduled(fixedDelay = 60 * 60 * 1000)
 	public void processChanges() {
 		if (configuration.getScheduled().isEnabled()) {

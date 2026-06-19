@@ -52,6 +52,7 @@ import dk.digitalidentity.common.dao.model.mapping.SchoolRoleSchoolClassMapping;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.common.service.model.ADPasswordResponse.ADPasswordStatus;
+import dk.digitalidentity.util.EncryptionUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -113,6 +114,9 @@ public class PersonService {
 	
 	@Autowired
 	private NemloginQueueService nemloginQueueService;
+	
+	@Autowired
+	private EncryptionUtil encryptionUtil;
 	
 	public Person getById(long id) {
 		return personDao.findById(id);
@@ -621,7 +625,7 @@ public class PersonService {
 			// this is usually the case if the password change originates from AD (using our WCP), in
 			// which case we just log the password change as proof in our logs (consistency)
 
-			PasswordChangeQueue change = new PasswordChangeQueue(person, passwordChangeQueueService.encryptPassword(newPassword), forceChangePassword);
+			PasswordChangeQueue change = new PasswordChangeQueue(person, encryptionUtil.encryptPassword(newPassword), forceChangePassword);
 			change.setStatus(ReplicationStatus.DO_NOT_REPLICATE);
 
 			passwordChangeQueueService.save(change);
@@ -666,7 +670,7 @@ public class PersonService {
 		// for students in Indskoling and SpecialNeeds classes we keep an encrypted copy for local usage,
 		if (isStudentInIndskolingOrSpecialNeedsClass(person)) {
 			try {
-				String encrypted = passwordChangeQueueService.encryptPassword(newPassword);
+				String encrypted = encryptionUtil.encryptPassword(newPassword);
 				if (encrypted == null) {
 					throw new UnsupportedEncodingException("Failed to encrypt password (null)");
 				}

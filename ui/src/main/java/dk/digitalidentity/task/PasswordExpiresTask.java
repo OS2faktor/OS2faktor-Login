@@ -21,8 +21,8 @@ public class PasswordExpiresTask {
 	private PasswordExpiresService passwordExpiresService;
 
 	// Nightly
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 3 * * ?")
-	public void processChanges() {
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 3 * * ?")
+	public void passwordExpiresTask() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return;
 		}

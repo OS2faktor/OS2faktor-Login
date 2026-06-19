@@ -55,7 +55,7 @@ public class MfaClientsTask {
 	private LocalRegisteredMfaClientService localRegisteredMfaClientService;
 
 	// nightly
-	@Scheduled(cron = "${cron.mfa.db.sync:0 #{new java.util.Random().nextInt(55)} 1 * * ?}")
+	@Scheduled(cron = "${cron.mfa.db.sync:0 #{new java.util.Random().nextInt(60)} 1 * * ?}")
 	public void updateMfaCache() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return;
@@ -188,7 +188,7 @@ public class MfaClientsTask {
 	}
 	
 	// run AFTER the syncMfaClients task, so we are sure we have fresh data
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(59)} 2 * * ?")
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 2 * * ?")
 	public void removeTOTPHDevicesTask() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled
@@ -215,7 +215,7 @@ public class MfaClientsTask {
 		mfaService.fetchMfaLoginHistory();
 	}
 
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(59)} 3 * * ?")
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 3 * * ?")
 	public void removeOldMfaLoginHistory() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled

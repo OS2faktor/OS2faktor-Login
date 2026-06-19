@@ -22,8 +22,8 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.mfa.model.ClientType;
 import dk.digitalidentity.config.Constants;
 import dk.digitalidentity.config.OS2faktorConfiguration;
-import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
-import dk.digitalidentity.samlmodule.model.TokenUser;
+import dk.digitalidentity.saml.service.model.SamlGrantedAuthority;
+import dk.digitalidentity.saml.service.model.TokenUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 

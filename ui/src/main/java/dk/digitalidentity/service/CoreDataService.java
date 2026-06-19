@@ -1,5 +1,6 @@
 package dk.digitalidentity.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -121,6 +122,8 @@ public class CoreDataService {
 	        .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
 	        .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
 	        .toFormatter();
+	
+	private DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
 	public void load(CoreData coreData, boolean fullLoad) throws IllegalArgumentException {
 		Domain domain = domainService.getByName(coreData.getDomain(), d -> {
@@ -830,6 +833,12 @@ public class CoreDataService {
 		person.setNameAlias(coreDataEntry.getName());
 		person.setNsisLevel(NSISLevel.NONE);
 		
+		// a person that is a ROBOT cannot have an NSIS account
+		if (coreDataEntry.isRobot()) {
+			coreDataEntry.setNsisAllowed(false);
+			coreDataEntry.setTransferToNemlogin(false);
+		}
+
 		if (domain.isNonNsis()) {
 			; // for any user that comes from a non-nsis domain, never set the allowed/ordered flags
 		}
@@ -840,6 +849,7 @@ public class CoreDataService {
 		person.setUuid(coreDataEntry.getUuid());
 		person.setAttributes(coreDataEntry.getAttributes());
 		person.setExpireTimestamp(coreDataEntry.getExpireTimestamp() != null ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
+		person.setPasswordAdTimestamp(coreDataEntry.getPasswordAdTimestamp() != null ? LocalDate.parse(coreDataEntry.getPasswordAdTimestamp(), dateFormatter).atStartOfDay() : null);
 		person.setDepartment(coreDataEntry.getDepartment());
 		person.setTransferToNemlogin(coreDataEntry.isTransferToNemlogin());
 		person.setPrivateMitId(coreDataEntry.isPrivateMitId());
@@ -926,16 +936,15 @@ public class CoreDataService {
 	private boolean updatePerson(CoreDataEntry coreDataEntry, Domain domain, Person person, HashMap<String, Domain> subDomainMap) {
 		boolean modified = false;
 
-		// a person can be UPDATED to a ROBOT, if and only if, the person does not have an nsis-level or is created in NemLog-in
-		if (coreDataEntry.isRobot()) {
-			if (person.isNsisAllowed() || person.isTransferToNemlogin()) {
-				coreDataEntry.setRobot(false);
-			}
-		}
-
 		// a person that is a ROBOT can never stop being a ROBOT. Then the person needs to be deleted and re-created
 		if (person.isRobot() && !coreDataEntry.isRobot()) {
 			coreDataEntry.setRobot(true);
+		}
+
+		// a person that is a ROBOT cannot have an NSIS account
+		if (coreDataEntry.isRobot()) {
+			coreDataEntry.setNsisAllowed(false);
+			coreDataEntry.setTransferToNemlogin(false);
 		}
 
 		// find the associated domain for this user (might be a subdomain)
@@ -983,7 +992,14 @@ public class CoreDataService {
 			modified = true;
 		}
 
-		String dateToCompare = (person.getExpireTimestamp() == null) ? null : person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		String dateToCompare = (person.getPasswordAdTimestamp() == null) ? null : person.getPasswordAdTimestamp().format(dateFormatter);
+		if (!Objects.equals(dateToCompare, coreDataEntry.getPasswordAdTimestamp())) {
+			person.setPasswordAdTimestamp((coreDataEntry.getPasswordAdTimestamp() != null) ? LocalDate.parse(coreDataEntry.getPasswordAdTimestamp(), dateFormatter).atStartOfDay() : null);
+
+			modified = true;
+		}
+		
+		dateToCompare = (person.getExpireTimestamp() == null) ? null : person.getExpireTimestamp().format(dateFormatter);
 		if (!Objects.equals(dateToCompare, coreDataEntry.getExpireTimestamp())) {
 			try {
 				person.setExpireTimestamp((coreDataEntry.getExpireTimestamp() != null) ? LocalDateTime.parse(coreDataEntry.getExpireTimestamp(), formatter) : null);
@@ -1425,6 +1441,11 @@ public class CoreDataService {
 			for (Person domainPerson : domainPeople) {
 				boolean shouldNsisBeAllowed = nsisAllowed.getNsisUserUuids().contains(domainPerson.getUuid());
 
+				// never allow NSIS for robots
+				if (domainPerson.isRobot()) {
+					shouldNsisBeAllowed = false;
+				}
+
 				if (setNsisState(domainPerson, shouldNsisBeAllowed)) {
 					toBeSaved.add(domainPerson);
 				}
@@ -1448,6 +1469,11 @@ public class CoreDataService {
 			for (Person domainPerson : domainPeople) {
 				boolean shouldTransferToNemlogin = transferToNemlogin.getNemLoginUserUuids().contains(domainPerson.getUuid());
 				boolean currentTransferToNemlogin = domainPerson.isTransferToNemlogin();
+				
+				// never allow MitID Erhverv for robots
+				if (domainPerson.isRobot()) {
+					shouldTransferToNemlogin = false;
+				}
 
 				if (shouldTransferToNemlogin != currentTransferToNemlogin) {
 					domainPerson.setTransferToNemlogin(shouldTransferToNemlogin);

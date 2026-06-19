@@ -21,8 +21,8 @@ public class ResetNSISLevelOnIncompleteActivationsTask {
 	private OS2faktorConfiguration configuration;
 
 	// Runs once every day between 01:00:00 and 01:55:00 cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?"
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?")
-	public void resetNSISLevelOnIncompleteActivations(){
+	@Scheduled(cron = "0 #{new java.util.Random().nextInt(60)} 1 * * ?")
+	public void resetNSISLevelOnIncompleteActivations() {
 		if (!configuration.getScheduled().isEnabled()) {
 			return; // Don't run if scheduled jobs are not enabled
 		}

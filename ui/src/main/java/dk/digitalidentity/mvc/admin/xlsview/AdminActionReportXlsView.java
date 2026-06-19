@@ -13,6 +13,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.View;
@@ -44,7 +45,7 @@ public class AdminActionReportXlsView implements View {
 		response.setContentType(getContentType());
 		response.setHeader("Content-Disposition", "attachment; filename=\"Revisorrapport over administratorhandlinger.xlsx\"");
 
-		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+		try (Workbook workbook = new SXSSFWorkbook()) {
 			Font headerFont = workbook.createFont();
 			headerFont.setBold(true);
 

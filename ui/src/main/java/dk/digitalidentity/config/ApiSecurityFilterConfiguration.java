@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 
 import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.enums.ApiRole;
-import dk.digitalidentity.common.service.ClientService;
 import dk.digitalidentity.common.security.ApiSecurityFilter;
+import dk.digitalidentity.common.service.ClientService;
 
 @Configuration
 public class ApiSecurityFilterConfiguration {
@@ -27,7 +27,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setApiRole(ApiRole.COREDATA);
 		filter.setClientService(clientService);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("CoreDataAPISecurityFilterBean");
@@ -41,7 +41,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setApiRole(ApiRole.AUDITLOG);
 		filter.setClientService(clientService);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("AuditLogAPISecurityBean");
@@ -53,7 +53,7 @@ public class ApiSecurityFilterConfiguration {
 	@Bean
 	public FilterRegistrationBean<ApiSecurityFilter> userAdministrationApiSecurityFilter() {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
-		filter.setEnabled(configuration.getUserAdministration().isEnabled());
+		filter.setEnabledSupplier(() -> configuration.getUserAdministration().isEnabled());
 		filter.setApiRole(ApiRole.USERADMINISTRATION);
 		filter.setClientService(clientService);
 
@@ -67,7 +67,7 @@ public class ApiSecurityFilterConfiguration {
 	@Bean
 	public FilterRegistrationBean<ApiSecurityFilter> certManagerApiSecurityFilter() {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
-		filter.setEnabled(configuration.getCertManagerApi().isEnabled());
+		filter.setEnabledSupplier(() -> configuration.getCertManagerApi().isEnabled());
 		filter.setApiRole(ApiRole.CERTMANAGER);
 		filter.setClientService(clientService);
 
@@ -83,7 +83,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.MFA);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.addUrlPatterns("/api/mfa", "/api/mfa/*");
@@ -97,7 +97,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.STIL);
-		filter.setEnabled(commonConfiguration.getStilStudent().isEnabled());
+		filter.setEnabledSupplier(() -> commonConfiguration.getStilStudent().isEnabled());
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.addUrlPatterns("/api/stil", "/api/stil/*");
@@ -111,7 +111,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.HARDWARETOKEN);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("HardWareTokenAPISecurityBean");
@@ -125,7 +125,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.PASSWORD_CHANGE_QUEUE);
-		filter.setEnabled(configuration.getPasswordChangeQueueApi().isEnabled());
+		filter.setEnabledSupplier(() -> configuration.getPasswordChangeQueueApi().isEnabled());
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("PasswordChangeQueueApiSecurityBean");
@@ -139,7 +139,7 @@ public class ApiSecurityFilterConfiguration {
 		ApiSecurityFilter filter = new ApiSecurityFilter();
 		filter.setClientService(clientService);
 		filter.setApiRole(ApiRole.INTERNAL);
-		filter.setEnabled(true);
+		filter.setEnabledSupplier(() -> true);
 
 		FilterRegistrationBean<ApiSecurityFilter> filterRegistrationBean = new FilterRegistrationBean<>(filter);
 		filterRegistrationBean.setName("InternalApiSecurityBean");

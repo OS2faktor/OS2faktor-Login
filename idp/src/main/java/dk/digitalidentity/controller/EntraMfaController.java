@@ -39,7 +39,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Controller
 public class EntraMfaController {
+	private static final ObjectMapper mapper = new ObjectMapper();
+
 	private EntraConfiguration entraConfiguration;
+	private EntraConfiguration oldEntraConfiguration;
 
 	record EntraConfiguration (
 			String authorization_endpoint,
@@ -50,6 +53,7 @@ public class EntraMfaController {
 			String[] response_modes_supported,
 			String[] response_types_supported,
 			String[] scopes_supported,
+			String[] claims_supported,
 			String[] subject_types_supported) { };
 
 	@Autowired
@@ -72,21 +76,44 @@ public class EntraMfaController {
 
 	@EventListener(ApplicationReadyEvent.class)
 	public void init() throws Exception {
+		// MS requires the entityId to be the base of the discoveryUrl, so we need to switch this, but we need to plan it with the
+		// customers, as we use the right issuer in issued tokens. Problem is that MS only re-reads the configuration at 24 hour intervals,
+		// so the best solution is to either re-create the setup, or to plan for a weekend
 		entraConfiguration = new EntraConfiguration(
-				os2faktorConfiguration.getBaseUrl() + "/entraMfa/authorize",
-				new String[] { "implicit" },
-				new String[] { "RS256" },
-				os2faktorConfiguration.getEntityId(),
-				os2faktorConfiguration.getBaseUrl() +  "/oauth2/jwks",
-				new String[] { "form_post" },
-				new String[] { "id_token" },
-				new String[] { "openid" },
-				new String[] { "public" }
-			);
+			os2faktorConfiguration.getBaseUrl() + "/entraMfa/authorize",
+			new String[] { "implicit" },
+			new String[] { "RS256" },
+			os2faktorConfiguration.getEntityId() + (os2faktorConfiguration.getEntityId().endsWith("/") ? "" : "/") + "entraMfa",
+			os2faktorConfiguration.getBaseUrl() +  "/oauth2/jwks",
+			new String[] { "form_post" },
+			new String[] { "id_token" },
+			new String[] { "openid" },
+			new String[] { "sub", "iss", "aud", "exp", "iat" },
+			new String[] { "public" }
+		);			
+
+		oldEntraConfiguration = new EntraConfiguration(
+			os2faktorConfiguration.getBaseUrl() + "/entraMfa/authorize",
+			new String[] { "implicit" },
+			new String[] { "RS256" },
+			os2faktorConfiguration.getEntityId(),
+			os2faktorConfiguration.getBaseUrl() +  "/oauth2/jwks",
+			new String[] { "form_post" },
+			new String[] { "id_token" },
+			new String[] { "openid" },
+			new String[] { "sub", "iss", "aud", "exp", "iat" },
+			new String[] { "public" }
+		);
 	}
 
 	@ResponseBody
-	@GetMapping(path = "/entraMfa/openid-configuration", produces = MediaType.APPLICATION_JSON_VALUE)
+	@GetMapping(path = { "/entraMfa/openid-configuration" }, produces = MediaType.APPLICATION_JSON_VALUE)
+	public EntraConfiguration oldConfiguration() {
+		return oldEntraConfiguration;
+	}
+	
+	@ResponseBody
+	@GetMapping(path = "/entraMfa/.well-known/openid-configuration", produces = MediaType.APPLICATION_JSON_VALUE)
 	public EntraConfiguration configuration() {
 		return entraConfiguration;
 	}
@@ -171,7 +198,6 @@ public class EntraMfaController {
 		String claims = extractField("claims", parameters);
 		if (claims != null) {
 			try {
-				ObjectMapper mapper = new ObjectMapper();
 				EntraClaimHint hint = mapper.readValue(claims, EntraClaimHint.class);
 
 				return hint.getIdToken().getAcr().getValues().get(0);

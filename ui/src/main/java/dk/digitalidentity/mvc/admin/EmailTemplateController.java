@@ -62,6 +62,40 @@ public class EmailTemplateController {
 		return "admin/email-templates";
 	}
 
+	@GetMapping("/admin/emailtemplatesVendorMail")
+	public String editTemplateVendorMail(Model model) {
+		List<EmailTemplate> templates = emailTemplateService.findForVendorMail();
+
+		List<EmailTemplateDTO> templateDTOs = new ArrayList<>();
+		for (EmailTemplate template : templates) {
+			EmailTemplateDTO emailTemplateDTO = new EmailTemplateDTO();
+			emailTemplateDTO.setId(template.getId());
+			emailTemplateDTO.setEmailTemplateType(template.getTemplateType());
+			emailTemplateDTO.setTemplateTypeText(template.getTemplateType().getMessage());
+			emailTemplateDTO.setEmailAllowed(template.getTemplateType().isEmail());
+			emailTemplateDTO.setEboksAllowed(template.getTemplateType().isEboks());
+
+			List<EmailTemplateChildDTO> templateChildDTOs = new ArrayList<>();
+			for (EmailTemplateChild child : template.getChildren()) {
+				EmailTemplateChildDTO childDto = new EmailTemplateChildDTO();
+				childDto.setId(child.getId());
+				childDto.setEmailEnabled(child.isEmail());
+				childDto.setEboksEnabled(child.isEboks());
+				childDto.setEnabled(child.isEnabled());
+				childDto.setMessage(child.getMessage());
+				childDto.setTitle(child.getTitle());
+				templateChildDTOs.add(childDto);
+			}
+
+			emailTemplateDTO.setChildren(templateChildDTOs);
+			templateDTOs.add(emailTemplateDTO);
+		}
+
+		model.addAttribute("templates", templateDTOs);
+
+		return "admin/email-templates-vendormail";
+	}
+
 	@GetMapping("/admin/emailtemplatesLogwatch")
 	public String editTemplateLogWatch(Model model) {
 		List<EmailTemplate> templates = emailTemplateService.findForLogWatch();

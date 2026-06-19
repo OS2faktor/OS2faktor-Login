@@ -26,6 +26,7 @@ public class CoreDataEntry {
 	private Map<String, String> attributes;
 	private String domain;
 	private String expireTimestamp;
+	private String passwordAdTimestamp;  // yyyy-MM-dd
 	private boolean transferToNemlogin;
 	private boolean privateMitId;
 	private boolean qualifiedSignature;
@@ -63,6 +64,10 @@ public class CoreDataEntry {
 
 		if (person.getExpireTimestamp() != null) {
 			this.expireTimestamp = person.getExpireTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+		}
+
+		if (person.getPasswordAdTimestamp() != null) {
+			this.passwordAdTimestamp = person.getPasswordAdTimestamp().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 		}
 
 		if (person.getDomain().getParent() != null) {

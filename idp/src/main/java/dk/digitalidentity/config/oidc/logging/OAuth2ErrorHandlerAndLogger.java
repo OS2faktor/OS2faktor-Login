@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -35,8 +36,10 @@ import lombok.extern.slf4j.Slf4j;
 public class OAuth2ErrorHandlerAndLogger implements AuthenticationFailureHandler {
 	private final PasswordEncoder delegatingPasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
 
+	// AuthorizationServerSettings is final, so we cannot autowire it lazy, but we CAN autowire it like this, and
+	// then use the provider to pull it when we need it (and then it is effectively lazy). All this for CRaC support :)
 	@Autowired
-	private AuthorizationServerSettings providerSettings;
+    private ObjectProvider<AuthorizationServerSettings> providerSettingsProvider;
 
 	@Autowired
 	private RegisteredClientRepository registeredClientRepository;
@@ -88,6 +91,7 @@ public class OAuth2ErrorHandlerAndLogger implements AuthenticationFailureHandler
 		// non-successful response, so we look for oidc parameters and log them for further debugging
 		Map<String, String[]> parameterMap = request.getParameterMap();
 
+		AuthorizationServerSettings providerSettings = providerSettingsProvider.getObject();
 		if (providerSettings.getOidcLogoutEndpoint().equals(request.getRequestURI())) {
 			logLogoutRequest(request, parameterMap, httpStatus);
 		}

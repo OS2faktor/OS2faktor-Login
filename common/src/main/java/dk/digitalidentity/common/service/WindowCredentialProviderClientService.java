@@ -58,8 +58,9 @@ public class WindowCredentialProviderClientService {
             	domain.getName();
 
         		if (domain.getChildDomains() != null) {
-        			domain.getChildDomains().size();
+        			domain.getChildDomains().forEach(cd -> cd.getName());
         		}
+
         		if (domain.getParent() != null) {
         			domain.getParent().getName();
         		}

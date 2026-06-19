@@ -11,9 +11,9 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.Constants;
-import dk.digitalidentity.samlmodule.model.SamlGrantedAuthority;
-import dk.digitalidentity.samlmodule.model.SamlLoginPostProcessor;
-import dk.digitalidentity.samlmodule.model.TokenUser;
+import dk.digitalidentity.saml.interfaces.SamlLoginPostProcessor;
+import dk.digitalidentity.saml.service.model.SamlGrantedAuthority;
+import dk.digitalidentity.saml.service.model.TokenUser;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

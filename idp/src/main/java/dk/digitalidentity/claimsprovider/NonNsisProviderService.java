@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -114,6 +115,7 @@ public class NonNsisProviderService {
 		
 		sessionHelper.setPasswordLevel(NSISLevel.NONE);
 		sessionHelper.setAuthenticatedWithADPassword(true);
+        sessionHelper.setAuthnInstant(new DateTime());
 
 		// handle multiple user accounts
 		if (availablePeople.size() != 1) {

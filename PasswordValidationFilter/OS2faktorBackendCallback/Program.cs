@@ -3,6 +3,7 @@ using Serilog;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace OS2faktorBackendCallback
 {
@@ -60,7 +61,7 @@ namespace OS2faktorBackendCallback
 
 
                         // Check that the args are correct
-                        if (args.Length != 2)
+                        if (args.Length != 3)
                         {
                             Log.Error("Incorrect amount of args ({0}) passed to CreateSession", args.Length);
                             return;
@@ -77,7 +78,6 @@ namespace OS2faktorBackendCallback
                         // Create HttpClient and set RequestHeaders
                         HttpClient client = new HttpClient(handler);
                         client.DefaultRequestHeaders.Add("apiKey", clientApiKey);
-
 
                         // Create body of message
                         // {
@@ -101,9 +101,17 @@ namespace OS2faktorBackendCallback
                         // Call the service and wait for the response
                         try
                         {
-                            // Create URL from configured baseURL
-                            string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/password/filter/v1/validate";
+                            // Make sure baseurl doesn't have trailing / 
+                            var os2faktorUrl = baseUrl.EndsWith("/") ? baseUrl.Remove(baseUrl.Length - 1) : baseUrl;
 
+
+                            var url = QueryHelpers.AddQueryString(
+                                os2faktorUrl + "/api/password/filter/v1/validate",
+                                new Dictionary<string, string?>
+                                {
+                                    ["userSelfChangedPassword"] = args[2]
+                                }
+                            );
                             Log.Verbose("Calling url: " + url);
 
                             HttpResponseMessage response = await client.PostAsync(url, content);

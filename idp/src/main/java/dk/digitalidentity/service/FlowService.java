@@ -562,7 +562,7 @@ public class FlowService {
 				PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 				LocalDateTime expiredTimestamp = LocalDateTime.now().minusDays(settings.getForceChangePasswordInterval());
 
-				long daysLeftPassword = (person.getPasswordTimestamp() != null) ? ChronoUnit.DAYS.between(expiredTimestamp, person.getPasswordTimestamp()) : Long.MAX_VALUE;
+				long daysLeftPassword = (person.getOldestPasswordTimestamp() != null) ? ChronoUnit.DAYS.between(expiredTimestamp, person.getOldestPasswordTimestamp()) : Long.MAX_VALUE;
 				long daysLeft = (daysLeftPassword != Long.MAX_VALUE && daysLeftPassword > 0) ? daysLeftPassword : 0;
 				model.addAttribute("daysLeft", daysLeft);
 

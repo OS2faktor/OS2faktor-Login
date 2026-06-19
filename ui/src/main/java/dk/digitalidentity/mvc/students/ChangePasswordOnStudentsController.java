@@ -38,7 +38,6 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.SchoolClass;
 import dk.digitalidentity.common.dao.model.enums.SchoolRoleValue;
 import dk.digitalidentity.common.service.GroupService;
-import dk.digitalidentity.common.service.PasswordChangeQueueService;
 import dk.digitalidentity.common.service.PasswordSettingService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SchoolClassService;
@@ -49,6 +48,7 @@ import dk.digitalidentity.mvc.students.dto.SchoolClassDTO;
 import dk.digitalidentity.mvc.students.dto.StudentDTO;
 import dk.digitalidentity.security.RequireChangePasswordOnOthersRole;
 import dk.digitalidentity.security.SecurityUtil;
+import dk.digitalidentity.util.EncryptionUtil;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
@@ -73,10 +73,10 @@ public class ChangePasswordOnStudentsController {
 	private CommonConfiguration commonConfiguration;
 	
 	@Autowired
-	private PasswordChangeQueueService passwordChangeQueueService;
+	private SchoolClassService schoolClassService;
 	
 	@Autowired
-	private SchoolClassService schoolClassService;
+	private EncryptionUtil encryptionUtil;
 	
 	@InitBinder("passwordForm")
 	public void initClientBinder(WebDataBinder binder) {
@@ -166,7 +166,7 @@ public class ChangePasswordOnStudentsController {
 				if (student.isCanSeePassword()) {
 					try {
 						if (StringUtils.hasLength(student.getPassword())) {
-							student.setPassword(passwordChangeQueueService.decryptPassword(student.getPassword()));
+							student.setPassword(encryptionUtil.decryptPassword(student.getPassword()));
 						}
 					}
 					catch (Exception ex) {
@@ -222,7 +222,7 @@ public class ChangePasswordOnStudentsController {
 				if (student.isCanSeePassword()) {
 					try {
 						if (StringUtils.hasLength(student.getPassword())) {
-							student.setPassword(passwordChangeQueueService.decryptPassword(student.getPassword()));
+							student.setPassword(encryptionUtil.decryptPassword(student.getPassword()));
 						}
 					}
 					catch (Exception ex) {
@@ -316,7 +316,7 @@ public class ChangePasswordOnStudentsController {
 		}
 
 		try {
-			model.addAttribute("decrypted", passwordChangeQueueService.decryptPassword(personToBeEdited.getStudentPassword()));
+			model.addAttribute("decrypted", encryptionUtil.decryptPassword(personToBeEdited.getStudentPassword()));
 		}
 		catch (InvalidKeyException | NoSuchPaddingException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
 			redirectAttributes.addFlashAttribute("flashError", "Fejl! Kodeordet kan ikke vises");

@@ -16,7 +16,7 @@ public class ClaimsProviderConfiguration {
 	private boolean mitIdEnabed = true;
 	
 	private String stilEntityId = "https://broker.unilogin.dk/auth/realms/broker";
-	private String stilMetadata = "https://www.digital-identity.dk/metadata/stil-metadata-for-sp.xml";
+	private String stilMetadata = "https://broker.unilogin.dk/auth/realms/broker/protocol/saml-stil/descriptor";
 	private boolean stilEnabled = false;
 	
 	private String nonNsisIdPEntityId;

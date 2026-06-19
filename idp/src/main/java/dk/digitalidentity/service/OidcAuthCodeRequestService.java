@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpMethod;
@@ -24,7 +23,6 @@ import org.springframework.security.oauth2.core.endpoint.PkceParameterNames;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationException;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
-import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.AndRequestMatcher;
@@ -42,12 +40,9 @@ import jakarta.servlet.http.HttpServletRequest;
 public class OidcAuthCodeRequestService {
 	private RequestMatcher authorizationEndpointMatcher;
 
-	@Autowired
-	private AuthorizationServerSettings providerSettings;
-
     @EventListener(ApplicationReadyEvent.class)
 	public void postConstruct() {
-		this.authorizationEndpointMatcher = createDefaultRequestMatcher(providerSettings.getAuthorizationEndpoint()); // default:  /oauth2/authorize
+		this.authorizationEndpointMatcher = createDefaultRequestMatcher("/oauth2/authorize");
 	}
 
 	public boolean validRequest(HttpServletRequest request) {

@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.config;
 
+import dk.digitalidentity.common.config.modules.PasswordSyncQueueConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -53,4 +54,5 @@ public class CommonConfiguration {
 	private MitIDErhvervConfiguration mitIdErhverv = new MitIDErhvervConfiguration();
 	private EntraMfaConfiguration entraMfa = new EntraMfaConfiguration();
 	private GeoLocate geo = new GeoLocate();
+	private PasswordSyncQueueConfiguration passwordSync = new PasswordSyncQueueConfiguration();
 }

@@ -30,6 +30,11 @@ public class EmailTemplateService {
 	public static final String LIMIT = "{max}";
 	public static final String LIST_OF_PERSONS = "{liste}";
 	public static final String COUNTRY = "{land}";
+
+	// vendor mail placeholders
+	public static final String IDP_URL_PLACEHOLDER = "{IDP_URL}";
+	public static final String ROLLOVER_TTS_PLACEHOLDER = "{ROLLOVER_TTS}";
+	public static final String EXPIRE_DATE_PLACEHOLDER = "{EXPIRE_DATE}";
 	
 	// users
 	public static final String USERID_PLACEHOLDER = "{brugernavn}";
@@ -57,33 +62,51 @@ public class EmailTemplateService {
 
 	public List<EmailTemplate> findForPersons() {
 		List<EmailTemplate> result = new ArrayList<>();
-		
+
 		for (EmailTemplateType type : EmailTemplateType.values()) {
 			if (type.isLogWatch()) {
 				continue;
 			}
-			
+
+			if (type.isVendorMail()) {
+				continue;
+			}
+
 			if (!commonConfiguration.getFullServiceIdP().isEnabled() && type.isFullServiceIdP()) {
 				continue;
 			}
 
 			result.add(findByTemplateType(type));
 		}
-		
+
 		return result;
 	}
 
 	public List<EmailTemplate> findForLogWatch() {
 		List<EmailTemplate> result = new ArrayList<>();
-		
+
 		for (EmailTemplateType type : EmailTemplateType.values()) {
 			if (!type.isLogWatch()) {
 				continue;
 			}
-			
+
 			result.add(findByTemplateType(type));
 		}
-		
+
+		return result;
+	}
+
+	public List<EmailTemplate> findForVendorMail() {
+		List<EmailTemplate> result = new ArrayList<>();
+
+		for (EmailTemplateType type : EmailTemplateType.values()) {
+			if (!type.isVendorMail()) {
+				continue;
+			}
+
+			result.add(findByTemplateType(type));
+		}
+
 		return result;
 	}
 
@@ -118,8 +141,8 @@ public class EmailTemplateService {
 
 	public List<EmailTemplateChild> generateDefaultChildren(EmailTemplate template) {
 		List<EmailTemplateChild> children = new ArrayList<>();
-		
-		if (template.getTemplateType().isLogWatch()) {
+
+		if (template.getTemplateType().isLogWatch() || template.getTemplateType().isVendorMail()) {
 			generateChild(template, children, null);
 		}
 		else {
@@ -137,7 +160,7 @@ public class EmailTemplateService {
 		String message = "Besked";
 
 		// if we already have a child for this template/domain, just skip
-		if (template.getChildren().stream().anyMatch(c -> (domain == null && c.getDomain() == null) || c.getDomain().getId() == domain.getId())) {
+		if (template.getChildren().stream().anyMatch(c -> (domain == null && c.getDomain() == null) || (domain != null && c.getDomain() != null && c.getDomain().getId() == domain.getId()))) {
 			return;
 		}
 		
@@ -210,11 +233,29 @@ public class EmailTemplateService {
 			case FULL_SERVICE_IDP_REMOVED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet spærret";
-				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} til brugerkontoen {brugernavn} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommune}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/>{ekstraTekst}<br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
+				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} til brugerkontoen {brugernavn} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li>at du ikke har brugt din konto i længere tid, og den derfor er blevet automatisk spærret</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommune}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/>{ekstraTekst}<br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
 				break;
 			case PERSON_SET_RANDOM_PASSWORD :
 				title = "Kodeord nulstillet";
 				message = "<b>Kære {modtager}</b><br/><br/>Dit kodeord er blevet nulstillet, og du skal skifte det inden du kan logge ind igen<br/><br/>Dit brugernavn er: {brugernavn}<br/><br/>";
+				break;
+			case SP_VENDOR_CERTIFICATE_ROLLOVER:
+				title = "Kommende certifikatskifte i OS2faktor";
+				message = "<b>Til leverandøren.</b><br><br>" +
+						"Dette er en automatiseret mail, sendt af OS2faktor.<br><br>" +
+						"OCES certifikatet i OS2faktor udløber <b>{EXPIRE_DATE}</b>, og for at sikre en smidig overgang, er der indlæst et nyt certifikat i OS2faktor.<br><br>" +
+						"Det nye certifikat ligger klar til at blive aktiveret, og aktiveringen sker automatisk <b>{ROLLOVER_TTS}</b>.<br><br>" +
+						"Tjenester som I selv har koblet til OS2faktor bør automatisk opdage certifikatskiftet, da det nye certifikat allerede ligger klar i de metadata som er udstillet af OS2faktor.<br><br>" +
+						"Tjenester der gør brug af OpenID Connect (OIDC) er ikke påvirket af dette certifikatskifte.<br><br>" +
+						"For tjenester som ikke automatisk henter de nye certifikat-oplysninger, bør man informere dem om det planlagte certifikat-skifte. Her kan man med fordel sende dem enten linket til SAML metadata, eller det nye certifikat, så de kan klargøre skiftet i deres ende.<br><br>" +
+						"<b>Certifikat</b><br>" +
+						"<a href=\"{IDP_URL}/sso/saml/secondaryCert\">{IDP_URL}/sso/saml/secondaryCert</a><br><br>" +
+						"<b>SAML metadata</b><br>" +
+						"<a href=\"{IDP_URL}/sso/saml/metadata\">{IDP_URL}/sso/saml/metadata</a><br><br>" +
+						"<b>WS-Federation metadata</b><br>" +
+						"<a href=\"{IDP_URL}/ws/metadata\">{IDP_URL}/ws/metadata</a><br><br>" +
+						"Hvis der er spørgsmål til det planlagte certifikatskifte, bedes I kontakte leverandøren af OS2faktor.<br><br>" +
+						"Mvh<br>OS2faktor";
 				break;
 		}
 
@@ -222,10 +263,16 @@ public class EmailTemplateService {
 		child.setMessage(message);
 		child.setEmailTemplate(template);
 		child.setDomain(domain);
-		
+
 		// make sure eboks is enabled by default on new Full Service IdP templates
 		if (child.getEmailTemplate().getTemplateType().isFullServiceIdP()) {
 			child.setEboks(true);
+			child.setEnabled(true);
+		}
+
+		// vendor mail templates are enabled by default
+		if (child.getEmailTemplate().getTemplateType().isVendorMail()) {
+			child.setEmail(true);
 			child.setEnabled(true);
 		}
 

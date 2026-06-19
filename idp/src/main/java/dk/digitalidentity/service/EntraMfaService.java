@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.ModelAndView;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.config.OS2faktorConfiguration;
@@ -39,6 +40,9 @@ public class EntraMfaService {
 	
 	@Autowired
 	private OidcJWKSource oidcJWKSource;
+	
+	@Autowired
+	private CommonConfiguration commonConfiguration;
 
 	@SuppressWarnings("deprecation")
 	public ModelAndView createAndSendIdToken(HttpServletResponse httpServletResponse, Person person, ServiceProvider serviceProvider, LoginRequest loginRequest) throws ResponderException {
@@ -73,7 +77,8 @@ public class EntraMfaService {
 		String jwt = Jwts.builder()
 			.subject(loginRequest.getEntraPayload().getSubject())
 			.issuedAt(now)
-			.issuer(os2faktorConfiguration.getEntityId())
+			// TODO: can remove old this once everyone is moved to the new endpoint
+			.issuer(os2faktorConfiguration.getEntityId() + (commonConfiguration.getEntraMfa().isNewEndpointModel() ? ((os2faktorConfiguration.getEntityId().endsWith("/") ? "" : "/") + "entraMfa"): ("")))
 			.audience()
 				.add(loginRequest.getEntraPayload().getAudience())
 				.and()

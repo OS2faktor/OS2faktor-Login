@@ -157,6 +157,9 @@ public class Person {
 	private LocalDateTime passwordTimestamp;
 
 	@Column
+	private LocalDateTime passwordAdTimestamp;
+
+	@Column
 	private boolean doNotReplicatePassword;
 
 	@NotAudited
@@ -378,5 +381,22 @@ public class Person {
 		}
 		
 		return name;
+	}
+	
+	@JsonIgnore
+	public LocalDateTime getOldestPasswordTimestamp() {
+		if (passwordTimestamp == null && passwordAdTimestamp == null) {
+			return null;
+		}
+		
+		if (passwordTimestamp != null && passwordAdTimestamp == null) {
+			return passwordTimestamp;
+		}
+		
+		if (passwordTimestamp == null && passwordAdTimestamp != null) {
+			return passwordAdTimestamp;
+		}
+		
+		return (passwordTimestamp.isAfter(passwordAdTimestamp)) ? passwordAdTimestamp : passwordTimestamp;
 	}
 }

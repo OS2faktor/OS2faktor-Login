@@ -30,13 +30,17 @@ public enum EmailTemplateType {
 
 	// full service IdP
 	FULL_SERVICE_IDP_ASSIGNED("html.enum.email.type.fullservice.assigned", Arrays.asList(Flags.EMAIL, Flags.EBOKS, Flags.FULL_SERVICE_IDP)),
-	FULL_SERVICE_IDP_REMOVED("html.enum.email.type.fullservice.removed", Arrays.asList(Flags.EMAIL, Flags.EBOKS, Flags.FULL_SERVICE_IDP));
+	FULL_SERVICE_IDP_REMOVED("html.enum.email.type.fullservice.removed", Arrays.asList(Flags.EMAIL, Flags.EBOKS, Flags.FULL_SERVICE_IDP)),
+
+	// vendor mail
+	SP_VENDOR_CERTIFICATE_ROLLOVER("html.enum.email.type.sp_vendor_certificate_rollover", Arrays.asList(Flags.EMAIL, Flags.VENDOR_MAIL));
 
 	private String message;
 	private boolean eboks;
 	private boolean email;
 	private boolean logWatch;
 	private boolean fullServiceIdP;
+	private boolean vendorMail;
 
 	private EmailTemplateType(String message, List<Flags> flags) {
 		this.message = message;
@@ -44,7 +48,8 @@ public enum EmailTemplateType {
 		this.email = flags.contains(Flags.EMAIL);
 		this.logWatch = flags.contains(Flags.LOG_WATCH);
 		this.fullServiceIdP = flags.contains(Flags.FULL_SERVICE_IDP);
+		this.vendorMail = flags.contains(Flags.VENDOR_MAIL);
 	}
 
-	private enum Flags { EBOKS, EMAIL, LOG_WATCH, FULL_SERVICE_IDP }
+	private enum Flags { EBOKS, EMAIL, LOG_WATCH, FULL_SERVICE_IDP, VENDOR_MAIL }
 }

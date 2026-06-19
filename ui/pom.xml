@@ -104,31 +104,7 @@
 		<dependency>
 			<groupId>dk.digitalidentity</groupId>
 			<artifactId>saml-module</artifactId>
-			<version>os2faktor-4.0.5</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.apache.wss4j</groupId>
-			<artifactId>wss4j-ws-security-common</artifactId>
-			<version>2.4.2</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.opensaml</groupId>
-					<artifactId>opensaml-saml-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.opensaml</groupId>
-					<artifactId>opensaml-xacml-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.opensaml</groupId>
-					<artifactId>opensaml-xacml-saml-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.geronimo.javamail</groupId>
-					<artifactId>geronimo-javamail_1.4_mail</artifactId>
-				</exclusion>
-			</exclusions>
+			<version>5.1.4</version>
 		</dependency>
 
 		<dependency>
@@ -167,13 +143,13 @@
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi</artifactId>
-			<version>5.2.2</version>
+			<version>5.4.1</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>
-			<version>5.2.2</version>
+			<version>5.4.1</version>
 		</dependency>
 
 		<dependency>
@@ -185,6 +161,13 @@
 			<groupId>org.xhtmlrenderer</groupId>
 			<artifactId>flying-saucer-core</artifactId>
 			<version>9.1.22</version>
+		</dependency>
+
+		<!-- flying-saucer below pulls in itext 5.5.12, which has vulnerabilities, so we upgrade to 5.5.13.5 -->
+		<dependency>
+			<groupId>com.itextpdf</groupId>
+			<artifactId>itextpdf</artifactId>
+			<version>5.5.13.5</version>
 		</dependency>
 
 		<dependency>
@@ -203,13 +186,13 @@
 		<dependency>
 			<groupId>org.jsoup</groupId>
 			<artifactId>jsoup</artifactId>
-			<version>1.15.3</version>
+			<version>1.22.2</version>
 		</dependency>
 
 		<dependency>
 			<groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
 			<artifactId>owasp-java-html-sanitizer</artifactId>
-			<version>20220608.1</version>
+			<version>20260313.1</version>
 		</dependency>
 
 		<!-- makes Spring boot faster by creating an index of beans at compile time -->

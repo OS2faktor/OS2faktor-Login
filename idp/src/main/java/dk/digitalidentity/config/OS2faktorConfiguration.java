@@ -32,6 +32,9 @@ public class OS2faktorConfiguration {
 	
 	@FeatureDocumentation(name = "UPN login", description = "Tillad at brugerne kan anvende UPN som brugernavn til login")
 	private boolean loginWithUpn = false;
+	
+	// for some customers, the mobile detection fails (embedded browsers in apps on mobile), so we check for touch instead
+	private boolean useTouchDeviceDetection = false;
 
 	// moved into database, this exists only for migration purposes (and local testing/bootstrapping)
 	@Deprecated

@@ -472,7 +472,7 @@ public class AssertionService {
 		// authnInstant
 		DateTime authnInstant = sessionHelper.getAuthnInstant();
 		if (authnInstant == null) {
-			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
+			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on user session");
 		}
 
 		// authnContextClassRef (default to PasswordProtectedTransport)
@@ -508,7 +508,7 @@ public class AssertionService {
 	public Assertion createBrokeredAssertion(String assertionId, DateTime issueInstant, AuthnRequest authnRequest, Assertion assertion, ServiceProvider serviceProvider) throws ResponderException, RequesterException {
 		// authnInstant
 		if (assertion.getAuthnStatements() == null) {
-			throw new ResponderException("Tried to create assertion but there was no AuthnInstant on session");
+			throw new ResponderException("Tried to create brokered assertion but there was no AuthnInstant on session");
 		}
 		DateTime authnInstant = assertion.getAuthnStatements().get(0).getAuthnInstant();
 

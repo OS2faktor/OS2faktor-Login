@@ -1,7 +1,7 @@
 #define AppId "{{4e569a63-839f-4ba6-8521-bc1be8cb5b3c}"
 #define AppSourceDir "..\"
 #define AppName "OS2faktorPasswordValidationFilter"
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #define AppPublisher "Digital Identity"
 #define AppURL "http://digital-identity.dk/"
 #define AppExeName "OS2faktorPasswordValidationFilter"
@@ -28,7 +28,7 @@ ArchitecturesInstallIn64BitMode=x64 ia64
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "x64\Release\OS2faktorPasswordValidationFilter.dll"; DestDir: "{sys}";
+Source: "x64\Release\OS2faktorPasswordValidationFilter.dll"; DestDir: "{sys}"; Flags: restartreplace uninsneveruninstall
 Source: "OS2faktorBackendCallback\bin\Release\net8.0\*.exe"; DestDir: "{app}\OS2faktorBackendCallback"; Flags: ignoreversion
 Source: "OS2faktorBackendCallback\bin\Release\net8.0\*.dll"; DestDir: "{app}\OS2faktorBackendCallback"; Flags: ignoreversion
 Source: "OS2faktorBackendCallback\bin\Release\net8.0\*.pdb"; DestDir: "{app}\OS2faktorBackendCallback"; Flags: ignoreversion

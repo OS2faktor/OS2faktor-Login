@@ -103,7 +103,7 @@ import dk.digitalidentity.security.SecurityUtil;
 import dk.digitalidentity.service.AuditLogSearchCriteriaService;
 import dk.digitalidentity.service.EmailTemplateSenderService;
 import dk.digitalidentity.service.LinkService;
-import dk.digitalidentity.service.MetadataService;
+import dk.digitalidentity.service.SamlMetadataService;
 import dk.digitalidentity.util.UsernameAndPasswordHelper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -157,7 +157,7 @@ public class AdminRestController {
 	private MessageSource messageSource;
 
 	@Autowired
-	private MetadataService metadataService;
+	private SamlMetadataService metadataService;
 	
 	@Autowired
 	private KombitSubSystemService kombitSubsystemService;
@@ -1002,11 +1002,11 @@ public class AdminRestController {
 			if (condition.isEmpty()) {
 				// Check if domain is a sub-domain since radius clients works on parent domain level, not sub-domains
 				Domain domain = domainService.getById(conditionsDomain.getId());
-				if (domain != null && domain.getParent() == null) {
+				if (domain != null) {
 					newConditions.add(new RadiusClientCondition(radiusClient, RadiusClientConditionType.DOMAIN, null, domain));
 				}
 				else {
-					return new ResponseEntity<>("Det valgte domæne findes ikke, eller er et subdomæne", HttpStatus.BAD_REQUEST);
+					return new ResponseEntity<>("Det valgte domæne findes ikke", HttpStatus.BAD_REQUEST);
 				}
 			}
 			else {

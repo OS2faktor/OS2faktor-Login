@@ -16,8 +16,8 @@ public class OAuth2AuthorizationCleanupTask {
 	@Autowired
 	private ExpiredTokenDeletingOAuth2AuthorizationService authorizationService;
 
-	// Runs once every day between 01:00:00 and 01:55:00
-	@Scheduled(cron = "0 #{new java.util.Random().nextInt(55)} 1 * * ?")
+	// Runs once every day between 01:00:00 and 01:59:59 (twice actually, as it runs on both instances)
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 1 * * ?")
 	public void cleaupTask() {
 		try {
 			log.info("Running cleanup OAuth Table task");

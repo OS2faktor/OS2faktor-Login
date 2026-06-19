@@ -22,7 +22,7 @@ public class CleanupOldStudentPasswordTask {
 	
 	// nightly - finds all older students with a studentPassword set, and clears it
 	// @Scheduled(fixedRate = 60 * 1000)
-	@Scheduled(cron = "${cron.mfa.db.sync:0 #{new java.util.Random().nextInt(55)} 3 * * ?}")
+	@Scheduled(cron = "${cron.mfa.db.sync:0 #{new java.util.Random().nextInt(60)} 3 * * ?}")
 	public void processChanges() {
 		if (configuration.getScheduled().isEnabled()) {
 			log.info("Running cleanupOldStudentsPasswordTask");

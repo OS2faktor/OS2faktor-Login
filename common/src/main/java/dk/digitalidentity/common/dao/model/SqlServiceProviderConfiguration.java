@@ -167,7 +167,10 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
 
     @Column
     private String notes;
-    
+
+    @Column
+    private String notificationEmail;
+
     @Column(name = "auto_non_nsis_idp_login")
     private boolean autoNonNsisIdPLogin;
 

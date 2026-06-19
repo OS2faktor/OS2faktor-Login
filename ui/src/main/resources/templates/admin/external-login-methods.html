@@ -39,13 +39,13 @@
 										
 										<tbody>
 											<tr>
-												<td style="text-align: center;"><em th:if="mitIDEnabled" class="fa fa-check"></em></td>
+												<td style="text-align: center;"><em th:if="${mitIDEnabled}" class="fa fa-check"></em></td>
 												<td>Privat MitID</td>
 												<td>Denne metode gør det muligt for brugerne at anvende deres private MitID som en loginmetode. Denne loginmetode fungerer også som en egentligt MFA loginmetode, og kan gennemføre et login på et NSIS sikringsniveau. Forudsætningen for at kunne slå denne funktion til, er at der opsættes en integration til NemLog-in infrastrukturen omkring anvendelse af privat MitID til loginformål.</td>
 											</tr>
 											
 											<tr>
-												<td style="text-align: center;"><em th:if="stilEnabled" class="fa fa-check"></em></td>
+												<td style="text-align: center;"><em th:if="${stilEnabled}" class="fa fa-check"></em></td>
 												<td>STIL UniLogin Broker</td>
 												<td>Denne metode gør det muligt at anvende STILs UniLogin Broker som en loginmetode - den kan kun bruges som erstatning for brugernavn/kodeord, og kan kun anvendes for brugere på skoleområdet. Der er en løbende økonomisk omkostning ved denne integration, da den kræver tilslutning hos STIL, som tager et <a target="_BLANK" href="https://viden.stil.dk/spaces/OFFSKOLELOGIN/pages/161061375/Priser+for+tilslutning">årligt vederlag</a> for denne tilslutning.</td>
 											</tr>

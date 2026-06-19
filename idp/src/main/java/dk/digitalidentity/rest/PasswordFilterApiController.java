@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,6 +20,7 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.enums.ChangePasswordResult;
 import dk.digitalidentity.filter.PasswordValidationApiFilter;
 import dk.digitalidentity.rest.model.PasswordFilterValidationDTO;
+import dk.digitalidentity.common.service.PasswordSyncQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -26,9 +28,10 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequiredArgsConstructor
 public class PasswordFilterApiController {
-    private final AuditLogger auditLogger;
-    private final PersonService personService;
+	private final AuditLogger auditLogger;
+	private final PersonService personService;
 	private final PasswordValidationService passwordValidationService;
+	private final PasswordSyncQueueService passwordSyncQueueService;
 
 	/**
 	 * Processes the PasswordFilters password validation request and returns an HTTP response.
@@ -46,7 +49,7 @@ public class PasswordFilterApiController {
 	 */
 	@PostMapping("/api/password/filter/v1/validate")
 	@ResponseBody
-	public ResponseEntity<String> validatePassword(@RequestBody PasswordFilterValidationDTO body) {
+	public ResponseEntity<String> validatePassword(@RequestBody PasswordFilterValidationDTO body, @RequestParam(defaultValue = "false", required = false) boolean userSelfChangedPassword) {
 		Domain domain = PasswordValidationApiFilter.domainHolder.get();
 		if (domain == null) {
 			log.info("No domain matched incoming client request");
@@ -75,12 +78,13 @@ public class PasswordFilterApiController {
 		Person personToValidate;
 		boolean unknownPerson = persons.isEmpty();
 		if (unknownPerson) {
-			// Create a temporary person for validation
-			// This allows our AD password filter to validate the passwords of everyone, not just the accounts OS2faktor knows about
+			// create a temporary person for validation
+			// this allows our AD password filter to validate the passwords of everyone, not just the accounts OS2faktor knows about
 			personToValidate = new Person();
 			personToValidate.setSamaccountName(username);
 			personToValidate.setDomain(domain);
-		} else {
+		}
+		else {
 			personToValidate = persons.getFirst();
 		}
 
@@ -88,6 +92,9 @@ public class PasswordFilterApiController {
 		ChangePasswordResult result = passwordValidationService.validatePasswordRules(personToValidate, password, false, unknownPerson);
 		switch (result) {
 			case OK:
+                if (!unknownPerson && userSelfChangedPassword) {
+                    passwordSyncQueueService.enqueue(personToValidate, password);
+                }
 				return ResponseEntity.ok().build();
 				
 			// add the cases here, to make sure we get a compile warning on new enum values

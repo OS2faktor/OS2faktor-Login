@@ -51,8 +51,8 @@ public class PasswordExpiresService {
 			boolean notify = false;
 			PasswordSetting settings = passwordSettingService.getSettingsCached(passwordSettingService.getSettingsDomainForPerson(person));
 			
-			if (settings.isForceChangePasswordEnabled() && person.getPasswordTimestamp() != null) {
-				LocalDateTime expiredTimestamp = person.getPasswordTimestamp().plusDays(settings.getForceChangePasswordInterval());
+			if (settings.isForceChangePasswordEnabled() && person.getOldestPasswordTimestamp() != null) {
+				LocalDateTime expiredTimestamp = person.getOldestPasswordTimestamp().plusDays(settings.getForceChangePasswordInterval());
 				LocalDateTime almostExpiredTimestamp = expiredTimestamp.minusDays(reminderDaysBeforeExpired);
 
 				if (LocalDate.now().equals(almostExpiredTimestamp.toLocalDate())) {

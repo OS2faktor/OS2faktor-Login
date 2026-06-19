@@ -11,6 +11,7 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.springframework.web.servlet.View;
 
 import dk.digitalidentity.common.dao.model.KombitJfr;
@@ -40,7 +41,7 @@ public class RolesReportXlsView implements View {
 		response.setContentType(getContentType());
 		response.setHeader("Content-Disposition", "attachment; filename=\"Jobfunktionsroller.xlsx\"");
 
-		try (Workbook workbook = new DisposableSXSSFWorkbook()) {
+		try (Workbook workbook = new SXSSFWorkbook()) {
 	
 			// Setup shared resources
 			Font headerFont = workbook.createFont();

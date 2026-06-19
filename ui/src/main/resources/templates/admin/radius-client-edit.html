@@ -99,7 +99,7 @@
 											</thead>
 											
 											<tbody style="display: table-row-group">
-												<tr th:each="domain : ${@domainService.getAllParents()}">
+												<tr th:each="domain : ${@domainService.getAll()}">
 													<td style="text-align: center;">
 														<label><input th:attr="data-id=${domain.id}" type="checkbox" class="i-checks conditionDomainCheckbox"></label>
 													</td>

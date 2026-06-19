@@ -21,8 +21,8 @@ public class ExpireCacheTask {
 		statisticsService.cleanupHourly();
 	}
 
-	@Scheduled(cron = "#{new java.util.Random().nextInt(55)} 3 * * * *")
-	public void Daily() {
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} 3 * * * *")
+	public void daily() {
 		statisticsService.cleanupDaily();
 	}
 }

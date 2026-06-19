@@ -98,6 +98,10 @@ public class EmailTemplateRestController {
 				template.setEmail(true);
 				template.setEnabled(true);
 			}
+			else if (template.getEmailTemplate().getTemplateType().isVendorMail()) {
+				template.setEmail(true);
+				template.setEnabled(emailTemplateDTO.isEnabled());
+			}
 			else {
 				// full-service IdP templates are ALWAYS enabled
 				if (!template.getEmailTemplate().getTemplateType().isFullServiceIdP()) {

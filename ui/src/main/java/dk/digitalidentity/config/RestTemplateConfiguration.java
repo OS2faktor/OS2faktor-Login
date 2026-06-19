@@ -19,6 +19,7 @@ import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.util.ResourceUtils;
@@ -33,6 +34,7 @@ public class RestTemplateConfiguration {
 	@Autowired
 	private CommonConfiguration config;
 	
+	@Lazy(true)
 	@Bean(name = "nemLoginRestClient")
 	public RestClient nemLoginRestClient() throws Exception {
 	    TrustStrategy acceptingTrustStrategy = (_, _) -> true;

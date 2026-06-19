@@ -164,7 +164,10 @@ PASSWORDVALIDATIONFILTER_API BOOLEAN __stdcall PasswordFilter(PUNICODE_STRING Ac
 
 			// Assemble commandline
 			std::wstring createSessionCommandline = L"\"";
-			createSessionCommandline = createSessionCommandline + installPath + L"\" " + username + L" " + base64EncodedString;
+			createSessionCommandline = createSessionCommandline + installPath + L"\" " 
+                                        + username + L" " 
+                                        + base64EncodedString + L" "
+                                        + (SetOperation == true ? L"false" : L"true");
 			createSessionCommandline.push_back(0); //make sure path is null-terminated
 
 			// Start C# process
