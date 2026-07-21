@@ -39,11 +39,7 @@ It is recommended to add the following entries into /etc/hosts on the developmen
 These are used in the various projects
 
 ## setup OS2faktor MFA
-The codebase for MFA requires Java 17 (it has recently been upgraded from Java 8, and the Java 17 release is expected on the 22nd
-of april, so worst case the current codebase is still running Java 8, which may cause various issues).
-
-Note that the codebase for OS2faktor Login runs Java 11, so co-existance of the two Java versions is needed during development.
-This is pretty easy on Linux, as you can setup a Java VM path for each terminal window.
+The codebase for MFA requires Java 25.
 
 ### run backend module
 This module runs the API's that both clients and connectors interact with. To compile, go into the "backend" folder and compile the code with
@@ -91,7 +87,7 @@ https://frontend-dev.os2faktor.dk:9121
 Note that accessing it might be easier once the OS2faktor Login has been setup - then change the SAML settings to point to that to handle login.
 
 ## setup OS2faktor Login
-The Login codebase requires Java 11, and consists of two mandatory components and some extra components that are not covered here. The mandatory
+The Login codebase requires Java 25, and consists of two mandatory components and some extra components that are not covered here. The mandatory
 components are the selfservice (ui) module and the actual identity provider (idp) module.
 
 ### compile and run the IdP module
