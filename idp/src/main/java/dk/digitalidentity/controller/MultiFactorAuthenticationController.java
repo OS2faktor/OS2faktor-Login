@@ -226,6 +226,8 @@ public class MultiFactorAuthenticationController {
 
 			sessionHelper.setPasswordLevel(personLevel);
 			sessionHelper.setInPasswordlessMfaFlow(false, null);
+			
+			auditlogger.completedPasswordlessLogin(person);
 		}
 
 		sessionHelper.setMFALevel(selectedMFAClient.getNsisLevel());

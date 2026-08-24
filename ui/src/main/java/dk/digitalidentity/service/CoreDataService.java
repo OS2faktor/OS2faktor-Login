@@ -885,46 +885,51 @@ public class CoreDataService {
 		person.setRobot(coreDataEntry.isRobot());
 
 		if (configuration.getCoreData().isRoleApiEnabled()) {
-			if (coreDataEntry.getRoles() != null) {
-				for (String role : coreDataEntry.getRoles()) {
-					CoreDataApi.PersonRoles pRole = null;
-					
-					try {
-						pRole = CoreDataApi.PersonRoles.valueOf(role);
-					}
-					catch (Exception ex) {
-						throw new RuntimeException("Unknown role: " + role);
-					}
+			if (configuration.getCoreData().getRoleApiDomainIdFilter() == null ||
+				configuration.getCoreData().getRoleApiDomainIdFilter().isEmpty() ||
+				configuration.getCoreData().getRoleApiDomainIdFilter().contains(domain.getId())) {
 
-					switch (pRole) {
-						case ADMIN:
-							person.setAdmin(true);
-							break;
-						case KODEVISER_ADMIN:
-							person.setKodeviserAdmin(true);
-							break;
-						case REGISTRANT:
-							if (commonConfiguration.getCustomer().isEnableRegistrant()) {
-								person.setRegistrant(true);
-							}
-							break;
-						case SUPPORTER:
-							person.setSupporter(new Supporter());
-							person.getSupporter().setDomain(person.getDomain());
-							person.getSupporter().setPerson(person);
-							break;
-						case TU_ADMIN:
-							person.setServiceProviderAdmin(true);
-							break;
-						case USER_ADMIN:
-							person.setUserAdmin(true);
-							break;
-						case PASSWORD_RESET_ADMIN:
-							person.setPasswordResetAdmin(true);
-							break;
-						case STUDENT_PASSWORD_RESET_ADMIN:
-							person.setInstitutionStudentPasswordAdmin(true);
-							break;
+				if (coreDataEntry.getRoles() != null) {
+					for (String role : coreDataEntry.getRoles()) {
+						CoreDataApi.PersonRoles pRole = null;
+						
+						try {
+							pRole = CoreDataApi.PersonRoles.valueOf(role);
+						}
+						catch (Exception ex) {
+							throw new RuntimeException("Unknown role: " + role);
+						}
+	
+						switch (pRole) {
+							case ADMIN:
+								person.setAdmin(true);
+								break;
+							case KODEVISER_ADMIN:
+								person.setKodeviserAdmin(true);
+								break;
+							case REGISTRANT:
+								if (commonConfiguration.getCustomer().isEnableRegistrant()) {
+									person.setRegistrant(true);
+								}
+								break;
+							case SUPPORTER:
+								person.setSupporter(new Supporter());
+								person.getSupporter().setDomain(person.getDomain());
+								person.getSupporter().setPerson(person);
+								break;
+							case TU_ADMIN:
+								person.setServiceProviderAdmin(true);
+								break;
+							case USER_ADMIN:
+								person.setUserAdmin(true);
+								break;
+							case PASSWORD_RESET_ADMIN:
+								person.setPasswordResetAdmin(true);
+								break;
+							case STUDENT_PASSWORD_RESET_ADMIN:
+								person.setInstitutionStudentPasswordAdmin(true);
+								break;
+						}
 					}
 				}
 			}
@@ -1089,120 +1094,125 @@ public class CoreDataService {
 		}
 
 		if (configuration.getCoreData().isRoleApiEnabled()) {
-			Set<CoreDataApi.PersonRoles> pRoles = new HashSet<>();
+			if (configuration.getCoreData().getRoleApiDomainIdFilter() == null ||
+				configuration.getCoreData().getRoleApiDomainIdFilter().isEmpty() ||
+				configuration.getCoreData().getRoleApiDomainIdFilter().contains(domain.getId())) {
 
-			if (coreDataEntry.getRoles() != null) {
-				for (String role : coreDataEntry.getRoles()) {
-					CoreDataApi.PersonRoles pRole = null;
-					
-					try {
-						pRole = CoreDataApi.PersonRoles.valueOf(role);
-						pRoles.add(pRole);
-					}
-					catch (Exception ex) {
-						throw new RuntimeException("Unknown role: " + role);
+				Set<CoreDataApi.PersonRoles> pRoles = new HashSet<>();
+	
+				if (coreDataEntry.getRoles() != null) {
+					for (String role : coreDataEntry.getRoles()) {
+						CoreDataApi.PersonRoles pRole = null;
+						
+						try {
+							pRole = CoreDataApi.PersonRoles.valueOf(role);
+							pRoles.add(pRole);
+						}
+						catch (Exception ex) {
+							throw new RuntimeException("Unknown role: " + role);
+						}
 					}
 				}
-			}
-
-			// add roles
-			for (CoreDataApi.PersonRoles pRole : pRoles) {
-				switch (pRole) {
-					case ADMIN:
-						if (!person.isAdmin()) {
-							person.setAdmin(true);
-							modified = true;
-						}
-						break;
-					case KODEVISER_ADMIN:
-						if (!person.isKodeviserAdmin()) {
-							person.setKodeviserAdmin(true);
-							modified = true;
-						}
-						break;
-					case REGISTRANT:
-						if (commonConfiguration.getCustomer().isEnableRegistrant()) {
-							if (!person.isRegistrant()) {
-								person.setRegistrant(true);
+	
+				// add roles
+				for (CoreDataApi.PersonRoles pRole : pRoles) {
+					switch (pRole) {
+						case ADMIN:
+							if (!person.isAdmin()) {
+								person.setAdmin(true);
 								modified = true;
 							}
-						}
-						break;
-					case SUPPORTER:
-						if (!person.isSupporter()) {
-							person.setSupporter(new Supporter());
-							person.getSupporter().setDomain(person.getDomain());
-							person.getSupporter().setPerson(person);
-							modified = true;
-						}
-						break;
-					case TU_ADMIN:
-						if (!person.isServiceProviderAdmin()) {
-							person.setServiceProviderAdmin(true);
-							modified = true;
-						}
-						break;
-					case USER_ADMIN:
-						if (!person.isAdmin()) {
-							person.setUserAdmin(true);
-							modified = true;
-						}
-						break;
-					case PASSWORD_RESET_ADMIN:
-						if (!person.isPasswordResetAdmin()) {
-							person.setPasswordResetAdmin(true);
-							modified = true;
-						}
-						break;
-					case STUDENT_PASSWORD_RESET_ADMIN:
-						if (!person.isInstitutionStudentPasswordAdmin()) {
-							person.setInstitutionStudentPasswordAdmin(true);
-							modified = true;
-						}
-						break;
+							break;
+						case KODEVISER_ADMIN:
+							if (!person.isKodeviserAdmin()) {
+								person.setKodeviserAdmin(true);
+								modified = true;
+							}
+							break;
+						case REGISTRANT:
+							if (commonConfiguration.getCustomer().isEnableRegistrant()) {
+								if (!person.isRegistrant()) {
+									person.setRegistrant(true);
+									modified = true;
+								}
+							}
+							break;
+						case SUPPORTER:
+							if (!person.isSupporter()) {
+								person.setSupporter(new Supporter());
+								person.getSupporter().setDomain(person.getDomain());
+								person.getSupporter().setPerson(person);
+								modified = true;
+							}
+							break;
+						case TU_ADMIN:
+							if (!person.isServiceProviderAdmin()) {
+								person.setServiceProviderAdmin(true);
+								modified = true;
+							}
+							break;
+						case USER_ADMIN:
+							if (!person.isAdmin()) {
+								person.setUserAdmin(true);
+								modified = true;
+							}
+							break;
+						case PASSWORD_RESET_ADMIN:
+							if (!person.isPasswordResetAdmin()) {
+								person.setPasswordResetAdmin(true);
+								modified = true;
+							}
+							break;
+						case STUDENT_PASSWORD_RESET_ADMIN:
+							if (!person.isInstitutionStudentPasswordAdmin()) {
+								person.setInstitutionStudentPasswordAdmin(true);
+								modified = true;
+							}
+							break;
+					}
 				}
-			}
-			
-			// remove roles
-
-			if (person.isPasswordResetAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.PASSWORD_RESET_ADMIN)) {
-				person.setPasswordResetAdmin(false);
-				modified = true;
-			}
-
-			if (person.isInstitutionStudentPasswordAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.STUDENT_PASSWORD_RESET_ADMIN)) {
-				person.setInstitutionStudentPasswordAdmin(false);
-				modified = true;
-			}
-
-			if (person.isAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.ADMIN)) {
-				person.setAdmin(false);
-				modified = true;
-			}
-			
-			if (person.isKodeviserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.KODEVISER_ADMIN)) {
-				person.setKodeviserAdmin(false);
-				modified = true;
-			}
-			
-			if (person.isRegistrant() && !pRoles.contains(CoreDataApi.PersonRoles.REGISTRANT)) {
-				person.setRegistrant(false);
-				modified = true;
-			}
-			
-			if (person.isServiceProviderAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.TU_ADMIN)) {
-				person.setServiceProviderAdmin(false);
-				modified = true;
-			}
-			
-			if (person.isUserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.USER_ADMIN)) {
-				person.setUserAdmin(false);
-				modified = true;
-			}
-			
-			if (person.isSupporter() && !pRoles.contains(CoreDataApi.PersonRoles.SUPPORTER)) {
-				person.setSupporter(null);
-				modified = true;
+				
+				// remove roles
+	
+				if (person.isPasswordResetAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.PASSWORD_RESET_ADMIN)) {
+					person.setPasswordResetAdmin(false);
+					modified = true;
+				}
+	
+				if (person.isInstitutionStudentPasswordAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.STUDENT_PASSWORD_RESET_ADMIN)) {
+					person.setInstitutionStudentPasswordAdmin(false);
+					modified = true;
+				}
+	
+				if (person.isAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.ADMIN)) {
+					person.setAdmin(false);
+					modified = true;
+				}
+				
+				if (person.isKodeviserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.KODEVISER_ADMIN)) {
+					person.setKodeviserAdmin(false);
+					modified = true;
+				}
+				
+				if (person.isRegistrant() && !pRoles.contains(CoreDataApi.PersonRoles.REGISTRANT)) {
+					person.setRegistrant(false);
+					modified = true;
+				}
+				
+				if (person.isServiceProviderAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.TU_ADMIN)) {
+					person.setServiceProviderAdmin(false);
+					modified = true;
+				}
+				
+				if (person.isUserAdmin() && !pRoles.contains(CoreDataApi.PersonRoles.USER_ADMIN)) {
+					person.setUserAdmin(false);
+					modified = true;
+				}
+				
+				if (person.isSupporter() && !pRoles.contains(CoreDataApi.PersonRoles.SUPPORTER)) {
+					person.setSupporter(null);
+					modified = true;
+				}
 			}
 		}
 
@@ -1838,6 +1848,7 @@ public class CoreDataService {
 		lookup.setOs2faktorActiveCorporateId(person.hasActivatedNSISUser());
 		lookup.setOs2faktorBadPassword(person.isBadPassword());
 		lookup.setOs2faktorLocked(person.isLocked());
+		lookup.setOs2faktorPasswordAdOutOfSync(person.isPasswordValidatedAgainstAd());
 		
 		if (StringUtils.hasText(person.getNemloginUserUuid())) {
 			boolean mitIdDown = false;

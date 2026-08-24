@@ -82,10 +82,9 @@ public class PasswordService {
         try {
 
             // Before we can even try the login we need to be able to find the username of the person we are trying to verify.
-        	String userPrincipalName = passwordRequest.getUserName();
-        	if (!userPrincipalName.contains("@")) {
-        		userPrincipalName = passwordRequest.getUserName() + adConfig.getUpn();
-        	}
+        	String userPrincipalName = passwordRequest.getUserName().split("@")[0] + adConfig.getUpn();
+        	
+        	log.info("Validering password for: " + userPrincipalName);
 
             // Use acquired userPrincipalName to validate password
             String url = adConfig.getLoginBaseUrl() + adConfig.getTenantID() + "/oauth2/v2.0/token";
@@ -125,7 +124,7 @@ public class PasswordService {
                 		log.error("Password validation failed: " + errorMessage);
                 	}
                 	else if (errorMessage.contains("invalid_grant")) {
-                		log.debug("Failure reason: " + errorMessage);
+                		log.info("Failure reason: " + errorMessage);
 
                     	adPasswordResponse.setStatus(PasswordStatus.FAILURE);
                     }

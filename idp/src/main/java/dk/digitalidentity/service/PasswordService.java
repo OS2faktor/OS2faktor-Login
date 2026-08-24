@@ -321,7 +321,7 @@ public class PasswordService {
 						person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordComplexityConformityGracePeriod()));
 						personService.save(person);
 						
-						auditLogger.badPasswordMustChange(person, changePasswordResult);
+						auditLogger.badPasswordMustChange(person, changePasswordResult, null);
 					}
 					
 					// if we have passed the grace period, we will block usage - password needs to be changed using MitID

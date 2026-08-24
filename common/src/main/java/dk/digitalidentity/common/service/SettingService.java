@@ -22,6 +22,10 @@ public class SettingService {
 	
 	@Cacheable("booleanSetting")
 	public boolean getBoolean(SettingKey key) {
+		return getBooleanNoCache(key);
+	}
+
+	public boolean getBooleanNoCache(SettingKey key) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -33,9 +37,13 @@ public class SettingService {
 
 		return Boolean.parseBoolean(setting.getValue());
 	}
-	
+
 	@Cacheable("stringSetting")
 	public String getString(SettingKey key) {
+		return getStringNoCache(key);
+	}
+
+	public String getStringNoCache(SettingKey key) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -64,6 +72,10 @@ public class SettingService {
 
 	@Cacheable("longSetting")
 	public Long getLong(SettingKey key) {
+		return getLongNoCache(key);
+	}
+
+	public Long getLongNoCache(SettingKey key) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {
 			setting = new Setting();
@@ -75,7 +87,7 @@ public class SettingService {
 
 		return setting.getValue() == null || setting.getValue().isEmpty() ? null : Long.parseLong(setting.getValue());
 	}
-	
+
 	public void setLocalDateTimeSetting(SettingKey key, LocalDateTime tts) {
 		Setting setting = settingDao.getByKey(key);
 		if (setting == null) {

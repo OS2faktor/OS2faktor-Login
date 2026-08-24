@@ -19,4 +19,21 @@ public class OS2faktorAzureADSyncConfiguration {
     private Scheduled scheduled = new Scheduled();
     private boolean devmode = false;
     private String apiKey;
+    
+    /* this is used if we get data like this
+     * 
+    "customSecurityAttributes": {
+        "AlleAnsatteCPR": {
+            "@odata.type": "#microsoft.graph.customSecurityAttributeValue",
+            "CPR@odata.type": "#Collection(String)",
+            "CPR": [
+                "0000000000"
+            ]
+        }
+    }
+     *
+     */
+    private boolean extractCustomCpr = false;
+    private String customCprCollectionName;
+    private String customCprFieldName;
 }

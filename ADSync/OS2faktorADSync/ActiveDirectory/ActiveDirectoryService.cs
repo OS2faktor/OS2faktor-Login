@@ -913,6 +913,9 @@ namespace OS2faktorADSync
             // Disabled logic
             var accountControlValue = properties.GetValue<int>(propertyResolver.UserAccountControlProperty, 0);
 
+            string pwdChangeDate = null;
+            properties.GetValue<string>(propertyResolver.EmailProperty, null);
+
             // AccountExpireProperty
             string accountExpireDate = null;
             try
@@ -962,7 +965,7 @@ namespace OS2faktorADSync
                 Disabled = ((accountControlValue & AccountDisable) == AccountDisable),
                 NSISAllowed = false,
                 ExpireTimestamp = accountExpireDate,
-                NextPasswordChange = GetNextPasswordChangeDate(properties, accountControlValue, maxPasswordAge),
+                PasswordADTimestamp = GetPasswordLastSet(properties),
                 TransferToNemlogin = false
             };
 
@@ -1169,35 +1172,28 @@ namespace OS2faktorADSync
             }
         }
 
-        const int DontExpirePasssword = 65536;
-
-        private string GetNextPasswordChangeDate(IDictionary properties, int accountControlValue, long maxPasswordAge)
+        private string GetPasswordLastSet(IDictionary properties)
         {
             try
             {
-                if (maxPasswordAge > 0 && ((accountControlValue & DontExpirePasssword) != DontExpirePasssword))
+                long lastChanged = -2;
+                if (properties is ResultPropertyCollection)
                 {
-                    long lastChanged = -2;
-                    if (properties is ResultPropertyCollection)
-                    {
-                        ResultPropertyCollection rpc = (ResultPropertyCollection)properties;
+                    ResultPropertyCollection rpc = (ResultPropertyCollection)properties;
 
-                        lastChanged = (long)rpc[propertyResolver.PwdLastSetProperty][0];
-                    }
-                    else if (properties is PropertyCollection)
-                    {
-                        PropertyCollection pc = (PropertyCollection)properties;
+                    lastChanged = (long)rpc[propertyResolver.PwdLastSetProperty][0];
+                }
+                else if (properties is PropertyCollection)
+                {
+                    PropertyCollection pc = (PropertyCollection)properties;
 
-                        var largeInt = (IAdsLargeInteger)pc[propertyResolver.PwdLastSetProperty].Value;
-                        lastChanged = (largeInt.HighPart << 32) + largeInt.LowPart;
-                    }
+                    var largeInt = (IAdsLargeInteger)pc[propertyResolver.PwdLastSetProperty].Value;
+                    lastChanged = (largeInt.HighPart << 32) + largeInt.LowPart;
+                }
 
-                    if (lastChanged != -1)
-                    {
-                        long daysLeft = maxPasswordAge - DateTime.Today.Subtract(DateTime.FromFileTime(lastChanged)).Days;
-
-                        return DateTime.Today.AddDays(daysLeft).ToString("yyyy-MM-dd");
-                    }
+                if (lastChanged != -1)
+                {
+                    return DateTime.FromFileTime(lastChanged).ToString("yyyy-MM-dd");
                 }
             }
             catch (Exception ex)

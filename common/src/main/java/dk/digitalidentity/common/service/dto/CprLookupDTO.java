@@ -23,4 +23,5 @@ public class CprLookupDTO {
 	private boolean disenfranchised;
 	private boolean doesNotExist;
 	private List<ChildDTO> children;
+	private List<RelationDTO> relations;
 }

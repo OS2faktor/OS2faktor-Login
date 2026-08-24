@@ -8,12 +8,12 @@
                 <div class="ibox-title">
                     <h1 class="wcag-h1-as-h5"><em class="fa fa-user"></em> &nbsp; Login</h1>
                     <div class="ibox-tools">
-						<a role="dialog" aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.mfa.help')}" style="color: #676a6c !important;"></a>
+						<a role="dialog" aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${#cms.text('cms.login.mfa.help')}" style="color: #676a6c !important;"></a>
 					</div>
                 </div>
 
                 <div class="ibox-content">
-                	<p class="mb-5" th:utext="${@cmsMessageBundle.getText('cms.login.mfa.content')}"></p>
+                	<p class="mb-5" th:utext="${#cms.text('cms.login.mfa.content')}"></p>
 
 					<ul class="mb-5" style="list-style-type: none; font-size: x-large;">
 

@@ -33,7 +33,7 @@
 								</th:block>
 
 								<ul style="margin-bottom: 40px; margin-left: 30px;">
-									<li style="text-align: left;"><a th:href="${@commonConfiguration.selfService.baseUrl}">Selvbetjening</a></li>
+									<li style="text-align: left;"><a th:href="${#commonConfiguration.get().selfService.baseUrl}">Selvbetjening</a></li>
 									<li style="text-align: left;"><a th:href="@{/sso/saml/changepassword}">Skift kodeord</a></li>
 								</ul>
 

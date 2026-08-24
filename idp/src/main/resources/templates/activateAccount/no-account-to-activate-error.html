@@ -14,10 +14,10 @@
 						</div>
 			
 						<div class="ibox-content">
-							<p th:utext="${@cmsMessageBundle.getText('cms.account.no-account-to-activate')}"></p>
+							<p th:utext="${#cms.text('cms.account.no-account-to-activate')}"></p>
 							
 							<p>
-								<a type="button" th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>
+								<a type="button" th:href="${#commonConfiguration.get().selfService.baseUrl}" class="btn btn-primary block full-width m-b mt-lg">Gå til selvbetjeningen</a>
 							</p>
 						</div>
 					</div>

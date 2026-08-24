@@ -15,7 +15,7 @@
                 	<a class="sr-only sr-only-focusable" href="#wcag-challenge">Gå til kode</a>
                     <form id="loginForm" method="get" th:action="@{/sso/saml/mfa/} + ${deviceId} + '/completed'">
                         <div>
-                            <p th:utext="${@cmsMessageBundle.getText('cms.login.mfaChallenge.content.top')}"></p>
+                            <p th:utext="${#cms.text('cms.login.mfaChallenge.content.top')}"></p>
                         </div>
 
                         <div th:if="${challenge} != null">

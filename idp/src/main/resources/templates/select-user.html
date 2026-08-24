@@ -9,13 +9,13 @@
                 <div class="ibox-title">
                     <h5><em class="fa fa-users"></em> &nbsp; Vælg bruger</h5>
                     <div class="ibox-tools">
-						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.selectUser.help')}"></em>
+						<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="top" data-html="true" th:attr="data-content=${#cms.text('cms.login.selectUser.help')}"></em>
 					</div>
                 </div>
 
                 <div class="ibox-content">
-                	<div th:if="${@cmsMessageBundle.getText('cms.login.selectUser.content')} != ''">
-	               		<div th:utext="${@cmsMessageBundle.getText('cms.login.selectUser.content')}"></div>
+                	<div th:if="${#cms.text('cms.login.selectUser.content')} != ''">
+	               		<div th:utext="${#cms.text('cms.login.selectUser.content')}"></div>
 	               		<br/>
 	               	</div>
                     <div style="display:none;">

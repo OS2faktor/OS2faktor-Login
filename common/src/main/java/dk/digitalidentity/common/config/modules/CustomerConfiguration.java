@@ -1,5 +1,7 @@
 package dk.digitalidentity.common.config.modules;
 
+import java.util.List;
+
 import org.springframework.stereotype.Component;
 
 import dk.digitalidentity.common.config.FeatureDocumentation;
@@ -28,11 +30,12 @@ public class CustomerConfiguration {
 	@FeatureDocumentation(name = "MFA challenge-flow", description = "Foretræk altid challenge-flow for MFA login hvor muligt")
 	private boolean enableMfaChallengeFlow = false;
 	
-	// these two configurations should match the IdP configuration (ClaimsProviderConfiguration class)
+	// these three configurations should match the IdP configuration (ClaimsProviderConfiguration class)
 	// bad design to begin with, as those configurations where never intended to be shown in UI, but now
 	// they are, and they are in the wrong project :( These two settings ONLY affect the UI, and has no
 	// functional effect
 	private boolean externalLoginMethodEnabled = false;
+	private List<String> externalLoginMethods;
 	private boolean stilLoginMethodEnabled = false;
 	
 	private String contactLocationForMails = "";

@@ -33,7 +33,7 @@ import dk.digitalidentity.common.service.AdvancedRuleService;
 import dk.digitalidentity.common.service.KombitSubSystemService;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
-import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
+import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.Constants;
@@ -45,7 +45,7 @@ import net.shibboleth.utilities.java.support.resolver.ResolverException;
 
 @Slf4j
 @Component
-public class KombitServiceProviderV2 extends ServiceProvider {
+public class KombitServiceProvider extends ServiceProvider {
 	private HTTPMetadataResolver resolver;
 
 	@Autowired
@@ -55,7 +55,7 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	private CommonConfiguration commonConfig;
 
 	@Autowired
-	private KombitServiceProviderConfigV2 kombitConfig;
+	private KombitServiceProviderConfig kombitConfig;
 	
 	@Autowired
 	private KombitSubSystemService subsystemService;
@@ -182,6 +182,41 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 
 		return map;
 	}
+	
+	@Override
+	public boolean isAutoNonNsisIdPLogin(LoginRequest loginRequest) {
+		if (loginRequest != null) {
+			String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
+			if (entityId != null) {
+				KombitSubsystem subSystem = getSubsystem(entityId);
+	
+				if (subSystem != null) {
+					return StringUtils.hasText(subSystem.getExternalIdpOption());
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	@Override
+	public List<String> getNsisIdPLoginFilter(LoginRequest loginRequest) {
+		if (loginRequest != null) {
+			String entityId = getEntityIdFromAuthnRequest(loginRequest.getAuthnRequest());
+			if (entityId != null) {
+				KombitSubsystem subSystem = getSubsystem(entityId);
+	
+				if (subSystem != null) {
+					if (StringUtils.hasText(subSystem.getExternalIdpOption())) {
+						return Collections.singletonList(subSystem.getExternalIdpOption());
+					}
+				}
+			}
+		}
+		
+		return null;
+	}
+
 
 	@Override
 	public boolean mfaRequired(LoginRequest loginRequest, Domain domain, boolean trustedIP) {
@@ -460,10 +495,5 @@ public class KombitServiceProviderV2 extends ServiceProvider {
 	@Override
 	public boolean onlyAllowLoginFromKnownNetworks() {
 		return kombitConfig.isOnlyAllowLoginFromKnownNetworks();
-	}
-
-	@Override
-	public boolean isAutoNonNsisIdPLogin() {
-		return kombitConfig.isAutoNonNsisIdPLogin();
 	}
 }

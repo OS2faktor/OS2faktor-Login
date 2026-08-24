@@ -17,4 +17,5 @@ public class CoreDataExtendedLookup {
 	private boolean os2faktorLocked;
 	private boolean os2faktorActiveCorporateId;
 	private boolean os2faktorBadPassword;
+	private boolean os2faktorPasswordAdOutOfSync;
 }

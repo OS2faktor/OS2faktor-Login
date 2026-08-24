@@ -5,6 +5,7 @@ import java.lang.annotation.RetentionPolicy;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 
+@RequireRoleAnnotation
 @Retention(RetentionPolicy.RUNTIME)
 @PreAuthorize("hasRole('ROLE_EMPLOYEE')")
 public @interface RequireEmployee {

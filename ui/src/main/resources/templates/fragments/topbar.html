@@ -4,8 +4,8 @@
 	<div th:fragment="topbar" class="row border-bottom white-bg">
 		<nav class="navbar navbar-expand-lg navbar-static-top" role="navigation">
 			<a th:href="@{/}" class="navbar-brand" style="background: white; padding: 10px 25px !important;">
-				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
-				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:if="${#cms.text('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:unless="${#cms.text('cms.logo') == ''}" class="img-fluid" alt="OS2faktor logo" th:src="${#cms.text('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
 			</a>
 
 			<button class="navbar-toggler" type="button" data-toggle="collapse"

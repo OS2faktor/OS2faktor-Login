@@ -132,3 +132,14 @@
 
 ## v3.3.4
 - Fixed minor bugs in the Reset password dialog
+
+## v3.4.0
+- Added network check prior to running browser session establishing
+
+## v3.4.2
+- Added more logging for ChangePassword and CreateSession
+
+## v3.4.3
+- Added diagnostic logging for ChangePassword and CreateSession
+- Network check no longer blocks login if connectivity check fails
+- Increased session token retrieval timeout from 5 to 10 seconds

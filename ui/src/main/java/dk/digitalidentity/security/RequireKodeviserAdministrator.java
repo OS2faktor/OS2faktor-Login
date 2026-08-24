@@ -5,6 +5,7 @@ import java.lang.annotation.RetentionPolicy;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 
+@RequireRoleAnnotation
 @Retention(RetentionPolicy.RUNTIME)
 @PreAuthorize("hasRole('ROLE_ADMINISTRATOR') or hasRole('ROLE_KODEVISER_ADMIN')")
 public @interface RequireKodeviserAdministrator {

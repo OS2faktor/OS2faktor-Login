@@ -674,11 +674,6 @@ public class AdminRestController {
 	@PostMapping("/rest/admin/toggleAdmin/{id}")
 	@ResponseBody
 	public ResponseEntity<?> adminToggle(@PathVariable("id") long id, @RequestBody ToggleAdminDTO body) {
-		if (os2faktorConfiguration.getCoreData().isRoleApiEnabled()) {
-			log.warn("role api is enabled - rejecting access to role management");
-			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);			
-		}
-
 		Person admin = personService.getById(securityUtil.getPersonId());
 		if (admin == null) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -688,7 +683,17 @@ public class AdminRestController {
 		if (person == null) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
-		
+
+		if (os2faktorConfiguration.getCoreData().isRoleApiEnabled()) {
+			if (os2faktorConfiguration.getCoreData().getRoleApiDomainIdFilter() == null ||
+				os2faktorConfiguration.getCoreData().getRoleApiDomainIdFilter().isEmpty() ||
+				os2faktorConfiguration.getCoreData().getRoleApiDomainIdFilter().contains(person.getDomain().getId())) {
+			
+				log.warn("role api is enabled - rejecting access to role management");
+				return new ResponseEntity<>("Brugere fra dette domæne kan kun tildeles administratorroller via API indlæsning", HttpStatus.BAD_REQUEST);
+			}
+		}
+
 		if (securityUtil.getPersonId() == person.getId()) {
 			return new ResponseEntity<>("Man kan ikke tildele roller til sig selv", HttpStatus.BAD_REQUEST);
 		}
@@ -1086,9 +1091,36 @@ public class AdminRestController {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 		}
 
+		return new ResponseEntity<>(HttpStatus.OK);
+	}
+	
+	public record IdPChoice(String idp) { }
+	
+	@RequireServiceProviderAdmin
+	@PostMapping("/admin/konfiguration/tjenesteudbydere/kombit/subsystem/{id}/idpForward")
+	@ResponseBody
+	public ResponseEntity<?> editKombitSubSystemIdPForward(@PathVariable("id") long id, @RequestBody IdPChoice idPChoice) {
+		KombitSubsystem subsystem = kombitSubsystemService.findById(id);
+		if (subsystem == null) {
+			log.warn("No subsystem with id " + id);
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
+
+		try {
+			String choice = StringUtils.hasText(idPChoice.idp()) ? idPChoice.idp() : null;
+
+			if (!Objects.equals(choice, subsystem.getExternalIdpOption())) {
+				subsystem.setExternalIdpOption(choice);
+				kombitSubsystemService.save(subsystem);
+			}
+		}
+		catch (IllegalArgumentException e) {
+			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+		}
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
+
 
 	@RequireServiceProviderAdmin
 	@PostMapping("/admin/konfiguration/tjenesteudbydere/kombit/subsystem/{id}/delayedMobileLogin/{delayedMobileLogin}")

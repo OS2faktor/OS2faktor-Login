@@ -1,0 +1,11 @@
+ignore:
+  # Ignore all vulnerabilities for a specific package
+  - package:
+      name: velocity
+      version: "1.7"
+
+  # Or be more specific — ignore only a particular CVE for that package
+  - vulnerability: CVE-2020-13936
+    package:
+      name: velocity
+      version: "1.7"

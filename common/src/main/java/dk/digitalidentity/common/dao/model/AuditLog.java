@@ -57,7 +57,18 @@ public class AuditLog {
 	@JsonIgnore
 	@NotFound(action = NotFoundAction.IGNORE)
 	private Person person;
-	
+
+	// TODO: this was added in 2026r2 (juli 2026) - after 13 months, so roughly august 2027, we should
+	//       expect most logs to be updated to contain personUserId, so what we CAN do, is remove the
+	//       person-reference in the code, and just keep the person_id field, which we will set manually,
+	//       and then update all the code to use getPersonUserId() where it would normally reference this
+	//       from the getPerson() entity - this reduces SQL overhead, and will resolve the issue where
+	//       a person is NULL'ed (allowing us to keep the userId in the table)
+	//
+	//       after updating, we need to also resolve the VIEW/Datatable stuff that shows this information in the UI
+	@Column(updatable = false)
+	private String personUserId;
+
 	@Column(updatable = false)
 	private String personName;
 

@@ -280,8 +280,13 @@ public abstract class ServiceProvider {
 		return "";
 	}
 	
-	public boolean isAutoNonNsisIdPLogin() {
+	public boolean isAutoNonNsisIdPLogin(LoginRequest loginRequest) {
 		return false;
+	}
+	
+	// list of IdP names (matching IdentityProviderWithName.getName())
+	public List<String> getNsisIdPLoginFilter(LoginRequest loginRequest) {
+		return null;
 	}
 
 	// END-SECTION

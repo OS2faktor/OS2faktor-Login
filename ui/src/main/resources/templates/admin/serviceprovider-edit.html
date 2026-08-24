@@ -336,6 +336,7 @@
 												<input th:field="${serviceprovider.additionalEntityIds}" type="text" class="form-control">
 											</label>
 										</div>
+
 										<div class="from-group row" th:if="${externalIdPEnabled}">
 											<label class="col-sm-3 col-form-label">
 												Foretag automatisk viderestilling til ekstern IdP
@@ -345,6 +346,36 @@
 												<input th:field="${serviceprovider.autoNonNsisIdPLogin}" type="checkbox" class="i-checks">
 											</label>
 										</div>
+
+										<div class="form-group row" th:if="${externalIdPEnabled && externalIdPOptions != null}">
+											<label class="col-sm-3 col-form-label">
+												Begræns eksterne IdP'er
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis man kun må anvende udvalgte af de opsatte eksterne IdP'er, så kan man angive hvilke her. Hvis man ikke sætter kryds i nogle af dem, så svarer det til at der er kryds i alle."></em>
+											</label>
+
+											<label class="col-sm-9">
+												<table id="loginMethodsTable" class="table table-striped table-bordered table-hover" >
+													<thead>
+														<tr>
+															<th style="width: 60px;">Valgt</th>
+															<th>Navn</th>
+														</tr>
+													</thead>
+													
+													<tbody style="display: table-row-group">
+														<tr th:each="choice : ${externalIdPOptions}">
+															<td style="text-align: center;">
+																<label>
+																	<input th:attr="data-name=${choice}" type="checkbox" class="i-checks externalIdPCheckbox">
+																</label>
+															</td>
+															<td th:text="${choice}"></td>
+														</tr>
+													</tbody>
+												</table>
+											</label>
+										</div>
+										
 									</div>
 
 									<div class="form-group row">
@@ -947,6 +978,7 @@
 		var existingSecret = [[${serviceprovider.existingSecret}]];
 		
 		var exemptedMfaDomains = [[${serviceprovider.exemptedDomains}]];
+		var nsisIdPLoginFilter = [[${serviceprovider.nsisIdPLoginFilter}]];
 		
 		var externalIdPEnabled = [[${externalIdPEnabled}]];
 		+]*/
@@ -967,6 +999,7 @@
 		var protocolService;
 		var oidcService;
 		var mfaExemptionService;
+		var loginMethodsService;
 		var certificateWarnShown = false;
 
 		$(document).ready(function() {
@@ -990,6 +1023,9 @@
 			
 			mfaExemptionService = new MfaExemptionService();
 			mfaExemptionService.init();
+			
+			loginMethodsService = new LoginMethodsService();
+			loginMethodsService.init();
 			
 			window.addEventListener('beforeunload',function(e){
 				if (isDirty) {
@@ -1129,6 +1165,20 @@
 			});
 		});
 
+		function LoginMethodsService() {
+			this.init = function() {
+				this.initTables();
+			}
+			
+			this.initTables = function() {
+				nsisIdPLoginFilter.forEach(element => {
+					$('.externalIdPCheckbox[data-name="'+ element +'"]').iCheck('check');
+				});
+
+				$('#loginMethodsTable').iCheck('update');
+			}
+		}
+		
 		function MfaExemptionService() {
 			this.init = function() {
 				this.initTables();
@@ -1467,6 +1517,16 @@
 							})
 							
 							data.exemptedDomains = mfaExemptionDomains;
+
+							// Handle external login methods
+							var chosenNsisIdPLoginFilter = [];
+							$('.externalIdPCheckbox').each(function(index, element) {
+								if ($(element).prop("checked")) {	
+									chosenNsisIdPLoginFilter.push($(element).data("name"));
+								}
+							})
+
+							data.nsisIdPLoginFilter = chosenNsisIdPLoginFilter;
 
 							// Handle conditions
 							var conditionsDomains = [];

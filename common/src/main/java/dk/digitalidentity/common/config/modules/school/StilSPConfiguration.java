@@ -20,7 +20,7 @@ public class StilSPConfiguration {
 	private boolean enabled = false;
 	
 	private String entityId = "https://broker.unilogin.dk/auth/realms/broker";
-	private String metadataBaseUrl = "https://stil-metadata.digital-identity.dk/metadata/";
+	private String metadataBaseUrl = "https://broker.unilogin.dk/auth/realms/broker/broker/XXXX/endpoint/descriptor";
 	private String municipalityId = "TODO";
 	private String uniloginAttribute = "cpr";
 
@@ -32,7 +32,7 @@ public class StilSPConfiguration {
 			return null;
 		}
 		
-		return metadataBaseUrl + municipalityId.trim();
+		return metadataBaseUrl.replace("XXXX", municipalityId.trim());
 	}
 
     private boolean onlyAllowLoginFromKnownNetworks;

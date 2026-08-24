@@ -46,7 +46,7 @@ public class SchoolClassService {
 	}
 	
 	public void deleteAll(List<SchoolClass> toDelete) {
-		schoolClassDao.deleteAll(toDelete);
+	    schoolClassDao.deleteAll(toDelete);
 	}
 	
 	public SchoolClass getById(long id) {

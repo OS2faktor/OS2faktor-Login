@@ -22,13 +22,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
+import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.service.PrivacyPolicyService;
 import dk.digitalidentity.common.service.TUTermsAndConditionsService;
 import dk.digitalidentity.common.service.TermsAndConditionsService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.security.RequireNoRole;
 import dk.digitalidentity.security.SecurityUtil;
 import jakarta.servlet.http.HttpServletRequest;
 
+@RequireNoRole
 @Controller
 @PropertySource("classpath:git.properties")
 public class DefaultController implements ErrorController {
@@ -48,6 +51,9 @@ public class DefaultController implements ErrorController {
 	
 	@Autowired
 	private OS2faktorConfiguration config;
+	
+	@Autowired
+	private CommonConfiguration commonConfig;
 	
 	@Value(value = "${git.commit.id.abbrev:}")
 	private String gitCommitId;
@@ -71,6 +77,8 @@ public class DefaultController implements ErrorController {
 		}
 
 		model.addAttribute("httpServletRequestRequestUrl", request.getRequestURL().toString());
+		model.addAttribute("idpBaseUrl", config.getIdp().getBaseUrl());
+		model.addAttribute("studentLink", (commonConfig.getStilStudent().isEnabled() && commonConfig.getStilStudent().isFrontPageLinkEnabled()));
 
 		return "index";
 	}

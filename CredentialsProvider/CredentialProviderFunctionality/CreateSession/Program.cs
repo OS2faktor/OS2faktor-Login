@@ -39,7 +39,7 @@ namespace CreateSession
                         {
                             baseUrl = (string)settingsKey.GetValue("os2faktorBaseUrl");
                             clientApiKey = (string)settingsKey.GetValue("clientApiKey");
-                            version = (string)settingsKey.GetValue("version"); 
+                            version = (string)settingsKey.GetValue("version");
 
                             object logPathObj = settingsKey.GetValue("CreateSessionLogPath");
                             if (logPathObj != null)
@@ -96,6 +96,11 @@ namespace CreateSession
                         string bodyString = JsonSerializer.Serialize(body);
                         HttpContent content = new StringContent(bodyString, System.Text.Encoding.UTF8, "application/json");
 
+                        string usernameDomain = body.username.Contains("@") ? body.username.Split('@')[1] : "[NONE]";
+                        Log.Information("API request: username={Username}, domain={Domain}, version={Version}, base64={Base64}, password={PasswordStatus}",
+                            body.username, usernameDomain, body.version, body.base64,
+                            string.IsNullOrWhiteSpace(body.password) ? "[EMPTY]" : "[SET]");
+
                         // Call the service and wait for the response
                         try
                         {
@@ -106,14 +111,18 @@ namespace CreateSession
 
                             HttpResponseMessage response = await client.PostAsync(url, content);
 
-                            Log.Verbose("Response received");
+                            Log.Information("API response: StatusCode={StatusCode}, ReasonPhrase={ReasonPhrase}",
+                                response.StatusCode, response.ReasonPhrase);
 
                             if (response.IsSuccessStatusCode)
                             {
                                 Log.Verbose("Response was positive, extablishing session");
 
                                 string establishSessionUrl = await response.Content.ReadAsStringAsync();
-                                Log.Verbose("Token read");
+                                Log.Information("Session URL received: {HasSessionKey}, {HasVersion}, {HasAutoClose}",
+                                    establishSessionUrl.Contains("sessionKey="),
+                                    establishSessionUrl.Contains("version="),
+                                    establishSessionUrl.Contains("os2faktorAutoClose="));
 
                                 Log.Verbose("Sending establishSessionUrl to CredentialManager");
                                 Console.Out.Write(establishSessionUrl);
@@ -121,8 +130,10 @@ namespace CreateSession
                             else
                             {
                                 var responseBody = await response.Content.ReadAsStringAsync();
-                                Log.Error("Could not fetch temporary session key from os2faktor. Error: {0} '{1}'", response.StatusCode, responseBody);
-                                Log.Information($"User: {args[0]}, Password non-zero length: {getPassword(args[1]).Length > 0}");
+                                Log.Error("API call failed: StatusCode={StatusCode}, ResponseBody={ResponseBody}",
+                                    response.StatusCode, responseBody);
+                                Log.Information("Request context: username={Username}, version={Version}",
+                                    args[0], versionStr);
                                 return;
                             }
                         }

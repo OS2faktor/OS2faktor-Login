@@ -52,4 +52,7 @@ public class KombitSubsystem {
 
 	@Column
 	private boolean delayedMobileLogin;
+	
+	@Column
+	private String externalIdpOption;
 }

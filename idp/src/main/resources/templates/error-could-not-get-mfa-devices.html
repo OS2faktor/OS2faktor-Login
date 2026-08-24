@@ -11,7 +11,7 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p th:utext="${@cmsMessageBundle.getText('cms.myidentity.mfaclients.error')}"></p>
+                    <p th:utext="${#cms.text('cms.myidentity.mfaclients.error')}"></p>
                     <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b">Afbryd login</a>
                 </div>
             </div>

@@ -6,8 +6,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -33,6 +35,7 @@ import dk.digitalidentity.common.dao.model.enums.NemloginAction;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.ChildDTO;
 import dk.digitalidentity.common.service.dto.CprLookupDTO;
+import dk.digitalidentity.common.service.dto.RelationDTO;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -192,6 +195,25 @@ public class CprService {
 						continue;
 					}
 					
+					if (configuration.getCpr().isUseDatafordeler()) {
+						boolean custody = false;
+
+						Set<String> parentCprs = lookupParents(person.getCpr());
+						if (parentCprs == null) {
+							continue;
+						}
+
+						for (String parentCpr : parentCprs) {
+							if (Objects.equals(parentCpr, cpr)) {
+								custody = true;
+							}
+						}
+
+						if (!custody) {
+							continue;
+						}
+					}
+
 					// preload data, as we cache here
 					person.getSchoolRoles().forEach(sr -> sr.getSchoolClasses().forEach(sc -> sc.getSchoolClass().getName()));
 					
@@ -201,6 +223,31 @@ public class CprService {
 		}
 
 		return result;
+	}
+	
+	private Set<String> lookupParents(String cpr) {
+		Future<CprLookupDTO> cprFuture = getByCpr(cpr);
+		CprLookupDTO personLookup = null;
+
+		try {
+			personLookup = (cprFuture != null) ? cprFuture.get(5, TimeUnit.SECONDS) : null;
+
+			Set<String> result = new HashSet<>();
+			if (personLookup != null && personLookup.getRelations() != null) {
+				for (RelationDTO relation : personLookup.getRelations()) {
+					if (Objects.equals("Custody", relation.getRelationType())) {
+						result.add(relation.getCpr());
+					}
+				}
+			}
+			
+			return result;
+		}
+		catch (InterruptedException | ExecutionException | TimeoutException ex) {
+			log.warn("Got a timeout on lookup of parent information on child", ex);
+		}
+		
+		return null;
 	}
 
 	private boolean isAdult(LocalDate birthday) {

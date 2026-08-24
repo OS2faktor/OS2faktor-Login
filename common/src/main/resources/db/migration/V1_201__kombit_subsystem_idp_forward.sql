@@ -1,0 +1,1 @@
+ALTER TABLE kombit_subsystems ADD COLUMN external_idp_option VARCHAR(64) NULL;

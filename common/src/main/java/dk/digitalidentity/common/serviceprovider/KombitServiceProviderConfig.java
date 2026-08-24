@@ -8,14 +8,14 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 
 @Component
-public class KombitServiceProviderConfigV2 implements ServiceProviderConfig {
+public class KombitServiceProviderConfig implements ServiceProviderConfig {
 
 	@Autowired
 	private CommonConfiguration config;
 
     @Override
     public String getName() {
-        return "KOMBIT Context Handler 2";
+        return "KOMBIT Context Handler";
     }
 
     @Override
@@ -80,10 +80,5 @@ public class KombitServiceProviderConfigV2 implements ServiceProviderConfig {
 	@Override
 	public boolean isOnlyAllowLoginFromKnownNetworks() {
 		return config.getKombit().isOnlyAllowLoginFromKnownNetworks();
-	}
-	
-	@Override
-	public boolean isAutoNonNsisIdPLogin() {
-		return config.getKombit().isAutoNonNsisIdPLogin();
 	}
 }

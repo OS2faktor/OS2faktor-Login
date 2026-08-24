@@ -381,6 +381,7 @@ public class FlowService {
         model.addAttribute("showNemLogIn", showNemLogIn());
 
         boolean isSelfService = false;
+        boolean requireNsis = false;
         try {
 	        LoginRequest loginRequest = sessionHelper.getLoginRequest();
 	        if (loginRequest != null) {
@@ -388,13 +389,17 @@ public class FlowService {
 	        	if (serviceProvider instanceof SelfServiceServiceProvider) {
 	        		isSelfService = true;
 	        	}
+	        	
+	        	if (serviceProvider.nsisLevelRequired(loginRequest).isGreater(NSISLevel.NONE)) {
+	        		requireNsis = true;
+	        	}
 	        }
         }
         catch (Exception _) {
         	;
         }
 
-        model.addAttribute("showNonNsisIdP", showNonNsisIdP(isMobile, isSelfService, request));
+        model.addAttribute("showNonNsisIdP", showNonNsisIdP(isMobile, isSelfService, requireNsis, request));
 
     	model.addAttribute("passwordless", commonConfiguration.getCustomer().isEnablePasswordlessMfa() && (commonConfiguration.getCustomer().isEnablePasswordlessMfaMobileOnly() == false || isMobile));
     	model.addAttribute("forceShowPasswordDialogue", forceShowPasswordDialogue);
@@ -533,6 +538,22 @@ public class FlowService {
 	public ModelAndView initiateActivateNSISAccount(Model model, boolean promptFirst) {
 		sessionHelper.setInActivateAccountFlow(true);
 
+		// blocker: if the user is currently attempting to handle a loginRequest from NemLog-in, then
+		//          we will instead show an error message informing them that they have to activate
+		//          their account before they can login to that service
+		try {
+			LoginRequest loginRequest = sessionHelper.getLoginRequest();
+			if (loginRequest != null) {
+				ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
+				if (serviceProvider != null && serviceProvider instanceof NemLoginServiceProvider) {
+					return new ModelAndView("error-activate-account-first", model.asMap());
+				}
+			}
+		}
+		catch (Exception ex) {
+			log.warn("Failed to resolve current loginRequest, continuing as if nothing is wrong: " + ex.getMessage());
+		}
+		
 		if (promptFirst) {
 			return new ModelAndView("activateAccount/activate-prompt", model.asMap());
 		}
@@ -955,8 +976,8 @@ public class FlowService {
 		return false;
 	}
 
-	private boolean showNonNsisIdP(boolean isMobile, boolean isSelfService, HttpServletRequest httpServletRequest) {
-		if (isSelfService) {
+	private boolean showNonNsisIdP(boolean isMobile, boolean isSelfService, boolean requireNsis, HttpServletRequest httpServletRequest) {
+		if (isSelfService || requireNsis) {
 			return false;
 		}
 

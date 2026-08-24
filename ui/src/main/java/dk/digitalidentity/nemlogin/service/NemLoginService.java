@@ -1384,6 +1384,11 @@ public class NemLoginService {
 			if (personMap.containsKey(cache.getUuid())) {
 				continue;
 			}
+			
+			// we only care about active un-matched MitID Erhverv accounts
+			if (!Objects.equals(cache.getStatus(), "Active")) {
+				continue;
+			}
 
 			MitIdErhvervAccountError error = null;
 			boolean singleMatch = true;

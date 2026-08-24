@@ -6,7 +6,7 @@
 			<div class="ibox-title">
 				<h5><em class="fa fa-gear"></em> &nbsp; Handlinger</h5>
 				<div class="ibox-tools">
-					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.actions.help')}"></em>
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${#cms.text('cms.myidentity.actions.help')}"></em>
 				</div>
 			</div>
 
@@ -14,11 +14,11 @@
 				<div class="row">
 					<ul>
 						<li>
-							<a th:href="${@OS2faktorConfiguration.getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + ${@commonConfiguration.getSelfService().getBaseUrl()}" + '/selvbetjening'>Skift kodeord</a>
+							<a th:href="${#os2faktorConfiguration.get().getIdp().getBaseUrl()} + 'sso/saml/changepassword?redirectUrl=' + ${#commonConfiguration.get().getSelfService().getBaseUrl()}" + '/selvbetjening'>Skift kodeord</a>
 						</li>
 						
 						<li>
-							<a th:href="${@commonConfiguration.getSelfService().getBaseUrl() + '/selvbetjening/unlockAccount'}">Lås windows konto op</a>
+							<a th:href="${#commonConfiguration.get().getSelfService().getBaseUrl() + '/selvbetjening/unlockAccount'}">Lås windows konto op</a>
 						</li>
 
 						<th:block th:if="${@securityUtil.loggedInWithNsisSubstantialCredentials()}">
@@ -39,7 +39,7 @@
 			<div class="ibox-title">
 				<h5><em class="fa fa-share"></em> &nbsp; Referencer</h5>
 				<div class="ibox-tools">
-					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.references.help')}"></em>
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${#cms.text('cms.myidentity.references.help')}"></em>
 				</div>
 			</div>
 
@@ -57,9 +57,9 @@
 			<div class="ibox-title">
 				<h5><em class="fa fa-link"></em> &nbsp; Links</h5>
 				<div class="ibox-tools">
-					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.myidentity.links.help')}"></em>
+					<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-html="true" th:attr="data-content=${#cms.text('cms.myidentity.links.help')}"></em>
 				</div>
-           		<div th:if="${@cmsMessageBundle.getText('cms.links.description')} != ''" style="font-size: x-small; color: black;" th:utext="${@cmsMessageBundle.getText('cms.links.description')}"></div>
+           		<div th:if="${#cms.text('cms.links.description')} != ''" style="font-size: x-small; color: black;" th:utext="${#cms.text('cms.links.description')}"></div>
 			</div>
 
 			<div class="ibox-content">

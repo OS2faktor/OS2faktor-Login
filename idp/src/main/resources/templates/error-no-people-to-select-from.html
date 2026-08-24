@@ -12,9 +12,9 @@
 					    <div class="middle-box text-center animated fadeInDown" style="margin-top: 40px;">
 					        <h1 style="font-size: 40px;">Noget gik galt <em class="fa fa-frown-o"></em></h1>
 					
-					        <div class="error-desc" th:utext="${@cmsMessageBundle.getText('cms.selectUser.content.error')}">
+					        <div class="error-desc" th:utext="${#cms.text('cms.selectUser.content.error')}">
 
-									<li style="text-align: left;"><a th:href="${@commonConfiguration.selfService.baseUrl}">Selvbetjening</a></li>
+									<li style="text-align: left;"><a th:href="${#commonConfiguration.get().selfService.baseUrl}">Selvbetjening</a></li>
 									<li style="text-align: left;"><a th:href="@{/sso/saml/changepassword}">Skift kodeord</a></li>
 								</ul>
 							</div>

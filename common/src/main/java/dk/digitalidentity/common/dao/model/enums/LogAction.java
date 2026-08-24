@@ -27,6 +27,7 @@ public enum LogAction {
 	RIGHT_PASSWORD("enum.logaction.rightPassword", ReportType.NONE),
 	ACCEPT_MFA("enum.logaction.acceptMFA", ReportType.NONE),
 	REJECT_MFA("enum.logaction.rejectMFA", ReportType.NONE),
+	PASSWORDLESS_LOGIN("enum.logaction.passwordlessLogin", ReportType.NONE),
 	ERROR_SENT_TO_SP("enum.logaction.errorsent", ReportType.NONE),
 	SESSION_EXPIRED("enum.logaction.sessionExpired", ReportType.NONE),
 	USED_NEMID("enum.logaction.usedNemID", ReportType.NONE),

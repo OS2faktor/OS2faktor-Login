@@ -61,7 +61,7 @@ public class SchoolClass {
 	private List<SchoolClassPasswordWordMapping> passwordWords;
 
 	@BatchSize(size = 100)
-	@OneToMany(mappedBy = "schoolClass", fetch = FetchType.LAZY)
+	@OneToMany(mappedBy = "schoolClass", fetch = FetchType.LAZY, orphanRemoval = true)
 	private List<SchoolRoleSchoolClassMapping> roleMappings;
 	
 	public String uniqueId() {

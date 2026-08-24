@@ -31,6 +31,7 @@ import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.model.ADPasswordResponse;
 import dk.digitalidentity.mvc.otherUsers.validator.PasswordChangeValidator;
 import dk.digitalidentity.mvc.students.dto.PasswordChangeForm;
+import dk.digitalidentity.security.RequireNoRole;
 import dk.digitalidentity.security.RequireParent;
 import dk.digitalidentity.security.SecurityUtil;
 import jakarta.validation.Valid;
@@ -63,6 +64,7 @@ public class ParentsChangePasswordOnStudentsController {
 		binder.setValidator(passwordChangeFormValidator);
 	}
 
+	@RequireNoRole
 	@GetMapping("/elevkode")
 	public String index() {
 		if (!commonConfiguration.getStilStudent().isEnabled()) {

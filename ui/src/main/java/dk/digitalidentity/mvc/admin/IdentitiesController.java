@@ -171,6 +171,8 @@ public class IdentitiesController {
 		List<String> groups = person.getGroups().stream().map(gm -> gm.getGroup().getName()).collect(Collectors.toList());
 		model.addAttribute("groups", groups);
 
+		model.addAttribute("stilDataEnabled", commonConfiguration.getStilStudent().isEnabled());
+		
 		return "admin/identity";
 	}
 

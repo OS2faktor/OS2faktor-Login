@@ -32,7 +32,7 @@
 										<tbody>
 											<tr th:each="cms : ${cmsMessages}">
 												<td th:text="${cms.description}"></td>
-												<td th:text="${#strings.abbreviate(@cmsMessageBundle.getText(cms.key, true), 100)}"></td>
+												<td th:text="${#strings.abbreviate(#cms.text(cms.key, true), 100)}"></td>
 												<td style="text-align: center;">
 													<a th:href="${'/admin/cms/edit?key=' + cms.key}"><em style="color: #212529" class="fa fa-pencil fa-fw" title="Rediger tekst"></em></a>
 													<a href="javascript:;" onclick="resetKey(this)" th:data-key="${cms.key}"><em style="color: #212529;" class="fa fa-times fa-fw" title="Nulstil tekst"></em></a>

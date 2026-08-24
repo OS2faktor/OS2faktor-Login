@@ -1,0 +1,9 @@
+ignore:
+  # vulnerability is for evil developers, not usage, so ignored (also contested by querydsl developers)
+  - package:
+      name: "querydsl-apt"
+      version: "5.0.0"
+  - package:
+      name: "querydsl-jpa"
+      version: "5.0.0"
+

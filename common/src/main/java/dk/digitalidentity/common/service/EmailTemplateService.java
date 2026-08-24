@@ -233,7 +233,7 @@ public class EmailTemplateService {
 			case FULL_SERVICE_IDP_REMOVED:
 				// these CANNOT be edited, these are the global/final messages used by the Full Service IdP
 				title = "Erhvervsidentitet spærret";
-				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} til brugerkontoen {brugernavn} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li>at du ikke har brugt din konto i længere tid, og den derfor er blevet automatisk spærret</li><li> at du ikke længere har en ansættelse eller et konsulentlignende forhold i {kommune}</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/>{ekstraTekst}<br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
+				message = "<b>Kære {modtager}</b><br/><br/>Din erhvervsidentitet hos {kommune} til brugerkontoen {brugernavn} er blevet spærret.<br/><br/>Spærringen kan f.eks. skyldes:<ul><li>at du ikke længere har brug for adgangen</li><li>at du ikke har brugt din konto i længere tid, og den derfor er blevet automatisk spærret</li></ul>Hvis du mener, at det er en fejl, skal du henvende dig til din nærmeste leder.<br/>{ekstraTekst}<br/>Med venlig hilsen<br/>{kontaktpunkt}<br/>{kommune}<br/>{logo}<br/>";
 				break;
 			case PERSON_SET_RANDOM_PASSWORD :
 				title = "Kodeord nulstillet";

@@ -2,6 +2,8 @@ package dk.digitalidentity.service.validation;
 
 import java.nio.charset.StandardCharsets;
 import java.security.PublicKey;
+import java.security.cert.CertificateExpiredException;
+import java.security.cert.CertificateNotYetValidException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
@@ -198,11 +200,17 @@ public class AuthnRequestValidationService {
 					SignatureValidator.validate(authnRequest.getSignature(), new BasicX509Credential(signingCert));
 					validSignature = true;
 					
+					// is the signing certificate expired?
+					signingCert.checkValidity();
+					
 					// break for loop we have found a valid signature/credential combo
 					break;
 				}
 				catch (SignatureException ignored) {
 					; // validate method throws an exception if not valid, we iterate over all of them until we find one valid combo
+				}
+				catch (CertificateExpiredException | CertificateNotYetValidException ex) {
+					throw new ResponderException("Serviceprovider certificate is expired!");
 				}
 			}
 		}

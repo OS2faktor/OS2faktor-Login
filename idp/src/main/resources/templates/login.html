@@ -19,20 +19,20 @@
                 <div class="ibox-title">
                     <h1 class="wcag-h1-as-h5"><em class="fa fa-user"></em> &nbsp; Login</h1>
                     <div class="ibox-tools">
-                    	<a aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${@cmsMessageBundle.getText('cms.login.help')}" style="color: #676a6c !important;"></a>
+                    	<a aria-label="Tryk for hjælpetekst" class="fa fa-question" data-toggle="popover" data-trigger="click" data-placement="top" data-html="true" th:attr="data-content=${#cms.text('cms.login.help')}" style="color: #676a6c !important;"></a>
 					</div>
                 </div>
 
                 <div class="ibox-content">
-                	<div th:if="${@cmsMessageBundle.getText('cms.login.content')} != ''">
-                		<div th:utext="${@cmsMessageBundle.getText('cms.login.content')}"></div>
+                	<div th:if="${#cms.text('cms.login.content')} != ''">
+                		<div th:utext="${#cms.text('cms.login.content')}"></div>
                 		<br/>
                 	</div>
                 	
                     <div class="tabs-container">
                         <ul class="nav nav-tabs" role="tablist">
-                            <li><a th:if="${showNemLogIn or showNonNsisIdP}" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
-                            <li><a th:if="${showNonNsisIdP}" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-2" href="#tab-2"><th:block th:text="${@cmsMessageBundle.getText('cms.login.nonNsisIdP')}"></th:block></a></li>
+                            <li><a th:if="${showNemLogIn or (showNonNsisIdP and (hideNonNsisIdP == null or !hideNonNsisIdP))}" th:classappend="${preferNemid} ? '' : 'active'" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-1" href="#tab-1">Brugerkonto</a></li>
+                            <li><a th:if="${showNonNsisIdP and (hideNonNsisIdP == null or !hideNonNsisIdP)}" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-2" href="#tab-2"><th:block th:text="${#cms.text('cms.login.nonNsisIdP')}"></th:block></a></li>
                             <li><a th:if="${showNemLogIn}" th:classappend="${preferNemid} ? 'active' : ''" class="nav-link wcag-tab-text" role="tab" data-toggle="tab" aria-controls="tab-3" href="#tab-3">MitID</a></li>
                         </ul>
 
@@ -63,7 +63,7 @@
                                         <a th:href="@{/sso/saml/login/cancel}" class="btn btn-danger block full-width m-b wcag-btn-danger">Afbryd login</a>
 
                                         <br>
-                                        <a th:href="${changePasswordUrl}" class="wcag-small-blue"><th:block th:text="${@cmsMessageBundle.getText('cms.index.forgotPasswordOrLocked')}"></th:block></a>
+                                        <a th:href="${changePasswordUrl}" class="wcag-small-blue"><th:block th:text="${#cms.text('cms.index.forgotPasswordOrLocked')}"></th:block></a>
 
                                         <hr/>
 
@@ -81,11 +81,13 @@
 
                                     <form class="m-t" id="login3" role="form" th:action="@{/sso/login}" method="post">
                                         <div class="form-group">
-                                            <span th:utext="${@cmsMessageBundle.getText('cms.login.nonNsisIdP.description')}" />
+                                            <span th:utext="${#cms.text('cms.login.nonNsisIdP.description')}" />
                                         </div>
                                         <br>
                                         <div class="form-group">
-                                            <a th:href="@{/nemlogin/saml/login(idp=${@OS2faktorConfiguration.getClaimsProvider().getNonNsisIdPEntityId()})}" class="btn btn-primary block full-width m-b">Login med <th:block th:text="${@cmsMessageBundle.getText('cms.login.nonNsisIdP')}"></th:block></a>
+											<th:block th:each="idp : ${@claimsProviderProvider.getIdpsForServiceProvider()}">
+                                            	<a th:href="@{/nemlogin/saml/login(idp=${idp.getEntityId()})}" class="btn btn-primary block full-width m-b">Login med <th:block th:text="${idp.getName()}"></th:block></a>
+											</th:block>
                                         </div>
                                     </form>
                                 </div>
@@ -96,7 +98,7 @@
 
                                     <form class="m-t" id="login2" role="form" th:action="@{/sso/login}" method="post">
                                         <div class="form-group">
-                                            <span th:utext="${@cmsMessageBundle.getText('cms.login.nemlogin.description')}" />
+                                            <span th:utext="${#cms.text('cms.login.nemlogin.description')}" />
                                         </div>
                                         <br>
                                         <div class="form-group">
@@ -141,7 +143,6 @@
 			var url = [[@{/fragment/username}]];
 			var username = [[${username != null ? username : ''}]];
 			var requestedUsername = [[${@sessionHelper.getRequestedUsername()}]];
-			var flashMessage = [[${flashMessage}]];
 		+]*/
 
 		var formService;
@@ -162,10 +163,6 @@
 				$("#toggleView_" + id).toggleClass("fa-eye");
 				$("#toggleView_" + id).toggleClass("fa-eye-slash");
 			});
-			
-			if (flashMessage) {
-				toastr.warning(flashMessage);
-			}
 		});
 
 		function FormService() {

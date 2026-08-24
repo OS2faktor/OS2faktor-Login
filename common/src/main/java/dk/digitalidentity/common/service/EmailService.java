@@ -1,5 +1,6 @@
 package dk.digitalidentity.common.service;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 
@@ -11,6 +12,7 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.Person;
 //import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.dto.InlineImageDTO;
+import jakarta.activation.DataHandler;
 import jakarta.mail.Message;
 import jakarta.mail.Multipart;
 import jakarta.mail.Session;
@@ -20,6 +22,7 @@ import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.internet.PreencodedMimeBodyPart;
+import jakarta.mail.util.ByteArrayDataSource;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -28,10 +31,7 @@ public class EmailService {
 
 	@Autowired
 	private CommonConfiguration configuration;
-	/*
-	@Autowired
-	private AuditLogger auditlogger;
-*/
+
 	public boolean sendMessage(String email, String subject, String message, Person person) {
 		return sendMessage(email, subject, message, null, person);
 	}
@@ -83,23 +83,28 @@ public class EmailService {
 			// adds inline image attachments
 			if (inlineImages != null && inlineImages.size() > 0) {
 				for (InlineImageDTO inlineImageDTO : inlineImages) {
-					if (inlineImageDTO.isBase64()) {
-						MimeBodyPart imagePart = new PreencodedMimeBodyPart("base64");
-						String src = inlineImageDTO.getSrc();
-						String dataType = StringUtils.substringBetween(src, "data:", ";base64,");
-						String base64EncodedFileContent = src.replaceFirst("data:.*;base64,", "");
+				    if (!inlineImageDTO.isBase64()) {
+				        continue;
+				    }
 
-						imagePart.setContent(base64EncodedFileContent, dataType);
-						imagePart.setFileName(inlineImageDTO.getCid());
-						imagePart.setHeader("Content-ID", "<" + inlineImageDTO.getCid() + ">");
-						imagePart.setDisposition(MimeBodyPart.INLINE);
-						imagePart.setDisposition("attachment");
+				    String src = inlineImageDTO.getSrc();
+				    String dataType = StringUtils.substringBetween(src, "data:", ";base64,");
+				    String base64EncodedFileContent = src.replaceFirst("data:.*;base64,", "");
 
-						multipart.addBodyPart(imagePart);
-					}
+				    // getMimeDecoder tolerates existing newlines/whitespace in the payload
+				    byte[] imageBytes = Base64.getMimeDecoder().decode(base64EncodedFileContent);
+
+				    MimeBodyPart imagePart = new MimeBodyPart();
+				    imagePart.setDataHandler(new DataHandler(new ByteArrayDataSource(imageBytes, dataType)));
+				    imagePart.setHeader("Content-Transfer-Encoding", "base64");
+				    imagePart.setFileName(inlineImageDTO.getCid());
+				    imagePart.setHeader("Content-ID", "<" + inlineImageDTO.getCid() + ">");
+				    imagePart.setDisposition(MimeBodyPart.INLINE);
+
+				    multipart.addBodyPart(imagePart);
 				}
 			}
-
+			
 			msg.setContent(multipart);
 
 			transport = session.getTransport();
@@ -122,14 +127,7 @@ public class EmailService {
 				log.warn("Error occured while trying to terminate connection", ex);
 			}
 		}
-/*
-		try {
-			auditlogger.sentEmail(person, subject);
-		}
-		catch (Exception ex) {
-			log.error("Failed to auditlog sending email '" + subject + "' to " + person.getSamaccountName() + " / " + person.getId());
-		}
-*/
+
 		return true;
 	}
 }

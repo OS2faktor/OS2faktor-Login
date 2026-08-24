@@ -11,7 +11,7 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p th:utext="${@cmsMessageBundle.getText('cms.login.mfa.noClients')}" />
+                    <p th:utext="${#cms.text('cms.login.mfa.noClients')}" />
 
 					<th:block th:if="${@flowService.showNemLogIn()}">
                     <h4>Login med MitID</h4>

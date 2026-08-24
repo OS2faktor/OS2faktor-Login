@@ -43,6 +43,7 @@ import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.util.Constants;
 import dk.digitalidentity.util.RequesterException;
 import dk.digitalidentity.util.ResponderException;
+import io.jsonwebtoken.lang.Arrays;
 import lombok.extern.slf4j.Slf4j;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
@@ -658,7 +659,16 @@ public class SqlServiceProvider extends ServiceProvider {
 	}
 	
 	@Override
-	public boolean isAutoNonNsisIdPLogin() {
+	public boolean isAutoNonNsisIdPLogin(LoginRequest loginRequest) {
 		return config.isAutoNonNsisIdPLogin();
+	}
+	
+	@Override
+	public List<String> getNsisIdPLoginFilter(LoginRequest loginRequest) {
+		if (StringUtils.hasText(config.getNsisIdpLoginFilter())) {
+			return Arrays.asList(config.getNsisIdpLoginFilter().split(","));
+		}
+		
+		return null;
 	}
 }

@@ -18,10 +18,12 @@ public class AzureAd {
 
 	private String cprField;
 	private String sAMAccountNameField = "userPrincipalName";
+	private String filterGroupId; // optional group to filter read users from
+	
 	private String upn;
+	
 	private String nsisAllowedGroupId;
 	private Map<String, String> attributes;
-	private String ridField;
 	private String transferToNemloginGroupId;
 
 	// For KOMBIT roles

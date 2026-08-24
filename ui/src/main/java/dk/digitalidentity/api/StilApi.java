@@ -266,7 +266,6 @@ public class StilApi {
 							removeSchoolRolesCounter++;
 							changes = true;
 							iterator.remove();
-							break;
 						}
 					}
 					

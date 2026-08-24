@@ -11,9 +11,9 @@
                 </div>
 
                 <div class="ibox-content">
-                    <p th:utext="${@cmsMessageBundle.getText('cms.login.error.locked-account')}"></p>
+                    <p th:utext="${#cms.text('cms.login.error.locked-account')}"></p>
 
-                    <a th:href="${@environment.getProperty('os2faktor.common.selfService.baseUrl')}">
+                    <a th:href="${#commonConfiguration.get().selfService.baseUrl}">
                         <label>Gå til selvbetjening</label>
                     </a>
                 </div>

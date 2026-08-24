@@ -35,7 +35,7 @@ public class NonNsisProviderControllerAdvice {
 		
 		auditLogger.externalIdPFailed(ex.getMessage());
 
-		model.addAttribute("flashMessage", "Loginmetode fejlede - anvend normal login i stedet");
+		model.addAttribute("hideNonNsisIdP", true);
 
 		return loginService.loginRequestReceived(request, response, model, sessionHelper.getLoginRequest(), true);
 	}

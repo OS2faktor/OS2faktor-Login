@@ -1,6 +1,7 @@
 package dk.digitalidentity.mvc.admin.dto.serviceprovider;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -20,8 +21,8 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 import dk.digitalidentity.common.dao.model.enums.Protocol;
 import dk.digitalidentity.common.dao.model.enums.SqlServiceProviderConditionType;
-import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfigV2;
-import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
+import dk.digitalidentity.common.serviceprovider.KombitServiceProviderConfig;
+import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfig;
 import dk.digitalidentity.common.serviceprovider.ServiceProviderConfig;
 import lombok.Getter;
 import lombok.Setter;
@@ -71,6 +72,7 @@ public class ServiceProviderDTO {
 	private boolean onlyAllowLoginFromKnownNetworks;
 	private String notes = "";
 	private String notificationEmail;
+	private List<String> nsisIdPLoginFilter;
 
 	// Advanced fields
 	private boolean allowUnsignedAuthnRequests;
@@ -88,6 +90,7 @@ public class ServiceProviderDTO {
 		this.conditionsDomains = new ArrayList<>();
 		this.conditionsGroups = new ArrayList<>();
 		this.exemptedDomains = new ArrayList<>();
+		this.nsisIdPLoginFilter = new ArrayList<>();
 		this.allowAnonymousUsers = false;
 		this.certificate = KnownCertificateAliases.OCES.name();
 		this.delayedMobileLogin = true;
@@ -107,7 +110,7 @@ public class ServiceProviderDTO {
 		this.metadataUrl = config.getMetadataUrl();
 		this.metadataContent = config.getMetadataContent();
 		this.sqlServiceProvider = (config instanceof SqlServiceProviderConfiguration);
-		this.kombitServiceProvider = ((config instanceof KombitServiceProviderConfigV2) || (config instanceof KombitTestServiceProviderConfigV2));
+		this.kombitServiceProvider = ((config instanceof KombitServiceProviderConfig) || (config instanceof KombitTestServiceProviderConfig));
 		this.hasCustomSessionExpiry = false;
 		this.allowMitidErhvervLogin = config.isAllowMitidErhvervLogin();
 		this.allowAnonymousUsers = config.isAllowAnonymousUsers();
@@ -115,6 +118,7 @@ public class ServiceProviderDTO {
 		this.doNotMonitorCertificates = config.isDoNotMonitorCertificates();
 		this.delayedMobileLogin = config.isDelayedMobileLogin();
 		this.onlyAllowLoginFromKnownNetworks = config.isOnlyAllowLoginFromKnownNetworks();
+		this.nsisIdPLoginFilter = new ArrayList<>();
 
 		for (NameIdFormat format : NameIdFormat.values()) {
 			if (Objects.equals(format.value, config.getNameIdFormat().value)) {
@@ -189,6 +193,8 @@ public class ServiceProviderDTO {
 					.stream()
 					.map(e -> e.getDomain().getId())
 					.collect(Collectors.toList());
+			
+			this.nsisIdPLoginFilter = sqlConfig.getNsisIdpLoginFilter() != null ? Arrays.asList(sqlConfig.getNsisIdpLoginFilter().split(",")) : new ArrayList<>();
 		}
 
 		this.certificates = certificates;

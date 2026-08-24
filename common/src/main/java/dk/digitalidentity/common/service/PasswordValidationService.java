@@ -3,8 +3,9 @@ package dk.digitalidentity.common.service;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
@@ -189,7 +190,7 @@ public class PasswordValidationService {
 				}
 			}
 	
-			if (settings.isCheckLeakedPasswords() && isPasswordLeaked(person, password)) {
+			if (settings.isCheckLeakedPasswords() && isPasswordLeaked(person, password) > 0) {
 				return ChangePasswordResult.LEAKED_PASSWORD;
 			}
 		}
@@ -199,13 +200,13 @@ public class PasswordValidationService {
 
 	@Async
 	public CompletableFuture<Void> isPasswordLeakedAsync(Person person, String password) {
-		boolean result = isPasswordLeaked(person, password);
-		if (result) {
+		int breachCount = isPasswordLeaked(person, password);
+		if (breachCount > 0) {
 			person.setBadPassword(true);
 			person.setBadPasswordDeadlineTts(LocalDate.now().plusDays(commonConfiguration.getFullServiceIdP().getPasswordLeakConformityGracePeriod()));
 			person.setBadPasswordReason(BadPasswordReason.LEAKED);
-			
-			auditLogger.badPasswordMustChange(person, null);
+
+			auditLogger.badPasswordMustChange(person, null, breachCount);
 			
 			EmailTemplate emailTemplate = emailTemplateService.findByTemplateType(EmailTemplateType.PASSWORD_LEAKED);
 			if (emailTemplate.getChildren().stream().anyMatch(c -> c.isEnabled())) {
@@ -236,27 +237,29 @@ public class PasswordValidationService {
 		return CompletableFuture.completedFuture(null);
 	}
 
-	private boolean isPasswordLeaked(Person person, String password) {
+	// returns the number of datasets the password was found in, or 0 if it was not found
+	private int isPasswordLeaked(Person person, String password) {
 		try {
 			String hashText = getHashOfPassword(password);
 			if (hashText != null) {
 				String prefix = hashText.substring(0, 5);
 				String suffix = hashText.substring(5);
 
-				List<String> suffixes = callPwnedApi(prefix);
+				Map<String, Integer> suffixCounts = callPwnedApi(prefix);
 
 				timeoutCounter = 0;
 
-				if (suffixes.contains(suffix)) {
-					log.warn("Detected leaked password for " + person.getSamaccountName());
-					return true;
+				Integer breachCount = suffixCounts.get(suffix);
+				if (breachCount != null) {
+					log.warn("Detected leaked password for " + person.getSamaccountName() + ", found in " + breachCount + " dataset(s)");
+					return breachCount;
 				}
 			}
 		}
 		catch (Exception ex) {
 			if (ex instanceof ResourceAccessException && ex.getMessage() != null && ex.getMessage().contains("timed out")) {
 				timeoutCounter++;
-				
+
 				if (timeoutCounter < 10) {
 					log.warn("Connection timeout on api.pwnedpasswords.com");
 				}
@@ -269,10 +272,10 @@ public class PasswordValidationService {
 			}
 		}
 
-		return false;
+		return 0;
 	}
 
-	private List<String> callPwnedApi(String prefix) throws Exception {
+	private Map<String, Integer> callPwnedApi(String prefix) throws Exception {
 		RestTemplate restTemplate = new RestTemplate();
 
 		String url = "https://api.pwnedpasswords.com/range/" + prefix;
@@ -280,15 +283,16 @@ public class PasswordValidationService {
 		ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 		if (response.getStatusCode().value() == 200) {
 			String tokens[] = response.getBody().split("\n");
-			
-			List<String> result = new ArrayList<>();
+
+			Map<String, Integer> result = new HashMap<>();
 			for (String token : tokens) {
-				result.add(token.split(":")[0].trim());
+				String[] parts = token.split(":");
+				result.put(parts[0].trim(), Integer.parseInt(parts[1].trim()));
 			}
-			
+
 			return result;
 		}
-		
+
 		throw new Exception("Unable to get response from https://api.pwnedpasswords.com/range/" + prefix + " : statusCode = " + response.getStatusCode().value());
 	}
 

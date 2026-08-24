@@ -16,8 +16,8 @@
 
 							<div class="ibox-content">
 								<form id="unlockForm" class="m-t" role="form" method="post" th:action="@{/selvbetjening/fjernlaas}">
-									<div th:if="${@cmsMessageBundle.getText('cms.unlockAccount.content')} != ''" class="mb-5">
-				                		<span th:utext="${@cmsMessageBundle.getText('cms.unlockAccount.content')}"></span>
+									<div th:if="${#cms.text('cms.unlockAccount.content')} != ''" class="mb-5">
+				                		<span th:utext="${#cms.text('cms.unlockAccount.content')}"></span>
 				                	</div>
 
 									<button id="unlockBtn" type="button" class="btn btn-primary block full-width m-b">Fjern lås på erhvervsidentitet</button>

@@ -247,7 +247,7 @@ public class ConfigurationController {
 		List<DomainDTO> domains = domainService.getAllParents().stream().map(d -> new DomainDTO(d)).collect(Collectors.toList());
 		model.addAttribute("domains", domains);
 
-		model.addAttribute("readonly", os2faktorConfiguration.getCoreData().isRoleApiEnabled());
+		model.addAttribute("readonly", os2faktorConfiguration.getCoreData().isRoleApiEnabled() && (os2faktorConfiguration.getCoreData().getRoleApiDomainIdFilter() == null || os2faktorConfiguration.getCoreData().getRoleApiDomainIdFilter().isEmpty()));
 		
 		return "admin/administrators-list";
 	}

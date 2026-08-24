@@ -116,6 +116,13 @@ public class SelfServiceIndexController {
 		form.setSchoolRoles(person.getSchoolRoles());
 		model.addAttribute("form", form);
 		
+		
+		model.addAttribute("showRegisterMfaClient", commonConfiguration.getCustomer().isShowRegisterMfaClient());
+		model.addAttribute("supportYubikey", commonConfiguration.getMfa().getEnabledClients().contains("YUBIKEY"));
+		model.addAttribute("supportTotp", commonConfiguration.getMfa().getEnabledClients().contains("TOTP"));
+		model.addAttribute("supportTotpH", commonConfiguration.getMfa().getEnabledClients().contains("TOTPH"));
+		model.addAttribute("stilDataEnabled", commonConfiguration.getStilStudent().isEnabled());
+		
 		return "selfservice/index";
 	}
 

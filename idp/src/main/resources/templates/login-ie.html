@@ -9,8 +9,8 @@
     <div style="max-width: 1500px;">
         <div class="row" style="padding: 20px;">
         	<div style="margin-bottom: 20px;">
-				<img th:if="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
-				<img th:unless="${@cmsMessageBundle.getText('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" th:src="${@cmsMessageBundle.getText('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:if="${#cms.text('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" src="/img/os2faktor.png" style="display: inline; max-width: 30vw; max-height: 38px;">
+				<img th:unless="${#cms.text('cms.logo') == ''}" alt="OS2faktor logo" class="img-fluid" th:src="${#cms.text('cms.logo')}" style="display: inline; max-width: 30vw; max-height: 38px;">
         	</div>
         	
 	        <form class="m-t" id="login" role="form" th:action="@{/sso/login}" method="post">

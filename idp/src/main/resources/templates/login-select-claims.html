@@ -13,7 +13,7 @@
                 <div class="ibox-content">
                     <form id="loginForm" method="POST" th:action="@{/sso/saml/claims/completed}">
                         <div>
-                            <p th:utext="${@cmsMessageBundle.getText('cms.login.selectClaims.content.top')}">
+                            <p th:utext="${#cms.text('cms.login.selectClaims.content.top')}">
                             </p>
                             <hr>
                         </div>

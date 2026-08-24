@@ -327,6 +327,7 @@ public class AuditLogger {
 			auditLog.setCorrelationId(getCorrelationId());
 			auditLog.setIpAddress(getIpAddress());
 			auditLog.setPerson(person);
+			auditLog.setPersonUserId(person.getSamaccountName());
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
@@ -359,6 +360,7 @@ public class AuditLogger {
 			auditLog.setCorrelationId(correlationId);
 			auditLog.setIpAddress(ipAddress);
 			auditLog.setPerson(person);
+			auditLog.setPersonUserId(person.getSamaccountName());
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
@@ -374,6 +376,7 @@ public class AuditLogger {
 				auditLog.setCorrelationId(correlationId);
 				auditLog.setIpAddress(ipAddress);
 				auditLog.setPerson(person);
+				auditLog.setPersonUserId(person.getSamaccountName());
 				auditLog.setPersonName(person.getName());
 				auditLog.setPersonDomain(person.getDomain().getName());
 				auditLog.setCpr(person.getCpr());
@@ -390,6 +393,7 @@ public class AuditLogger {
 				auditLog.setCorrelationId(correlationId);
 				auditLog.setIpAddress(ipAddress);
 				auditLog.setPerson(person);
+				auditLog.setPersonUserId(person.getSamaccountName());
 				auditLog.setPersonName(person.getName());
 				auditLog.setPersonDomain(person.getDomain().getName());
 				auditLog.setCpr(person.getCpr());
@@ -406,6 +410,7 @@ public class AuditLogger {
 				auditLog.setCorrelationId(correlationId);
 				auditLog.setIpAddress(ipAddress);
 				auditLog.setPerson(person);
+				auditLog.setPersonUserId(person.getSamaccountName());
 				auditLog.setPersonName(person.getName());
 				auditLog.setPersonDomain(person.getDomain().getName());
 				auditLog.setCpr(person.getCpr());
@@ -422,6 +427,7 @@ public class AuditLogger {
 				auditLog.setCorrelationId(correlationId);
 				auditLog.setIpAddress(ipAddress);
 				auditLog.setPerson(person);
+				auditLog.setPersonUserId(person.getSamaccountName());
 				auditLog.setPersonName(person.getName());
 				auditLog.setPersonDomain(person.getDomain().getName());
 				auditLog.setCpr(person.getCpr());
@@ -494,6 +500,14 @@ public class AuditLogger {
 		}
 	}
 
+	public void completedPasswordlessLogin(Person person) {
+		AuditLog auditLog = new AuditLog();
+		auditLog.setLogAction(LogAction.PASSWORDLESS_LOGIN);
+		auditLog.setMessage("Gennemført kodeordsløst login");
+
+		log(auditLog, person, null);
+	}
+
 	public void badPassword(Person person, boolean isWCP) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.WRONG_PASSWORD);
@@ -502,13 +516,13 @@ public class AuditLogger {
 		log(auditLog, person, null);
 	}
 
-	public void badPasswordMustChange(Person person, ChangePasswordResult validationRule) {
+	public void badPasswordMustChange(Person person, ChangePasswordResult validationRule, Integer breachCount) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.MUST_CHANGE_PASSWORD);
 
 		String reason;
 		reason = switch (person.getBadPasswordReason()) {
-			case LEAKED -> "Kodeord fundet i liste over lækkede kodeord";
+			case LEAKED -> "Kodeord fundet i liste over lækkede kodeord" + (breachCount != null ? " (fundet i " + breachCount + " datasæt)" : "");
 			case COMPLEXITY -> "Kodeord overholde ikke krav til kompleksitet";
 		};
 
@@ -1332,14 +1346,14 @@ public class AuditLogger {
 		log(auditLog, null, null);
 	}
 
-	public void externalIdPUsed(Person person, String rawToken) {
+	public void externalIdPUsed(Person person, String rawToken, String idPName) {
 		AuditLog auditLog = new AuditLog();
 		auditLog.setLogAction(LogAction.EXTERNAL_IDP_USED);
 		AuditLogDetail detail = new AuditLogDetail();
 		detail.setDetailContent(rawToken);
 		detail.setDetailType(DetailType.XML);
 		auditLog.setDetails(detail);
-		auditLog.setMessage("Ekstern IdP anvendt");
+		auditLog.setMessage("Ekstern IdP anvendt: " + idPName);
 		
 		log(auditLog, person, null);
 	}
@@ -1533,6 +1547,7 @@ public class AuditLogger {
 
 		if (person != null) {
 			auditLog.setPerson(person);
+			auditLog.setPersonUserId(person.getSamaccountName());
 			auditLog.setPersonName(person.getName());
 			auditLog.setPersonDomain(person.getDomain().getName());
 			auditLog.setCpr(person.getCpr());
@@ -1785,4 +1800,5 @@ public class AuditLogger {
 	public void deleteUnreferencedAuditlogDetails() {
 		auditLogDao.deleteUnreferencedAuditlogDetails();
 	}
+
 }

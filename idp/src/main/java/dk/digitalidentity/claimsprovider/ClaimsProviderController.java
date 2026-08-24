@@ -19,6 +19,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.config.modules.NonNsisIdPConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.samlmodule.model.TokenUser;
 import dk.digitalidentity.samlmodule.util.exceptions.ExternalException;
@@ -94,8 +95,12 @@ public class ClaimsProviderController {
 		else if (configuration.getClaimsProvider().getStilEntityId().equals(tokenUser.getIssuer())) {
 			return uniLoginService.uniLoginComplete(model, httpServletRequest, httpServletResponse, tokenUser);
 		}
-		else if (configuration.getClaimsProvider().getNonNsisIdPEntityId().equals(tokenUser.getIssuer())) {
-			return nonNsisProviderService.nonNsisLoginComplete(model, httpServletRequest, httpServletResponse, tokenUser);
+		else if (configuration.getClaimsProvider().isNonNsisIdPEnabled()) {
+			for (NonNsisIdPConfiguration nonNsisIdPConfiguration : configuration.getClaimsProvider().getNonNsisIdPs()) {
+				if (nonNsisIdPConfiguration.getEntityId().equals(tokenUser.getIssuer())) {
+					return nonNsisProviderService.nonNsisLoginComplete(model, httpServletRequest, httpServletResponse, tokenUser, nonNsisIdPConfiguration);
+				}				
+			}
 		}
 
 		return handleErrors(httpServletResponse, "Ukendt udsteder: " + tokenUser.getIssuer());

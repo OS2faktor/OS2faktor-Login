@@ -22,15 +22,16 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
+import dk.digitalidentity.config.modules.NonNsisIdPConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.samlmodule.model.TokenUser;
-import dk.digitalidentity.samlmodule.util.exceptions.ExternalException;
 import dk.digitalidentity.service.FlowService;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.IdPFlowException;
+import dk.digitalidentity.util.ResponderException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -55,29 +56,29 @@ public class NonNsisProviderService {
 	@Autowired
 	private ServiceProviderFactory serviceProviderFactory;
 
-	public ModelAndView nonNsisLoginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser) throws IdPFlowException, ExternalException {
+	public ModelAndView nonNsisLoginComplete(Model model, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, TokenUser tokenUser, NonNsisIdPConfiguration nonNsisIdPConfiguration) throws IdPFlowException {
 		LoginRequest loginRequest = sessionHelper.getLoginRequest();
 		if (loginRequest == null) {
-			throw new ExternalException("Intet loginRequest på sessionen");
+			throw new ResponderException("Intet loginRequest på sessionen");
 		}
 		
         ServiceProvider serviceProvider = serviceProviderFactory.getServiceProvider(loginRequest);
         if (serviceProvider == null) {
-        	throw new ExternalException("Ingen tjenesteudbyder der matcher loginRequestet på sessionen");
+        	throw new ResponderException("Ingen tjenesteudbyder der matcher loginRequestet på sessionen");
         }
 
         if (serviceProvider.nsisLevelRequired(loginRequest).isGreater(NSISLevel.NONE) || serviceProvider instanceof SelfServiceServiceProvider) {
-        	throw new ExternalException("Login til denne tjeneste er ikke muligt med denne loginmetode");
+        	throw new ResponderException("Login til denne tjeneste er ikke muligt med denne loginmetode");
         }
 		
 		String userId = tokenUser.getUsername();
 		if (!StringUtils.hasLength(userId)) {
-			throw new ExternalException("Intet NameID i modtaget token");
+			throw new ResponderException("Intet NameID i modtaget token");
 		}
 
 		List<Person> availablePeople = personService.getBySamaccountName(userId);
 		if (availablePeople == null || availablePeople.size() == 0) {
-			throw new ExternalException("Ingen personer matcher userId=" + userId);
+			throw new ResponderException("Ingen personer matcher userId=" + userId);
 		}
 
 		String rawToken = tokenUser.getAndClearRawToken();
@@ -110,12 +111,13 @@ public class NonNsisProviderService {
 		if (availablePeople.isEmpty()) {
 			auditLogger.rejectedUnknownPerson(null, null, userId);
 
-			throw new ExternalException("Ingen ikke-låste personer matcher userId=" + userId);
+			throw new ResponderException("Ingen ikke-låste personer matcher userId=" + userId);
 		}
 		
 		sessionHelper.setPasswordLevel(NSISLevel.NONE);
 		sessionHelper.setAuthenticatedWithADPassword(true);
         sessionHelper.setAuthnInstant(new DateTime());
+		sessionHelper.setNonNsisIdPLoginSession(true);
 
 		// handle multiple user accounts
 		if (availablePeople.size() != 1) {
@@ -126,7 +128,7 @@ public class NonNsisProviderService {
 		Person person = availablePeople.get(0);
 		sessionHelper.setPerson(person);
 
-		auditLogger.externalIdPUsed(person, rawToken);
+		auditLogger.externalIdPUsed(person, rawToken, nonNsisIdPConfiguration.getName());
 
         return flowService.initiateFlowOrSendLoginResponse(model, httpServletResponse, httpServletRequest, person);
 	}

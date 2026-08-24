@@ -69,6 +69,9 @@ namespace OS2faktorADSync
         [JsonProperty(PropertyName = "expireTimestamp")]
         public string ExpireTimestamp { get; set; }
 
+        [JsonProperty(PropertyName = "passwordAdTimestamp")]
+        public string PasswordADTimestamp { get; set; }
+
         [JsonProperty(PropertyName = "nextPasswordChange")]
         public string NextPasswordChange { get; set; }
 

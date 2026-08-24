@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -36,7 +37,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
 import org.w3c.dom.ls.DOMImplementationLS;
@@ -70,76 +70,53 @@ public class MetadataController {
 		;
 	}
 
-	@ResponseBody
-	@Cacheable(value = "primaryCert")
+	@Cacheable(value = "primaryCert", unless = "#result.statusCode.isError()")
 	@GetMapping(value = "/sso/saml/primaryCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-	public ResponseEntity<StreamingResponseBody> getPrimaryCertificate() throws Exception {		
-		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"os2faktor-idp-primary.cer\"") 
-			.body(out -> { 
-				try {
-					BasicX509Credential credential = credentialService.getBasicX509Credential();
-					if (credential != null) {
-						out.write(credential.getEntityCertificate().getEncoded());						
-					}
-					else {
-						log.error("Could not find primary certificate!");
-					}
-				}
-				catch (Exception ex) {
-					log.error("Failed to serialize primary certificate", ex);
-				}
+	public ResponseEntity<byte[]> getPrimaryCertificate() throws Exception {
+	    BasicX509Credential credential = credentialService.getBasicX509Credential();
+	    if (credential == null) {
+	        log.warn("Could not find secondary certificate!");
+	        return ResponseEntity.notFound().build();
+	    }
 
-				out.close();
-			} 
-		);
+	    byte[] der = credential.getEntityCertificate().getEncoded();
+	    return ResponseEntity.ok()
+	        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"os2faktor-idp-primary.cer\"")
+	        .contentLength(der.length)
+	        .body(der);
+
 	}
 	
-	@ResponseBody
-	@Cacheable(value = "secondaryCert")
+	@Cacheable(value = "secondaryCert", unless = "#result.statusCode.isError()")	
 	@GetMapping(value = "/sso/saml/secondaryCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-	public ResponseEntity<StreamingResponseBody> getSecondaryCertificate() throws Exception {		
-		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"os2faktor-idp-secondary.cer\"") 
-			.body(out -> { 
-				try {
-					BasicX509Credential credential = credentialService.getSecondaryBasicX509Credential();
-					if (credential != null) {
-						out.write(credential.getEntityCertificate().getEncoded());						
-					}
-					else {
-						log.warn("Could not find secondary certificate!");
-					}
-				}
-				catch (Exception ex) {
-					log.error("Failed to serialize secondary certificate", ex);
-				}
+	public ResponseEntity<byte[]> getSecondaryCertificate() throws Exception {
+	    BasicX509Credential credential = credentialService.getSecondaryBasicX509Credential();
+	    if (credential == null) {
+	        log.warn("Could not find secondary certificate!");
+	        return ResponseEntity.notFound().build();
+	    }
 
-				out.close();
-			} 
-		);
+	    byte[] der = credential.getEntityCertificate().getEncoded();
+	    return ResponseEntity.ok()
+	        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"os2faktor-idp-secondary.cer\"")
+	        .contentLength(der.length)
+	        .body(der);
 	}
-	
-	@ResponseBody
-	@Cacheable(value = "selfsignedCert")
-	@GetMapping(value = "/sso/saml/selfsignedCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-	public ResponseEntity<StreamingResponseBody> getSelfsignedCertificate() throws Exception {		
-		return ResponseEntity.ok().header("Content-Disposition", "attachment; filename=\"os2faktor-idp-selfsigned.cer\"") 
-			.body(out -> { 
-				try {
-					BasicX509Credential credential = credentialService.getSelfsignedX509Credential();
-					if (credential != null) {
-						out.write(credential.getEntityCertificate().getEncoded());						
-					}
-					else {
-						log.warn("Could not find selfsigned certificate!");
-					}
-				}
-				catch (Exception ex) {
-					log.error("Failed to serialize selfsigned certificate", ex);
-				}
 
-				out.close();
-			} 
-		);
+	@Cacheable(value = "selfsignedCert", unless = "#result.statusCode.isError()")
+	@GetMapping(value = "/sso/saml/selfsignedCert", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+	public ResponseEntity<byte[]> getSelfsignedCertificate() throws Exception {		
+	    BasicX509Credential credential = credentialService.getSelfsignedX509Credential();
+	    if (credential == null) {
+	        log.warn("Could not find selfsigned certificate!");
+	        return ResponseEntity.notFound().build();
+	    }
+
+	    byte[] der = credential.getEntityCertificate().getEncoded();
+	    return ResponseEntity.ok()
+	        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"os2faktor-idp-selfsigned.cer\"")
+	        .contentLength(der.length)
+	        .body(der);
 	}
 	
 	@ResponseBody

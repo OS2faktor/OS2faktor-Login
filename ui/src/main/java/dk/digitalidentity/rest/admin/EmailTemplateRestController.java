@@ -3,10 +3,14 @@ package dk.digitalidentity.rest.admin;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import dk.digitalidentity.config.OS2faktorConfiguration;
 import org.htmlcleaner.BrowserCompactXmlSerializer;
 import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.HtmlCleaner;
@@ -55,6 +59,9 @@ public class EmailTemplateRestController {
 	@Autowired
 	private EmailTemplateService emailTemplateService;
 
+	@Autowired
+	private OS2faktorConfiguration configuration;
+
 	@PostMapping(value = "/admin/rest/mailtemplates")
 	@ResponseBody
 	public ResponseEntity<String> updateTemplate(@RequestBody EmailTemplateChildDTO emailTemplateDTO, @RequestParam("tryEmail") boolean tryEmail) {
@@ -71,6 +78,7 @@ public class EmailTemplateRestController {
 				// let's try to replace what can be replaced, just to do some testing
 				String message = emailTemplateDTO.getMessage();
 				message = emailTemplateService.safeReplaceEverything(message, person);
+				message = insertAdditionalTestData(message);
 				emailTemplateDTO.setMessage(message);
 
 				List<InlineImageDTO> inlineImages = transformImages(emailTemplateDTO);
@@ -145,7 +153,28 @@ public class EmailTemplateRestController {
 
 		return new ResponseEntity<>(HttpStatus.OK);
 	}
-		
+
+	private String insertAdditionalTestData(String message) {
+		DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+		DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+
+		String idpUrl = configuration.getIdp().getBaseUrl();
+		if (idpUrl.endsWith("/")) {
+			idpUrl = idpUrl.substring(0, idpUrl.length() - 1);
+		}
+
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.IDP_URL_PLACEHOLDER, idpUrl);
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.EXPIRE_DATE_PLACEHOLDER, LocalDate.now().format(dateFormatter));
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.ROLLOVER_TTS_PLACEHOLDER, LocalDateTime.now().format(dateTimeFormatter));
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.IP_PLACEHOLDER, "127.0.0.1");
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.COUNTRY, "Danmark");
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.LOG_COUNT, "25");
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.LIMIT, "1000");
+		message = EmailTemplateService.safeReplacePlaceholder(message, EmailTemplateService.LIST_OF_PERSONS, "Test Person 1, Test Person 2, Test Person 3");
+
+		return message;
+	}
+
 	private List<InlineImageDTO> transformImages(EmailTemplateChildDTO emailTemplateDTO) {
 		List<InlineImageDTO> inlineImages = new ArrayList<>();
 		String message = emailTemplateDTO.getMessage();

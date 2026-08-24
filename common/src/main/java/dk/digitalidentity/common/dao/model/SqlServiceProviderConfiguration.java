@@ -173,6 +173,8 @@ public class SqlServiceProviderConfiguration implements ServiceProviderConfig {
 
     @Column(name = "auto_non_nsis_idp_login")
     private boolean autoNonNsisIdPLogin;
+    
+    private String nsisIdpLoginFilter;
 
     public void loadFully() {
         this.requiredFields.size();

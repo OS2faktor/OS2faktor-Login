@@ -5,6 +5,7 @@ using System.Buffers.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ namespace SessionEstablisher
     {
         private static DateTime lastModifiedTime = DateTime.MinValue;
 
-        private void Application_Startup(object sender, StartupEventArgs e)
+        private async void Application_Startup(object sender, StartupEventArgs e)
         {
             try
             {
@@ -46,7 +47,7 @@ namespace SessionEstablisher
                     string token = e.Args[0];
                     if (token != null)
                     {
-                        InitiateAsyncSessions(token);
+                        await InitiateAsyncSessions(token);
                     }
                 }
                 catch (Exception ex)
@@ -62,7 +63,7 @@ namespace SessionEstablisher
             Shutdown();
         }
 
-        private async void InitiateAsyncSessions(String token)
+        private async Task InitiateAsyncSessions(String token)
         {
             Log.Information("New token ready for establishing session");
 
@@ -70,12 +71,24 @@ namespace SessionEstablisher
             bool edgeEnabled = true;
             bool firefoxEnabled = false;
             bool checkUsage = true;
-            UpdateDefaultSettings(ref chromeEnabled, ref edgeEnabled, ref firefoxEnabled, ref checkUsage);
+            bool checkNetwork = true;
+            String pingTarget = "1.1.1.1";
+            int networkTimeoutMs = 8000;
+            UpdateDefaultSettings(ref chromeEnabled, ref edgeEnabled, ref firefoxEnabled, ref checkUsage, ref checkNetwork, ref pingTarget, ref networkTimeoutMs);
 
             string chromeParameter = "";
             string edgeParameter = "";
             string firefoxParameter = "";
             FetchCustomBrowserParams(ref chromeParameter, ref edgeParameter, ref firefoxParameter);
+
+            if (checkNetwork)
+            {
+                if (!await WaitForNetworkConnectivity(pingTarget, networkTimeoutMs))
+                {
+                    Log.Error("No network connectivity available, proceeding with session establishment anyway");
+                }
+            }
+
 
             if (!checkUsage)
             {
@@ -204,7 +217,7 @@ namespace SessionEstablisher
             return null;
         }
 
-        private static void UpdateDefaultSettings(ref bool chromeEnabled, ref bool edgeEnabled, ref bool firefoxEnabled, ref bool checkUsage)
+        private static void UpdateDefaultSettings(ref bool chromeEnabled, ref bool edgeEnabled, ref bool firefoxEnabled, ref bool checkUsage, ref bool checkNetwork, ref String pingTarget, ref int networkTimeoutMs)
         {
             try
             {
@@ -243,6 +256,21 @@ namespace SessionEstablisher
                         if (logPathObj != null)
                         {
                             checkUsage = (int)logPathObj == 1;
+                        }
+                        object networkCheckObj = settingsKey.GetValue("CheckNetworkConnectivity");
+                        if (networkCheckObj != null)
+                        {
+                            checkNetwork = (int)networkCheckObj == 1;
+                        }
+                        object pingTargetObj = settingsKey.GetValue("NetworkCheckTarget");
+                        if (pingTargetObj is string target && !string.IsNullOrWhiteSpace(target))
+                        {
+                            pingTarget = target;
+                        }
+                        object timeoutObj = settingsKey.GetValue("NetworkTimeoutMilliseconds");
+                        if (timeoutObj != null)
+                        {
+                            networkTimeoutMs = (int)timeoutObj;
                         }
 
                     }
@@ -393,6 +421,45 @@ namespace SessionEstablisher
                     Log.Verbose($"Process started with PID: {exeProcess.Id}");
                 }
             }
+        }
+
+        private static async Task<bool> WaitForNetworkConnectivity(string pingTarget = "1.1.1.1", int timeoutMilliseconds = 8000)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            Log.Information($"Testing network connectivity to: {pingTarget} with timeout {timeoutMilliseconds}ms");
+
+            int attemptCount = 0;
+            while (stopwatch.ElapsedMilliseconds < timeoutMilliseconds)
+            {
+                attemptCount++;
+                Log.Verbose($"Network check attempt {attemptCount} at {stopwatch.ElapsedMilliseconds}ms");
+
+                try
+                {
+                    using (var ping = new Ping())
+                    {
+                        Log.Verbose($"Starting ping to {pingTarget}");
+                        var reply = await ping.SendPingAsync(pingTarget, 500);
+                        Log.Verbose($"Ping completed with status: {reply.Status}");
+
+                        if (reply.Status == IPStatus.Success)
+                        {
+                            Log.Information($"Network connectivity confirmed to {pingTarget} after {stopwatch.ElapsedMilliseconds}ms");
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning($"Network connectivity check failed: {ex.Message}");
+                }
+
+                Log.Verbose("Waiting 500ms before next attempt");
+                await Task.Delay(500);
+            }
+
+            Log.Warning($"Network connectivity timeout reached for {pingTarget} after {stopwatch.ElapsedMilliseconds}ms");
+            return false;
         }
 
         private static string fetchExePath(string registryPath, string exeName, string defaultPath)

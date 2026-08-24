@@ -47,8 +47,8 @@ public class ClaimsProviderKeystoreProvider implements DISAML_KeystoreProvider {
 		return keystoreService.getJavaKeystorePassword(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
 	}
 
-	// run once every day between 10:00-10:59
-	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 10 * * ?")
+	// run once Wednesday day between 10:00-10:59
+	@Scheduled(cron = "#{new java.util.Random().nextInt(60)} #{new java.util.Random().nextInt(60)} 10 * * WED")
 	public void checkExpiry() throws Exception {
 		KeyStore keyStore = keystoreService.getJavaKeystore(KnownCertificateAliases.NEMLOGIN.toString());
 		if (keyStore != null) {
@@ -60,7 +60,7 @@ public class ClaimsProviderKeystoreProvider implements DISAML_KeystoreProvider {
 				.atZone(ZoneId.systemDefault())
 				.toLocalDate();
 			
-			if (expiry.isBefore(LocalDate.now().plusMonths(3))) {
+			if (expiry.isBefore(LocalDate.now().plusMonths(2))) {
 				// check if we have already planned a certificate rollover
 				KeyStore secondaryKeystore = keystoreService.getJavaKeystore(KnownCertificateAliases.NEMLOGIN_SECONDARY.toString());
 				if (secondaryKeystore != null) {

@@ -253,6 +253,8 @@ public class SamlMetadataService {
 		config.setOnlyAllowLoginFromKnownNetworks(serviceProviderDTO.isOnlyAllowLoginFromKnownNetworks());
 		config.setNotes(serviceProviderDTO.getNotes());
 		config.setNotificationEmail(serviceProviderDTO.getNotificationEmail());
+		
+		config.setNsisIdpLoginFilter((serviceProviderDTO.getNsisIdPLoginFilter() != null && serviceProviderDTO.getNsisIdPLoginFilter().size() > 0) ? String.join(",", serviceProviderDTO.getNsisIdPLoginFilter()) : null);
 
 		// Advanced fields
 		config.setAllowUnsignedAuthnRequests(serviceProviderDTO.isAllowUnsignedAuthnRequests());
@@ -331,7 +333,24 @@ public class SamlMetadataService {
                 if (certificates != null) {
                     for (CertificateDTO certificate : certificates) {
                         if (certificate.getExpiryDateAsDate().before(futereDate)) {
-                            log.error(constructCertWarnMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
+                        	boolean otherNonExpired = false;
+
+                        	// check if any other certificate (of same usage type) is non-expired, in which
+                        	// case the certificate is rolling, and we should NOT log an error
+                        	for (CertificateDTO certificate2 : certificates) {
+                        		if (Objects.equals(certificate2.getUsageType(), certificate.getUsageType())) {
+                        			if (!certificate2.getExpiryDateAsDate().before(futereDate)) {
+                        				otherNonExpired = true;
+                        			}
+                        		}
+                        	}
+                        	
+                        	if (otherNonExpired) {
+                        		log.warn(constructCertWarnMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
+                        	}
+                        	else {
+                        		log.error(constructCertWarnMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));
+                        	}
                         }
                         else {
                             log.info(constructCertDebugMessage("SP: " + serviceProviderDTO.getName(), certificate.getUsageType(), certificate.getExpiryDateAsDate()));

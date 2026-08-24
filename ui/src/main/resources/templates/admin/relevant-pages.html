@@ -30,32 +30,32 @@
 									
 									<tbody>
 										<tr th:if="${changePasswordEnabled}">
-											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'change-password'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'change-password'}"></a></td>
+											<td><a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'change-password'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'change-password'}"></a></td>
 											<td>Side til at skifte kodeord - brugerne kan tilgå denne side fra internettet, og udføre et kodeordsskifte vha deres eksisterende kodeord.</td>
 										</tr>
 										
 										<tr th:if="${parentChangePasswordOnStudent}">
-											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/elevkode'}" th:text="${@commonConfiguration.selfService.baseUrl + '/elevkode'}"></a></td>
+											<td><a th:href="${#commonConfiguration.get().selfService.baseUrl + '/elevkode'}" th:text="${#commonConfiguration.get().selfService.baseUrl + '/elevkode'}"></a></td>
 											<td>Side til at skifte kodeord - forældre kan tilgå denne side fra internettet, og udføre et kodeordsskifte på deres børn (skole-elever) ved et forudgående login med MitID.</td>
 										</tr>
 
 										<tr>
-											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/forgotpworlocked'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/forgotpworlocked'}"></a></td>
+											<td><a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/forgotpworlocked'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/forgotpworlocked'}"></a></td>
 											<td>Side til at skifte kodeord - brugere der har glemt deres kodeord, kan anvende denne side til at nulstille deres kodeord med MitID.</td>
 										</tr>
 
 										<tr>
-											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/privatlivspolitik'}" th:text="${@commonConfiguration.selfService.baseUrl + '/privatlivspolitik'}"></a></td>
+											<td><a th:href="${#commonConfiguration.get().selfService.baseUrl + '/privatlivspolitik'}" th:text="${#commonConfiguration.get().selfService.baseUrl + '/privatlivspolitik'}"></a></td>
 											<td>Privatlivsvilkår - her kan brugerne altid tilgå de gældende privatlivsvilkår.</td>
 										</tr>
 
 										<tr>
-											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/vilkaar'}" th:text="${@commonConfiguration.selfService.baseUrl + '/vilkaar'}"></a></td>
+											<td><a th:href="${#commonConfiguration.get().selfService.baseUrl + '/vilkaar'}" th:text="${#commonConfiguration.get().selfService.baseUrl + '/vilkaar'}"></a></td>
 											<td>Anvendelsesvilkår - her kan brugerne altid tilgå de gældende anvendelsesvilkår.</td>
 										</tr>
 
 										<tr>
-											<td><a th:href="${@commonConfiguration.selfService.baseUrl + '/selvbetjening'}" th:text="${@commonConfiguration.selfService.baseUrl + '/selvbetjening'}"></a></td>
+											<td><a th:href="${#commonConfiguration.get().selfService.baseUrl + '/selvbetjening'}" th:text="${#commonConfiguration.get().selfService.baseUrl + '/selvbetjening'}"></a></td>
 											<td>Selvbetjening - her kan brugerne logge ind i selvbetjeningen og administrere deres konto.</td>
 										</tr>
 

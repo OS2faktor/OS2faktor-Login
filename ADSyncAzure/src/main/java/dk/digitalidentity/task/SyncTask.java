@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @EnableScheduling
 public class SyncTask {
-	private long counter = 0;
+//	private long counter = 0;
 
 	@Autowired
 	private OS2faktorAzureADSyncConfiguration configuration;
@@ -25,14 +25,14 @@ public class SyncTask {
 	@Autowired
 	private KombitRoleAdService kombitRoleAdService;
 
-	@Scheduled(cron = "0 0/5 5-21 * * ?")
+	@Scheduled(cron = "${cron.coredata:0 0/15 5-21 * * ?}")
 	public void sync() throws Exception {
 		if (configuration.getScheduled().isEnabled()) {
-			// perform a full sync every 4 hours, and then delta every 5 minutes
-			boolean fullSync = (counter % (4 * 12) == 0);
-			counter++;
+			// perform a full sync every 4 hours, and then delta every 15 minutes
+//			boolean fullSync = (counter % (4 * 4) == 0);
+//			counter++;
 	
-			if (fullSync) {
+//			if (fullSync) {
 				log.info("CoreData sync running (full)");
 				azureAdService.fullSync();
 	
@@ -42,6 +42,7 @@ public class SyncTask {
 				}
 	
 				log.info("CoreData sync completed (full)");
+				/*
 			}
 			else {
 				azureAdService.deltaSync();
@@ -52,6 +53,7 @@ public class SyncTask {
 				
 				log.info("CoreData sync completed (delta)");
 			}
+			*/
 		}
 	}
 }

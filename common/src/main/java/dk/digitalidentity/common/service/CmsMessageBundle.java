@@ -121,7 +121,10 @@ public class CmsMessageBundle {
 
 		all.add(new CmsMessageListDTO("cms.login.nonNsisIdP", getDescription("cms.login.nonNsisIdP")));
 		all.add(new CmsMessageListDTO("cms.login.nonNsisIdP.description", getDescription("cms.login.nonNsisIdP.description")));
-		
+
+		all.add(new CmsMessageListDTO("cms.login.activateAccountFirst", getDescription("cms.login.activateAccountFirst")));
+		all.add(new CmsMessageListDTO("cms.login.loop.cancelled", getDescription("cms.login.loop.cancelled")));
+
 		return all;
 	}
 	
@@ -249,6 +252,10 @@ public class CmsMessageBundle {
             	return "Teksten der vises på fanen til ekstern IdP login på loginsiden";
             case "cms.login.nonNsisIdP.description":
             	return "Den forklarende tekst på fanen til ekstern IdP login på loginsiden";
+            case "cms.login.activateAccountFirst":
+            	return "Den forklarende tekst der vises, hvis en bruger forsøger at logge ind via NemLog-in, uden først at have aktiveret sin erhvervsidentitet";
+            case "cms.login.loop.cancelled":
+            	return "Den forklarende tekst der vises, hvis en brugers login afbrydes fordi kommunikationen mellem OS2faktor og tjenesten er gået i uendelige løkke";
 			default:
 				log.error("Key does not have a description: " + key);
 				return "";

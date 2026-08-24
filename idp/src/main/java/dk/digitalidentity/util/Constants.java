@@ -8,6 +8,8 @@ public class Constants {
     public static final String RELAY_STATE = "RelayState";
     public static final String SAML_REQUEST = "SAMLRequest";
 
+    public static final String AUTHN_REQUEST_TTS = "AUTHN_REQUEST_TTS";
+    public static final String AUTHN_REQUEST_COUNT = "AUTHN_REQUEST_COUNT";
     public static final String NEMID_MITID_AUTHENTICATION_LEVEL = "NEMID_MITID_AUTHENTICATION_LEVEL";
     public static final String MFA_AUTHENTICATION_LEVEL = "MFA_AUTHENTICATION_LEVEL";
     public static final String MFA_AUTHENTICATION_LEVEL_TIMESTAMP = "MFA_AUTHENTICATION_LEVEL_TIMESTAMP";
@@ -35,6 +37,7 @@ public class Constants {
     public static final String DECLINE_USER_ACTIVATION = "DECLINE_USER_ACTIVATION";
     public static final String PASSWORDLESS_MFA_FLOW = "PASSWORDLESS_MFA_FLOW";
     public static final String PASSWORDLESS_MFA_FLOW_USERNAME = "PASSWORDLESS_MFA_FLOW_USERNAME";
+    public static final String NON_NSIS_IDP_LOGIN_SESSION = "NON_NSIS_IDP_LOGIN_SESSION";
 
     public static final String NEMID_OR_MITID_AUTHENTICATION_FLOW = "NEMID_OR_MITID_AUTHENTICATION_FLOW";
     public static final String NON_NSIS_IDP_FLOW = "NON_NSIS_IDP_FLOW";

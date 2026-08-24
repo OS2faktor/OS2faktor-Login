@@ -295,7 +295,7 @@
 										</div>
 									</div>
 
-									<div class=" form-group row">
+									<div class=" form-group row" th:if="${serviceprovider.sqlServiceProvider}">
 										<div id="advancedDropdownToggle" class="col-sm-3 col-form-label" style="cursor: pointer; user-select: none;">
 											<em id="advToggleIconDown" class="fa fa-caret-right"></em>
 											<em id="advToggleIconUp" class="fa fa-caret-down" style="display: none;"></em>
@@ -349,6 +349,35 @@
 												<input th:field="${serviceprovider.autoNonNsisIdPLogin}" type="checkbox" class="i-checks" disabled="disabled">
 											</label>
 										</div>
+										
+										<div class="form-group row" th:if="${externalIdPEnabled && externalIdPOptions != null}">
+											<label class="col-sm-3 col-form-label">
+												Begræns eksterne IdP'er
+												<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis man kun må anvende udvalgte af de opsatte eksterne IdP'er, så kan man angive hvilke her. Hvis man ikke sætter kryds i nogle af dem, så svarer det til at der er kryds i alle."></em>
+											</label>
+
+											<label class="col-sm-9">
+												<table id="loginMethodsTable" class="table table-striped table-bordered table-hover" >
+													<thead>
+														<tr>
+															<th style="width: 60px;">Valgt</th>
+															<th>Navn</th>
+														</tr>
+													</thead>
+													
+													<tbody style="display: table-row-group">
+														<tr th:each="choice : ${externalIdPOptions}">
+															<td style="text-align: center;">
+																<label>
+																	<input th:attr="data-name=${choice}" type="checkbox" class="i-checks externalIdPCheckbox" disabled="disabled">
+																</label>
+															</td>
+															<td th:text="${choice}"></td>
+														</tr>
+													</tbody>
+												</table>
+											</label>
+										</div>
 									</div>
 
 									<div class="form-group row">
@@ -361,7 +390,7 @@
 										</div>
 									</div>
 
-									<div class="form-group row">
+									<div class="form-group row" th:if="${serviceprovider.sqlServiceProvider}">
 										<div id="notesDropdownToggle" class="col-sm-3 col-form-label" style="cursor: pointer; user-select: none;">
 											<em id="notesToggleIconDown" class="fa fa-caret-right" th:style="${serviceprovider.notes != null and !#strings.isEmpty(serviceprovider.notes)} ? 'display: none;' : ''"></em>
 											<em id="notesToggleIconUp" class="fa fa-caret-down" th:style="${serviceprovider.notes != null and !#strings.isEmpty(serviceprovider.notes)} ? '' : 'display: none;'"></em>
@@ -641,13 +670,17 @@
 									<table id="claimTable" class="table table-striped table-bordered table-hover">
 										<thead>
 											<tr>
-												<th style="width: 400px;">Navn</th>
+												<th style="width: 250px;">Navn</th>
 												<th>EntityId</th>
-												<th style="width: 200px;">
+												<th style="width: 170px;">
 													Forsinket mobil-login
 													<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="right" data-content="Hvis denne funktion er slået til, så vises en 'videre' knap efter gennemført MFA på mobile enheder. Dette sikrer at login kan gennemføres i mobile apps som ikke håndterer login korrekt når app'en er i baggrunden."></em>
 												</th>
-												<th style="width: 250px;">Kræv 2-faktor login</th>
+												<th style="width: 200px;">Kræv 2-faktor login</th>
+												<th style="width: 200px;">
+													IdP viderestilling
+													<em class="fa fa-question" data-toggle="popover" data-trigger="hover" data-placement="left" data-content="Hvis der vælges en IdP på listen her, så sendes logins automatisk videre til den. Bemærk at det IKKE vil virke for it-systemer der kræver et NSIS sikringsniveau."></em>
+												</th>
 											</tr>
 										</thead>
 										
@@ -665,6 +698,12 @@
 												<td>
 													<select class="form-control m-b forceMfaRequiredSelect" th:data-id="${subsystem.id}" style="margin-bottom: 0px;">
 														<option th:each="forceMfaRequired : ${T(dk.digitalidentity.common.dao.model.enums.ForceMFARequired).values()}" th:value="${forceMfaRequired}" th:text="#{__${forceMfaRequired.message}__}" th:selected="${forceMfaRequired} == ${subsystem.forceMfaRequired}"></option>
+													</select>
+												</td>
+												<td>
+													<select class="form-control m-b IdPForwardSelect" th:data-id="${subsystem.id}" style="margin-bottom: 0px;">
+														<option value="">Nej</option>
+														<option th:each="externalIdPOption : ${externalIdPOptions}" th:value="${externalIdPOption}" th:text="${externalIdPOption}" th:selected="${externalIdPOption} == ${subsystem.externalIdpOption}"></option>
 													</select>
 												</td>
 											</tr>
@@ -692,6 +731,7 @@
 		var rootUrl = [[@{/}]];
 		var spUrl = [[@{/admin/konfiguration/tjenesteudbydere/}]];
 		var attributeValueMap = [[${attributeValueMap}]];
+		var nsisIdPLoginFilter = [[${serviceprovider.nsisIdPLoginFilter}]];
 		+]*/
 
 		var token = $("meta[name='_csrf']").attr("content");
@@ -808,6 +848,28 @@
 				});
 			});
 
+			$('.IdPForwardSelect').on('change', function() {
+				var id = $(this).data('id');
+				var body = {};
+				body.idp = $(this).val();
+
+				$.ajax({
+					url: rootUrl + 'admin/konfiguration/tjenesteudbydere/kombit/subsystem/' + id + '/idpForward',
+					method: "POST",
+					headers: {
+					  'X-CSRF-TOKEN': token
+				   	},
+					contentType: 'application/json',
+					data: JSON.stringify(body),
+				   	success: function(data, textStatus, jQxhr) {
+						toastr.success('Opdateringen gennemført')
+				   	},
+				   	error: function(jQxhr, textStatus, errorThrown) {
+						toastr.error('Opdateringen fejlede');
+				   	}
+				});
+			});
+
 			$('.delayMobileLoginCheckbox').on('change', function() {
 				var id = $(this).data('id');
 				var choice = $(this).prop("checked");
@@ -859,19 +921,23 @@
 				});
 			});
 
-			advancedDropdownToggle.addEventListener("click", () => {
-				advancedDropdownBody.style.display = advancedDropdownBody.style.display === "none" ? "block" : "none";
-				advToggleIconDown.style.display = advToggleIconDown.style.display === "none" ? "inline" : "none";
-				advToggleIconUp.style.display = advToggleIconUp.style.display === "none" ? "inline" : "none";
-			});
+			if (advancedDropdownToggle) {
+				advancedDropdownToggle.addEventListener("click", () => {
+					advancedDropdownBody.style.display = advancedDropdownBody.style.display === "none" ? "block" : "none";
+					advToggleIconDown.style.display = advToggleIconDown.style.display === "none" ? "inline" : "none";
+					advToggleIconUp.style.display = advToggleIconUp.style.display === "none" ? "inline" : "none";
+				});
+			}
 
 			const notesDropdownToggle = document.getElementById("notesDropdownToggle");
 			const notesDropdownBody = document.getElementById("notesDropdownBody");
-			notesDropdownToggle.addEventListener("click", () => {
-				notesDropdownBody.style.display = notesDropdownBody.style.display === "none" ? "block" : "none";
-				notesToggleIconDown.style.display = notesToggleIconDown.style.display === "none" ? "inline" : "none";
-				notesToggleIconUp.style.display = notesToggleIconUp.style.display === "none" ? "inline" : "none";
-			});
+			if (notesDropdownToggle) {
+				notesDropdownToggle.addEventListener("click", () => {
+					notesDropdownBody.style.display = notesDropdownBody.style.display === "none" ? "block" : "none";
+					notesToggleIconDown.style.display = notesToggleIconDown.style.display === "none" ? "inline" : "none";
+					notesToggleIconUp.style.display = notesToggleIconUp.style.display === "none" ? "inline" : "none";
+				});
+			}
 
 			const downloadMetadataBtn = document.getElementById("metadataDownloadBtn");
 			downloadMetadataBtn.addEventListener("click", () => {
@@ -889,6 +955,12 @@
 				})
 				.catch(err => console.error("error: ", err));
 			});
+			
+			nsisIdPLoginFilter.forEach(element => {
+				$('.externalIdPCheckbox[data-name="'+ element +'"]').iCheck('check');
+			});
+
+			$('#loginMethodsTable').iCheck('update');
 		});
 
 		

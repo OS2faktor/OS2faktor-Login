@@ -9,7 +9,7 @@ namespace ResetPasswordDialog
 {
     public partial class ResetPasswordForm : Form
     {
-        public  ResetPasswordForm()
+        public ResetPasswordForm()
         {
 
             Log.Verbose("Initialising components");
@@ -43,7 +43,7 @@ namespace ResetPasswordDialog
             double width = workingArea.Right * xScale;
             double height = workingArea.Bottom * yScale;
 
-            this.Size = new Size((int) Math.Floor(width), (int)Math.Floor(height));
+            this.Size = new Size((int)Math.Floor(width), (int)Math.Floor(height));
 
             // Center window on screen
             this.Location = new Point()
@@ -166,7 +166,8 @@ namespace ResetPasswordDialog
 
         private void CoreWebView2_DownloadStarting(object sender, Microsoft.Web.WebView2.Core.CoreWebView2DownloadStartingEventArgs e)
         {
-             Prevent downloads
+            // Prevent downloads
             e.Cancel = true;
         }
+    }
 }

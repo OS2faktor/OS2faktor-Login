@@ -1,6 +1,7 @@
 package dk.digitalidentity.mvc.admin;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -142,13 +143,20 @@ public class ServiceProviderController {
 
 		if (serviceProviderDTO.isKombitServiceProvider()) {
 			model.addAttribute("kombitSubsystems", kombitSubsystemService.findAll());
-			model.addAttribute("kombitSubSystemMfa", settingService.getString(SettingKey.KOMBIT_DEFAULT_MFA));
+			model.addAttribute("kombitSubSystemMfa", settingService.getStringNoCache(SettingKey.KOMBIT_DEFAULT_MFA));
 			
-			serviceProviderDTO.setPasswordExpiry(settingService.getLong(SettingKey.KOMBIT_PASSWORD_EXPIRY));
-			serviceProviderDTO.setMfaExpiry(settingService.getLong(SettingKey.KOMBIT_MFA_EXPIRY));
-			serviceProviderDTO.setHasCustomSessionExpiry(settingService.getBoolean(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY));
+			serviceProviderDTO.setPasswordExpiry(settingService.getLongNoCache(SettingKey.KOMBIT_PASSWORD_EXPIRY));
+			serviceProviderDTO.setMfaExpiry(settingService.getLongNoCache(SettingKey.KOMBIT_MFA_EXPIRY));
+			serviceProviderDTO.setHasCustomSessionExpiry(settingService.getBooleanNoCache(SettingKey.KOMBIT_HAS_CUSTOM_EXPIRY));
 		}
-		
+
+		if (configuration.getCustomer().getExternalLoginMethods() != null && configuration.getCustomer().getExternalLoginMethods().size() > 0) {
+			model.addAttribute("externalIdPOptions", configuration.getCustomer().getExternalLoginMethods());
+		}
+		else {
+			model.addAttribute("externalIdPOptions", new ArrayList<String>());
+		}
+
 		model.addAttribute("serviceprovider", serviceProviderDTO);
 		model.addAttribute("externalIdPEnabled", configuration.getCustomer().isExternalLoginMethodEnabled());
 		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
@@ -177,6 +185,10 @@ public class ServiceProviderController {
 		model.addAttribute("externalIdPEnabled", configuration.getCustomer().isExternalLoginMethodEnabled());
 		model.addAttribute("attributeValueMap", personAttributeSetService.getAttributeValueMappings(true));
 		
+		if (configuration.getCustomer().getExternalLoginMethods() != null && configuration.getCustomer().getExternalLoginMethods().size() > 1) {
+			model.addAttribute("externalIdPOptions", configuration.getCustomer().getExternalLoginMethods());
+		}
+
 		List<Group> groups = groupService.getAll();
 		model.addAttribute("groups", groups);
 		model.addAttribute("showGroups", groups.size() > 0);

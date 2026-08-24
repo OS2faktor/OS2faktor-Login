@@ -173,7 +173,7 @@ public class LoginController {
 
 			LoginRequest loginRequest = new LoginRequest(authnRequest, httpServletRequest.getHeader("User-Agent"));
 			loginRequest.setRelayState(relayState);
-
+			
 			return loginService.loginRequestReceived(httpServletRequest, httpServletResponse, model, loginRequest, false);
 		}
 		catch (RequesterException | ResponderException | SecurityException ex) {

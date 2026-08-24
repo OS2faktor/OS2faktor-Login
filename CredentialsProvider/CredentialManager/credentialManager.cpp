@@ -272,7 +272,7 @@ void GetSessionToken(PUNICODE_STRING PUSUsername, PUNICODE_STRING PUSPassword, P
 				}
 
 				// Wait for child process to be done, 5 second timeout.
-				if (WaitForSingleObject(pi.hProcess, 5 * 1000) != WAIT_OBJECT_0)
+				if (WaitForSingleObject(pi.hProcess, 10 * 1000) != WAIT_OBJECT_0)
 				{
 					if (_IsLoggingEnabled)
 					{

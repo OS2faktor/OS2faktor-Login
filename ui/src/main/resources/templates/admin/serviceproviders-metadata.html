@@ -45,19 +45,19 @@
 										<tr>
 											<td>Primær</td>
 											<td th:text="${primaryCertName}"></td>
-											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/primaryCert'}">PEM</a></td>
+											<td><a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/primaryCert'}">PEM</a></td>
 										</tr>
 										
 										<tr th:if="${secondaryCertName != null}">
 											<td>Sekundær</td>
 											<td th:text="${secondaryCertName}"></td>
-											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/secondaryCert'}">PEM</a></td>
+											<td><a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/secondaryCert'}">PEM</a></td>
 										</tr>
 										
 										<tr th:if="${selfsignedCertName != null}">
 											<td>Selfsigned</td>
 											<td th:text="${selfsignedCertName}"></td>
-											<td><a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/selfsignedCert'}">PEM</a></td>
+											<td><a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/selfsignedCert'}">PEM</a></td>
 										</tr>
 									</tbody>
 								</table>
@@ -69,7 +69,7 @@
 								</p>
 								
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata'}"></a>
 								</p>
 								
 								<p>
@@ -78,7 +78,7 @@
 								</p>
 
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata?cert=SELFSIGNED'}"></a>
 								</p>
 
 								<p>
@@ -89,7 +89,7 @@
 								</p>
 								
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'sso/saml/metadata?MitIDErhverv=true'}"></a>
 								</p>
 								
 								<h2>OpenID Connect</h2>
@@ -100,7 +100,7 @@
 								</p>
 								
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + '.well-known/openid-configuration'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + '.well-known/openid-configuration'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + '.well-known/openid-configuration'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + '.well-known/openid-configuration'}"></a>
 								</p>
 
 								<table class="table table-striped">
@@ -129,22 +129,22 @@
 										
 										<tr>
 											<td>authorization-uri</td>
-											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/authorize'}"></td>
+											<td th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'oauth2/authorize'}"></td>
 										</tr>
 										
 										<tr>
 											<td>token-uri</td>
-											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/token'}"></td>
+											<td th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'oauth2/token'}"></td>
 										</tr>
 										
 										<tr>
 											<td>user-info-uri</td>
-											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'userinfo'}"></td>
+											<td th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'userinfo'}"></td>
 										</tr>
 										
 										<tr>
 											<td>jwk-set-uri</td>
-											<td th:text="${@OS2faktorConfiguration.idp.baseUrl + 'oauth2/jwks'}"></td>
+											<td th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'oauth2/jwks'}"></td>
 										</tr>
 									</tbody>
 								</table>
@@ -155,7 +155,7 @@
 								</p>
 								
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'ws/metadata'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'ws/metadata'}"></a>
 								</p>
 								
 								<p>
@@ -164,7 +164,7 @@
 								</p>
 								
 								<p>
-									<a th:href="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}" th:text="${@OS2faktorConfiguration.idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}"></a>
+									<a th:href="${#os2faktorConfiguration.get().idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}" th:text="${#os2faktorConfiguration.get().idp.baseUrl + 'ws/metadata?cert=SELFSIGNED'}"></a>
 								</p>
 							</div>
 						</div>

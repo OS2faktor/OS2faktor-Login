@@ -102,12 +102,23 @@
 
 			this.save = function() {
 				list = [];
+				var cidrPattern = /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/([1-9]|[12]\d|3[0-2])$/;
+				var invalid = [];
 				$('#knownNetworksTable input').each(function(index){
 					val = $(this).val();
 					if (val != '') {
-						list.push($(this).val());
+						if (!cidrPattern.test(val)) {
+							invalid.push(val);
+						} else {
+							list.push(val);
+						}
 					}
 				})
+
+				if (invalid.length > 0) {
+					toastr.error("Ugyldigt netværk: '" + invalid.join("', '") + "'. Netværk skal angives med CIDR-notation og et subnet-filter (f.eks. 192.168.1.0/24 eller 10.0.0.1/32).");
+					return;
+				}
 
 				// Save
 				$.ajax({

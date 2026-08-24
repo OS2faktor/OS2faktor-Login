@@ -54,7 +54,7 @@ namespace ChangePassword
                         if (logPath != null && logPath.Length > 0)
                         {
                             Log.Logger = new LoggerConfiguration()
-                            .MinimumLevel.Error()
+                            .MinimumLevel.Information()
                             .WriteTo.File(logPath, rollingInterval: RollingInterval.Infinite)
                             .CreateLogger();
                         }
@@ -95,6 +95,12 @@ namespace ChangePassword
                         string bodyString = JsonSerializer.Serialize(body);
                         HttpContent content = new StringContent(bodyString, System.Text.Encoding.UTF8, "application/json");
 
+                        string usernameDomain = body.username.Contains("@") ? body.username.Split('@')[1] : "[NONE]";
+                        Log.Information("API request: username={Username}, domain={Domain}, version={Version}, oldPassword={OldPasswordStatus}, newPassword={NewPasswordStatus}",
+                            body.username, usernameDomain, body.version,
+                            string.IsNullOrWhiteSpace(body.oldPassword) ? "[EMPTY]" : "[SET]",
+                            string.IsNullOrWhiteSpace(body.newPassword) ? "[EMPTY]" : "[SET]");
+
                         // Call the service and wait for the response
                         try
                         {
@@ -102,13 +108,21 @@ namespace ChangePassword
                             string url = (baseUrl.EndsWith("/") ? baseUrl : (baseUrl + "/")) + "api/client/changePasswordWithBody";
 
                             HttpResponseMessage response = await client.PostAsync(url, content);
+
+                            Log.Information("API response: StatusCode={StatusCode}, ReasonPhrase={ReasonPhrase}",
+                                response.StatusCode, response.ReasonPhrase);
+
                             if (response.IsSuccessStatusCode)
                             {
-                                Log.Verbose("Successfully changed password");
+                                Log.Information("Successfully changed password");
                             }
                             else
                             {
-                                Log.Error("Could not change password in os2faktor. Error: {0} '{1}'", response.StatusCode, response.ReasonPhrase);
+                                var responseBody = await response.Content.ReadAsStringAsync();
+                                Log.Error("API call failed: StatusCode={StatusCode}, ResponseBody={ResponseBody}",
+                                    response.StatusCode, responseBody);
+                                Log.Information("Request context: username={Username}, version={Version}",
+                                    args[0], versionStr);
                                 return;
                             }
                         }

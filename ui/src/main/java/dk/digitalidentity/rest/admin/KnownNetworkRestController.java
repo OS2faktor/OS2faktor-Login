@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 public class KnownNetworkRestController {
 
+	private static final Pattern CIDR_PATTERN = Pattern.compile("^((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)/([1-9]|[12]\\d|3[0-2])$");
+
 	@Autowired
 	private AuditLogger auditLogger;
 
@@ -44,6 +47,12 @@ public class KnownNetworkRestController {
 		if (admin == null) {
 			log.warn("Could not find admin while saving known networks");
 			return ResponseEntity.badRequest().build();
+		}
+
+		List<String> invalid = knownNetworks.stream().filter(n -> !CIDR_PATTERN.matcher(n).matches()).toList();
+		if (!invalid.isEmpty()) {
+			log.warn("Admin {} submitted invalid IP network entries: {}", admin.getSamaccountName(), invalid);
+			return ResponseEntity.badRequest().body("Ugyldigt netværk: " + String.join(", ", invalid));
 		}
 
 		List<KnownNetwork> toBeSaved = new ArrayList<>();

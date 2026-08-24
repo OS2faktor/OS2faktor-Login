@@ -528,6 +528,8 @@ public class SessionHelper {
 			return;
 		}
 		
+		
+		
 		// TODO maybe refactor this at some point, the LoginRequest/LoginRequestDTO is an inelegant solution
 		setAuthnRequest(loginRequest.getAuthnRequest());
 		setRelayState(loginRequest.getRelayState());
@@ -1431,6 +1433,7 @@ public class SessionHelper {
 		setAuthenticatedWithADPassword(false);
 		setAuthenticatedWithNemIdOrMitId(false);
 		setInExtraAttemptNsisRequiredLoginFlow(false);
+		setInNonNsisIdPLoginFlow(false);
 	}
 
 	public void clearSession() {
@@ -1507,6 +1510,7 @@ public class SessionHelper {
 		setInApproveConditionsFlow(false);
 		setRequestedUsername(null);
 		setInPasswordlessMfaFlow(false, null);
+		setInNonNsisIdPLoginFlow(false);
 
 		// Save LogoutRequest to session if one is provided
 		if (logoutRequest != null) {
@@ -1737,6 +1741,35 @@ public class SessionHelper {
 
 		return (boolean) (attribute != null ? attribute : false);
 	}
+	
+	public boolean isNonNsisIdPLoginSession() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return false;
+		}
+
+		Object attribute = httpServletRequest.getSession().getAttribute(Constants.NON_NSIS_IDP_LOGIN_SESSION);
+
+		return (boolean) (attribute != null ? attribute : false);
+	}
+
+	public void setNonNsisIdPLoginSession(boolean value) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (value) {
+			updateSession(Constants.NON_NSIS_IDP_LOGIN_SESSION, true);
+		}
+		else {
+			httpServletRequest.getSession().removeAttribute(Constants.NON_NSIS_IDP_LOGIN_SESSION);
+		}
+
+		if (log.isDebugEnabled()) {
+			log.debug("setNonNsisIdPLoginSession: " + value);
+		}
+	}
 
 	public String getPasswordlessMfaFlowUsername() {
 		HttpServletRequest httpServletRequest = getServletRequest();
@@ -1779,5 +1812,87 @@ public class SessionHelper {
 		else {
 			httpServletRequest.getSession().setAttribute(field, value);
 		}
+	}
+
+	private LocalDateTime getAuthnRequestTimestamp() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return null;
+		}
+
+		Object timestamp = httpServletRequest.getSession().getAttribute(Constants.AUTHN_REQUEST_TTS);
+		if (timestamp != null) {
+			return (LocalDateTime) timestamp;
+		}
+
+		return null;
+	}
+
+	private void setAuthnRequestTimestamp(LocalDateTime timestamp) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (timestamp == null) {
+			updateSession(Constants.AUTHN_REQUEST_TTS, null);
+			return;
+		}
+
+		updateSession(Constants.AUTHN_REQUEST_TTS, timestamp);
+	}
+	
+	private Long getAuthnRequestCount() {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return null;
+		}
+
+		Object timestamp = httpServletRequest.getSession().getAttribute(Constants.AUTHN_REQUEST_COUNT);
+		if (timestamp != null) {
+			return (Long) timestamp;
+		}
+
+		return null;
+	}
+
+	private void setAuthnRequestCount(Long count) {
+		HttpServletRequest httpServletRequest = getServletRequest();
+		if (httpServletRequest == null) {
+			return;
+		}
+
+		if (count == null) {
+			updateSession(Constants.AUTHN_REQUEST_COUNT, null);
+			return;
+		}
+
+		updateSession(Constants.AUTHN_REQUEST_COUNT, count);
+	}
+
+	public boolean isInLoginLoop() {
+		// if we have gotten more than 10 authnRequests, each one within 30 seconds of each other,
+		// then we are likely in a login loop and should abort
+		Long count = 0L;
+		LocalDateTime tts = getAuthnRequestTimestamp();
+		if (tts != null && tts.isAfter(LocalDateTime.now().minusSeconds(30))) {
+			count = getAuthnRequestCount();
+			if (count == null) {
+				count = 0L;
+			}
+
+			// abort login flow and reset counters
+			if (count >= 10) {
+				setAuthnRequestTimestamp(null);
+				setAuthnRequestCount(null);
+				return true;
+			}
+		}
+
+		// store and increment
+		setAuthnRequestTimestamp(LocalDateTime.now());
+		setAuthnRequestCount(++count);
+		
+		return false;
 	}
 }

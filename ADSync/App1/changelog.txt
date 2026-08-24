@@ -43,3 +43,4 @@
 2024.11.21 - 2.12.0 - Understøtter at det primære indlæsningsjob kan slås fra, samt at tidspunktet for fuld synk er konfigurabelt
 2024.11.22 - 2.13.0 - understøtter indlæsning af eksternt MitID Erhverv UUID på eksterne konsulenter
 2025.01.11 - 2.14.0 - understøtter indlæsning af angivelse af om en bruger er robot via gruppemedlemsskab
+2026.05.20 - 2.15.0 - understøtter indlæsning af sidste kodeordsskifte tidspunkt for brugere

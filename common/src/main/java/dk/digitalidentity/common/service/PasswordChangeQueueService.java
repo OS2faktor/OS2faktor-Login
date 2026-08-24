@@ -33,7 +33,9 @@ public class PasswordChangeQueueService {
 				// do not delete the current one, it might not have a SYNCHRONIZED status
 				oldQueued.removeIf(q -> q.getId() == passwordChangeQueue.getId());
 				
-				passwordChangeQueueDao.deleteAll(oldQueued);
+				if (oldQueued.size() > 0) {
+					passwordChangeQueueDao.deleteAll(oldQueued);
+				}
 			}
 		}
 

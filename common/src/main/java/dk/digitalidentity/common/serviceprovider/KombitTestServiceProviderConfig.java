@@ -8,14 +8,14 @@ import dk.digitalidentity.common.config.CommonConfiguration;
 import dk.digitalidentity.common.dao.model.enums.NameIdFormat;
 
 @Component
-public class KombitTestServiceProviderConfigV2 implements ServiceProviderConfig {
+public class KombitTestServiceProviderConfig implements ServiceProviderConfig {
 
 	@Autowired
 	private CommonConfiguration config;
 
     @Override
     public String getName() {
-        return "KOMBIT Context Handler 2 (TEST)";
+        return "KOMBIT Context Handler (TEST)";
     }
 
     @Override

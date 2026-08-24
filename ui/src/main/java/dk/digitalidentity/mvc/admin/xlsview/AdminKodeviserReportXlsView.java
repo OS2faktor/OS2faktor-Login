@@ -51,6 +51,7 @@ public class AdminKodeviserReportXlsView implements View {
 	        ArrayList<String> headers = new ArrayList<>();
 	        headers.add("Navn");
 	        headers.add("Brugernavn");
+	        headers.add("Status");
 	        headers.add("OS2faktor ID");
 	        headers.add("Serienummer");
 	        headers.add("NSIS sikringsniveau");
@@ -71,6 +72,7 @@ public class AdminKodeviserReportXlsView implements View {
 	            Row dataRow = sheet.createRow(row++);
 	            createCell(dataRow, column++, entry.getName(), null);
 	            createCell(dataRow, column++, entry.getPerson().getSamaccountName(), null);
+	            createCell(dataRow, column++, entry.getPerson().isLocked() ? "Spærret" : "Aktiv", null);
 	            createCell(dataRow, column++, entry.getDeviceId(), null);
 	            createCell(dataRow, column++, entry.getSerialnumber(), null);
 	            createCell(dataRow, column++, nsisLevelToDanish(entry.getNsisLevel()), null);

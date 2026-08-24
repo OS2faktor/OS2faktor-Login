@@ -14,7 +14,7 @@
 						</div>
 			
 						<div class="ibox-content">
-							<p th:utext="${@cmsMessageBundle.getText('cms.activate.initiate')}" />
+							<p th:utext="${#cms.text('cms.activate.initiate')}" />
 			
 							<form action="#" th:action="@{/konto/init-aktiver}" method="post">
 							    <button type="submit" class="btn btn-primary block full-width m-b">Start aktivering</button>

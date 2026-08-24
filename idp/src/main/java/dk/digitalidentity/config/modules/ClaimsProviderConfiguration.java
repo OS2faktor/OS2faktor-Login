@@ -19,10 +19,9 @@ public class ClaimsProviderConfiguration {
 	private String stilMetadata = "https://broker.unilogin.dk/auth/realms/broker/protocol/saml-stil/descriptor";
 	private boolean stilEnabled = false;
 	
-	private String nonNsisIdPEntityId;
-	private String nonNsisIdPMetadata;
-	private List<String> nonNsisIdPIpFilter;
-	private boolean nonNsisIdPIsPassive = true;
 	private boolean nonNsisIdPEnabled = false;
 	private boolean nonNsisIdPEnabledForMobile = true;
+	private List<String> nonNsisIdPIpFilter;
+
+	private List<NonNsisIdPConfiguration> nonNsisIdPs;
 }

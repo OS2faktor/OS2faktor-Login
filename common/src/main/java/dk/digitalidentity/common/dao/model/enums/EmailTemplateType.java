@@ -30,7 +30,7 @@ public enum EmailTemplateType {
 
 	// full service IdP
 	FULL_SERVICE_IDP_ASSIGNED("html.enum.email.type.fullservice.assigned", Arrays.asList(Flags.EMAIL, Flags.EBOKS, Flags.FULL_SERVICE_IDP)),
-	FULL_SERVICE_IDP_REMOVED("html.enum.email.type.fullservice.removed", Arrays.asList(Flags.EMAIL, Flags.EBOKS, Flags.FULL_SERVICE_IDP)),
+	FULL_SERVICE_IDP_REMOVED("html.enum.email.type.fullservice.removed", Arrays.asList(Flags.EBOKS, Flags.FULL_SERVICE_IDP)),
 
 	// vendor mail
 	SP_VENDOR_CERTIFICATE_ROLLOVER("html.enum.email.type.sp_vendor_certificate_rollover", Arrays.asList(Flags.EMAIL, Flags.VENDOR_MAIL));

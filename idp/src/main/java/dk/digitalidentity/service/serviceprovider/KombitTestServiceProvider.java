@@ -20,7 +20,7 @@ import dk.digitalidentity.common.dao.model.Person;
 import dk.digitalidentity.common.dao.model.enums.SettingKey;
 import dk.digitalidentity.common.service.SettingService;
 import dk.digitalidentity.common.service.rolecatalogue.RoleCatalogueService;
-import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfigV2;
+import dk.digitalidentity.common.serviceprovider.KombitTestServiceProviderConfig;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.SessionHelper;
 import dk.digitalidentity.util.RequesterException;
@@ -30,14 +30,14 @@ import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 
 @Component
-public class KombitTestServiceProviderV2 extends KombitServiceProviderV2 {
+public class KombitTestServiceProvider extends KombitServiceProvider {
 	private HTTPMetadataResolver resolver;
 
 	@Autowired
 	private RoleCatalogueService roleCatalogueService;
 
 	@Autowired
-	private KombitTestServiceProviderConfigV2 kombitConfig;
+	private KombitTestServiceProviderConfig kombitConfig;
 
 	@Autowired
 	private CommonConfiguration commonConfig;

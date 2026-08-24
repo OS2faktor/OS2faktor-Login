@@ -171,6 +171,11 @@ public class ClientApiController {
 			return ResponseEntity.badRequest().build();
 		}
 
+		// TODO: temporary fix until we can get the WCP to stop sending smartcard logins
+		if (password != null && password.startsWith("@@D")) {
+			return ResponseEntity.badRequest().build();
+		}
+
 		// perform local password validation - no fallback to AD as these calls originate from AD, and we do not want
 		// to trigger a double wrong password result
 		PasswordValidationResult passwordValidationResult = passwordService.validatePasswordFromWcp(password, person);

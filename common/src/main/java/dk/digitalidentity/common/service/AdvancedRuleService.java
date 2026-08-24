@@ -112,8 +112,14 @@ public class AdvancedRuleService {
             	break;
             default:
                 if (person.getAttributes() != null) {
-                    attribute = person.getAttributes().get(personField);
+                	for (String key : person.getAttributes().keySet()) {
+                		if (key.equalsIgnoreCase(personField)) {
+                			attribute = person.getAttributes().get(key);
+                			break;
+                		}
+                	}
                 }
+                break;
         }
         
         return attribute;

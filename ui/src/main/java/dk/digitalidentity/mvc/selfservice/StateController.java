@@ -14,10 +14,12 @@ import dk.digitalidentity.common.dao.model.enums.NSISLevel;
 import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.common.service.SqlServiceProviderConfigurationService;
+import dk.digitalidentity.security.RequireEmployee;
 import dk.digitalidentity.security.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequireEmployee
 @Controller
 public class StateController {
 

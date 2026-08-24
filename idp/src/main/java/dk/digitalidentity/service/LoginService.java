@@ -30,8 +30,10 @@ import dk.digitalidentity.common.log.AuditLogger;
 import dk.digitalidentity.common.service.KnownNetworkService;
 import dk.digitalidentity.common.service.PersonService;
 import dk.digitalidentity.config.OS2faktorConfiguration;
+import dk.digitalidentity.config.modules.NonNsisIdPConfiguration;
 import dk.digitalidentity.controller.dto.LoginRequest;
 import dk.digitalidentity.service.model.enums.PasswordValidationResult;
+import dk.digitalidentity.service.serviceprovider.SelfServiceServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProvider;
 import dk.digitalidentity.service.serviceprovider.ServiceProviderFactory;
 import dk.digitalidentity.util.IPUtil;
@@ -87,6 +89,16 @@ public class LoginService {
      * This method handles receiving any login request, and will then determine based on session what to do with the user
      */
     public ModelAndView loginRequestReceived(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse, Model model, LoginRequest loginRequest, boolean bypassExternalIdP) throws IdPFlowException {
+    	
+    	// breaker for infinite-loop authnRequests
+    	// ======================================
+    	// some it-systems, when they get a SAML Assertion that they cannot parse/validate/use, they trigger a new AuthnRequest,
+    	// which OS2faktor will then just issue a new assertion for, which then restarts the flow again and again, until the user
+    	// stops the browser manually. We want to avoid that, so we break the login-flow if we get 10+ of those within a 1 minute window
+    	if (sessionHelper.isInLoginLoop()) {
+            throw new ShowErrorToUserException("Login afbrudt", null, "cms.login.loop.cancelled");
+    	}
+    	
         // Clear any flow states in session so user does not end up in a bad state with a new AuthnRequest
         sessionHelper.clearFlowStates();
 
@@ -153,12 +165,18 @@ public class LoginService {
 
         // special case - if the SP in question is configure to trigger auto-external-idp login, and all the requirements are fulfilled, we
         // abort the local login, and send them to the external login mechanism.
-        if (!bypassExternalIdP && configuration.getClaimsProvider().isNonNsisIdPEnabled() && serviceProvider.isAutoNonNsisIdPLogin() &&
+        if (!bypassExternalIdP && configuration.getClaimsProvider().isNonNsisIdPEnabled() && serviceProvider.isAutoNonNsisIdPLogin(loginRequest) &&
         	serviceProvider.nsisLevelRequired(loginRequest).equalOrLesser(NSISLevel.NONE) &&
         	sessionHelper.getPasswordLevel(serviceProvider, loginRequest) == null &&
         	(configuration.getClaimsProvider().getNonNsisIdPIpFilter() == null || configuration.getClaimsProvider().getNonNsisIdPIpFilter().size() == 0 || IPUtil.isIpInTrustedNetwork(configuration.getClaimsProvider().getNonNsisIdPIpFilter(), httpServletRequest))) {
 
-            return new ModelAndView("redirect:/nemlogin/saml/login?idp=" + configuration.getClaimsProvider().getNonNsisIdPEntityId());
+        	for (NonNsisIdPConfiguration idpConfiguration : configuration.getClaimsProvider().getNonNsisIdPs()) {
+            	if (serviceProvider.getNsisIdPLoginFilter(loginRequest) != null && !serviceProvider.getNsisIdPLoginFilter(loginRequest).contains(idpConfiguration.getName())) {
+            		continue;
+            	}
+
+                return new ModelAndView("redirect:/nemlogin/saml/login?idp=" + idpConfiguration.getEntityId());
+        	}
         }
 
         if (commonConfiguration.getMitIdErhverv().isEnabled()) {
@@ -170,16 +188,25 @@ public class LoginService {
             sessionHelper.setMFALevel(null);
         }
 
-        // If forceAuthn is required,
+        // if forceAuthn is required,
         // you're not logged in,
         // or you're accessing the service from a new IP regardless of previous authentication
-        // you will be asked login
+        // -> you will be asked login
         if (loginRequest.isForceAuthn() || loginState == null || !valid) {
             if (loginRequest.isPassive()) {
                 throw new ResponderException("Kunne ikke gennemføre passivt login da brugeren ikke har en gyldig session");
             }
 
             return flowService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());
+        }
+
+        // if attempting to login to self-service, and we now have an existing session, we should check if
+        // that session was created using an external IdP, in which case we should clear it and force a new login
+        if (serviceProvider instanceof SelfServiceServiceProvider) {
+        	if (sessionHelper.isNonNsisIdPLoginSession()) {
+        		sessionHelper.setNonNsisIdPLoginSession(false);
+                return flowService.initiateLogin(model, httpServletRequest, serviceProvider.preferNemId());        		
+        	}
         }
 
         // Login state is non-null which means we have already determined a person on the session
@@ -277,7 +304,6 @@ public class LoginService {
 	                }
 	        }
     	}
-    	
 
         // Remember the person on session since we now know who they are confirmed by username/password (TODO: what about passwordless, this comment is wrong in that case)
         sessionHelper.setPerson(person);
@@ -307,8 +333,14 @@ public class LoginService {
 		// also note that the last argument is false (perform expires-soon-check), as we want to query the user for a password change here
         ModelAndView modelAndView = flowService.initiatePasswordExpired(person, model, false);
         if (modelAndView != null) {
-            sessionHelper.setPassword(password);
-            return modelAndView;
+
+        	// if in passwordLess, we only show the modal when the password has FULLY expired, as the users state does not allow them to continue
+        	// login without a password from the subflow (so we should not drop the into that subflow unless we NEED them to change the password)
+        	if (!sessionHelper.isInPasswordlessMfaFlow() || (modelAndView.getModel() != null && modelAndView.getModel().containsKey("forced") && modelAndView.getModel().get("forced") == Boolean.TRUE)) {
+	            sessionHelper.setPassword(password);
+
+	            return modelAndView;
+        	}
         }
         
         if (badPasswordMustBeChanged) {
