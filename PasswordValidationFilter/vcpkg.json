@@ -1,0 +1,13 @@
+{
+  "dependencies": [
+      "openssl",
+      "spdlog",
+      {
+          "name": "cpp-httplib",
+          "default-features": false,
+          "features": [ "openssl" ]
+      },
+      "catch2",
+      "boost-json"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "linux",
+      "displayName": "Linux → Windows (MinGW)",
+      "generator": "Ninja",
+      "binaryDir": "build",
+      "cacheVariables": {
+          "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+          "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/mingw-toolchain.cmake",
+          "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
+          "CMAKE_MAKE_PROGRAM": "ninja",
+          "CMAKE_CXX_FLAGS": "-UCPPHTTPLIB_USE_NON_BLOCKING_GETADDRINFO",
+          "CMAKE_CXX_COMPILER": "x86_64-w64-mingw32-g++",
+          "MINGW": "TRUE"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "windows",
+      "displayName": "Windows x64 (MSVC)",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "build",
+      "architecture": "x64",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}\\scripts\\buildsystems\\vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-build",
+      "configurePreset": "linux",
+      "jobs": 0
+    },
+    {
+      "name": "windows-build",
+      "configurePreset": "windows"
+    }
+  ]
+}

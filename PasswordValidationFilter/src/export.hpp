@@ -1,0 +1,10 @@
+#ifndef DIGITAL_IDENTITY_PASSWORD_FILTER_EXPORT_HPP
+#define DIGITAL_IDENTITY_PASSWORD_FILTER_EXPORT_HPP
+
+#ifdef OS2faktorPasswordValidationFilter_EXPORTS
+#define PASSWORDVALIDATIONFILTER_API __declspec(dllexport)
+#else
+#define PASSWORDVALIDATIONFILTER_API __declspec(dllimport)
+#endif
+
+#endif

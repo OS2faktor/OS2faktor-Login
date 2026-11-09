@@ -1,0 +1,27 @@
+cmake_minimum_required(VERSION 3.27)
+
+set(PROJECT_VENDOR "Digital Identity")
+
+install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION .)
+
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lsa_notification_package_install.ps1" "${CMAKE_CURRENT_SOURCE_DIR}/lsa_notification_package_uninstall.ps1" DESTINATION .)
+
+include(InstallRequiredSystemLibraries)
+set(CPACK_GENERATOR "INNOSETUP")
+set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VENDOR ${PROJECT_VENDOR})
+set(CPACK_INNOSETUP_EXTRA_SCRIPTS "${CMAKE_SOURCE_DIR}/Installer/setup.iss")
+set(CPACK_INNOSETUP_ARCHITECTURE "x64" CACHE STRING "")
+set(CPACK_INNOSETUP_CUSTOM_INSTALL_INSTRUCTIONS
+    "${PROJECT_NAME}.dll;Source: \\\"${PROJECT_NAME}.dll\\\"\\; DestDir: \\\"{sys}\\\"\\; Flags: restartreplace"
+)
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "${PROJECT_VENDOR}/${PROJECT_NAME}")
+
+set(CPACK_INNOSETUP_DEFINE_AppURL "https://digital-identity.dk/")
+set(CPACK_INNOSETUP_DEFINE_AppVersion ${CPACK_PACKAGE_VERSION})
+set(CPACK_INNOSETUP_DEFINE_AppName ${PROJECT_NAME})
+
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")
+
+include(CPack)

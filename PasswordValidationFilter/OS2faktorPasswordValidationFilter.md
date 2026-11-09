@@ -22,6 +22,12 @@ Formålet med OS2faktors Password Filter er at sikre sammenhæng mellem kodeord 
 Filteret skal installeres på alle Domain Controllere.
 Filteret forudsætter desuden at .NET 8.0 Runtime er installeret på serveren.
 
+### 2.2 LSA beskyttelse (RunAsPPL)
+
+Er LSA beskyttelse slået til på Domain Controlleren (`RunAsPPL`), indlæser Windows kun password filtre der er signeret af Microsoft. Filteret distribueres Microsoft-signeret, så det virker både med og uden LSA beskyttelse.
+
+Bliver filteret afvist, logges det som hændelse **3033** i Event Viewer under `Applications and Services Logs > Microsoft > Windows > CodeIntegrity > Operational`.
+
 ---
 
 ## 3 Installation

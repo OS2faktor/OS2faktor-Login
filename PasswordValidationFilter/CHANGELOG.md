@@ -1,5 +1,11 @@
 # Changelog — OS2faktor Password Validation Filter
 
+## [1.2.0]
+
+### Added
+- Release builds can now be Microsoft-signed for LSA, so the filter loads on domain controllers with LSA protection (`RunAsPPL`) enabled — see `Signing/README.md`
+- Installer and uninstaller are now Authenticode-signed at compile time, removing the SmartScreen warning on install
+
 ## [1.1.0]
 
 ### Added

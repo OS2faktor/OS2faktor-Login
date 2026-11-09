@@ -1,0 +1,35 @@
+# .NET / MSBuild
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.sln.bak
+
+# C++ / MSVC
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+Debug/
+Release/
+x64/
+x86/
+ipch/
+*.VC.db
+*.VC.opendb
+
+# InnoSetup output
+Installer/Output/
+
+# Misc
+*.log
+*.tmp
+
+build/
+# LSA signing: keep the Microsoft-signed artifacts, drop the CAB workspace
+Signing/Output/
+Signing/Microsoft-Signed-Dlls/
